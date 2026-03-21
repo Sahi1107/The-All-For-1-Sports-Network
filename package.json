@@ -1,0 +1,20 @@
+{
+  "name": "allfor1-network",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=server",
+    "dev:client": "npm run dev --workspace=client",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "npm run build --workspace=server && npm run build --workspace=client",
+    "scan:secrets": "bash scripts/scan-secrets.sh",
+    "prepare": "bash scripts/install-hooks.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

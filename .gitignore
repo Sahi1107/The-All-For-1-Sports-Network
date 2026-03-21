@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Environment — never commit real env files; only *.example files are tracked
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.staging
+.env.test
+# Matches server/.env, client/.env.local, etc. anywhere in the tree
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Build output
+dist/
+build/
+
+# Prisma
+server/prisma/*.db
+server/prisma/migrations/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+server/logs/
+
+# Uploads
+uploads/
+
+# Coverage
+coverage/
+
+# Firebase service account keys — never commit these
+*-firebase-adminsdk-*.json
+firebase-service-account*.json
