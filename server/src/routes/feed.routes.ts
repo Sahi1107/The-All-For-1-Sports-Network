@@ -22,7 +22,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
       where: { followerId: req.user!.userId },
       select: { followingId: true },
     });
-    const followingIds = followingList.map((f) => f.followingId);
+    const followingIds = followingList.map((f: any) => f.followingId);
 
     // Feed: highlights from followed users + same sport (excluding own)
     const where: any = {

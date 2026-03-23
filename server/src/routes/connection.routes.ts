@@ -132,7 +132,7 @@ router.get('/followers', authenticate, async (req: AuthRequest, res: Response) =
       include: { follower: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ followers: followers.map((f) => f.follower) });
+    res.json({ followers: followers.map((f: any) => f.follower) });
   } catch (error) {
     console.error('Get followers error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -147,7 +147,7 @@ router.get('/following', authenticate, async (req: AuthRequest, res: Response) =
       include: { following: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ following: following.map((f) => f.following) });
+    res.json({ following: following.map((f: any) => f.following) });
   } catch (error) {
     console.error('Get following error:', error);
     res.status(500).json({ error: 'Internal server error' });
