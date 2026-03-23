@@ -1,6 +1,6 @@
 # All For 1 — Athlete Social Network
 
-A professional social network for athletes, coaches, and scouts. Users sign up with a role and sport, build networks, share highlight videos, form teams, register for tournaments, and view rankings.
+A professional social network for athletes, coaches, and scouts. Users sign up with a role and sport, build networks, share highlight videos, form teams, register for tournaments, and view rankings. The platform is fully cross-platform with a responsive Web application and native iOS & Android applications.
 
 **Initial sports:** Basketball, Football, Cricket
 
@@ -11,10 +11,12 @@ A professional social network for athletes, coaches, and scouts. Users sign up w
 | Layer        | Technology                                                       |
 | ------------ | ---------------------------------------------------------------- |
 | Frontend     | React 19 + Vite + TypeScript + Tailwind CSS v4 + React Router 7 |
+| Mobile       | Capacitor (Native iOS & Android compilation)                    |
 | State        | TanStack Query v5, React Context (auth)                         |
 | Backend      | Node.js + Express + TypeScript                                  |
 | Database     | PostgreSQL + Prisma ORM                                         |
-| Auth         | JWT (access + refresh tokens) + bcrypt                          |
+| Security & Logs| Helmet, Express Rate Limit, Winston Logging, Zod Validation     |
+| Auth & Push  | JWT (access + refresh tokens), bcrypt, Firebase / Firebase Admin|
 | Real-time    | Socket.IO                                                       |
 | File Storage | Cloudinary (video highlights + profile images)                  |
 | Monorepo     | npm workspaces + concurrently                                   |
@@ -34,21 +36,23 @@ The_AllFor1_Network/
 │   ├── .env                     # DB url, JWT secrets, Cloudinary keys (PORT=3001)
 │   ├── prisma/
 │   │   └── schema.prisma        # COMPLETE database schema (all models)
+│   ├── scripts/                 # Admin scripts (e.g. create-admin.ts)
 │   └── src/
 │       ├── index.ts             # HTTP server + Socket.IO setup (join/leave_conversation events)
-│       ├── app.ts               # Express app, CORS, route registration
+│       ├── app.ts               # Express app, CORS, security, route registration
 │       ├── config/
 │       │   ├── env.ts           # Env variable loader
 │       │   ├── db.ts            # Prisma client singleton
 │       │   ├── cloudinary.ts    # Cloudinary config
-│       │   └── socket.ts        # Shared Socket.IO instance (initIO / getIO) — avoids circular deps
+│       │   └── socket.ts        # Shared Socket.IO instance (initIO / getIO)
 │       ├── middleware/
 │       │   ├── auth.ts          # JWT verification middleware
+│       │   ├── rateLimiter.ts   # Rate limiting & brute force protection
 │       │   ├── roles.ts         # RBAC middleware (requireRole)
 │       │   └── upload.ts        # Multer config (video + image, memory storage)
 │       ├── routes/
 │       │   ├── auth.routes.ts        # ✅ register, login, refresh, me
-│       │   ├── user.routes.ts        # ✅ search/filter users, get profile, update profile (avatar upload)
+│       │   ├── user.routes.ts        # ✅ search/filter users, get profile, update profile
 │       │   ├── connection.routes.ts  # ✅ follow/unfollow, connection requests, followers/following
 │       │   ├── highlight.routes.ts   # ✅ upload to Cloudinary, list, get by user, delete
 │       │   ├── feed.routes.ts        # ✅ personalized feed (followed users + same sport)
@@ -65,32 +69,18 @@ The_AllFor1_Network/
     ├── package.json
     ├── tsconfig.json
     ├── vite.config.ts           # Tailwind v4 plugin, API proxy → :3001
+    ├── capacitor.config.ts      # Capacitor config for native builds
+    ├── android/                 # Android native app project files
+    ├── ios/                     # iOS native app project files
     ├── index.html
     └── src/
         ├── main.tsx
         ├── App.tsx              # ✅ Router with protected/public routes
-        ├── index.css            # Tailwind v4 @theme (dark UI: primary, dark-light, dark-lighter, gray-custom, accent)
-        ├── api/
-        │   └── client.ts       # ✅ Axios instance, JWT interceptor, auto-refresh
-        ├── contexts/
-        │   └── AuthContext.tsx  # ✅ login, register, logout, updateUser, user state
-        ├── layouts/
-        │   └── MainLayout.tsx  # ✅ Sidebar nav (role-aware), user section, logout
-        └── pages/
-            ├── Login.tsx          # ✅ Email/password form
-            ├── Register.tsx       # ✅ 3-step: info → role → sport
-            ├── Home.tsx           # ✅ Personalized feed with highlight video cards
-            ├── Explore.tsx        # ✅ Search + filters (role, sport), user cards grid
-            ├── Profile.tsx        # ✅ Full profile view (bio, highlights, teams, rankings, follow/connect)
-            ├── EditProfile.tsx    # ✅ Profile edit form with avatar upload + sport-specific positions
-            ├── Highlights.tsx     # ✅ Video grid, upload modal with progress bar, delete
-            ├── Teams.tsx          # ✅ All/Mine tabs, create modal, join/leave, roster view
-            ├── Tournaments.tsx    # ✅ Sport filter chips, tournament cards, detail modal, team registration
-            ├── Rankings.tsx       # ✅ Leaderboard table with medal badges, sport/tournament/category filters
-            ├── Announcements.tsx  # ✅ Announcement feed, create modal (coach/scout/admin), delete
-            ├── Messages.tsx       # ✅ Conversation sidebar + real-time chat (Socket.IO)
-            ├── Notifications.tsx  # ✅ Notification list, type icons, mark read, mark all read
-            └── AdminDashboard.tsx # ✅ Users tab (table, PATCH verify/role, delete), Stats tab (8 cards + sport breakdown)
+        ├── index.css            # Tailwind v4 @theme (dark UI)
+        ├── api/                 # ✅ Axios instance, JWT interceptor, auto-refresh
+        ├── contexts/            # ✅ AuthContext for multi-step onboarding & state management
+        ├── layouts/             # ✅ Sidebar nav (role-aware), user section, logout
+        └── pages/               # ✅ Pages for Login, Register, Home, Explore, Profile, EditProfile, Highlights, Teams, Tournaments, Rankings, Announcements, Messages, Notifications, AdminDashboard
 ```
 
 ---
@@ -219,70 +209,51 @@ The_AllFor1_Network/
 ### ✅ DONE
 
 #### Infrastructure
-- Full monorepo setup (npm workspaces, concurrently for single `npm run dev`)
-- PostgreSQL installed locally and running (via Homebrew, `postgresql@16`)
-- `allfor1` database created with `postgres` superuser
-- `npx prisma db push` completed — all 19 tables created
-- Server running on port 3001 (changed from 5000 — macOS AirPlay Receiver occupies 5000)
-- Client running on port 5173 with Vite proxy to 3001
-- End-to-end API tested: registration + login returning JWT tokens
+- Full monorepo setup (npm workspaces, concurrently for single `npm run dev`).
+- PostgreSQL installed locally and running; full schema tracking with Prisma.
+- Mobile App support implemented via Capacitor (iOS & Android compilation ready).
+- E2E API tests completed for key workflows like registration, login, and profile fetching.
+- Added comprehensive logging (`winston`) and server security (`helmet`, `express-rate-limit`).
 
-#### Backend (all 12 route files complete)
-- Auth system with JWT access + refresh tokens, bcrypt, RBAC middleware
-- User profiles with Cloudinary avatar upload (Multer memory storage → upload_stream)
-- Follow/connection system with notification triggers
-- Highlight uploads to Cloudinary (sport auto-fetched from user record)
-- Personalized feed
-- Teams (create, roster, join/leave)
-- Tournaments (admin CRUD, team registration, match results, per-sport player stats)
-- Rule-based ranking engine (sport-specific weighted scoring)
-- Announcements (coach/scout/admin, optional sport + type)
-- Notifications (real-time via Socket.IO)
-- Direct messaging with Socket.IO rooms (`join_conversation` / `leave_conversation`)
-- Admin dashboard API (user management PATCH, platform stats)
-- Shared Socket.IO instance pattern (`config/socket.ts`) to avoid circular dependencies
+#### Backend
+- Auth system with JWT access + refresh tokens, bcrypt, RBAC middleware.
+- Firebase integration initialized.
+- User profiles with Cloudinary avatar upload.
+- Follow/connection system with notification triggers.
+- Highlight uploads to Cloudinary (sport auto-fetched from user record).
+- Personalized feed.
+- Teams (create, roster, join/leave).
+- Tournaments (admin CRUD, team registration, match results, per-sport player stats).
+- Rule-based ranking engine (sport-specific weighted scoring).
+- Announcements (coach/scout/admin, optional sport + type).
+- Notifications (real-time via Socket.IO).
+- Direct messaging with Socket.IO rooms.
+- Admin dashboard API (user management PATCH, platform stats).
 
-#### Frontend (all 14 pages complete)
-- Login, Register (3-step flow: info → role → sport)
-- AuthContext + Axios interceptor with auto token refresh
-- MainLayout with role-aware sidebar navigation
-- Home (personalized highlight feed)
-- Explore (search + role/sport filters, user cards)
-- Profile (bio, highlights grid, teams, rankings, follow/connect buttons)
-- EditProfile (avatar upload, sport-specific position dropdown)
-- Highlights (video grid, upload modal with progress bar, delete)
-- Teams (All/Mine tabs, create modal, join/leave, roster)
-- Tournaments (sport filter chips, cards, detail modal, team registration)
-- Rankings (leaderboard table, medal emojis, sport/tournament/category filters)
-- Announcements (feed, create modal for coach/scout/admin, delete)
-- Messages (conversation sidebar + real-time Socket.IO chat)
-- Notifications (type icons, mark read, mark all read)
-- AdminDashboard (Users tab with inline role/verify/delete; Stats tab with 8 cards + sport breakdown)
+#### Frontend & Mobile
+- Cross-platform codebase functional on Web, iOS, and Android formats.
+- Complete Multi-step onboarding flow (Login, Register: info → role → sport).
+- AuthContext + Axios interceptor with auto token refresh.
+- MainLayout with role-aware sidebar navigation.
+- Home (personalized highlight feed) and Explore sections working smoothly.
+- Full capabilities built out across Profile editing, Video highlights uploads, Teams creation, and Tournament participation.
+- Live chat capabilities built relying on Socket.IO websockets.
 
 ---
 
-### ⬜ REMAINING
+### ⬜ REMAINING / PLANNED
 
-#### Required Before Full Functionality
-- **Cloudinary credentials** — Add real values to `server/.env`:
-  ```
-  CLOUDINARY_CLOUD_NAME="your-actual-cloud-name"
-  CLOUDINARY_API_KEY="your-actual-api-key"
-  CLOUDINARY_API_SECRET="your-actual-api-secret"
-  ```
-  Without these, highlight video uploads and avatar photo uploads will fail (all other features work).
+#### Required Before Public Launch
+- **Cloudinary credentials** — Ensure production `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` are stored securely in cloud-hosted env.
+- **Firebase credentials** — Inject realtime Firebase Auth service accounts where needed natively.
+- **Build & Deploy Process** — Complete server (Railway / Render) + client (Vercel / Netlify / App Store / Google Play) environment setups.
 
-#### Nice-to-Have / Future
-- **Seed data** — Script to populate demo users, teams, tournaments, highlights, rankings for local testing
-- **Admin tournament creation UI** — Form in AdminDashboard to create tournaments from the frontend
-- **Match result entry UI** — Admin form to input match scores and per-player stats (triggers ranking recalculation)
-- **Bracket / schedule view** — Visual tournament bracket or match schedule in the Tournaments detail modal
-- **Infinite scroll** on Home feed and Highlights grid (currently loads a fixed page)
-- **Video player component** — Inline playback with controls (currently links to Cloudinary URL)
-- **Profile ranking badges** — Show rank badges (🥇🥈🥉) on profile cards in Explore
-- **Push to production** — Deploy server (Railway / Render) + client (Vercel / Netlify), set production env vars
-- **Email verification** — Send email on register to verify address
-- **Password reset** — Forgot password flow
+#### Advanced Features (In Progress & Future)
+- **AI-Enhanced Basketball Rankings** — Implementing incremental learning algorithms, player clustering for archetype detection, anomaly detection for breakout performers, and trending analytics over time.
+- **Video player component** — Inline playback with controls rather than direct Cloudinary URLs.
+- **Admin Match result UI** — Forms to input match scores and per-player stats which triggers ranking recalculations.
+- **Email verification** — Complete the `nodemailer` SMTP setup to verify accounts robustly on registration.
+- **Password reset** — Complete forgot password flow relying on emails.
 
 ---
 
@@ -291,7 +262,7 @@ The_AllFor1_Network/
 ### Prerequisites
 - Node.js 18+
 - PostgreSQL running locally (installed via `brew install postgresql@16`)
-- Cloudinary account (for video/image uploads — app runs without it but uploads will fail)
+- Cloudinary account (for video/image uploads)
 
 ### Setup
 ```bash
@@ -299,14 +270,14 @@ The_AllFor1_Network/
 npm install          # from root (installs both server + client via workspaces)
 
 # Configure environment
-# Edit server/.env — PostgreSQL URL is pre-configured for local postgres user
-# Add your Cloudinary credentials (CLOUDINARY_CLOUD_NAME, API_KEY, API_SECRET)
+# Edit server/.env to use PostgreSQL URL and Cloudinary API configuration
+# Ensure Firebase credentials exist if using push notification/auth features.
 
 # Push database schema (creates all tables)
 cd server && npx prisma db push
 ```
 
-### Development
+### Development (Web)
 ```bash
 # From root — starts both server and client concurrently
 npm run dev
@@ -317,6 +288,15 @@ cd server && npm run dev
 
 # Terminal 2 — Client (port 5173)
 cd client && npm run dev
+```
+
+### Development (Mobile Apps)
+```bash
+cd client
+npm run build
+npx cap sync       # Copies web assets to native mobile project folders
+npx cap open ios   # Opens Xcode to build and run iOS app
+npx cap open android # Opens Android Studio to build and run Android app
 ```
 
 ### Ports
@@ -338,9 +318,9 @@ JWT_REFRESH_SECRET="your-refresh-secret-change-in-production"
 JWT_ACCESS_EXPIRY="15m"
 JWT_REFRESH_EXPIRY="7d"
 CLIENT_URL="http://localhost:5173"
-CLOUDINARY_CLOUD_NAME="your-cloud-name"       # ← needs real value for uploads
-CLOUDINARY_API_KEY="your-api-key"              # ← needs real value for uploads
-CLOUDINARY_API_SECRET="your-api-secret"        # ← needs real value for uploads
+CLOUDINARY_CLOUD_NAME="your-cloud-name"       
+CLOUDINARY_API_KEY="your-api-key"              
+CLOUDINARY_API_SECRET="your-api-secret"        
 ```
 
 ---
@@ -350,7 +330,5 @@ CLOUDINARY_API_SECRET="your-api-secret"        # ← needs real value for upload
 - **Port 3001** is used instead of 5000 because macOS AirPlay Receiver occupies port 5000 by default.
 - **Socket.IO** shared instance lives in `server/src/config/socket.ts` to avoid circular dependency between `index.ts` and `message.routes.ts`.
 - **Avatar uploads** use Multer memory storage + Cloudinary `upload_stream` (not disk storage) so no temp files are written.
-- **Highlight sport** is automatically pulled from the uploading user's profile — not required in the upload form.
-- **Announcement type** defaults to `GENERAL` in the schema — frontend can omit it.
-- **Admin routes** use `PATCH` (not `PUT`) for verify and role changes.
-# The-All-For-1-Sports-Network
+- **Rate limiting** is enabled on particular routes using `express-rate-limit` to prevent brute force.
+- **Highlight sport** is automatically pulled from the uploading user's profile.
