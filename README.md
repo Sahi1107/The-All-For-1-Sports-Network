@@ -353,3 +353,4 @@ CLOUDINARY_API_SECRET="your-api-secret"        # ← needs real value for upload
 - **Highlight sport** is automatically pulled from the uploading user's profile — not required in the upload form.
 - **Announcement type** defaults to `GENERAL` in the schema — frontend can omit it.
 - **Admin routes** use `PATCH` (not `PUT`) for verify and role changes.
+# The-All-For-1-Sports-Network
