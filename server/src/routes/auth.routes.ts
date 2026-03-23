@@ -4,7 +4,6 @@ import prisma from '../config/db';
 import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { reqStr, SportEnum, RoleEnum } from '../validation/common';
-import { authSyncLimiter, authMeLimiter } from '../middleware/rateLimiter';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -33,7 +32,7 @@ const SyncBody = z.object({
 // `firebaseUser.getIdToken(true)` to force-refresh the ID token so that
 // subsequent API calls include the custom claims.
 
-router.post('/sync', authSyncLimiter, async (req: Request, res: Response) => {
+router.post('/sync', async (req: Request, res: Response) => {
   // Verify Firebase token manually (custom claims not present yet for new users)
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -80,10 +79,26 @@ router.post('/sync', authSyncLimiter, async (req: Request, res: Response) => {
       return;
     }
 
+    const email = decoded.email.toLowerCase();
+
+    // If a record exists with this email but no firebaseUid (orphaned from old
+    // auth system), claim it by writing the firebaseUid instead of creating a dupe.
+    const orphan = await prisma.user.findUnique({ where: { email } });
+    if (orphan) {
+      const user = await prisma.user.update({
+        where: { email },
+        data:  { firebaseUid: decoded.uid, name, role, sport },
+      });
+      await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
+      logger.info('auth.sync.claimed_orphan', { userId: user.id });
+      res.status(201).json({ user, refreshClaims: true });
+      return;
+    }
+
     const user = await prisma.user.create({
       data: {
         firebaseUid: decoded.uid,
-        email:       decoded.email.toLowerCase(),
+        email,
         name,
         role,
         sport,
@@ -103,7 +118,7 @@ router.post('/sync', authSyncLimiter, async (req: Request, res: Response) => {
 
 // ─── GET /api/auth/me ──────────────────────────────────────────────────────────
 
-router.get('/me', authMeLimiter, authenticate, async (req: AuthRequest, res: Response) => {
+router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.userId },

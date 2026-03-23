@@ -4,7 +4,6 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { CreateTeamBody, TeamSearchQuery } from '../validation/team';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -32,7 +31,7 @@ router.post('/', authenticate, writeLimiter, validate({ body: CreateTeamBody }),
 
     res.status(201).json({ team });
   } catch (error) {
-    logger.error('Create team error:', { error: String(error) });
+    console.error('Create team error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -63,7 +62,7 @@ router.get('/', authenticate, validate({ query: TeamSearchQuery }), async (req: 
 
     res.json({ teams, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Get teams error:', { error: String(error) });
+    console.error('Get teams error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -91,7 +90,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 
     res.json({ team });
   } catch (error) {
-    logger.error('Get team error:', { error: String(error) });
+    console.error('Get team error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -125,7 +124,7 @@ router.post('/:id/join', authenticate, writeLimiter, async (req: AuthRequest, re
       res.status(409).json({ error: 'Already a member' });
       return;
     }
-    logger.error('Join team error:', { error: String(error) });
+    console.error('Join team error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -138,7 +137,7 @@ router.delete('/:id/leave', authenticate, async (req: AuthRequest, res: Response
     });
     res.json({ message: 'Left team' });
   } catch (error) {
-    logger.error('Leave team error:', { error: String(error) });
+    console.error('Leave team error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -156,7 +155,7 @@ router.delete('/:id/members/:userId', authenticate, async (req: AuthRequest, res
     });
     res.json({ message: 'Member removed' });
   } catch (error) {
-    logger.error('Remove member error:', { error: String(error) });
+    console.error('Remove member error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

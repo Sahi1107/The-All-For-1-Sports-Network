@@ -7,7 +7,6 @@ import { browseLimiter, uploadLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateVideoBytes } from '../middleware/upload';
 import { CreateHighlightBody, HighlightListQuery } from '../validation/post';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -60,7 +59,7 @@ router.post('/', authenticate, uploadLimiter, uploadVideo.single('video'), valid
 
     res.status(201).json({ highlight });
   } catch (error) {
-    logger.error('Upload highlight error:', { error: String(error) });
+    console.error('Upload highlight error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -89,7 +88,7 @@ router.get('/', authenticate, browseLimiter, validate({ query: HighlightListQuer
 
     res.json({ highlights, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Get highlights error:', { error: String(error) });
+    console.error('Get highlights error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -103,7 +102,7 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
     });
     res.json({ highlights });
   } catch (error) {
-    logger.error('Get user highlights error:', { error: String(error) });
+    console.error('Get user highlights error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -128,7 +127,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 
     res.json({ highlight: { ...highlight, views: highlight.views + 1 } });
   } catch (error) {
-    logger.error('Get highlight error:', { error: String(error) });
+    console.error('Get highlight error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -144,7 +143,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     await prisma.highlight.delete({ where: { id: req.params.id as string } });
     res.json({ message: 'Highlight deleted' });
   } catch (error) {
-    logger.error('Delete highlight error:', { error: String(error) });
+    console.error('Delete highlight error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

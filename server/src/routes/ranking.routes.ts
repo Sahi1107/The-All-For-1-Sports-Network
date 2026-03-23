@@ -3,7 +3,6 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { aiLimiter, browseLimiter } from '../middleware/rateLimiter';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -35,7 +34,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
 
     res.json({ rankings, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Get rankings error:', { error: String(error) });
+    console.error('Get rankings error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -132,7 +131,7 @@ router.post('/calculate/:tournamentId', authenticate, requireRole('ADMIN'), aiLi
 
     res.json({ message: 'Rankings calculated', count: rankingData.length });
   } catch (error) {
-    logger.error('Calculate rankings error:', { error: String(error) });
+    console.error('Calculate rankings error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

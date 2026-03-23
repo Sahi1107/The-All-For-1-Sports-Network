@@ -137,27 +137,3 @@ export const aiLimiter = make({
   message:  'Compute limit reached. You can trigger up to 20 operations per hour.',
   keyFn:    userOrIp,
 });
-
-/**
- * Auth sync endpoint — called once per registration + on login if claims are missing.
- * 10 requests per 15 minutes per IP.
- * Prevents account-creation floods.
- */
-export const authSyncLimiter = make({
-  name:     'auth.sync',
-  windowMs: 15 * 60 * 1000,
-  max:      10,
-  message:  'Too many auth requests. Please try again later.',
-});
-
-/**
- * /auth/me — fetches the current user profile on load.
- * 120 requests per 15 minutes per IP.
- * Generous for normal use but blocks hammering.
- */
-export const authMeLimiter = make({
-  name:     'auth.me',
-  windowMs: 15 * 60 * 1000,
-  max:      120,
-  message:  'Too many requests. Please slow down.',
-});

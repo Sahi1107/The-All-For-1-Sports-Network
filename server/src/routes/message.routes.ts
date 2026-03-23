@@ -5,7 +5,6 @@ import { getIO } from '../config/socket';
 import { messageLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { CreateConversationBody, SendMessageBody } from '../validation/message';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -53,7 +52,7 @@ router.get('/conversations', authenticate, async (req: AuthRequest, res: Respons
 
     res.json({ conversations });
   } catch (error) {
-    logger.error('Get conversations error:', { error: String(error) });
+    console.error('Get conversations error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -112,7 +111,7 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
 
     res.status(201).json({ conversation });
   } catch (error) {
-    logger.error('Create conversation error:', { error: String(error) });
+    console.error('Create conversation error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -139,7 +138,7 @@ router.get('/conversations/:id', authenticate, async (req: AuthRequest, res: Res
 
     res.json({ messages });
   } catch (error) {
-    logger.error('Get messages error:', { error: String(error) });
+    console.error('Get messages error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -185,7 +184,7 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
 
     res.status(201).json({ message });
   } catch (error) {
-    logger.error('Send message error:', { error: String(error) });
+    console.error('Send message error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

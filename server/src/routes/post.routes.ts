@@ -7,7 +7,6 @@ import { uploadLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateImageBytes, validateVideoBytes } from '../middleware/upload';
 import { CreatePostBody } from '../validation/post';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -77,7 +76,7 @@ router.post('/', authenticate, uploadLimiter, upload.single('media'), validate({
 
     res.status(201).json({ post });
   } catch (error) {
-    logger.error('Create post error:', { error: String(error) });
+    console.error('Create post error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

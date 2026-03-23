@@ -8,7 +8,6 @@ import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody,
 } from '../validation/tournament';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -35,7 +34,7 @@ router.post('/', authenticate, requireRole('ADMIN'), writeLimiter, validate({ bo
 
     res.status(201).json({ tournament });
   } catch (error) {
-    logger.error('Create tournament error:', { error: String(error) });
+    console.error('Create tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -63,7 +62,7 @@ router.get('/', authenticate, validate({ query: TournamentListQuery }), async (r
 
     res.json({ tournaments, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Get tournaments error:', { error: String(error) });
+    console.error('Get tournaments error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -101,7 +100,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 
     res.json({ tournament });
   } catch (error) {
-    logger.error('Get tournament error:', { error: String(error) });
+    console.error('Get tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -126,7 +125,7 @@ router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTo
 
     res.json({ tournament });
   } catch (error) {
-    logger.error('Update tournament error:', { error: String(error) });
+    console.error('Update tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -164,7 +163,7 @@ router.post('/:id/register', authenticate, writeLimiter, validate({ body: Regist
       res.status(409).json({ error: 'Team already registered' });
       return;
     }
-    logger.error('Register team error:', { error: String(error) });
+    console.error('Register team error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -194,7 +193,7 @@ router.post('/:id/matches', authenticate, requireRole('ADMIN'), validate({ body:
 
     res.status(201).json({ match });
   } catch (error) {
-    logger.error('Create match error:', { error: String(error) });
+    console.error('Create match error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -338,7 +337,7 @@ router.put('/matches/:matchId/result', authenticate, requireRole('ADMIN'), valid
 
     res.json({ message: 'Match result updated', matchId: req.params.matchId });
   } catch (error) {
-    logger.error('Update match result error:', { error: String(error) });
+    console.error('Update match result error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

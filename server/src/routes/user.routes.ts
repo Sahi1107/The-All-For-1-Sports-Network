@@ -7,7 +7,6 @@ import { Readable } from 'stream';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -45,7 +44,7 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
 
     res.json({ users, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Get users error:', { error: String(error) });
+    console.error('Get users error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -92,7 +91,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 
     res.json({ user, isFollowing: !!isFollowing, connection });
   } catch (error) {
-    logger.error('Get user error:', { error: String(error) });
+    console.error('Get user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -143,7 +142,7 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
 
     res.json({ user });
   } catch (error) {
-    logger.error('Update profile error:', { error: String(error) });
+    console.error('Update profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

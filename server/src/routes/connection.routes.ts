@@ -2,7 +2,6 @@ import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { socialLimiter } from '../middleware/rateLimiter';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -35,7 +34,7 @@ router.post('/follow/:userId', authenticate, socialLimiter, async (req: AuthRequ
       res.status(409).json({ error: 'Already following this user' });
       return;
     }
-    logger.error('Follow error:', { error: String(error) });
+    console.error('Follow error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -48,7 +47,7 @@ router.delete('/unfollow/:userId', authenticate, socialLimiter, async (req: Auth
     });
     res.json({ message: 'Unfollowed' });
   } catch (error) {
-    logger.error('Unfollow error:', { error: String(error) });
+    console.error('Unfollow error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -81,7 +80,7 @@ router.post('/request/:userId', authenticate, socialLimiter, async (req: AuthReq
       res.status(409).json({ error: 'Connection request already exists' });
       return;
     }
-    logger.error('Connection request error:', { error: String(error) });
+    console.error('Connection request error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -106,7 +105,7 @@ router.put('/:id/accept', authenticate, async (req: AuthRequest, res: Response) 
 
     res.json({ connection });
   } catch (error) {
-    logger.error('Accept connection error:', { error: String(error) });
+    console.error('Accept connection error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -120,7 +119,7 @@ router.put('/:id/reject', authenticate, async (req: AuthRequest, res: Response) 
     });
     res.json({ connection });
   } catch (error) {
-    logger.error('Reject connection error:', { error: String(error) });
+    console.error('Reject connection error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -135,7 +134,7 @@ router.get('/followers', authenticate, async (req: AuthRequest, res: Response) =
     });
     res.json({ followers: followers.map((f) => f.follower) });
   } catch (error) {
-    logger.error('Get followers error:', { error: String(error) });
+    console.error('Get followers error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -150,7 +149,7 @@ router.get('/following', authenticate, async (req: AuthRequest, res: Response) =
     });
     res.json({ following: following.map((f) => f.following) });
   } catch (error) {
-    logger.error('Get following error:', { error: String(error) });
+    console.error('Get following error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -165,7 +164,7 @@ router.get('/requests', authenticate, async (req: AuthRequest, res: Response) =>
     });
     res.json({ requests });
   } catch (error) {
-    logger.error('Get requests error:', { error: String(error) });
+    console.error('Get requests error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

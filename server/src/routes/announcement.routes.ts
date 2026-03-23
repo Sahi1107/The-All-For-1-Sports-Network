@@ -5,7 +5,6 @@ import { requireRole } from '../middleware/roles';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { CreateAnnouncementBody, AnnouncementListQuery } from '../validation/announcement';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -31,7 +30,7 @@ router.post('/', authenticate, requireRole('COACH', 'SCOUT', 'ADMIN'), writeLimi
 
     res.status(201).json({ announcement });
   } catch (error) {
-    logger.error('Create announcement error:', { error: String(error) });
+    console.error('Create announcement error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -59,7 +58,7 @@ router.get('/', authenticate, browseLimiter, validate({ query: AnnouncementListQ
 
     res.json({ announcements, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Get announcements error:', { error: String(error) });
+    console.error('Get announcements error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -76,7 +75,7 @@ router.delete('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     await prisma.announcement.delete({ where: { id: req.params.id as string } });
     res.json({ message: 'Announcement deleted' });
   } catch (error) {
-    logger.error('Delete announcement error:', { error: String(error) });
+    console.error('Delete announcement error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

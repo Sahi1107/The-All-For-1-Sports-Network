@@ -41,7 +41,7 @@ router.get('/users', validate({ query: AdminUserListQuery }), async (req: AuthRe
 
     res.json({ users, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Admin get users error:', { error: String(error) });
+    console.error('Admin get users error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -56,7 +56,7 @@ router.patch('/users/:id/verify', validate({ body: AdminVerifyBody }), async (re
     });
     res.json({ message: 'User updated', userId: user.id, verified: user.verified });
   } catch (error) {
-    logger.error('Verify user error:', { error: String(error) });
+    console.error('Verify user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -77,7 +77,7 @@ router.patch('/users/:id/role', validate({ body: AdminUpdateRoleBody }), async (
 
     res.json({ message: 'Role updated', userId: user.id, role: user.role });
   } catch (error) {
-    logger.error('Update role error:', { error: String(error) });
+    console.error('Update role error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -93,7 +93,7 @@ router.delete('/users/:id', async (req: AuthRequest, res: Response) => {
     await prisma.user.delete({ where: { id: req.params.id as string } });
     res.json({ message: 'User deleted' });
   } catch (error) {
-    logger.error('Delete user error:', { error: String(error) });
+    console.error('Delete user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -178,7 +178,7 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
       },
     });
   } catch (error) {
-    logger.error('Admin stats error:', { error: String(error) });
+    console.error('Admin stats error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

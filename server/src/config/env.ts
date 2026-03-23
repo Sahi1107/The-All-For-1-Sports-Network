@@ -32,11 +32,15 @@ export const env = {
   FIREBASE_PRIVATE_KEY:   requireEnv('FIREBASE_PRIVATE_KEY'),
 
   // ─── CORS ────────────────────────────────────────────────────
-  // Exact origin of the frontend. Must NOT end with a trailing slash.
-  // Required in production — must be set to your real domain.
-  CLIENT_URL: process.env.NODE_ENV === 'production'
-    ? requireEnv('CLIENT_URL')
-    : (process.env.CLIENT_URL || 'http://localhost:5173'),
+  // Comma-separated list of allowed origins (web + Capacitor mobile).
+  // e.g. CLIENT_URL="http://localhost:5173,capacitor://localhost,http://localhost"
+  CLIENT_URL: (() => {
+    const raw = process.env.NODE_ENV === 'production'
+      ? requireEnv('CLIENT_URL')
+      : (process.env.CLIENT_URL || 'http://localhost:5173,capacitor://localhost,http://localhost');
+    const origins = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    return origins.length === 1 ? origins[0] : origins;
+  })() as string | string[],
 
   // ─── Cloudinary ──────────────────────────────────────────────
   CLOUDINARY_CLOUD_NAME: requireEnv('CLOUDINARY_CLOUD_NAME'),

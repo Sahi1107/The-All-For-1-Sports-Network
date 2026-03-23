@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
-import { auth } from '../config/firebase';
 import api from '../api/client';
-import { io, Socket } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
+import { auth } from '../config/firebase';
 import { Send, MessageCircle, Plus, X, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -21,20 +21,21 @@ function timeAgo(date: string) {
 export default function Messages() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const socketRef = useRef<Socket | null>(null);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [messages, setMessages] = useState<any[]>([]);
   const [showNewConv, setShowNewConv] = useState(false);
   const [recipientSearch, setRecipientSearch] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
-  // Initialize socket with a fresh Firebase ID token on mount, disconnect on unmount
+  // Initialise socket once with a fresh Firebase ID token
   useEffect(() => {
     let mounted = true;
     auth.currentUser?.getIdToken().then((token) => {
       if (!mounted) return;
-      socketRef.current = io('/', {
+      const socketUrl = import.meta.env.VITE_API_URL || '/';
+      socketRef.current = io(socketUrl, {
         auth: { token },
         transports: ['websocket'],
       });
@@ -77,11 +78,9 @@ export default function Messages() {
   }, [activeConvId, qc]);
 
   useEffect(() => {
-    if (!activeConvId) return;
-    const s = socketRef.current;
-    if (!s) return;
-    s.emit('join_conversation', activeConvId);
-    return () => { s.emit('leave_conversation', activeConvId); };
+    if (!activeConvId || !socketRef.current) return;
+    socketRef.current.emit('join_conversation', activeConvId);
+    return () => { socketRef.current?.emit('leave_conversation', activeConvId); };
   }, [activeConvId]);
 
   const sendMutation = useMutation({

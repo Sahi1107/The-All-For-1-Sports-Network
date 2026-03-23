@@ -2,7 +2,6 @@ import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { browseLimiter } from '../middleware/rateLimiter';
-import logger from '../utils/logger';
 
 const router = Router();
 
@@ -50,7 +49,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
 
     res.json({ highlights, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
-    logger.error('Feed error:', { error: String(error) });
+    console.error('Feed error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
