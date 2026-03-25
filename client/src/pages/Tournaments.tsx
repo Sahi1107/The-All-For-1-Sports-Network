@@ -22,7 +22,7 @@ function formatDate(d: string) {
 }
 
 export default function Tournaments() {
-  const { user } = useAuth()
+  useAuth()
   const qc = useQueryClient()
   const [selected, setSelected] = useState<any | null>(null)
   const [sportFilter, setSportFilter] = useState('')

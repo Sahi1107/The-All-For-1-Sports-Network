@@ -8,12 +8,6 @@ import toast from 'react-hot-toast';
 
 type Tab = 'users' | 'stats' | 'create-admin';
 
-const ROLE_COLORS: Record<string, string> = {
-  ATHLETE: 'bg-primary/20 text-primary-light',
-  COACH: 'bg-secondary/20 text-secondary',
-  SCOUT: 'bg-accent/20 text-accent',
-  ADMIN: 'bg-purple-500/20 text-purple-400',
-};
 
 export default function AdminDashboard() {
   const { user } = useAuth();
