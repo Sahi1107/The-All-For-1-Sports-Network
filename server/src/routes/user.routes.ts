@@ -17,7 +17,9 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
     const where: any = {};
-    if (role) where.role = role;
+    // Never expose ADMIN accounts to other users
+    if (role && role !== 'ADMIN') where.role = role;
+    else where.role = { not: 'ADMIN' };
     if (sport) where.sport = sport;
     if (location) where.location = { contains: location as string, mode: 'insensitive' };
     if (search) {
