@@ -60,7 +60,7 @@ export default function Login() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src={logoUrl} alt="All For 1" className="h-20 mx-auto mb-4" />
+          <img src={logoUrl} alt="All For 1" className="h-32 mx-auto mb-4" />
           <p className="text-gray-custom">The network for athletes, coaches &amp; scouts</p>
         </div>
 

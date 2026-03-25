@@ -33,6 +33,7 @@ interface RegisterData {
   name: string;
   role: 'ATHLETE' | 'COACH' | 'SCOUT';
   sport: 'BASKETBALL' | 'FOOTBALL' | 'CRICKET';
+  age: number;
 }
 
 interface AuthContextType {
@@ -88,14 +89,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Register ─────────────────────────────────────────────────────────────
 
-  const register = async ({ email, password, name, role, sport }: RegisterData) => {
+  const register = async ({ email, password, name, role, sport, age }: RegisterData) => {
     // 1. Create Firebase Auth user
     const cred = await createUserWithEmailAndPassword(auth, email, password);
 
     // 2. Create Prisma user via /sync (before email is verified)
     //    The Prisma user must exist before we set custom claims.
     const rawToken = await cred.user.getIdToken();
-    await authedPost(rawToken, '/auth/sync', { name, role, sport });
+    await authedPost(rawToken, '/auth/sync', { name, role, sport, age });
 
     // 3. Send Firebase verification email.
     //    continueUrl brings the user back to login after they click the link.

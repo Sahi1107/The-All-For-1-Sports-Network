@@ -22,8 +22,6 @@ import readline from 'readline';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-
 function getArg(flag: string): string | undefined {
   const args = process.argv.slice(2);
   const idx  = args.indexOf(flag);
@@ -53,11 +51,6 @@ async function main() {
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     console.error('\nInvalid email address.\n');
-    process.exit(1);
-  }
-
-  if (!PASSWORD_REGEX.test(password)) {
-    console.error('\nPassword must be 8+ chars with uppercase, lowercase, and a digit.\n');
     process.exit(1);
   }
 

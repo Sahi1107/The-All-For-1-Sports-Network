@@ -16,6 +16,7 @@ import Messages from './pages/Messages';
 import Notifications from './pages/Notifications';
 import Announcements from './pages/Announcements';
 import AdminDashboard from './pages/AdminDashboard';
+import Settings from './pages/Settings';
 import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
@@ -65,6 +66,7 @@ function AppRoutes() {
         <Route path="profile/:id" element={<Profile />} />
         <Route path="profile/edit" element={<EditProfile />} />
         <Route path="admin" element={<AdminDashboard />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
 
       {/* Catch-all */}

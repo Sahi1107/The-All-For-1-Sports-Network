@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import logoUrl from '../assets/logo.svg';
-import { Mail } from 'lucide-react';
+import { Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const ROLES = [
   { value: 'ATHLETE', label: 'Athlete', desc: 'Showcase your skills & compete' },
@@ -18,49 +18,157 @@ const SPORTS = [
 ] as const;
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+function DOBPicker({ value, onChange }: { value: Date | null; onChange: (d: Date) => void }) {
+  const today = new Date();
+  // Must be at least 10 years old
+  const maxDate = new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
+  const minYear = today.getFullYear() - 100;
+
+  const startYear = value ? value.getFullYear() : maxDate.getFullYear();
+  const startMonth = value ? value.getMonth() : maxDate.getMonth();
+
+  const [viewYear, setViewYear]   = useState(startYear);
+  const [viewMonth, setViewMonth] = useState(startMonth);
+
+  const years = Array.from({ length: 91 }, (_, i) => maxDate.getFullYear() - i);
+
+  const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  const isDisabled = (day: number) => {
+    const d = new Date(viewYear, viewMonth, day);
+    return d > maxDate || d.getFullYear() < minYear;
+  };
+
+  const isSelected = (day: number) =>
+    !!value &&
+    value.getFullYear() === viewYear &&
+    value.getMonth()    === viewMonth &&
+    value.getDate()     === day;
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  };
+
+  const nextMonth = () => {
+    const ny = viewMonth === 11 ? viewYear + 1 : viewYear;
+    const nm = viewMonth === 11 ? 0 : viewMonth + 1;
+    if (ny > maxDate.getFullYear() || (ny === maxDate.getFullYear() && nm > maxDate.getMonth())) return;
+    setViewYear(ny); setViewMonth(nm);
+  };
+
+  const cells: (number | null)[] = [
+    ...Array(firstDay).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+
+  return (
+    <div className="bg-dark rounded-xl border border-dark-lighter p-4 select-none">
+      {/* Month / Year selectors */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <button type="button" onClick={prevMonth}
+          className="p-1.5 hover:bg-white/10 rounded-lg text-gray-custom hover:text-white transition-colors">
+          <ChevronLeft size={16} />
+        </button>
+        <div className="flex items-center gap-2 flex-1 justify-center">
+          <select
+            value={viewMonth}
+            onChange={e => setViewMonth(Number(e.target.value))}
+            className="bg-dark-lighter text-white text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary border border-dark-lighter"
+          >
+            {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
+          </select>
+          <select
+            value={viewYear}
+            onChange={e => setViewYear(Number(e.target.value))}
+            className="bg-dark-lighter text-white text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary border border-dark-lighter"
+          >
+            {years.map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <button type="button" onClick={nextMonth}
+          className="p-1.5 hover:bg-white/10 rounded-lg text-gray-custom hover:text-white transition-colors">
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      {/* Day labels */}
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_LABELS.map(d => (
+          <div key={d} className="text-center text-xs text-gray-custom py-1">{d}</div>
+        ))}
+      </div>
+
+      {/* Day cells */}
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {cells.map((day, i) =>
+          day === null ? <div key={`e-${i}`} /> : (
+            <button
+              key={day}
+              type="button"
+              disabled={isDisabled(day)}
+              onClick={() => { if (!isDisabled(day)) onChange(new Date(viewYear, viewMonth, day)); }}
+              className={`aspect-square text-xs rounded-full flex items-center justify-center transition-colors mx-auto w-7 h-7
+                ${isSelected(day)
+                  ? 'bg-primary text-dark font-bold'
+                  : isDisabled(day)
+                  ? 'text-white/20 cursor-not-allowed'
+                  : 'hover:bg-white/10 text-white'
+                }`}
+            >
+              {day}
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Register() {
   const { register } = useAuth();
-  const [step, setStep] = useState(1);
-  const [done, setDone] = useState(false);
-  const [form, setForm] = useState({
+  const [step, setStep]   = useState(1);
+  const [done, setDone]   = useState(false);
+  const [form, setForm]   = useState({
     name: '', email: '', password: '',
     role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | '',
     sport: '' as 'BASKETBALL' | 'FOOTBALL' | 'CRICKET' | '',
   });
+  const [dob, setDob]         = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.role || !form.sport) return;
+    if (!form.role || !form.sport || !dob) return;
     setLoading(true);
     try {
+      const today     = new Date();
+      const birthDate = new Date(dob);
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+
       await register({
-        name:     form.name,
-        email:    form.email,
-        password: form.password,
-        role:     form.role,
-        sport:    form.sport,
+        name: form.name, email: form.email, password: form.password,
+        role: form.role, sport: form.sport, age,
       });
       setDone(true);
     } catch (err: any) {
       const code = err.code ?? '';
-      if (code === 'auth/email-already-in-use') {
-        toast.error('An account with that email already exists.');
-      } else if (code === 'auth/weak-password') {
-        toast.error('Password is too weak.');
-      } else {
-        toast.error(err.message || 'Registration failed');
-      }
+      if (code === 'auth/email-already-in-use') toast.error('An account with that email already exists.');
+      else if (code === 'auth/weak-password')   toast.error('Password is too weak.');
+      else toast.error(err.message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
   const canAdvanceStep1 =
-    form.name.trim() &&
-    form.email.trim() &&
-    PASSWORD_REGEX.test(form.password);
+    form.name.trim() && form.email.trim() && PASSWORD_REGEX.test(form.password);
 
   if (done) {
     return (
@@ -75,12 +183,9 @@ export default function Register() {
             <p className="text-gray-custom text-sm mb-6">
               We sent a verification link to{' '}
               <span className="text-white font-medium">{form.email}</span>.
-              Click it to activate your account — you won't be able to log in until it's verified.
+              Click it to activate your account.
             </p>
-            <Link
-              to="/login"
-              className="block w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors"
-            >
+            <Link to="/login" className="block w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors">
               Go to Sign In
             </Link>
           </div>
@@ -98,9 +203,9 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-dark-light rounded-2xl p-8 border border-dark-lighter">
-          {/* Progress */}
+          {/* Progress bar — 4 steps */}
           <div className="flex gap-2 mb-6">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? 'bg-primary' : 'bg-dark-lighter'}`} />
             ))}
           </div>
@@ -143,7 +248,7 @@ export default function Register() {
                 />
                 {form.password && !PASSWORD_REGEX.test(form.password) && (
                   <p className="text-xs text-red-400 mt-1">
-                    Must be 8+ characters with an uppercase letter, lowercase letter, and number.
+                    Must be 8+ characters with uppercase, lowercase, and a number.
                   </p>
                 )}
               </div>
@@ -158,8 +263,38 @@ export default function Register() {
             </div>
           )}
 
-          {/* Step 2: Role */}
+          {/* Step 2: Date of Birth */}
           {step === 2 && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold">Date of Birth</h2>
+                <p className="text-sm text-gray-custom mt-1">This cannot be changed later.</p>
+              </div>
+              <DOBPicker value={dob} onChange={setDob} />
+              {dob && (
+                <p className="text-sm text-center text-white/70">
+                  Selected: <span className="text-white font-medium">
+                    {dob.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </span>
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => { if (dob) setStep(3); }}
+                disabled={!dob}
+                className="w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >
+                Continue
+              </button>
+              <button type="button" onClick={() => setStep(1)}
+                className="w-full py-2 text-gray-custom hover:text-white transition-colors">
+                Back
+              </button>
+            </div>
+          )}
+
+          {/* Step 3: Role */}
+          {step === 3 && (
             <div>
               <h2 className="text-xl font-semibold mb-4">I am a...</h2>
               <div className="space-y-3">
@@ -167,7 +302,7 @@ export default function Register() {
                   <button
                     key={value}
                     type="button"
-                    onClick={() => { setForm({ ...form, role: value }); setStep(3); }}
+                    onClick={() => { setForm({ ...form, role: value }); setStep(4); }}
                     className={`w-full p-4 rounded-lg border text-left transition-colors ${
                       form.role === value ? 'border-primary bg-primary/10' : 'border-dark-lighter hover:border-gray-custom'
                     }`}
@@ -177,15 +312,15 @@ export default function Register() {
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={() => setStep(1)}
+              <button type="button" onClick={() => setStep(2)}
                 className="w-full mt-4 py-2 text-gray-custom hover:text-white transition-colors">
                 Back
               </button>
             </div>
           )}
 
-          {/* Step 3: Sport */}
-          {step === 3 && (
+          {/* Step 4: Sport */}
+          {step === 4 && (
             <div>
               <h2 className="text-xl font-semibold mb-4">My sport</h2>
               <div className="space-y-3">
@@ -210,7 +345,7 @@ export default function Register() {
               >
                 {loading ? 'Creating account…' : 'Join All For 1'}
               </button>
-              <button type="button" onClick={() => setStep(2)}
+              <button type="button" onClick={() => setStep(3)}
                 className="w-full mt-2 py-2 text-gray-custom hover:text-white transition-colors">
                 Back
               </button>

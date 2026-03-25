@@ -22,7 +22,6 @@ export default function EditProfile() {
     bio: user?.bio ?? '',
     location: user?.location ?? '',
     position: user?.position ?? '',
-    age: user?.age ? String(user.age) : '',
     height: user?.height ?? '',
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar ?? null);
@@ -148,20 +147,6 @@ export default function EditProfile() {
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-custom mb-1">Age</label>
-            <input
-              name="age"
-              type="number"
-              min="10"
-              max="60"
-              value={form.age}
-              onChange={handleChange}
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
-              placeholder="25"
-            />
           </div>
 
           <div>
