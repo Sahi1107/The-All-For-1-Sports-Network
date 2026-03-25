@@ -115,17 +115,19 @@ export default function MainLayout() {
       </aside>
 
       {/* ── MOBILE TOP HEADER (hidden on desktop) ────────────────── */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 py-3 border-b border-white/10"
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-4 py-3 border-b border-white/10"
         style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
       >
-        <button onClick={() => setDrawerOpen(true)} className="p-2 text-gray-custom hover:text-white transition-colors">
+        <button onClick={() => setDrawerOpen(true)} className="p-2 text-gray-custom hover:text-white transition-colors w-10">
           <Menu size={22} />
         </button>
-        <Link to="/"><img src={logoUrl} alt="All For 1" className="h-9" /></Link>
+        <div className="flex-1 flex justify-center">
+          <Link to="/"><img src={logoUrl} alt="All For 1" className="h-9" /></Link>
+        </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-xs rounded-lg transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-xs rounded-lg transition-colors w-10 justify-center"
         >
-          <Plus size={15} />Post
+          <Plus size={15} />
         </button>
       </header>
 

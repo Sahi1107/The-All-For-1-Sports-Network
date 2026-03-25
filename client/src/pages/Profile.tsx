@@ -333,7 +333,7 @@ export default function Profile() {
       <div className="bg-dark-light rounded-xl border border-dark-lighter p-6 relative overflow-hidden">
         {(() => {
           const Backdrop = { CRICKET: CricketPitchBackdrop, BASKETBALL: BasketballCourtBackdrop, FOOTBALL: FootballPitchBackdrop }[profile.sport as string];
-          return Backdrop ? <div className="absolute inset-0 pointer-events-none opacity-[0.22]"><Backdrop /></div> : null;
+          return Backdrop ? <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-[0.22]"><Backdrop /></div> : null;
         })()}
         <div className="flex flex-col sm:flex-row gap-6 items-start relative z-10">
           {/* Avatar */}
