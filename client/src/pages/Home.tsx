@@ -237,7 +237,7 @@ export default function Home() {
     <div>
       {/* Full-screen sport backdrop — fixed so it fills the entire viewport */}
       {Backdrop && (
-        <div className="fixed top-0 bottom-0 right-0 pointer-events-none select-none z-[1]" style={{ left: '256px' }}>
+        <div className="hidden md:block fixed top-0 bottom-0 right-0 pointer-events-none select-none z-[1]" style={{ left: '256px' }}>
           <Backdrop />
         </div>
       )}
