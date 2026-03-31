@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, MapPin, Clock } from 'lucide-react';
 import api from '../api/client';
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import React from 'react';
 
 function timeAgo(date: string) {
@@ -222,6 +222,50 @@ const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
 export default function Home() {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
+  const postRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const rafRef = useRef<number>(0);
+
+  const applyDrum = useCallback(() => {
+    const mid = window.innerHeight / 2;
+    postRefs.current.forEach((el) => {
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const offset = (rect.top + rect.height / 2 - mid) / window.innerHeight;
+      const clamped = Math.max(-0.75, Math.min(0.75, offset));
+      const angle   = clamped * 38;
+      const opacity = Math.max(0.28, 1 - Math.abs(clamped) * 0.88);
+      const scale   = Math.max(0.86, 1 - Math.abs(clamped) * 0.16);
+      el.style.transform  = `perspective(1100px) rotateX(${angle}deg) scale(${scale})`;
+      el.style.opacity    = String(opacity);
+      el.style.transition = 'transform 0.12s ease-out, opacity 0.12s ease-out';
+    });
+  }, []);
+
+  // Enable scroll-snap on the page while Home is mounted
+  useEffect(() => {
+    const html = document.documentElement;
+    html.style.scrollSnapType      = 'y mandatory';
+    html.style.overscrollBehaviorY = 'contain';
+    return () => {
+      html.style.scrollSnapType      = '';
+      html.style.overscrollBehaviorY = '';
+    };
+  }, []);
+
+  // Run drum effect on scroll + whenever posts load/change
+  useEffect(() => {
+    const t = setTimeout(applyDrum, 50);
+    const onScroll = () => {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(applyDrum);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [applyDrum]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['feed', page],
@@ -261,10 +305,15 @@ export default function Home() {
           </div>
         ) : (
           <div className="space-y-6">
-            {data?.highlights?.map((highlight: any) => (
-              /* ── Glassmorphism card ── */
+            {data?.highlights?.map((highlight: any, i: number) => (
+              /* ── Drum scroll wrapper ── */
               <div
                 key={highlight.id}
+                ref={(el) => { postRefs.current[i] = el; }}
+                style={{ scrollSnapAlign: 'start', willChange: 'transform, opacity' }}
+              >
+              {/* ── Glassmorphism card ── */}
+              <div
                 className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl"
               >
                 {/* User header */}
@@ -328,6 +377,7 @@ export default function Home() {
                     )}
                   </div>
                 </div>
+              </div>
               </div>
             ))}
 
