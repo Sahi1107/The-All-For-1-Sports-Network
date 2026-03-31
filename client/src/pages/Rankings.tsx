@@ -11,9 +11,22 @@ const SPORT_ICONS: Record<string, string> = {
 };
 
 const CATEGORIES: Record<string, string[]> = {
-  BASKETBALL: ['OVERALL', 'SCORING', 'REBOUNDING', 'ASSISTS'],
-  FOOTBALL: ['OVERALL', 'GOALS', 'ASSISTS', 'DEFENDING'],
-  CRICKET: ['OVERALL', 'BATTING', 'BOWLING', 'ALL_ROUND'],
+  BASKETBALL: ['OVERALL', 'PG', 'SG', 'SF', 'PF', 'C'],
+  FOOTBALL:   ['OVERALL', 'FORWARDS', 'MIDFIELDERS', 'DEFENDERS', 'GOALKEEPERS'],
+  CRICKET:    ['OVERALL', 'BATTING', 'BOWLING', 'ALL_ROUND'],
+};
+
+// Maps a position category to substrings we match against athlete.position
+const POSITION_FILTER: Record<string, string[]> = {
+  PG:          ['pg', 'point guard'],
+  SG:          ['sg', 'shooting guard'],
+  SF:          ['sf', 'small forward'],
+  PF:          ['pf', 'power forward'],
+  C:           ['c', 'center', 'centre'],
+  FORWARDS:    ['forward', 'striker', 'winger', 'st', 'cf', 'lw', 'rw'],
+  MIDFIELDERS: ['mid', 'cm', 'cdm', 'cam', 'lm', 'rm'],
+  DEFENDERS:   ['defend', 'back', 'cb', 'lb', 'rb', 'rwb', 'lwb'],
+  GOALKEEPERS: ['keeper', 'gk', 'goalie'],
 };
 
 function RankBadge({ rank }: { rank: number }) {
@@ -28,14 +41,20 @@ export default function Rankings() {
   const [category, setCategory] = useState('OVERALL');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['rankings', sport, category],
+    queryKey: ['rankings', sport],
     queryFn: async () => {
-      const { data } = await api.get(`/rankings?sport=${sport}&category=${category}`);
+      const { data } = await api.get(`/rankings?sport=${sport}&category=OVERALL`);
       return data;
     },
   });
 
-  const rankings = data?.rankings ?? [];
+  const allRankings = data?.rankings ?? [];
+  const rankings = category === 'OVERALL'
+    ? allRankings
+    : allRankings.filter((r: any) => {
+        const pos = (r.athlete?.position ?? '').toLowerCase();
+        return (POSITION_FILTER[category] ?? []).some(kw => pos.includes(kw));
+      });
 
   return (
     <div>
