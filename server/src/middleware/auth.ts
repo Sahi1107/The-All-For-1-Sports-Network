@@ -3,9 +3,10 @@ import admin from '../config/firebaseAdmin';
 
 export interface AuthRequest extends Request {
   user?: {
-    userId: string; // Prisma user UUID (from Firebase custom claim)
-    email:  string;
-    role:   string;
+    userId:        string; // Prisma user UUID (from Firebase custom claim)
+    email:         string;
+    role:          string;
+    emailVerified: boolean;
   };
 }
 
@@ -42,7 +43,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
         return;
       }
 
-      req.user = { userId, email: decoded.email ?? '', role };
+      req.user = { userId, email: decoded.email ?? '', role, emailVerified: decoded.email_verified ?? false };
       next();
     })
     .catch(() => {

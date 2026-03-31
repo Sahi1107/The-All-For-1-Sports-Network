@@ -275,7 +275,7 @@ export default function Home() {
     },
   });
 
-  const Backdrop = SPORT_BACKDROP[user?.sport ?? ''];
+  const Backdrop = user?.role !== 'ADMIN' ? SPORT_BACKDROP[user?.sport ?? ''] : undefined;
 
   return (
     <div>

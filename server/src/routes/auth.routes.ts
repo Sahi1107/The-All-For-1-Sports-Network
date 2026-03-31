@@ -122,7 +122,7 @@ router.post('/sync', async (req: Request, res: Response) => {
 
 router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const user = await prisma.user.findUnique({
+    let user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
       select: {
         id: true, email: true, name: true, role: true, sport: true,
@@ -133,6 +133,18 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
+    }
+    // Auto-verify profile when Firebase email has been confirmed
+    if (req.user!.emailVerified && !user.verified) {
+      user = await prisma.user.update({
+        where: { id: req.user!.userId },
+        data: { verified: true },
+        select: {
+          id: true, email: true, name: true, role: true, sport: true,
+          avatar: true, bio: true, location: true, age: true, height: true,
+          position: true, achievements: true, verified: true, createdAt: true,
+        },
+      });
     }
     res.json({ user });
   } catch (error) {
