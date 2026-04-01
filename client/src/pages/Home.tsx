@@ -152,7 +152,7 @@ export default function Home() {
     },
   });
 
-  const drumEnabled = (data?.feed?.length ?? 0) >= 4;
+  const drumEnabled = (data?.feed?.length ?? 0) > 2;
 
   const applyDrum = useCallback(() => {
     if (!drumEnabled) {
