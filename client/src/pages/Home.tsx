@@ -144,23 +144,42 @@ export default function Home() {
   const postRefs = useRef<(HTMLDivElement | null)[]>([]);
   const rafRef = useRef<number>(0);
 
+  const { data, isLoading } = useQuery({
+    queryKey: ['feed', page],
+    queryFn: async () => {
+      const { data } = await api.get(`/feed?page=${page}&limit=20`);
+      return data;
+    },
+  });
+
+  const drumEnabled = (data?.feed?.length ?? 0) >= 4;
+
   const applyDrum = useCallback(() => {
+    if (!drumEnabled) {
+      postRefs.current.forEach((el) => {
+        if (!el) return;
+        el.style.transform = '';
+        el.style.opacity = '';
+      });
+      return;
+    }
     const mid = window.innerHeight / 2;
     postRefs.current.forEach((el) => {
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const offset = (rect.top + rect.height / 2 - mid) / window.innerHeight;
-      const clamped = Math.max(-0.75, Math.min(0.75, offset));
-      const angle   = clamped * 38;
-      const opacity = Math.max(0.28, 1 - Math.abs(clamped) * 0.88);
-      const scale   = Math.max(0.86, 1 - Math.abs(clamped) * 0.16);
-      el.style.transform  = `perspective(1100px) rotateX(${angle}deg) scale(${scale})`;
+      const clamped = Math.max(-0.5, Math.min(0.5, offset));
+      const angle   = clamped * 18;
+      const opacity = Math.max(0.55, 1 - Math.abs(clamped) * 0.6);
+      const scale   = Math.max(0.92, 1 - Math.abs(clamped) * 0.1);
+      el.style.transform  = `perspective(1200px) rotateX(${angle}deg) scale(${scale})`;
       el.style.opacity    = String(opacity);
-      el.style.transition = 'transform 0.12s ease-out, opacity 0.12s ease-out';
+      el.style.transition = 'transform 0.15s ease-out, opacity 0.15s ease-out';
     });
-  }, []);
+  }, [drumEnabled]);
 
   useEffect(() => {
+    if (!drumEnabled) return;
     const html = document.documentElement;
     html.style.scrollSnapType      = 'y mandatory';
     html.style.overscrollBehaviorY = 'contain';
@@ -168,7 +187,7 @@ export default function Home() {
       html.style.scrollSnapType      = '';
       html.style.overscrollBehaviorY = '';
     };
-  }, []);
+  }, [drumEnabled]);
 
   useEffect(() => {
     const t = setTimeout(applyDrum, 50);
@@ -183,14 +202,6 @@ export default function Home() {
       cancelAnimationFrame(rafRef.current);
     };
   }, [applyDrum]);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['feed', page],
-    queryFn: async () => {
-      const { data } = await api.get(`/feed?page=${page}&limit=20`);
-      return data;
-    },
-  });
 
   const Backdrop = user?.role !== 'ADMIN' ? SPORT_BACKDROP[user?.sport ?? ''] : undefined;
 
@@ -224,7 +235,7 @@ export default function Home() {
               <div
                 key={`${item.kind}-${item.id}`}
                 ref={(el) => { postRefs.current[i] = el; }}
-                style={{ scrollSnapAlign: 'start', willChange: 'transform, opacity' }}
+                style={drumEnabled ? { scrollSnapAlign: 'start', willChange: 'transform, opacity' } : undefined}
               >
                 <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl">
                   {/* User header */}
@@ -300,7 +311,7 @@ export default function Home() {
                   <div className="p-4">
                     {item.title && <h3 className="font-semibold">{item.title}</h3>}
                     {(item.content || item.description) && (
-                      <p className="text-sm text-gray-custom mt-1">{item.content || item.description}</p>
+                      <p className="text-sm text-white/80 mt-1 leading-relaxed">{item.content || item.description}</p>
                     )}
                     <div className="flex items-center gap-4 mt-3 text-xs text-gray-custom">
                       {item.kind === 'highlight' && (
