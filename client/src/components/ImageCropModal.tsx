@@ -11,37 +11,51 @@ interface Props {
   onClose: () => void;
 }
 
-async function getCroppedBlob(src: string, crop: Area, rotation: number): Promise<Blob> {
-  const img = await createImage(src);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-
-  const rad = (rotation * Math.PI) / 180;
-  const sin = Math.abs(Math.sin(rad));
-  const cos = Math.abs(Math.cos(rad));
-  const rW = img.width * cos + img.height * sin;
-  const rH = img.width * sin + img.height * cos;
-
-  canvas.width = rW;
-  canvas.height = rH;
-  ctx.translate(rW / 2, rH / 2);
-  ctx.rotate(rad);
-  ctx.drawImage(img, -img.width / 2, -img.height / 2);
-
-  const data = ctx.getImageData(crop.x, crop.y, crop.width, crop.height);
-  canvas.width = crop.width;
-  canvas.height = crop.height;
-  ctx.putImageData(data, 0, 0);
-
-  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.92));
-}
-
 function createImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.addEventListener('load', () => resolve(img));
-    img.addEventListener('error', reject);
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.setAttribute('crossOrigin', 'anonymous');
     img.src = url;
+  });
+}
+
+async function getCroppedBlob(src: string, crop: Area, rotation: number): Promise<Blob> {
+  const img = await createImage(src);
+
+  // Step 1: draw rotated image on a full-size canvas
+  const rad = (rotation * Math.PI) / 180;
+  const sin = Math.abs(Math.sin(rad));
+  const cos = Math.abs(Math.cos(rad));
+  const rotW = Math.floor(img.width * cos + img.height * sin);
+  const rotH = Math.floor(img.width * sin + img.height * cos);
+
+  const rotCanvas = document.createElement('canvas');
+  rotCanvas.width = rotW;
+  rotCanvas.height = rotH;
+  const rotCtx = rotCanvas.getContext('2d')!;
+  rotCtx.translate(rotW / 2, rotH / 2);
+  rotCtx.rotate(rad);
+  rotCtx.drawImage(img, -img.width / 2, -img.height / 2);
+
+  // Step 2: draw the cropped region onto the output canvas
+  const outCanvas = document.createElement('canvas');
+  outCanvas.width = crop.width;
+  outCanvas.height = crop.height;
+  const outCtx = outCanvas.getContext('2d')!;
+  outCtx.drawImage(
+    rotCanvas,
+    crop.x, crop.y, crop.width, crop.height,
+    0, 0, crop.width, crop.height,
+  );
+
+  return new Promise((resolve, reject) => {
+    outCanvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Canvas toBlob failed'))),
+      'image/jpeg',
+      0.92,
+    );
   });
 }
 
@@ -59,8 +73,12 @@ export default function ImageCropModal({ image, aspect = 1, round = false, onCro
   const handleSave = async () => {
     if (!croppedArea) return;
     setSaving(true);
-    const blob = await getCroppedBlob(image, croppedArea, rotation);
-    onCrop(blob);
+    try {
+      const blob = await getCroppedBlob(image, croppedArea, rotation);
+      onCrop(blob);
+    } catch {
+      setSaving(false);
+    }
   };
 
   return (
