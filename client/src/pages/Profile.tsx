@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ImageCarousel from '../components/ImageCarousel';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -561,9 +562,11 @@ export default function Profile() {
               <div className="space-y-3">
                 {posts.map((p: any) => (
                   <div key={p.id} className="bg-dark rounded-lg border border-dark-lighter overflow-hidden">
-                    {p.mediaUrl && p.type === 'IMAGE' && (
+                    {p.type === 'IMAGE' && (p.media?.length > 0 ? (
+                      <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
+                    ) : p.mediaUrl ? (
                       <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-64 object-cover" />
-                    )}
+                    ) : null)}
                     {p.mediaUrl && p.type === 'HIGHLIGHT' && (
                       <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
                     )}

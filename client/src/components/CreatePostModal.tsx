@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Type, Image, Video, Upload } from 'lucide-react';
+import { X, Type, Image, Video, Upload, Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 
@@ -15,7 +15,7 @@ export default function CreatePostModal({ onClose }: Props) {
   const [type, setType] = useState<PostType>('TEXT');
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -25,7 +25,9 @@ export default function CreatePostModal({ onClose }: Props) {
       formData.append('type', type);
       if (content) formData.append('content', content);
       if (title) formData.append('title', title);
-      if (file) formData.append('media', file);
+      for (const file of files) {
+        formData.append('media', file);
+      }
 
       const { data } = await api.post('/posts', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -47,10 +49,26 @@ export default function CreatePostModal({ onClose }: Props) {
 
   const canSubmit =
     (type === 'TEXT' && content.trim()) ||
-    (type === 'IMAGE' && file) ||
-    (type === 'HIGHLIGHT' && file && title.trim());
+    (type === 'IMAGE' && files.length > 0) ||
+    (type === 'HIGHLIGHT' && files.length > 0 && title.trim());
 
   const acceptType = type === 'HIGHLIGHT' ? 'video/*' : 'image/*';
+
+  const handleFiles = (selected: FileList | null) => {
+    if (!selected) return;
+    const newFiles = Array.from(selected);
+    if (type === 'IMAGE') {
+      // Allow up to 10 images total
+      setFiles((prev) => [...prev, ...newFiles].slice(0, 10));
+    } else {
+      // Highlights: single video only
+      setFiles([newFiles[0]]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -72,7 +90,7 @@ export default function CreatePostModal({ onClose }: Props) {
           ] as const).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              onClick={() => { setType(key); setFile(null); setContent(''); setTitle(''); }}
+              onClick={() => { setType(key); setFiles([]); setContent(''); setTitle(''); }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
                 type === key
                   ? 'text-primary border-b-2 border-primary'
@@ -111,29 +129,65 @@ export default function CreatePostModal({ onClose }: Props) {
           {/* File picker — image or video */}
           {(type === 'IMAGE' || type === 'HIGHLIGHT') && (
             <>
-              <div
-                onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-white/15 rounded-xl p-6 text-center cursor-pointer hover:border-primary/60 transition-colors"
-              >
-                {file ? (
-                  <div>
-                    <p className="text-sm font-medium text-white truncate">{file.name}</p>
-                    <p className="text-xs text-white/40 mt-1">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
-                  </div>
-                ) : (
-                  <div className="text-white/40">
-                    <Upload size={22} className="mx-auto mb-2" />
-                    <p className="text-sm">Click to select {type === 'IMAGE' ? 'photo' : 'video'}</p>
-                    <p className="text-xs mt-1">{type === 'IMAGE' ? 'JPG, PNG, WebP · max 5 MB' : 'MP4, MOV · max 100 MB'}</p>
-                  </div>
-                )}
-              </div>
+              {/* Thumbnail previews for selected images */}
+              {type === 'IMAGE' && files.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {files.map((f, i) => (
+                    <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-white/10 group">
+                      <img
+                        src={URL.createObjectURL(f)}
+                        alt={f.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        onClick={() => removeFile(i)}
+                        className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 size={14} className="text-red-400" />
+                      </button>
+                    </div>
+                  ))}
+                  {files.length < 10 && (
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="w-20 h-20 rounded-lg border-2 border-dashed border-white/15 flex items-center justify-center hover:border-primary/60 transition-colors"
+                    >
+                      <Plus size={20} className="text-white/40" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Drop zone — show when no files selected, or for highlights */}
+              {(files.length === 0 || type === 'HIGHLIGHT') && !(type === 'IMAGE' && files.length > 0) && (
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  className="border-2 border-dashed border-white/15 rounded-xl p-6 text-center cursor-pointer hover:border-primary/60 transition-colors"
+                >
+                  {files.length > 0 && type === 'HIGHLIGHT' ? (
+                    <div>
+                      <p className="text-sm font-medium text-white truncate">{files[0].name}</p>
+                      <p className="text-xs text-white/40 mt-1">{(files[0].size / 1024 / 1024).toFixed(1)} MB</p>
+                    </div>
+                  ) : (
+                    <div className="text-white/40">
+                      <Upload size={22} className="mx-auto mb-2" />
+                      <p className="text-sm">Click to select {type === 'IMAGE' ? 'photos' : 'video'}</p>
+                      <p className="text-xs mt-1">
+                        {type === 'IMAGE' ? 'JPG, PNG, WebP · max 5 MB each · up to 10 photos' : 'MP4, MOV · max 100 MB'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <input
                 ref={fileRef}
                 type="file"
                 accept={acceptType}
+                multiple={type === 'IMAGE'}
                 className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={(e) => handleFiles(e.target.files)}
               />
             </>
           )}

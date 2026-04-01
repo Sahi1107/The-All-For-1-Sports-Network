@@ -15,15 +15,29 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 },
 });
 
+function uploadToCloudinary(buffer: Buffer, resourceType: 'image' | 'video'): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { resource_type: resourceType, folder: 'allfor1/posts' },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    stream.end(buffer);
+  });
+}
+
 // POST /api/posts
-router.post('/', authenticate, uploadLimiter, upload.single('media'), validate({ body: CreatePostBody }), async (req: AuthRequest, res: Response) => {
+router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validate({ body: CreatePostBody }), async (req: AuthRequest, res: Response) => {
   try {
     const { type, content, title } = req.body;
+    const files = (req.files as Express.Multer.File[]) || [];
 
     // Magic-byte validation for uploaded media
-    if (req.file) {
-      if (type === 'IMAGE'     && !validateImageBytes(req.file, res)) return;
-      if (type === 'HIGHLIGHT' && !validateVideoBytes(req.file, res)) return;
+    for (const file of files) {
+      if (type === 'IMAGE'     && !validateImageBytes(file, res)) return;
+      if (type === 'HIGHLIGHT' && !validateVideoBytes(file, res)) return;
     }
 
     const uploader = await prisma.user.findUnique({
@@ -31,31 +45,25 @@ router.post('/', authenticate, uploadLimiter, upload.single('media'), validate({
       select: { sport: true },
     });
 
-    let mediaUrl: string | undefined;
-    if ((type === 'IMAGE' || type === 'HIGHLIGHT') && req.file) {
+    // Upload all files to Cloudinary in parallel
+    const mediaUrls: string[] = [];
+    if ((type === 'IMAGE' || type === 'HIGHLIGHT') && files.length > 0) {
       const resourceType = type === 'HIGHLIGHT' ? 'video' : 'image';
-      const uploadResult = await new Promise<any>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { resource_type: resourceType, folder: 'allfor1/posts' },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
-        stream.end(req.file!.buffer);
-      });
-      mediaUrl = uploadResult.secure_url;
+      const results = await Promise.all(
+        files.map((file) => uploadToCloudinary(file.buffer, resourceType))
+      );
+      mediaUrls.push(...results.map((r) => r.secure_url));
     }
 
     if (type === 'TEXT' && !content) {
       res.status(400).json({ error: 'Content is required for text posts' });
       return;
     }
-    if (type === 'IMAGE' && !mediaUrl) {
-      res.status(400).json({ error: 'Image file is required' });
+    if (type === 'IMAGE' && mediaUrls.length === 0) {
+      res.status(400).json({ error: 'At least one image file is required' });
       return;
     }
-    if (type === 'HIGHLIGHT' && !mediaUrl) {
+    if (type === 'HIGHLIGHT' && mediaUrls.length === 0) {
       res.status(400).json({ error: 'Video file is required' });
       return;
     }
@@ -66,11 +74,15 @@ router.post('/', authenticate, uploadLimiter, upload.single('media'), validate({
         type: type as any,
         content: content || null,
         title: title || null,
-        mediaUrl: mediaUrl || null,
+        mediaUrl: mediaUrls[0] || null,
         sport: uploader?.sport as any,
+        media: mediaUrls.length > 0 ? {
+          create: mediaUrls.map((url, i) => ({ url, position: i })),
+        } : undefined,
       },
       include: {
         user: { select: { id: true, name: true, avatar: true, role: true, sport: true } },
+        media: { orderBy: { position: 'asc' } },
       },
     });
 
@@ -86,7 +98,10 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
   try {
     const posts = await prisma.post.findMany({
       where: { userId: req.params.userId as string },
-      include: { user: { select: { id: true, name: true, avatar: true } } },
+      include: {
+        user: { select: { id: true, name: true, avatar: true } },
+        media: { orderBy: { position: 'asc' } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     res.json({ posts });
