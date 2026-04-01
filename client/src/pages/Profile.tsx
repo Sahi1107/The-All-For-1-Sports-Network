@@ -362,10 +362,12 @@ export default function Profile() {
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[profile.role] || 'bg-dark-lighter text-gray-custom'}`}>
                     {profile.role}
                   </span>
-                  <span className="text-white/80 text-sm">
-                    {SPORT_ICONS[profile.sport]} {profile.sport}
-                  </span>
-                  {profile.position && (
+                  {profile.role !== 'ADMIN' && (
+                    <span className="text-white/80 text-sm">
+                      {SPORT_ICONS[profile.sport]} {profile.sport}
+                    </span>
+                  )}
+                  {profile.position && profile.role !== 'ADMIN' && (
                     <span className="text-white/70 text-sm">· {profile.position}</span>
                   )}
                 </div>

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Type, Image, Video, Upload, Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import ImageCropModal from './ImageCropModal';
 
 type PostType = 'TEXT' | 'IMAGE' | 'HIGHLIGHT';
 
@@ -18,6 +19,10 @@ export default function CreatePostModal({ onClose }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Crop state: queue of raw files waiting to be cropped
+  const [cropQueue, setCropQueue] = useState<string[]>([]);
+  const [rawQueue, setRawQueue] = useState<File[]>([]);
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -58,12 +63,31 @@ export default function CreatePostModal({ onClose }: Props) {
     if (!selected) return;
     const newFiles = Array.from(selected);
     if (type === 'IMAGE') {
-      // Allow up to 10 images total
-      setFiles((prev) => [...prev, ...newFiles].slice(0, 10));
+      // Open crop modal for each selected image
+      const urls = newFiles.map((f) => URL.createObjectURL(f));
+      setRawQueue(newFiles);
+      setCropQueue(urls);
     } else {
-      // Highlights: single video only
+      // Highlights: single video, no crop
       setFiles([newFiles[0]]);
     }
+  };
+
+  const handleCropped = (blob: Blob) => {
+    const file = new File([blob], rawQueue[0]?.name || 'photo.jpg', { type: 'image/jpeg' });
+    setFiles((prev) => [...prev, file].slice(0, 10));
+    // Advance to next in queue
+    setCropQueue((q) => q.slice(1));
+    setRawQueue((q) => q.slice(1));
+  };
+
+  const handleCropSkip = () => {
+    // Skip cropping, use original file
+    if (rawQueue[0]) {
+      setFiles((prev) => [...prev, rawQueue[0]].slice(0, 10));
+    }
+    setCropQueue((q) => q.slice(1));
+    setRawQueue((q) => q.slice(1));
   };
 
   const removeFile = (index: number) => {
@@ -187,7 +211,7 @@ export default function CreatePostModal({ onClose }: Props) {
                 accept={acceptType}
                 multiple={type === 'IMAGE'}
                 className="hidden"
-                onChange={(e) => handleFiles(e.target.files)}
+                onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
               />
             </>
           )}
@@ -216,6 +240,16 @@ export default function CreatePostModal({ onClose }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Crop modal — processes one image at a time from the queue */}
+      {cropQueue.length > 0 && (
+        <ImageCropModal
+          image={cropQueue[0]}
+          aspect={4 / 5}
+          onCrop={handleCropped}
+          onClose={handleCropSkip}
+        />
+      )}
     </div>
   );
 }

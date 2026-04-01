@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { Camera, Save, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ImageCropModal from '../components/ImageCropModal';
 
 const POSITIONS: Record<string, string[]> = {
   BASKETBALL: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
@@ -26,12 +27,19 @@ export default function EditProfile() {
   });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar ?? null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [cropImage, setCropImage] = useState<string | null>(null);
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCropImage(URL.createObjectURL(file));
+  };
+
+  const handleCropped = (blob: Blob) => {
+    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
     setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarPreview(URL.createObjectURL(blob));
+    setCropImage(null);
   };
 
   const mutation = useMutation({
@@ -134,39 +142,45 @@ export default function EditProfile() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-custom mb-1">Position</label>
-            <select
-              name="position"
-              value={form.position}
-              onChange={handleChange}
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
-            >
-              <option value="">Select position</option>
-              {(POSITIONS[user?.sport ?? ''] ?? []).map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </div>
+          {user?.role !== 'ADMIN' && (
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">Position</label>
+              <select
+                name="position"
+                value={form.position}
+                onChange={handleChange}
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+              >
+                <option value="">Select position</option>
+                {(POSITIONS[user?.sport ?? ''] ?? []).map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          <div>
-            <label className="block text-sm text-gray-custom mb-1">Height</label>
-            <input
-              name="height"
-              value={form.height}
-              onChange={handleChange}
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
-              placeholder='6&apos;2" or 188cm'
-            />
-          </div>
+          {user?.role !== 'ADMIN' && (
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">Height</label>
+              <input
+                name="height"
+                value={form.height}
+                onChange={handleChange}
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                placeholder='6&apos;2" or 188cm'
+              />
+            </div>
+          )}
         </div>
 
         {/* Sport & Role (read-only) */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-gray-custom mb-1">Sport</label>
-            <div className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-gray-custom">{user?.sport}</div>
-          </div>
+        <div className={`grid gap-4 ${user?.role === 'ADMIN' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          {user?.role !== 'ADMIN' && (
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">Sport</label>
+              <div className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-gray-custom">{user?.sport}</div>
+            </div>
+          )}
           <div>
             <label className="block text-sm text-gray-custom mb-1">Role</label>
             <div className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-gray-custom">{user?.role}</div>
@@ -184,6 +198,17 @@ export default function EditProfile() {
           Save Changes
         </button>
       </form>
+
+      {/* Crop modal for avatar */}
+      {cropImage && (
+        <ImageCropModal
+          image={cropImage}
+          aspect={1}
+          round
+          onCrop={handleCropped}
+          onClose={() => setCropImage(null)}
+        />
+      )}
     </div>
   );
 }

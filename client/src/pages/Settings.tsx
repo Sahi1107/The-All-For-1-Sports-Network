@@ -103,19 +103,23 @@ export default function Settings() {
       <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
         <h2 className="font-semibold flex items-center gap-2 mb-4">
           <Shield size={16} className="text-accent" />
-          Role & Sport
+          {user?.role === 'ADMIN' ? 'Role' : 'Role & Sport'}
         </h2>
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className={`grid gap-4 text-sm ${user?.role === 'ADMIN' ? 'grid-cols-1' : 'grid-cols-2'}`}>
           <div className="bg-dark rounded-lg p-3">
             <p className="text-gray-custom text-xs mb-1">Role</p>
             <p className="font-medium capitalize">{user?.role?.toLowerCase()}</p>
           </div>
-          <div className="bg-dark rounded-lg p-3">
-            <p className="text-gray-custom text-xs mb-1">Sport</p>
-            <p className="font-medium capitalize">{user?.sport?.toLowerCase()}</p>
-          </div>
+          {user?.role !== 'ADMIN' && (
+            <div className="bg-dark rounded-lg p-3">
+              <p className="text-gray-custom text-xs mb-1">Sport</p>
+              <p className="font-medium capitalize">{user?.sport?.toLowerCase()}</p>
+            </div>
+          )}
         </div>
-        <p className="text-xs text-gray-custom mt-3">Role and sport cannot be changed once selected.</p>
+        <p className="text-xs text-gray-custom mt-3">
+          {user?.role === 'ADMIN' ? 'Role cannot be changed.' : 'Role and sport cannot be changed once selected.'}
+        </p>
       </section>
 
       {/* Notifications placeholder */}

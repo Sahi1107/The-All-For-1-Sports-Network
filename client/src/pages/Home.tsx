@@ -295,7 +295,7 @@ export default function Home() {
         ) : data?.highlights?.length === 0 ? (
           <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-12 text-center shadow-xl">
             <p className="text-gray-custom text-lg">Your feed is empty</p>
-            <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their highlights here</p>
+            <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their posts here</p>
             <Link
               to="/explore"
               className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors"
