@@ -214,6 +214,18 @@ export default function Home() {
       )}
 
       <div className="relative z-10">
+        {/* Prompt for users who haven't set their location yet */}
+        {!isLoading && user && !user.location && (
+          <div className="mb-4 flex items-center justify-between gap-3 bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 text-sm">
+            <span className="text-white/80">
+              <span className="text-primary font-semibold">Complete your profile</span> — add your country, state, and city so others can find you.
+            </span>
+            <Link to="/profile/edit" className="shrink-0 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors text-xs">
+              Edit Profile
+            </Link>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex justify-center py-16">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

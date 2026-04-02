@@ -198,3 +198,4 @@ npx cap open android # Opens Android Studio to build and run Android app
 - Backend API: http://localhost:3001
 - API routes: http://localhost:3001/api/*
 - Vite proxies `/api` and `/socket.io` to the backend automatically
+

@@ -6,12 +6,21 @@ import api from '../api/client';
 import { Camera, Save, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageCropModal from '../components/ImageCropModal';
+import { COUNTRY_LIST, getStates, getCities, HEIGHT_OPTIONS } from '../data/locationData';
 
 const POSITIONS: Record<string, string[]> = {
   BASKETBALL: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
   FOOTBALL: ['Goalkeeper', 'Defender', 'Midfielder', 'Winger', 'Striker'],
   CRICKET: ['Batsman', 'Bowler', 'All-Rounder', 'Wicket-Keeper'],
 };
+
+function parseLocation(loc: string | undefined): { country: string; state: string; city: string } {
+  if (!loc) return { country: '', state: '', city: '' };
+  const parts = loc.split(', ');
+  if (parts.length === 3) return { city: parts[0], state: parts[1], country: parts[2] };
+  if (parts.length === 2) return { country: parts[1], state: parts[0], city: '' };
+  return { country: parts[0], state: '', city: '' };
+}
 
 export default function EditProfile() {
   const { user, updateUser } = useAuth();
@@ -21,10 +30,12 @@ export default function EditProfile() {
   const [form, setForm] = useState({
     name: user?.name ?? '',
     bio: user?.bio ?? '',
-    location: user?.location ?? '',
     position: user?.position ?? '',
     height: user?.height ?? '',
   });
+  const [country, setCountry] = useState(() => parseLocation(user?.location).country);
+  const [state,   setState]   = useState(() => parseLocation(user?.location).state);
+  const [city,    setCity]    = useState(() => parseLocation(user?.location).city);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar ?? null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [cropImage, setCropImage] = useState<string | null>(null);
@@ -48,6 +59,12 @@ export default function EditProfile() {
       Object.entries(form).forEach(([k, v]) => {
         if (v !== '') formData.append(k, v);
       });
+      const location = country
+        ? state
+          ? city ? `${city}, ${state}, ${country}` : `${state}, ${country}`
+          : country
+        : '';
+      if (location) formData.append('location', location);
       if (avatarFile) formData.append('avatar', avatarFile);
       const { data } = await api.put('/users/profile', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -131,15 +148,42 @@ export default function EditProfile() {
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-custom mb-1">Location</label>
-            <input
-              name="location"
-              value={form.location}
-              onChange={handleChange}
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
-              placeholder="City, Country"
-            />
+          <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">Country</label>
+              <select
+                value={country}
+                onChange={e => { setCountry(e.target.value); setState(''); setCity(''); }}
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+              >
+                <option value="">Select country</option>
+                {COUNTRY_LIST.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">State / Province</label>
+              <select
+                value={state}
+                onChange={e => { setState(e.target.value); setCity(''); }}
+                disabled={!country}
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary disabled:opacity-50"
+              >
+                <option value="">Select state</option>
+                {getStates(country).map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">City</label>
+              <select
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                disabled={!state}
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary disabled:opacity-50"
+              >
+                <option value="">Select city</option>
+                {getCities(country, state).map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
           </div>
 
           {user?.role !== 'ADMIN' && (
@@ -162,13 +206,15 @@ export default function EditProfile() {
           {user?.role !== 'ADMIN' && (
             <div>
               <label className="block text-sm text-gray-custom mb-1">Height</label>
-              <input
+              <select
                 name="height"
                 value={form.height}
                 onChange={handleChange}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
-                placeholder='6&apos;2" or 188cm'
-              />
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+              >
+                <option value="">Select height</option>
+                {HEIGHT_OPTIONS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
+              </select>
             </div>
           )}
         </div>

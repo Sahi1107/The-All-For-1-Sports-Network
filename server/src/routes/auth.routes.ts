@@ -11,10 +11,12 @@ const router = Router();
 // ─── Body schema for new-user sync ────────────────────────────────────────────
 
 const SyncBody = z.object({
-  name:  reqStr(50, 'Name'),
-  role:  RoleEnum,
-  sport: SportEnum,
-  age:   z.number().int().min(10).max(100).optional(),
+  name:     reqStr(50, 'Name'),
+  role:     RoleEnum,
+  sport:    SportEnum,
+  age:      z.number().int().min(10).max(100).optional(),
+  location: z.string().max(200).optional(),
+  height:   z.string().max(20).optional(),
 });
 
 // ─── POST /api/auth/sync ───────────────────────────────────────────────────────
@@ -73,7 +75,7 @@ router.post('/sync', async (req: Request, res: Response) => {
       });
       return;
     }
-    const { name, role, sport, age } = parse.data;
+    const { name, role, sport, age, location, height } = parse.data;
 
     if (!decoded.email) {
       res.status(400).json({ error: 'Firebase account has no email' });
@@ -88,7 +90,7 @@ router.post('/sync', async (req: Request, res: Response) => {
     if (orphan) {
       const user = await prisma.user.update({
         where: { email },
-        data:  { firebaseUid: decoded.uid, name, role, sport, ...(age !== undefined && { age }) },
+        data:  { firebaseUid: decoded.uid, name, role, sport, ...(age !== undefined && { age }), ...(location && { location }), ...(height && { height }) },
       });
       await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
       logger.info('auth.sync.claimed_orphan', { userId: user.id });
@@ -103,7 +105,9 @@ router.post('/sync', async (req: Request, res: Response) => {
         name,
         role,
         sport,
-        ...(age !== undefined && { age }),
+        ...(age      !== undefined && { age }),
+        ...(location && { location }),
+        ...(height   && { height }),
       },
     });
 

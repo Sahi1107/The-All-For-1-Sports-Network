@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import logoUrl from '../assets/logo.svg';
 import { Mail, ChevronLeft, ChevronRight } from 'lucide-react';
+import { COUNTRY_LIST, getStates, getCities, HEIGHT_OPTIONS } from '../data/locationData';
 
 const ROLES = [
   { value: 'ATHLETE', label: 'Athlete', desc: 'Showcase your skills & compete' },
@@ -23,7 +24,6 @@ const DAY_LABELS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 
 function DOBPicker({ value, onChange }: { value: Date | null; onChange: (d: Date) => void }) {
   const today = new Date();
-  // Must be at least 10 years old
   const maxDate = new Date(today.getFullYear() - 10, today.getMonth(), today.getDate());
   const minYear = today.getFullYear() - 100;
 
@@ -34,7 +34,6 @@ function DOBPicker({ value, onChange }: { value: Date | null; onChange: (d: Date
   const [viewMonth, setViewMonth] = useState(startMonth);
 
   const years = Array.from({ length: 91 }, (_, i) => maxDate.getFullYear() - i);
-
   const firstDay    = new Date(viewYear, viewMonth, 1).getDay();
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
@@ -68,25 +67,18 @@ function DOBPicker({ value, onChange }: { value: Date | null; onChange: (d: Date
 
   return (
     <div className="bg-dark rounded-xl border border-dark-lighter p-4 select-none">
-      {/* Month / Year selectors */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <button type="button" onClick={prevMonth}
           className="p-1.5 hover:bg-white/10 rounded-lg text-gray-custom hover:text-white transition-colors">
           <ChevronLeft size={16} />
         </button>
         <div className="flex items-center gap-2 flex-1 justify-center">
-          <select
-            value={viewMonth}
-            onChange={e => setViewMonth(Number(e.target.value))}
-            className="bg-dark-lighter text-white text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary border border-dark-lighter"
-          >
+          <select value={viewMonth} onChange={e => setViewMonth(Number(e.target.value))}
+            className="bg-dark-lighter text-white text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary border border-dark-lighter">
             {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
           </select>
-          <select
-            value={viewYear}
-            onChange={e => setViewYear(Number(e.target.value))}
-            className="bg-dark-lighter text-white text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary border border-dark-lighter"
-          >
+          <select value={viewYear} onChange={e => setViewYear(Number(e.target.value))}
+            className="bg-dark-lighter text-white text-xs rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary border border-dark-lighter">
             {years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
@@ -95,22 +87,15 @@ function DOBPicker({ value, onChange }: { value: Date | null; onChange: (d: Date
           <ChevronRight size={16} />
         </button>
       </div>
-
-      {/* Day labels */}
       <div className="grid grid-cols-7 mb-1">
         {DAY_LABELS.map(d => (
           <div key={d} className="text-center text-xs text-gray-custom py-1">{d}</div>
         ))}
       </div>
-
-      {/* Day cells */}
       <div className="grid grid-cols-7 gap-y-0.5">
         {cells.map((day, i) =>
           day === null ? <div key={`e-${i}`} /> : (
-            <button
-              key={day}
-              type="button"
-              disabled={isDisabled(day)}
+            <button key={day} type="button" disabled={isDisabled(day)}
               onClick={() => { if (!isDisabled(day)) onChange(new Date(viewYear, viewMonth, day)); }}
               className={`aspect-square text-xs rounded-full flex items-center justify-center transition-colors mx-auto w-7 h-7
                 ${isSelected(day)
@@ -131,15 +116,27 @@ function DOBPicker({ value, onChange }: { value: Date | null; onChange: (d: Date
 
 export default function Register() {
   const { register } = useAuth();
-  const [step, setStep]   = useState(1);
-  const [done, setDone]   = useState(false);
-  const [form, setForm]   = useState({
+  const [step, setStep] = useState(1);
+  const [done, setDone] = useState(false);
+  const [form, setForm] = useState({
     name: '', email: '', password: '',
     role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | '',
     sport: '' as 'BASKETBALL' | 'FOOTBALL' | 'CRICKET' | '',
+    country: '',
+    state: '',
+    city: '',
+    height: '',
   });
   const [dob, setDob]         = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const states = form.country ? getStates(form.country) : [];
+  const cities = form.state   ? getCities(form.country, form.state) : [];
+  const location = form.country
+    ? form.state
+      ? form.city ? `${form.city}, ${form.state}, ${form.country}` : `${form.state}, ${form.country}`
+      : form.country
+    : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -155,6 +152,8 @@ export default function Register() {
       await register({
         name: form.name, email: form.email, password: form.password,
         role: form.role, sport: form.sport, age,
+        location: location || undefined,
+        height: form.height || undefined,
       });
       setDone(true);
     } catch (err: any) {
@@ -206,9 +205,9 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-dark-light rounded-2xl p-8 border border-dark-lighter">
-          {/* Progress bar — 4 steps */}
+          {/* Progress bar — 5 steps */}
           <div className="flex gap-2 mb-6">
-            {[1, 2, 3, 4].map((s) => (
+            {[1, 2, 3, 4, 5].map((s) => (
               <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? 'bg-primary' : 'bg-dark-lighter'}`} />
             ))}
           </div>
@@ -219,9 +218,7 @@ export default function Register() {
               <h2 className="text-xl font-semibold mb-4">Create Account</h2>
               <div>
                 <label className="block text-sm text-gray-custom mb-2">Full Name</label>
-                <input
-                  type="text"
-                  value={form.name}
+                <input type="text" value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   required
                   className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
@@ -230,9 +227,7 @@ export default function Register() {
               </div>
               <div>
                 <label className="block text-sm text-gray-custom mb-2">Email</label>
-                <input
-                  type="email"
-                  value={form.email}
+                <input type="email" value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
                   className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
@@ -241,9 +236,7 @@ export default function Register() {
               </div>
               <div>
                 <label className="block text-sm text-gray-custom mb-2">Password</label>
-                <input
-                  type="password"
-                  value={form.password}
+                <input type="password" value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                   required
                   className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
@@ -255,12 +248,9 @@ export default function Register() {
                   </p>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => { if (canAdvanceStep1) setStep(2); }}
+              <button type="button" onClick={() => { if (canAdvanceStep1) setStep(2); }}
                 disabled={!canAdvanceStep1}
-                className="w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50"
-              >
+                className="w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50">
                 Continue
               </button>
             </div>
@@ -281,18 +271,12 @@ export default function Register() {
                   </span>
                 </p>
               )}
-              <button
-                type="button"
-                onClick={() => { if (dob) setStep(3); }}
-                disabled={!dob}
-                className="w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50"
-              >
+              <button type="button" onClick={() => { if (dob) setStep(3); }} disabled={!dob}
+                className="w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50">
                 Continue
               </button>
               <button type="button" onClick={() => setStep(1)}
-                className="w-full py-2 text-gray-custom hover:text-white transition-colors">
-                Back
-              </button>
+                className="w-full py-2 text-gray-custom hover:text-white transition-colors">Back</button>
             </div>
           )}
 
@@ -302,23 +286,18 @@ export default function Register() {
               <h2 className="text-xl font-semibold mb-4">I am a...</h2>
               <div className="space-y-3">
                 {ROLES.map(({ value, label, desc }) => (
-                  <button
-                    key={value}
-                    type="button"
+                  <button key={value} type="button"
                     onClick={() => { setForm({ ...form, role: value }); setStep(4); }}
                     className={`w-full p-4 rounded-lg border text-left transition-colors ${
                       form.role === value ? 'border-primary bg-primary/10' : 'border-dark-lighter hover:border-gray-custom'
-                    }`}
-                  >
+                    }`}>
                     <p className="font-medium">{label}</p>
                     <p className="text-sm text-gray-custom">{desc}</p>
                   </button>
                 ))}
               </div>
               <button type="button" onClick={() => setStep(2)}
-                className="w-full mt-4 py-2 text-gray-custom hover:text-white transition-colors">
-                Back
-              </button>
+                className="w-full mt-4 py-2 text-gray-custom hover:text-white transition-colors">Back</button>
             </div>
           )}
 
@@ -328,30 +307,91 @@ export default function Register() {
               <h2 className="text-xl font-semibold mb-4">My sport</h2>
               <div className="space-y-3">
                 {SPORTS.map(({ value, label, emoji }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setForm({ ...form, sport: value })}
+                  <button key={value} type="button"
+                    onClick={() => { setForm({ ...form, sport: value }); setStep(5); }}
                     className={`w-full p-4 rounded-lg border text-left transition-colors flex items-center gap-3 ${
                       form.sport === value ? 'border-primary bg-primary/10' : 'border-dark-lighter hover:border-gray-custom'
-                    }`}
-                  >
+                    }`}>
                     <span className="text-2xl">{emoji}</span>
                     <span className="font-medium">{label}</span>
                   </button>
                 ))}
               </div>
-              <button
-                type="submit"
-                disabled={loading || !form.sport}
-                className="w-full mt-6 py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50"
-              >
+              <button type="button" onClick={() => setStep(3)}
+                className="w-full mt-4 py-2 text-gray-custom hover:text-white transition-colors">Back</button>
+            </div>
+          )}
+
+          {/* Step 5: Location & Height */}
+          {step === 5 && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold">Location & Height</h2>
+                <p className="text-sm text-gray-custom mt-1">Optional — you can skip this step.</p>
+              </div>
+
+              {/* Country */}
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Country</label>
+                <select
+                  value={form.country}
+                  onChange={(e) => setForm({ ...form, country: e.target.value, state: '', city: '' })}
+                  className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                >
+                  <option value="">Select country</option>
+                  {COUNTRY_LIST.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+
+              {/* State — shown once country is selected */}
+              {form.country && states.length > 0 && (
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">State / Province</label>
+                  <select
+                    value={form.state}
+                    onChange={(e) => setForm({ ...form, state: e.target.value, city: '' })}
+                    className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                  >
+                    <option value="">Select state</option>
+                    {states.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* City — shown once state is selected */}
+              {form.state && cities.length > 0 && (
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">City</label>
+                  <select
+                    value={form.city}
+                    onChange={(e) => setForm({ ...form, city: e.target.value })}
+                    className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                  >
+                    <option value="">Select city</option>
+                    {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )}
+
+              {/* Height */}
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Height</label>
+                <select
+                  value={form.height}
+                  onChange={(e) => setForm({ ...form, height: e.target.value })}
+                  className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                >
+                  <option value="">Select height</option>
+                  {HEIGHT_OPTIONS.map((h) => <option key={h.value} value={h.value}>{h.label}</option>)}
+                </select>
+              </div>
+
+              <button type="submit" disabled={loading}
+                className="w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50">
                 {loading ? 'Creating account…' : 'Join All For 1'}
               </button>
-              <button type="button" onClick={() => setStep(3)}
-                className="w-full mt-2 py-2 text-gray-custom hover:text-white transition-colors">
-                Back
-              </button>
+              <button type="button" onClick={() => setStep(4)}
+                className="w-full py-2 text-gray-custom hover:text-white transition-colors">Back</button>
             </div>
           )}
 
