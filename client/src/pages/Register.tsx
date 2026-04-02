@@ -180,10 +180,13 @@ export default function Register() {
               <Mail size={32} className="text-primary" />
             </div>
             <h2 className="text-xl font-semibold mb-2">Check your email</h2>
-            <p className="text-gray-custom text-sm mb-6">
+            <p className="text-gray-custom text-sm mb-3">
               We sent a verification link to{' '}
               <span className="text-white font-medium">{form.email}</span>.
               Click it to activate your account.
+            </p>
+            <p className="text-yellow-400/80 text-xs mb-6">
+              Can't find it? Check your <span className="font-semibold">spam or junk folder</span>.
             </p>
             <Link to="/login" className="block w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors">
               Go to Sign In

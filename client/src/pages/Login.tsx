@@ -69,7 +69,7 @@ export default function Login() {
           <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm">
             <p className="text-yellow-300 font-medium mb-1">Email not verified</p>
             <p className="text-yellow-200/70 mb-3">
-              Please check your inbox and click the verification link before signing in.
+              Please check your inbox and click the verification link before signing in. If you can't find it, check your <span className="font-semibold text-yellow-200">spam or junk folder</span>.
             </p>
             <button
               onClick={handleResend}
