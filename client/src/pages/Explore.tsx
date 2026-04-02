@@ -3,11 +3,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Search, MapPin, Filter } from 'lucide-react';
 import api from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 const ROLES = ['ALL', 'ATHLETE', 'COACH', 'SCOUT'] as const;
 const SPORTS = ['ALL', 'BASKETBALL', 'FOOTBALL', 'CRICKET'] as const;
 
 export default function Explore() {
+  const { user: currentUser } = useAuth();
   const [search, setSearch] = useState('');
   const [role, setRole] = useState<string>('ALL');
   const [sport, setSport] = useState<string>('ALL');
@@ -101,7 +103,7 @@ export default function Explore() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold truncate">{user.name}</h3>
-                      {user.verified && <span className="text-accent text-xs">Verified</span>}
+                      {user.verified && currentUser?.role === 'ADMIN' && <span className="text-accent text-xs">Verified</span>}
                     </div>
                     <p className="text-sm text-gray-custom capitalize">
                       {user.role?.toLowerCase()} · {user.sport?.toLowerCase()}

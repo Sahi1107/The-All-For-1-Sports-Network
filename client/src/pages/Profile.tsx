@@ -354,7 +354,7 @@ export default function Profile() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-2xl font-bold">{profile.name}</h1>
-                  {profile.verified && (
+                  {profile.verified && me?.role === 'ADMIN' && (
                     <span className="text-accent text-xs bg-accent/10 px-2 py-0.5 rounded-full">Verified</span>
                   )}
                 </div>
