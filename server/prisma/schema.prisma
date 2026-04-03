@@ -65,6 +65,8 @@ enum NotificationType {
   HIGHLIGHT_VIEW
   ANNOUNCEMENT
   SYSTEM
+  LIKE
+  COMMENT
 }
 
 enum PostType {
@@ -96,6 +98,8 @@ model User {
   // Relations
   highlights      Highlight[]
   posts           Post[]
+  postLikes       PostLike[]
+  postComments    PostComment[]
   sentConnections     Connection[] @relation("ConnectionSender")
   receivedConnections Connection[] @relation("ConnectionReceiver")
   followers       Follow[]     @relation("FollowTarget")
@@ -188,12 +192,43 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  media PostMedia[]
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media    PostMedia[]
+  likes    PostLike[]
+  comments PostComment[]
 
   @@index([userId])
   @@index([sport])
   @@index([createdAt])
+}
+
+model PostLike {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model PostComment {
+  id        String   @id @default(uuid())
+  postId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
 }
 
 model PostMedia {

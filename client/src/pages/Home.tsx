@@ -6,6 +6,7 @@ import api from '../api/client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import React from 'react';
 import ImageCarousel from '../components/ImageCarousel';
+import PostActions from '../components/PostActions';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -320,7 +321,7 @@ export default function Home() {
                   )}
 
                   {/* Text content / details */}
-                  <div className="p-4">
+                  <div className="p-4 pb-2">
                     {item.title && <h3 className="font-semibold">{item.title}</h3>}
                     {(item.content || item.description) && (
                       <p className="text-sm text-white/80 mt-1 leading-relaxed">{item.content || item.description}</p>
@@ -338,6 +339,9 @@ export default function Home() {
                       )}
                     </div>
                   </div>
+
+                  {/* Likes & comments — posts only */}
+                  {item.kind === 'post' && <PostActions post={item} />}
                 </div>
               </div>
             ))}

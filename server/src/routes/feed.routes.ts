@@ -41,6 +41,8 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         include: {
           user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
           media: { orderBy: { position: 'asc' } },
+          _count: { select: { likes: true, comments: true } },
+          likes: { where: { userId: req.user!.userId }, select: { id: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -73,6 +75,9 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         sport: p.sport,
         user: p.user,
         createdAt: p.createdAt,
+        likeCount: p._count.likes,
+        commentCount: p._count.comments,
+        likedByMe: p.likes.length > 0,
       })),
       ...highlights.map((h) => ({
         id: h.id,

@@ -6,6 +6,7 @@ import api from '../api/client';
 import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
+import PostActions from '../components/PostActions';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -587,6 +588,10 @@ export default function Profile() {
                         </button>
                       )}
                     </div>
+                    <PostActions
+                      post={{ ...p, user: profile }}
+                      invalidateKeys={[['user-posts', id as string]]}
+                    />
                   </div>
                 ))}
               </div>
