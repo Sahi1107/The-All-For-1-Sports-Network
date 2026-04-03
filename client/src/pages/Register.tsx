@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import logoUrl from '../assets/logo.svg';
 import { Mail, ChevronLeft, ChevronRight } from 'lucide-react';
-import { COUNTRY_LIST, getStates, getCities, HEIGHT_OPTIONS } from '../data/locationData';
+import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
 
 const ROLES = [
   { value: 'ATHLETE', label: 'Athlete', desc: 'Showcase your skills & compete' },
@@ -131,10 +131,9 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
 
   const states = form.country ? getStates(form.country) : [];
-  const cities = form.state   ? getCities(form.country, form.state) : [];
   const location = form.country
     ? form.state
-      ? form.city ? `${form.city}, ${form.state}, ${form.country}` : `${form.state}, ${form.country}`
+      ? form.city.trim() ? `${form.city.trim()}, ${form.state}, ${form.country}` : `${form.state}, ${form.country}`
       : form.country
     : '';
 
@@ -358,18 +357,17 @@ export default function Register() {
                 </div>
               )}
 
-              {/* City — shown once state is selected */}
-              {form.state && cities.length > 0 && (
+              {/* City — free text input */}
+              {form.state && (
                 <div>
                   <label className="block text-sm text-gray-custom mb-2">City</label>
-                  <select
+                  <input
+                    type="text"
                     value={form.city}
                     onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
-                  >
-                    <option value="">Select city</option>
-                    {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                    placeholder="Enter your city"
+                    className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom"
+                  />
                 </div>
               )}
 

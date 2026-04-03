@@ -6,7 +6,7 @@ import api from '../api/client';
 import { Camera, Save, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageCropModal from '../components/ImageCropModal';
-import { COUNTRY_LIST, getStates, getCities, HEIGHT_OPTIONS } from '../data/locationData';
+import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
 
 const POSITIONS: Record<string, string[]> = {
   BASKETBALL: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
@@ -174,15 +174,14 @@ export default function EditProfile() {
             </div>
             <div>
               <label className="block text-sm text-gray-custom mb-1">City</label>
-              <select
+              <input
+                type="text"
                 value={city}
                 onChange={e => setCity(e.target.value)}
                 disabled={!state}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary disabled:opacity-50"
-              >
-                <option value="">Select city</option>
-                {getCities(country, state).map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+                placeholder="Enter your city"
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary disabled:opacity-50"
+              />
             </div>
           </div>
 
