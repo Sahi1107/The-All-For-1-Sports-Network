@@ -138,8 +138,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let token = await cred.user.getIdToken();
     const decoded = JSON.parse(atob(token.split('.')[1]));
     if (!decoded.userId) {
-      // Custom claims missing — call sync to set them, then force-refresh
-      await authedPost(token, '/auth/sync', {});
+      // Custom claims missing — call sync to set them, then force-refresh the token.
+      // The server handles both existing users (by UID) and orphaned users (by email)
+      // without requiring any body data, so this call is always safe.
+      try {
+        await authedPost(token, '/auth/sync', {});
+      } catch {
+        // If sync fails the account may be genuinely incomplete; sign out cleanly.
+        await signOut(auth);
+        const err: any = new Error('Account setup is incomplete. Please contact support.');
+        err.code = 'SYNC_FAILED';
+        throw err;
+      }
       token = await cred.user.getIdToken(true);
     }
 

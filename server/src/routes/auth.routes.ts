@@ -52,7 +52,13 @@ router.post('/sync', async (req: Request, res: Response) => {
   }
 
   try {
-    // ── Existing user ──────────────────────────────────────────────────────────
+    if (!decoded.email) {
+      res.status(400).json({ error: 'Firebase account has no email' });
+      return;
+    }
+    const email = decoded.email.toLowerCase();
+
+    // ── Existing user (matched by Firebase UID) ────────────────────────────────
     const existing = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
     if (existing) {
       // Refresh custom claims in case role changed (e.g. admin promoted the user)
@@ -60,13 +66,26 @@ router.post('/sync', async (req: Request, res: Response) => {
         userId: existing.id,
         role:   existing.role,
       });
-      const { ...safe } = existing;
       logger.info('auth.sync.existing', { userId: existing.id, role: existing.role });
-      res.json({ user: safe, refreshClaims: true });
+      res.json({ user: existing, refreshClaims: true });
       return;
     }
 
-    // ── New user ───────────────────────────────────────────────────────────────
+    // ── Orphan user (same email, different UID — e.g. account recreated) ───────
+    // Check this BEFORE body validation so a returning user never sees a 400.
+    const orphan = await prisma.user.findUnique({ where: { email } });
+    if (orphan) {
+      const user = await prisma.user.update({
+        where: { email },
+        data:  { firebaseUid: decoded.uid },
+      });
+      await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
+      logger.info('auth.sync.claimed_orphan', { userId: user.id });
+      res.json({ user, refreshClaims: true });
+      return;
+    }
+
+    // ── New user — requires full registration body ──────────────────────────────
     const parse = SyncBody.safeParse(req.body);
     if (!parse.success) {
       res.status(400).json({
@@ -76,27 +95,6 @@ router.post('/sync', async (req: Request, res: Response) => {
       return;
     }
     const { name, role, sport, age, location, height } = parse.data;
-
-    if (!decoded.email) {
-      res.status(400).json({ error: 'Firebase account has no email' });
-      return;
-    }
-
-    const email = decoded.email.toLowerCase();
-
-    // If a record exists with this email but no firebaseUid (orphaned from old
-    // auth system), claim it by writing the firebaseUid instead of creating a dupe.
-    const orphan = await prisma.user.findUnique({ where: { email } });
-    if (orphan) {
-      const user = await prisma.user.update({
-        where: { email },
-        data:  { firebaseUid: decoded.uid, name, role, sport, ...(age !== undefined && { age }), ...(location && { location }), ...(height && { height }) },
-      });
-      await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
-      logger.info('auth.sync.claimed_orphan', { userId: user.id });
-      res.status(201).json({ user, refreshClaims: true });
-      return;
-    }
 
     const user = await prisma.user.create({
       data: {
