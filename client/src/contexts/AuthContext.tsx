@@ -41,11 +41,13 @@ interface RegisterData {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  unverifiedEmail: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   updateUser: (user: User) => void;
+  resendVerification: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -65,17 +67,27 @@ async function authedPost(token: string, path: string, body: unknown) {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]       = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser]             = useState<User | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
   // Persist auth across page reloads — listen to Firebase auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!firebaseUser || !firebaseUser.emailVerified) {
+      if (!firebaseUser) {
         setUser(null);
+        setUnverifiedEmail(null);
         setLoading(false);
         return;
       }
+      if (!firebaseUser.emailVerified) {
+        setUser(null);
+        setUnverifiedEmail(firebaseUser.email);
+        setLoading(false);
+        return;
+      }
+      // Email is verified — fetch app user
+      setUnverifiedEmail(null);
       try {
         const token = await firebaseUser.getIdToken();
         const { data } = await authedGet(token, '/auth/me');
@@ -116,10 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cred = await signInWithEmailAndPassword(auth, email, password);
 
     if (!cred.user.emailVerified) {
-      await signOut(auth);
-      const err: any = new Error('Email not verified');
-      err.code = 'EMAIL_NOT_VERIFIED';
-      throw err;
+      // Keep the session alive — onAuthStateChanged will set unverifiedEmail
+      // and routing will redirect the user to /verify-pending.
+      setUnverifiedEmail(cred.user.email);
+      return;
     }
 
     // Ensure custom claims are present (might be missing if sync was interrupted)
@@ -140,6 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await signOut(auth);
     setUser(null);
+    setUnverifiedEmail(null);
+  };
+
+  const resendVerification = async () => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) throw new Error('No active session');
+    await sendEmailVerification(firebaseUser, { url: `${window.location.origin}/login` });
   };
 
   // ── Password reset (purely Firebase — no backend involved) ───────────────
@@ -153,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUser = (updatedUser: User) => setUser(updatedUser);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, sendPasswordReset, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, unverifiedEmail, login, register, logout, sendPasswordReset, updateUser, resendVerification }}>
       {children}
     </AuthContext.Provider>
   );

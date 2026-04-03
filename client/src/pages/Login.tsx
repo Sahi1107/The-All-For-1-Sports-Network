@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { auth } from '../config/firebase';
-import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import logoUrl from '../assets/logo.svg';
 
@@ -11,49 +9,23 @@ export default function Login() {
   const navigate  = useNavigate();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [unverified, setUnverified] = useState(false);
-  const [resending, setResending]   = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setUnverified(false);
     setLoading(true);
     try {
       await login(email, password);
       navigate('/');
     } catch (err: any) {
-      const code = err.code ?? err.message;
-      if (code === 'EMAIL_NOT_VERIFIED' || code === 'auth/email-not-verified') {
-        setUnverified(true);
-      } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      const code = err.code ?? err.message ?? '';
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
         toast.error('Invalid email or password');
       } else {
         toast.error(err.message || 'Login failed');
       }
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setResending(true);
-    try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      await sendEmailVerification(cred.user, { url: `${window.location.origin}/login` });
-      await signOut(auth);
-      toast.success('Verification email sent — check your inbox and spam folder.');
-    } catch (err: any) {
-      const code: string = err?.code ?? '';
-      if (code === 'auth/too-many-requests') {
-        toast.error('Please wait a minute before requesting another email.');
-      } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
-        toast.error('Incorrect password — please re-enter it and try again.');
-      } else {
-        toast.error(err?.message ?? 'Failed to resend. Please try again.');
-      }
-    } finally {
-      setResending(false);
     }
   };
 
@@ -65,23 +37,6 @@ export default function Login() {
           <img src={logoUrl} alt="All For 1" className="h-32 mx-auto mb-4" />
           <p className="text-gray-custom">The network for athletes, coaches &amp; scouts</p>
         </div>
-
-        {/* Unverified email banner */}
-        {unverified && (
-          <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm">
-            <p className="text-yellow-300 font-medium mb-1">Email not verified</p>
-            <p className="text-yellow-200/70 mb-3">
-              Please check your inbox and click the verification link before signing in. If you can't find it, check your <span className="font-semibold text-yellow-200">spam or junk folder</span>.
-            </p>
-            <button
-              onClick={handleResend}
-              disabled={resending}
-              className="text-primary hover:text-primary-light underline disabled:opacity-50"
-            >
-              {resending ? 'Sending…' : 'Resend verification email'}
-            </button>
-          </div>
-        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="bg-dark-light rounded-2xl p-8 border border-dark-lighter">

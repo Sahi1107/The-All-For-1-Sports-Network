@@ -20,9 +20,10 @@ const Notifications  = lazy(() => import('./pages/Notifications'));
 const Announcements  = lazy(() => import('./pages/Announcements'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const Settings       = lazy(() => import('./pages/Settings'));
-const VerifyEmail    = lazy(() => import('./pages/VerifyEmail'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
-const ResetPassword  = lazy(() => import('./pages/ResetPassword'));
+const VerifyEmail        = lazy(() => import('./pages/VerifyEmail'));
+const VerifyEmailPending = lazy(() => import('./pages/VerifyEmailPending'));
+const ForgotPassword     = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword      = lazy(() => import('./pages/ResetPassword'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,15 +40,17 @@ function PageSpinner() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, unverifiedEmail } = useAuth();
   if (loading) return <PageSpinner />;
+  if (unverifiedEmail) return <Navigate to="/verify-pending" replace />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, unverifiedEmail } = useAuth();
   if (loading) return null;
+  if (unverifiedEmail) return <Navigate to="/verify-pending" replace />;
   if (user) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
@@ -59,7 +62,8 @@ function AppRoutes() {
         {/* Public routes */}
         <Route path="/login"           element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register"        element={<PublicRoute><Register /></PublicRoute>} />
-        <Route path="/verify-email"    element={<VerifyEmail />} />
+        <Route path="/verify-email"   element={<VerifyEmail />} />
+        <Route path="/verify-pending" element={<VerifyEmailPending />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password"  element={<ResetPassword />} />
 
