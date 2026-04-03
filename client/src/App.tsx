@@ -40,17 +40,15 @@ function PageSpinner() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, unverifiedEmail } = useAuth();
+  const { user, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  if (unverifiedEmail) return <Navigate to="/verify-pending" replace />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, unverifiedEmail } = useAuth();
+  const { user, loading } = useAuth();
   if (loading) return null;
-  if (unverifiedEmail) return <Navigate to="/verify-pending" replace />;
   if (user) return <Navigate to="/" replace />;
   return <>{children}</>;
 }

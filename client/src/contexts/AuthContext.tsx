@@ -80,14 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
-      if (!firebaseUser.emailVerified) {
-        setUser(null);
-        setUnverifiedEmail(firebaseUser.email);
-        setLoading(false);
-        return;
-      }
-      // Email is verified — fetch app user
-      setUnverifiedEmail(null);
+      // Track unverified state but still let the user into the app
+      setUnverifiedEmail(!firebaseUser.emailVerified ? firebaseUser.email : null);
       try {
         const token = await firebaseUser.getIdToken();
         const { data } = await authedGet(token, '/auth/me');
@@ -128,10 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cred = await signInWithEmailAndPassword(auth, email, password);
 
     if (!cred.user.emailVerified) {
-      // Keep the session alive — onAuthStateChanged will set unverifiedEmail
-      // and routing will redirect the user to /verify-pending.
       setUnverifiedEmail(cred.user.email);
-      return;
+      // Don't block — fall through and log them in
     }
 
     // Ensure custom claims are present (might be missing if sync was interrupted)

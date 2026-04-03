@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Type, Image, Video, Upload, Plus, Trash2 } from 'lucide-react';
+import { X, Type, Image, Video, Upload, Plus, Trash2, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import ImageCropModal from './ImageCropModal';
+import { useAuth } from '../contexts/AuthContext';
 
 type PostType = 'TEXT' | 'IMAGE' | 'HIGHLIGHT';
 
@@ -12,6 +14,7 @@ interface Props {
 }
 
 export default function CreatePostModal({ onClose }: Props) {
+  const { unverifiedEmail } = useAuth();
   const qc = useQueryClient();
   const [type, setType] = useState<PostType>('TEXT');
   const [content, setContent] = useState('');
@@ -93,6 +96,35 @@ export default function CreatePostModal({ onClose }: Props) {
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
+
+  if (unverifiedEmail) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl p-8 text-center">
+          <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Mail size={28} className="text-primary" />
+          </div>
+          <h2 className="font-semibold text-white text-lg mb-2">Verify your email to post</h2>
+          <p className="text-white/50 text-sm mb-1">
+            A verification link was sent to <span className="text-white/80">{unverifiedEmail}</span>.
+          </p>
+          <p className="text-yellow-400/70 text-xs mb-6">
+            Can't find it? Check your <span className="font-semibold">spam or junk folder</span>.
+          </p>
+          <Link
+            to="/verify-pending"
+            onClick={onClose}
+            className="block w-full py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors text-sm mb-3"
+          >
+            Resend verification email
+          </Link>
+          <button onClick={onClose} className="w-full py-2 text-sm text-white/40 hover:text-white transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
