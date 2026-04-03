@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../config/firebase';
-import { sendEmailVerification } from 'firebase/auth';
+import { sendEmailVerification, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import toast from 'react-hot-toast';
 import logoUrl from '../assets/logo.svg';
 
@@ -39,17 +39,19 @@ export default function Login() {
   const handleResend = async () => {
     setResending(true);
     try {
-      // Sign in temporarily just to get the user object for resending
-      const { signInWithEmailAndPassword } = await import('firebase/auth');
       const cred = await signInWithEmailAndPassword(auth, email, password);
-      if (!cred.user.emailVerified) {
-        await sendEmailVerification(cred.user, { url: `${window.location.origin}/login` });
-        const { signOut } = await import('firebase/auth');
-        await signOut(auth);
-        toast.success('Verification email sent — check your inbox.');
+      await sendEmailVerification(cred.user, { url: `${window.location.origin}/login` });
+      await signOut(auth);
+      toast.success('Verification email sent — check your inbox and spam folder.');
+    } catch (err: any) {
+      const code: string = err?.code ?? '';
+      if (code === 'auth/too-many-requests') {
+        toast.error('Please wait a minute before requesting another email.');
+      } else if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
+        toast.error('Incorrect password — please re-enter it and try again.');
+      } else {
+        toast.error(err?.message ?? 'Failed to resend. Please try again.');
       }
-    } catch {
-      toast.error('Failed to resend. Please try again.');
     } finally {
       setResending(false);
     }
