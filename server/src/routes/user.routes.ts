@@ -98,6 +98,42 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   }
 });
 
+// GET /api/users/:id/followers
+router.get('/:id/followers', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const follows = await prisma.follow.findMany({
+      where: { followingId: req.params.id as string },
+      select: {
+        follower: {
+          select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ users: follows.map((f) => f.follower) });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/users/:id/following
+router.get('/:id/following', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const follows = await prisma.follow.findMany({
+      where: { followerId: req.params.id as string },
+      select: {
+        following: {
+          select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ users: follows.map((f) => f.following) });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Helper: upload buffer to Cloudinary
 function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
   return new Promise((resolve, reject) => {

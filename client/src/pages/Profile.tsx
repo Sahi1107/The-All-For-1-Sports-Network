@@ -208,6 +208,7 @@ export default function Profile() {
   const queryClient = useQueryClient();
 
   const isOwnProfile = me?.id === id;
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['profile', id],
@@ -216,6 +217,15 @@ export default function Profile() {
       return data;
     },
     enabled: !!id,
+  });
+
+  const { data: followListData, isLoading: followListLoading } = useQuery<{ users: any[] }>({
+    queryKey: ['follow-list', id, followModal],
+    queryFn: async () => {
+      const { data } = await api.get(`/users/${id}/${followModal}`);
+      return data;
+    },
+    enabled: !!id && !!followModal,
   });
 
   const isFollowing = data?.isFollowing ?? false;
@@ -433,14 +443,14 @@ export default function Profile() {
 
             {/* Stats Row */}
             <div className="flex gap-6 mt-4 text-sm">
-              <div>
+              <button onClick={() => setFollowModal('followers')} className="hover:text-primary-light transition-colors text-left">
                 <span className="font-bold text-white">{profile._count?.followers ?? 0}</span>
                 <span className="text-white/70 ml-1">Followers</span>
-              </div>
-              <div>
+              </button>
+              <button onClick={() => setFollowModal('following')} className="hover:text-primary-light transition-colors text-left">
                 <span className="font-bold text-white">{profile._count?.following ?? 0}</span>
                 <span className="text-white/70 ml-1">Following</span>
-              </div>
+              </button>
               <div>
                 <span className="font-bold text-white">{highlights.length}</span>
                 <span className="text-white/70 ml-1">Highlights</span>
@@ -639,6 +649,77 @@ export default function Profile() {
           )}
         </div>
       </div>
+
+      {/* Followers / Following modal */}
+      {followModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+          onClick={() => setFollowModal(null)}
+        >
+          <div
+            className="bg-dark-light border border-white/10 rounded-xl w-full max-w-sm max-h-[70vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <div className="flex gap-4 text-sm font-semibold">
+                <button
+                  onClick={() => setFollowModal('followers')}
+                  className={followModal === 'followers' ? 'text-white' : 'text-white/40 hover:text-white/70'}
+                >
+                  Followers
+                </button>
+                <button
+                  onClick={() => setFollowModal('following')}
+                  className={followModal === 'following' ? 'text-white' : 'text-white/40 hover:text-white/70'}
+                >
+                  Following
+                </button>
+              </div>
+              <button onClick={() => setFollowModal(null)} className="text-white/40 hover:text-white text-xl leading-none">×</button>
+            </div>
+
+            {/* List */}
+            <div className="overflow-y-auto flex-1 p-2">
+              {followListLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : !followListData?.users?.length ? (
+                <p className="text-center text-white/30 text-sm py-8">
+                  {followModal === 'followers' ? 'No followers yet' : 'Not following anyone yet'}
+                </p>
+              ) : (
+                followListData.users.map((u: any) => (
+                  <Link
+                    key={u.id}
+                    to={`/profile/${u.id}`}
+                    onClick={() => setFollowModal(null)}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
+                  >
+                    {u.avatar ? (
+                      <img src={u.avatar} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary-light shrink-0">
+                        {u.name?.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{u.name}</p>
+                      <p className="text-xs text-white/40 capitalize">
+                        {u.role?.toLowerCase()}
+                        {u.sport && u.role !== 'ADMIN' && ` · ${u.sport.toLowerCase()}`}
+                        {u.position && ` · ${u.position}`}
+                      </p>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
