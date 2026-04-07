@@ -42,6 +42,9 @@ export const env = {
     return origins.length === 1 ? origins[0] : origins;
   })() as string | string[],
 
+  // ─── Anthropic ───────────────────────────────────────────────
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+
   // ─── Cloudinary ──────────────────────────────────────────────
   CLOUDINARY_CLOUD_NAME: requireEnv('CLOUDINARY_CLOUD_NAME'),
   CLOUDINARY_API_KEY:    requireEnv('CLOUDINARY_API_KEY'),

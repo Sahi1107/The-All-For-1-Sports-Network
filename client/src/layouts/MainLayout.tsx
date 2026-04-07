@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Home, Search, Users, Trophy, BarChart3,
-  Bell, MessageSquare, Settings, LogOut, Megaphone, Shield, Plus, X, Menu,
+  Bell, MessageSquare, Settings, LogOut, Megaphone, Shield, Plus, X, Menu, Zap,
 } from 'lucide-react';
 import logoUrl from '../assets/logo.svg';
 import CreatePostModal from '../components/CreatePostModal';
@@ -26,6 +26,9 @@ export default function MainLayout() {
     { to: '/teams',         icon: Users,         label: 'Teams' },
     { to: '/tournaments',   icon: Trophy,        label: 'Tournaments' },
     { to: '/rankings',      icon: BarChart3,     label: 'Rankings' },
+    ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'ADMIN'
+      ? [{ to: '/scout-copilot', icon: Zap, label: 'Scout Copilot' }]
+      : []),
     ...(user?.role === 'COACH' || user?.role === 'SCOUT'
       ? [{ to: '/announcements', icon: Megaphone, label: 'Announcements' }]
       : []),

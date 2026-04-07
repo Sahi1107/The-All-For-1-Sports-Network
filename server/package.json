@@ -13,6 +13,7 @@
     "create-admin": "ts-node --project tsconfig.json scripts/create-admin.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
     "@prisma/client": "^6.4.0",
     "@types/nodemailer": "^7.0.11",
     "bcryptjs": "^2.4.3",

@@ -18,6 +18,7 @@ import notificationRoutes from './routes/notification.routes';
 import messageRoutes      from './routes/message.routes';
 import adminRoutes        from './routes/admin.routes';
 import postRoutes         from './routes/post.routes';
+import scoutCopilotRoutes from './routes/scoutCopilot.routes';
 
 const app = express();
 
@@ -72,6 +73,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages',      messageRoutes);
 app.use('/api/admin',         adminRoutes);
+app.use('/api/scout-copilot', scoutCopilotRoutes);
 
 // ─── 404 handler ─────────────────────────────────────────────
 app.use((_req, res) => {
