@@ -26,7 +26,7 @@ export default function MainLayout() {
     { to: '/teams',         icon: Users,         label: 'Teams' },
     { to: '/tournaments',   icon: Trophy,        label: 'Tournaments' },
     { to: '/rankings',      icon: BarChart3,     label: 'Rankings' },
-    ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'ADMIN'
+    ...(user?.role === 'COACH' || user?.role === 'SCOUT'
       ? [{ to: '/scout-copilot', icon: Zap, label: 'Scout Copilot' }]
       : []),
     ...(user?.role === 'COACH' || user?.role === 'SCOUT'

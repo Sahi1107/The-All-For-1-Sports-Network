@@ -83,7 +83,7 @@ const extractFiltersTool: Anthropic.Tool = {
 router.post(
   '/',
   authenticate,
-  requireRole('SCOUT', 'COACH', 'ADMIN'),
+  requireRole('SCOUT', 'COACH'),
   writeLimiter,
   async (req: AuthRequest, res: Response) => {
     try {
