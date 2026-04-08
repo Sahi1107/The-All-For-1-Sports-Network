@@ -635,14 +635,13 @@ export default function Profile() {
               <h2 className="font-semibold flex items-center gap-2 mb-4"><Users size={16} className="text-accent" />Teams</h2>
               <div className="space-y-2">
                 {teams.map((t: any) => (
-                  <Link
+                  <div
                     key={t.id}
-                    to="/teams"
-                    className="block text-sm py-2 px-3 rounded-lg bg-dark hover:bg-dark-lighter transition-colors"
+                    className="block text-sm py-2 px-3 rounded-lg bg-dark"
                   >
                     <p className="font-medium">{t.name}</p>
                     <p className="text-xs text-gray-custom">{t.sport}</p>
-                  </Link>
+                  </div>
                 ))}
               </div>
             </div>

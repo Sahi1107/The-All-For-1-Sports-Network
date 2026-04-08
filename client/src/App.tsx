@@ -12,7 +12,6 @@ const Home           = lazy(() => import('./pages/Home'));
 const Explore        = lazy(() => import('./pages/Explore'));
 const Profile        = lazy(() => import('./pages/Profile'));
 const EditProfile    = lazy(() => import('./pages/EditProfile'));
-const Teams          = lazy(() => import('./pages/Teams'));
 const Tournaments    = lazy(() => import('./pages/Tournaments'));
 const Rankings       = lazy(() => import('./pages/Rankings'));
 const Messages       = lazy(() => import('./pages/Messages'));
@@ -70,7 +69,6 @@ function AppRoutes() {
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route index                      element={<Home />} />
           <Route path="explore"             element={<Explore />} />
-          <Route path="teams"               element={<Teams />} />
           <Route path="tournaments"         element={<Tournaments />} />
           <Route path="rankings"            element={<Rankings />} />
           <Route path="announcements"       element={<Announcements />} />

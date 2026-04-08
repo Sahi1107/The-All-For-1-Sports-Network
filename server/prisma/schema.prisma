@@ -13,6 +13,7 @@ enum Role {
   ATHLETE
   COACH
   SCOUT
+  TEAM
   ADMIN
 }
 
