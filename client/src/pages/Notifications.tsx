@@ -1,8 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
-import { Bell, Check, CheckCheck, UserPlus, Trophy, Megaphone, MessageCircle } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Bell, Check, UserPlus, Trophy, Megaphone, MessageCircle } from 'lucide-react';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -24,8 +23,17 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   MESSAGE: <MessageCircle size={16} className="text-primary-light" />,
 };
 
+// Where to navigate when a notification is clicked
+function getNotifLink(n: any): string | null {
+  if (n.type === 'CONNECTION_REQUEST' || n.type === 'CONNECTION_ACCEPTED') return '/grow';
+  if (n.type === 'FOLLOW' && n.actor?.id) return `/profile/${n.actor.id}`;
+  if (n.type === 'MESSAGE') return '/messages';
+  return null;
+}
+
 export default function Notifications() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
     queryKey: ['notifications'],
@@ -40,36 +48,22 @@ export default function Notifications() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
-  const markAllMutation = useMutation({
-    mutationFn: () => api.patch('/notifications/read-all'),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['notifications'] });
-      toast.success('All marked as read');
-    },
-  });
-
   const notifications = data?.notifications ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
+  const handleClick = (n: any) => {
+    if (!n.read) markReadMutation.mutate(n.id);
+    const link = getNotifLink(n);
+    if (link) navigate(link);
+  };
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Bell size={22} />
-          <h1 className="text-2xl font-bold">Notifications</h1>
-          {unreadCount > 0 && (
-            <span className="px-2 py-0.5 bg-primary text-dark text-xs font-bold rounded-full">{unreadCount}</span>
-          )}
-        </div>
+      <div className="flex items-center gap-3 mb-6">
+        <Bell size={22} />
+        <h1 className="text-2xl font-bold">Notifications</h1>
         {unreadCount > 0 && (
-          <button
-            onClick={() => markAllMutation.mutate()}
-            disabled={markAllMutation.isPending}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-custom hover:text-white border border-dark-lighter hover:border-gray-custom rounded-lg transition-colors"
-          >
-            <CheckCheck size={14} />
-            Mark all read
-          </button>
+          <span className="px-2 py-0.5 bg-primary text-dark text-xs font-bold rounded-full">{unreadCount}</span>
         )}
       </div>
 
@@ -87,7 +81,7 @@ export default function Notifications() {
           {notifications.map((n: any) => (
             <div
               key={n.id}
-              onClick={() => !n.read && markReadMutation.mutate(n.id)}
+              onClick={() => handleClick(n)}
               className={`flex items-start gap-3 px-5 py-4 cursor-pointer transition-colors hover:bg-dark/40 ${
                 !n.read ? 'bg-primary/5' : ''
               }`}
