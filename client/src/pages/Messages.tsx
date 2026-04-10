@@ -103,7 +103,10 @@ export default function Messages() {
       return data;
     },
     onSuccess: (data) => {
-      setMessages(prev => [...prev, data.message]);
+      setMessages(prev => {
+        if (prev.some(m => m.id === data.message.id)) return prev;
+        return [...prev, data.message];
+      });
       setMessageText('');
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     },
