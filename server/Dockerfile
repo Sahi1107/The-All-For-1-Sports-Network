@@ -14,8 +14,8 @@ FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
 # Install all deps (including dev) so we can run prisma generate + tsc.
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 # Copy source. .dockerignore keeps the build context small.
 COPY tsconfig.json ./
