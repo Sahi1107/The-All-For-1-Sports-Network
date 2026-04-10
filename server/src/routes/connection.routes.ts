@@ -188,7 +188,7 @@ router.get('/suggestions', authenticate, async (req: AuthRequest, res: Response)
 
     // Same sport first, then others — limit 20
     const suggestions = await prisma.user.findMany({
-      where: { id: { notIn: excludeIds } },
+      where: { id: { notIn: excludeIds }, role: { not: 'ADMIN' } },
       select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, location: true },
       orderBy: [{ sport: 'asc' }],
       take: 20,

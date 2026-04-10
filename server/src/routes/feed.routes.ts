@@ -26,11 +26,14 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     });
     const followingIds = followingList.map((f: any) => f.followingId);
 
-    // Admin sees everything; others see own + followed users
+    // Admin sees everything; others see own + followed + admin posts
     const userFilter = user.role === 'ADMIN'
       ? {}
       : {
-          userId: { in: [req.user!.userId, ...followingIds] },
+          OR: [
+            { userId: { in: [req.user!.userId, ...followingIds] } },
+            { user: { is: { role: 'ADMIN' as const } } },
+          ],
         };
 
     // Fetch posts and highlights in parallel

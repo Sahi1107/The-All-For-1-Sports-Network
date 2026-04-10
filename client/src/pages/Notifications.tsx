@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
@@ -50,6 +51,15 @@ export default function Notifications() {
 
   const notifications = data?.notifications ?? [];
   const unreadCount = data?.unreadCount ?? 0;
+
+  // Auto-mark all as read when page is viewed
+  useEffect(() => {
+    if (unreadCount > 0) {
+      api.patch('/notifications/read-all').then(() => {
+        qc.invalidateQueries({ queryKey: ['notifications'] });
+      });
+    }
+  }, [unreadCount, qc]);
 
   const handleClick = (n: any) => {
     if (!n.read) markReadMutation.mutate(n.id);

@@ -48,8 +48,8 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// PUT /api/notifications/:id/read
-router.put('/:id/read', authenticate, async (req: AuthRequest, res: Response) => {
+// PATCH /api/notifications/:id/read
+router.patch('/:id/read', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.notification.update({
       where: { id: req.params.id as string, userId: req.user!.userId },
@@ -62,8 +62,8 @@ router.put('/:id/read', authenticate, async (req: AuthRequest, res: Response) =>
   }
 });
 
-// PUT /api/notifications/read-all
-router.put('/read-all', authenticate, async (req: AuthRequest, res: Response) => {
+// PATCH /api/notifications/read-all
+router.patch('/read-all', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     await prisma.notification.updateMany({
       where: { userId: req.user!.userId, read: false },
