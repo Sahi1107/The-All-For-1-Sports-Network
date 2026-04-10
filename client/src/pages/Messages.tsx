@@ -80,7 +80,10 @@ export default function Messages() {
     if (!s) return;
     s.on('message', (msg: any) => {
       if (msg.conversationId === activeConvId) {
-        setMessages(prev => [...prev, msg]);
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       }
       qc.invalidateQueries({ queryKey: ['conversations'] });
