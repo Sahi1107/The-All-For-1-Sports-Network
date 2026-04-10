@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../api/client';
 import {
   Home, Search, Trophy, BarChart3, TrendingUp,
   Bell, MessageSquare, Settings, LogOut, Megaphone, Shield, Plus, X, Menu, Zap,
@@ -14,6 +16,22 @@ export default function MainLayout() {
   const navigate  = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Unread notification count
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => { const { data } = await api.get('/notifications?limit=1'); return data; },
+    refetchInterval: 30000,
+  });
+  const unreadNotifs = notifData?.unreadCount ?? 0;
+
+  // Pending connection requests count
+  const { data: reqData } = useQuery({
+    queryKey: ['connection-requests'],
+    queryFn: async () => { const { data } = await api.get('/connections/requests'); return data; },
+    refetchInterval: 30000,
+  });
+  const pendingRequests = reqData?.requests?.length ?? 0;
 
   const handleLogout = async () => {
     await logout();
@@ -39,11 +57,17 @@ export default function MainLayout() {
       : []),
   ];
 
-  // Bottom nav — 5 key items for mobile
+  // Badge map — routes that should show a red dot
+  const badgeMap: Record<string, boolean> = {
+    '/notifications': unreadNotifs > 0,
+    '/grow': pendingRequests > 0,
+  };
+
+  // Bottom nav — key items for mobile
   const bottomNav = [
     { to: '/',              icon: Home,          label: 'Home' },
     { to: '/explore',       icon: Search,        label: 'Explore' },
-    { to: '/messages',      icon: MessageSquare, label: 'Messages' },
+    { to: '/grow',          icon: TrendingUp,    label: 'Grow' },
     { to: '/notifications', icon: Bell,          label: 'Alerts' },
     { to: `/profile/${user?.id}`, icon: null,    label: 'Profile' },
   ];
@@ -78,13 +102,18 @@ export default function MainLayout() {
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map(({ to, icon: Icon, label }) => {
             const active = isActive(to);
+            const hasBadge = badgeMap[to];
             return (
               <Link key={to} to={to}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   active ? 'bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon size={20} /><span className="font-medium">{label}</span>
+                <span className="relative">
+                  <Icon size={20} />
+                  {hasBadge && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />}
+                </span>
+                <span className="font-medium">{label}</span>
               </Link>
             );
           })}
@@ -170,13 +199,18 @@ export default function MainLayout() {
             <nav className="flex-1 overflow-y-auto p-3 space-y-1">
               {navItems.map(({ to, icon: Icon, label }) => {
                 const active = isActive(to);
+                const hasBadge = badgeMap[to];
                 return (
                   <Link key={to} to={to} onClick={() => setDrawerOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                       active ? 'bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <Icon size={20} /><span className="font-medium">{label}</span>
+                    <span className="relative">
+                      <Icon size={20} />
+                      {hasBadge && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />}
+                    </span>
+                    <span className="font-medium">{label}</span>
                   </Link>
                 );
               })}
@@ -216,21 +250,25 @@ export default function MainLayout() {
       >
         {bottomNav.map(({ to, icon: Icon, label }) => {
           const active = isActive(to);
+          const hasBadge = badgeMap[to];
           return (
             <Link key={to} to={to}
               className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
                 active ? 'text-primary' : 'text-gray-custom hover:text-white'
               }`}
             >
-              {Icon
-                ? <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
-                : (user?.avatar
-                    ? <img src={user.avatar} className={`w-6 h-6 rounded-full object-cover ${active ? 'ring-2 ring-primary' : ''}`} />
-                    : <div className={`w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold ${active ? 'ring-2 ring-primary text-primary' : 'text-gray-custom'}`}>
-                        {user?.name?.charAt(0).toUpperCase()}
-                      </div>
-                  )
-              }
+              <span className="relative">
+                {Icon
+                  ? <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
+                  : (user?.avatar
+                      ? <img src={user.avatar} className={`w-6 h-6 rounded-full object-cover ${active ? 'ring-2 ring-primary' : ''}`} />
+                      : <div className={`w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold ${active ? 'ring-2 ring-primary text-primary' : 'text-gray-custom'}`}>
+                          {user?.name?.charAt(0).toUpperCase()}
+                        </div>
+                    )
+                }
+                {hasBadge && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black" />}
+              </span>
               <span className="text-[10px] font-medium">{label}</span>
             </Link>
           );

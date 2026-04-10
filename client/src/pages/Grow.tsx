@@ -1,12 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { UserPlus, UserCheck, UserX, TrendingUp, Handshake } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Grow() {
-  const { user: me } = useAuth();
   const qc = useQueryClient();
 
   // Pending connection requests (incoming)
