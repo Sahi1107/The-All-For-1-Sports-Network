@@ -57,4 +57,4 @@ EXPOSE 8080
 
 # Apply any pending Prisma migrations on boot, then start the server.
 # `migrate deploy` is safe to run on every boot — it's a no-op when up to date.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["node", "dist/index.js"]
