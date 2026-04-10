@@ -2,11 +2,10 @@ import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { uploadImage, validateImageBytes } from '../middleware/upload';
-import cloudinary from '../config/cloudinary';
-import { Readable } from 'stream';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
+import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 
 const router = Router();
 
@@ -44,6 +43,7 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
       prisma.user.count({ where }),
     ]);
 
+    await signMediaDeepAll(users);
     res.json({ users, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
     console.error('Get users error:', error);
@@ -91,6 +91,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       }),
     ]);
 
+    await signMediaDeep(user);
     res.json({ user, isFollowing: !!isFollowing, connection });
   } catch (error) {
     console.error('Get user error:', error);
@@ -110,7 +111,9 @@ router.get('/:id/followers', authenticate, async (req: AuthRequest, res: Respons
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ users: follows.map((f) => f.follower) });
+    const usersOut = follows.map((f) => f.follower);
+    await signMediaDeepAll(usersOut);
+    res.json({ users: usersOut });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -128,24 +131,21 @@ router.get('/:id/following', authenticate, async (req: AuthRequest, res: Respons
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({ users: follows.map((f) => f.following) });
+    const usersOut = follows.map((f) => f.following);
+    await signMediaDeepAll(usersOut);
+    res.json({ users: usersOut });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Helper: upload buffer to Cloudinary
-function uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'image', transformation: [{ width: 400, height: 400, crop: 'fill' }] },
-      (err, result) => {
-        if (err || !result) return reject(err ?? new Error('Upload failed'));
-        resolve(result.secure_url);
-      }
-    );
-    Readable.from(buffer).pipe(stream);
-  });
+// Helper: upload an avatar buffer to GCS and return its object key.
+// Note: GCS does not perform server-side image transforms; the previous
+// 400x400 fill was a Cloudinary feature. The frontend already crops avatars
+// at display time, so we store the original.
+async function uploadAvatar(file: Express.Multer.File): Promise<string> {
+  const ext = (file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '');
+  return uploadToGCS(file.buffer, 'avatars', ext, file.mimetype);
 }
 
 // PUT /api/users/profile — update own profile
@@ -156,7 +156,7 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
     let avatarUrl: string | undefined;
     if (req.file) {
       if (!validateImageBytes(req.file, res)) return;
-      avatarUrl = await uploadToCloudinary(req.file.buffer, 'allfor1/avatars');
+      avatarUrl = await uploadAvatar(req.file);
     }
 
     const user = await prisma.user.update({
@@ -178,6 +178,7 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
       },
     });
 
+    await signMediaDeep(user);
     res.json({ user });
   } catch (error) {
     console.error('Update profile error:', error);

@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { browseLimiter } from '../middleware/rateLimiter';
+import { signMediaDeepAll } from '../services/storage';
 
 const router = Router();
 
@@ -99,6 +100,8 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
      .slice(0, take);
 
     const total = postCount + highlightCount;
+
+    await signMediaDeepAll(feed);
 
     res.json({
       feed,

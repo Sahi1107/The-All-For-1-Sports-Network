@@ -2,11 +2,11 @@ import { Router, Response } from 'express';
 import multer from 'multer';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import cloudinary from '../config/cloudinary';
 import { uploadLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateImageBytes, validateVideoBytes } from '../middleware/upload';
 import { CreatePostBody } from '../validation/post';
+import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 
 const router = Router();
 
@@ -15,17 +15,11 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 },
 });
 
-function uploadToCloudinary(buffer: Buffer, resourceType: 'image' | 'video'): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { resource_type: resourceType, folder: 'allfor1/posts' },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      }
-    );
-    stream.end(buffer);
-  });
+// Derive a sane file extension from a multer file (mimetype is the source of truth).
+function extFromFile(file: Express.Multer.File): string {
+  const fromMime = file.mimetype.split('/')[1] || 'bin';
+  // image/jpeg -> jpg
+  return fromMime === 'jpeg' ? 'jpg' : fromMime.replace(/[^a-z0-9]/gi, '');
 }
 
 // POST /api/posts
@@ -45,14 +39,15 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
       select: { sport: true },
     });
 
-    // Upload all files to Cloudinary in parallel
+    // Upload all files to GCS in parallel; we store bare object keys.
     const mediaUrls: string[] = [];
     if ((type === 'IMAGE' || type === 'HIGHLIGHT') && files.length > 0) {
-      const resourceType = type === 'HIGHLIGHT' ? 'video' : 'image';
-      const results = await Promise.all(
-        files.map((file) => uploadToCloudinary(file.buffer, resourceType))
+      const keys = await Promise.all(
+        files.map((file) =>
+          uploadToGCS(file.buffer, 'posts', extFromFile(file), file.mimetype),
+        ),
       );
-      mediaUrls.push(...results.map((r) => r.secure_url));
+      mediaUrls.push(...keys);
     }
 
     if (type === 'TEXT' && !content) {
@@ -86,6 +81,7 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
       },
     });
 
+    await signMediaDeep(post);
     res.status(201).json({ post });
   } catch (error) {
     console.error('Create post error:', error);
@@ -107,14 +103,14 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json({
-      posts: posts.map((p) => ({
-        ...p,
-        likeCount: p._count.likes,
-        commentCount: p._count.comments,
-        likedByMe: p.likes.length > 0,
-      })),
-    });
+    const shaped = posts.map((p) => ({
+      ...p,
+      likeCount: p._count.likes,
+      commentCount: p._count.comments,
+      likedByMe: p.likes.length > 0,
+    }));
+    await signMediaDeepAll(shaped);
+    res.json({ posts: shaped });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -178,6 +174,7 @@ router.get('/:id/comments', authenticate, async (req: AuthRequest, res: Response
     });
 
     const nextCursor = comments.length === 20 ? comments[comments.length - 1].id : null;
+    await signMediaDeepAll(comments);
     res.json({ comments, nextCursor });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
@@ -225,6 +222,7 @@ router.post('/:id/comments', authenticate, writeLimiter, async (req: AuthRequest
       });
     }
 
+    await signMediaDeep(comment);
     res.status(201).json({ comment });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });

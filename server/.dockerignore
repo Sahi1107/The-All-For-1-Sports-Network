@@ -1,0 +1,21 @@
+node_modules
+dist
+build
+.git
+.gitignore
+.env
+.env.*
+*.log
+logs/
+coverage/
+.vscode
+.idea
+.DS_Store
+
+# Local-only artifacts
+cloudinary-to-gcs-mapping.json
+neon-backup.dump
+*firebase-adminsdk*.json
+
+# Tests + scripts not needed in the runtime image
+scripts/

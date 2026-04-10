@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "prisma generate && prisma db push && tsc",
+    "build": "prisma generate && tsc",
+    "db:migrate": "prisma migrate deploy",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
@@ -14,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
+    "@google-cloud/storage": "^7.19.0",
     "@prisma/client": "^6.4.0",
     "@types/nodemailer": "^7.0.11",
     "bcryptjs": "^2.4.3",

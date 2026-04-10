@@ -5,6 +5,7 @@ import { helmetMiddleware, httpsRedirect, noCache } from './middleware/security'
 import { httpLogger, errorHandler } from './middleware/httpLogger';
 import { globalApiLimiter } from './middleware/rateLimiter';
 import { attachRequestId, blockBots, paginationGuard } from './middleware/botProtection';
+import { signMediaResponse } from './middleware/signMediaResponse';
 import authRoutes         from './routes/auth.routes';
 import userRoutes         from './routes/user.routes';
 import connectionRoutes   from './routes/connection.routes';
@@ -53,6 +54,11 @@ app.use('/api', paginationGuard);
 
 // ─── Prevent caching of all API responses ────────────────────
 app.use('/api', noCache);
+
+// ─── Sign media URLs in every JSON response ──────────────────
+// Wraps res.json to walk the response body and replace any GCS object key
+// or legacy Cloudinary URL with a short-lived signed URL.
+app.use('/api', signMediaResponse);
 
 // ─── Health check (unauthenticated) ──────────────────────────
 app.get('/api/health', (_req, res) => {

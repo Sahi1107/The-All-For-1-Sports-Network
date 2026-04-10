@@ -2,11 +2,11 @@ import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { uploadVideo } from '../middleware/upload';
-import cloudinary from '../config/cloudinary';
 import { browseLimiter, uploadLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateVideoBytes } from '../middleware/upload';
 import { CreateHighlightBody, HighlightListQuery } from '../validation/post';
+import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 
 const router = Router();
 
@@ -27,29 +27,20 @@ router.post('/', authenticate, uploadLimiter, uploadVideo.single('video'), valid
     });
     const sport = uploader?.sport;
 
-    // Upload to Cloudinary
-    const uploadResult = await new Promise<any>((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          resource_type: 'video',
-          folder: 'allfor1/highlights',
-          transformation: [{ quality: 'auto' }],
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      stream.end(req.file!.buffer);
-    });
+    // Upload video to GCS, store the bare object key.
+    const ext = (req.file.mimetype.split('/')[1] || 'mp4').replace(/[^a-z0-9]/gi, '');
+    const videoKey = await uploadToGCS(req.file.buffer, 'highlights', ext, req.file.mimetype);
 
     const highlight = await prisma.highlight.create({
       data: {
         userId: req.user!.userId,
         title,
         description: description || null,
-        videoUrl: uploadResult.secure_url,
-        thumbnailUrl: uploadResult.secure_url.replace(/\.[^.]+$/, '.jpg'),
+        videoUrl: videoKey,
+        // GCS does not auto-generate thumbnails like Cloudinary did. Leave null
+        // for new uploads; the frontend already handles missing thumbnails by
+        // showing the video's first frame.
+        thumbnailUrl: null,
         sport: sport as any,
         tournamentId: tournamentId || null,
         tournamentLocation: tournamentLocation || null,
@@ -57,6 +48,7 @@ router.post('/', authenticate, uploadLimiter, uploadVideo.single('video'), valid
       include: { user: { select: { id: true, name: true, avatar: true, role: true, sport: true } } },
     });
 
+    await signMediaDeep(highlight);
     res.status(201).json({ highlight });
   } catch (error) {
     console.error('Upload highlight error:', error);
@@ -86,6 +78,7 @@ router.get('/', authenticate, browseLimiter, validate({ query: HighlightListQuer
       prisma.highlight.count({ where }),
     ]);
 
+    await signMediaDeepAll(highlights);
     res.json({ highlights, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
     console.error('Get highlights error:', error);
@@ -100,6 +93,7 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
       where: { userId: req.params.userId as string },
       orderBy: { createdAt: 'desc' },
     });
+    await signMediaDeepAll(highlights);
     res.json({ highlights });
   } catch (error) {
     console.error('Get user highlights error:', error);
@@ -125,7 +119,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     // Increment views
     await prisma.highlight.update({ where: { id: req.params.id as string }, data: { views: { increment: 1 } } });
 
-    res.json({ highlight: { ...highlight, views: highlight.views + 1 } });
+    const result = { ...highlight, views: highlight.views + 1 };
+    await signMediaDeep(result);
+    res.json({ highlight: result });
   } catch (error) {
     console.error('Get highlight error:', error);
     res.status(500).json({ error: 'Internal server error' });

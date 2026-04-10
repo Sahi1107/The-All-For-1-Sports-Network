@@ -5,6 +5,7 @@ import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { reqStr, SportEnum, RoleEnum } from '../validation/common';
 import logger from '../utils/logger';
+import { signMediaDeep } from '../services/storage';
 
 const router = Router();
 
@@ -67,6 +68,7 @@ router.post('/sync', async (req: Request, res: Response) => {
         role:   existing.role,
       });
       logger.info('auth.sync.existing', { userId: existing.id, role: existing.role });
+      await signMediaDeep(existing);
       res.json({ user: existing, refreshClaims: true });
       return;
     }
@@ -148,6 +150,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
         },
       });
     }
+    await signMediaDeep(user);
     res.json({ user });
   } catch (error) {
     logger.error('Me error', { error: String(error) });

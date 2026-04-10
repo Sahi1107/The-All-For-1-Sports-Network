@@ -45,10 +45,16 @@ export const env = {
   // ─── Anthropic ───────────────────────────────────────────────
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
 
-  // ─── Cloudinary ──────────────────────────────────────────────
-  CLOUDINARY_CLOUD_NAME: requireEnv('CLOUDINARY_CLOUD_NAME'),
-  CLOUDINARY_API_KEY:    requireEnv('CLOUDINARY_API_KEY'),
-  CLOUDINARY_API_SECRET: requireEnv('CLOUDINARY_API_SECRET'),
+  // ─── Cloudinary (legacy — no longer used for uploads/reads) ──
+  CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME || '',
+  CLOUDINARY_API_KEY:    process.env.CLOUDINARY_API_KEY || '',
+  CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET || '',
+
+  // ─── Google Cloud Storage ────────────────────────────────────
+  // GCS_BUCKET is optional during the migration; once set, the storage
+  // service writes new uploads to GCS and serves signed URLs for reads.
+  GCP_PROJECT_ID: process.env.GCP_PROJECT_ID || '',
+  GCS_BUCKET:     process.env.GCS_BUCKET || '',
 
   // ─── Logging ─────────────────────────────────────────────────
   // Accepted values: error | warn | info | http | verbose | debug

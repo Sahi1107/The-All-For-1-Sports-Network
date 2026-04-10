@@ -46,3 +46,7 @@ coverage/
 
 # Firebase Credentials
 *firebase-adminsdk*.json
+
+# Migration artifacts (contain live URLs / keys)
+server/cloudinary-to-gcs-mapping.json
+server/neon-backup.dump
