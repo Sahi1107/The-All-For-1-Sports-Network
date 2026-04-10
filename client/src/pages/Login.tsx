@@ -39,14 +39,14 @@ export default function Login() {
         playsInline
         className="absolute inset-0 w-full h-full object-cover opacity-20"
       >
-        <source src="/about1.mp4" type="video/mp4" />
+        <source src="/about.mp4" type="video/mp4" />
       </video>
 
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-8">
           <img src={logoUrl} alt="All For 1" className="h-32 mx-auto mb-4" />
-          <p className="text-gray-custom">The network for athletes, coaches &amp; scouts</p>
+          <p className="text-gray-custom">The network for the sports ecosystem</p>
         </div>
 
         {/* Form */}

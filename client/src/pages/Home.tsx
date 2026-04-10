@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, MapPin, Clock } from 'lucide-react';
 import api from '../api/client';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import React from 'react';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -142,8 +142,7 @@ const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
 export default function Home() {
   const { user } = useAuth();
   const [page, setPage] = useState(1);
-  const postRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const rafRef = useRef<number>(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['feed', page],
@@ -153,61 +152,10 @@ export default function Home() {
     },
   });
 
-  const drumEnabled = (data?.feed?.length ?? 0) > 2;
-
-  const applyDrum = useCallback(() => {
-    if (!drumEnabled) {
-      postRefs.current.forEach((el) => {
-        if (!el) return;
-        el.style.transform = '';
-        el.style.opacity = '';
-      });
-      return;
-    }
-    const mid = window.innerHeight / 2;
-    postRefs.current.forEach((el) => {
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const offset = (rect.top + rect.height / 2 - mid) / window.innerHeight;
-      const clamped = Math.max(-0.5, Math.min(0.5, offset));
-      const angle   = clamped * 18;
-      const opacity = Math.max(0.55, 1 - Math.abs(clamped) * 0.6);
-      const scale   = Math.max(0.92, 1 - Math.abs(clamped) * 0.1);
-      el.style.transform  = `perspective(1200px) rotateX(${angle}deg) scale(${scale})`;
-      el.style.opacity    = String(opacity);
-      el.style.transition = 'transform 0.15s ease-out, opacity 0.15s ease-out';
-    });
-  }, [drumEnabled]);
-
-  useEffect(() => {
-    if (!drumEnabled) return;
-    const html = document.documentElement;
-    html.style.scrollSnapType      = 'y mandatory';
-    html.style.overscrollBehaviorY = 'contain';
-    return () => {
-      html.style.scrollSnapType      = '';
-      html.style.overscrollBehaviorY = '';
-    };
-  }, [drumEnabled]);
-
-  useEffect(() => {
-    const t = setTimeout(applyDrum, 50);
-    const onScroll = () => {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(applyDrum);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener('scroll', onScroll);
-      cancelAnimationFrame(rafRef.current);
-    };
-  }, [applyDrum]);
-
   const Backdrop = user?.role !== 'ADMIN' ? SPORT_BACKDROP[user?.sport ?? ''] : undefined;
 
   return (
-    <div>
+    <div className="-mx-4 -my-4 md:-mx-6 md:-my-6">
       {Backdrop && (
         <div className="hidden md:block fixed top-0 bottom-0 right-0 pointer-events-none select-none z-[1]" style={{ left: '256px' }}>
           <Backdrop />
@@ -243,14 +191,18 @@ export default function Home() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-6">
-            {data?.feed?.map((item: any, i: number) => (
+          <div
+            ref={scrollRef}
+            className="snap-y snap-mandatory overflow-y-auto overscroll-y-contain"
+            style={{ height: 'calc(100vh - 6rem)' }}
+          >
+            {data?.feed?.map((item: any) => (
               <div
                 key={`${item.kind}-${item.id}`}
-                ref={(el) => { postRefs.current[i] = el; }}
-                style={drumEnabled ? { scrollSnapAlign: 'start', willChange: 'transform, opacity' } : undefined}
+                className="snap-start flex items-center justify-center px-2"
+                style={{ height: 'calc(100vh - 6rem)' }}
               >
-                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl">
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl w-full max-w-2xl max-h-full overflow-y-auto">
                   {/* User header */}
                   <div className="p-4 flex items-center gap-3">
                     <Link to={`/profile/${item.user?.id}`}>
@@ -348,24 +300,26 @@ export default function Home() {
 
             {/* Pagination */}
             {data?.totalPages > 1 && (
-              <div className="flex justify-center gap-2 py-4">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg text-sm disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <span className="px-4 py-2 text-sm text-gray-custom">
-                  Page {page} of {data.totalPages}
-                </span>
-                <button
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={page >= data.totalPages}
-                  className="px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg text-sm disabled:opacity-50"
-                >
-                  Next
-                </button>
+              <div className="snap-start flex items-center justify-center" style={{ height: 'calc(100vh - 6rem)' }}>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setPage((p) => Math.max(1, p - 1)); scrollRef.current?.scrollTo(0, 0); }}
+                    disabled={page === 1}
+                    className="px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg text-sm disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-4 py-2 text-sm text-gray-custom">
+                    Page {page} of {data.totalPages}
+                  </span>
+                  <button
+                    onClick={() => { setPage((p) => p + 1); scrollRef.current?.scrollTo(0, 0); }}
+                    disabled={page >= data.totalPages}
+                    className="px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg text-sm disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
           </div>
