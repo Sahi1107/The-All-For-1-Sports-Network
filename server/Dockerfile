@@ -51,6 +51,9 @@ COPY --from=builder --chown=app:app /app/dist         ./dist
 COPY --from=builder --chown=app:app /app/prisma       ./prisma
 COPY --from=builder --chown=app:app /app/package.json ./package.json
 
+# Create logs directory so Winston doesn't fail at startup.
+RUN mkdir -p /app/logs && chown app:app /app/logs
+
 USER app
 
 EXPOSE 8080
