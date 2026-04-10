@@ -10,7 +10,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     const { page = '1', limit = '30' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
-    const [notifications, total, unreadCount] = await Promise.all([
+    const [rawNotifications, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where: { userId: req.user!.userId },
         skip,
@@ -20,6 +20,26 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
       prisma.notification.count({ where: { userId: req.user!.userId } }),
       prisma.notification.count({ where: { userId: req.user!.userId, read: false } }),
     ]);
+
+    // Resolve referenceId → actor user for FOLLOW / CONNECTION_* notifications
+    const actorIds = [...new Set(
+      rawNotifications
+        .filter((n: any) => n.referenceId && ['FOLLOW', 'CONNECTION_REQUEST', 'CONNECTION_ACCEPTED'].includes(n.type))
+        .map((n: any) => n.referenceId),
+    )] as string[];
+
+    const actors = actorIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: actorIds } },
+          select: { id: true, name: true, avatar: true, role: true, sport: true },
+        })
+      : [];
+    const actorMap = Object.fromEntries(actors.map((a: any) => [a.id, a]));
+
+    const notifications = rawNotifications.map((n: any) => ({
+      ...n,
+      actor: n.referenceId ? actorMap[n.referenceId] ?? null : null,
+    }));
 
     res.json({ notifications, total, unreadCount, page: parseInt(page as string) });
   } catch (error) {

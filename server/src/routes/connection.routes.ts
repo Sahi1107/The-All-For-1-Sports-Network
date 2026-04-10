@@ -17,13 +17,14 @@ router.post('/follow/:userId', authenticate, socialLimiter, async (req: AuthRequ
       data: { followerId: req.user!.userId, followingId: req.params.userId as string },
     });
 
-    // Create notification
+    // Create notification — include actor name
+    const follower = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
     await prisma.notification.create({
       data: {
         userId: req.params.userId as string,
         type: 'FOLLOW',
         title: 'New Follower',
-        message: `Someone started following you`,
+        message: `${follower?.name ?? 'Someone'} started following you`,
         referenceId: req.user!.userId,
       },
     });
@@ -64,12 +65,13 @@ router.post('/request/:userId', authenticate, socialLimiter, async (req: AuthReq
       data: { senderId: req.user!.userId, receiverId: req.params.userId as string },
     });
 
+    const requester = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
     await prisma.notification.create({
       data: {
         userId: req.params.userId as string,
         type: 'CONNECTION_REQUEST',
         title: 'Connection Request',
-        message: 'You have a new connection request',
+        message: `${requester?.name ?? 'Someone'} sent you a connection request`,
         referenceId: req.user!.userId,
       },
     });
@@ -93,12 +95,13 @@ router.put('/:id/accept', authenticate, async (req: AuthRequest, res: Response) 
       data: { status: 'ACCEPTED' },
     });
 
+    const acceptor = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
     await prisma.notification.create({
       data: {
         userId: connection.senderId,
         type: 'CONNECTION_ACCEPTED',
         title: 'Connection Accepted',
-        message: 'Your connection request was accepted',
+        message: `${acceptor?.name ?? 'Someone'} accepted your connection request`,
         referenceId: req.user!.userId,
       },
     });
@@ -165,6 +168,42 @@ router.get('/requests', authenticate, async (req: AuthRequest, res: Response) =>
     res.json({ requests });
   } catch (error) {
     console.error('Get requests error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/connections/suggestions — people in similar field the user doesn't follow yet
+router.get('/suggestions', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { sport: true, role: true } });
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+
+    // IDs the user already follows
+    const following = await prisma.follow.findMany({
+      where: { followerId: userId },
+      select: { followingId: true },
+    });
+    const excludeIds = [userId, ...following.map((f: any) => f.followingId)];
+
+    // Same sport first, then others — limit 20
+    const suggestions = await prisma.user.findMany({
+      where: { id: { notIn: excludeIds } },
+      select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, location: true },
+      orderBy: [{ sport: 'asc' }],
+      take: 20,
+    });
+
+    // Sort: same sport first
+    suggestions.sort((a: any, b: any) => {
+      const aMatch = a.sport === user.sport ? 0 : 1;
+      const bMatch = b.sport === user.sport ? 0 : 1;
+      return aMatch - bMatch;
+    });
+
+    res.json({ suggestions });
+  } catch (error) {
+    console.error('Suggestions error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

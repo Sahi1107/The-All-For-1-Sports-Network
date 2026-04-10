@@ -19,6 +19,7 @@ const Notifications  = lazy(() => import('./pages/Notifications'));
 const Announcements  = lazy(() => import('./pages/Announcements'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const ScoutCopilot   = lazy(() => import('./pages/ScoutCopilot'));
+const Grow           = lazy(() => import('./pages/Grow'));
 const Settings       = lazy(() => import('./pages/Settings'));
 const VerifyEmail        = lazy(() => import('./pages/VerifyEmail'));
 const VerifyEmailPending = lazy(() => import('./pages/VerifyEmailPending'));
@@ -74,6 +75,7 @@ function AppRoutes() {
           <Route path="announcements"       element={<Announcements />} />
           <Route path="messages"            element={<Messages />} />
           <Route path="notifications"       element={<Notifications />} />
+          <Route path="grow"                element={<Grow />} />
           <Route path="profile/:id"         element={<Profile />} />
           <Route path="profile/edit"        element={<EditProfile />} />
           <Route path="admin"               element={<AdminDashboard />} />

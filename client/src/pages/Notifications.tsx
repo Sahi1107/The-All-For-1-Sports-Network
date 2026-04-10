@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Bell, Check, CheckCheck, UserPlus, Trophy, Megaphone, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -87,23 +88,49 @@ export default function Notifications() {
             <div
               key={n.id}
               onClick={() => !n.read && markReadMutation.mutate(n.id)}
-              className={`flex items-start gap-4 px-5 py-4 cursor-pointer transition-colors hover:bg-dark/40 ${
+              className={`flex items-start gap-3 px-5 py-4 cursor-pointer transition-colors hover:bg-dark/40 ${
                 !n.read ? 'bg-primary/5' : ''
               }`}
             >
-              {/* Icon */}
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                !n.read ? 'bg-primary/20' : 'bg-dark-lighter'
-              }`}>
-                {TYPE_ICONS[n.type] ?? <Bell size={16} className="text-gray-custom" />}
-              </div>
+              {/* Actor avatar or icon */}
+              {n.actor ? (
+                <Link to={`/profile/${n.actor.id}`} className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                  {n.actor.avatar ? (
+                    <img src={n.actor.avatar} alt={n.actor.name} className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light text-sm">
+                      {n.actor.name?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </Link>
+              ) : (
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                  !n.read ? 'bg-primary/20' : 'bg-dark-lighter'
+                }`}>
+                  {TYPE_ICONS[n.type] ?? <Bell size={16} className="text-gray-custom" />}
+                </div>
+              )}
 
               {/* Content */}
               <div className="flex-1 min-w-0">
                 <p className={`text-sm ${!n.read ? 'text-white font-medium' : 'text-gray-custom'}`}>
-                  {n.message}
+                  {n.actor && (
+                    <Link
+                      to={`/profile/${n.actor.id}`}
+                      className="font-semibold hover:text-primary-light transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {n.actor.name}
+                    </Link>
+                  )}{' '}
+                  {n.actor
+                    ? n.message.replace(n.actor.name, '').trim()
+                    : n.message}
                 </p>
-                <p className="text-xs text-gray-custom mt-1">{timeAgo(n.createdAt)}</p>
+                <p className="text-xs text-gray-custom mt-1 flex items-center gap-2">
+                  {TYPE_ICONS[n.type]}
+                  {timeAgo(n.createdAt)}
+                </p>
               </div>
 
               {/* Unread dot */}
