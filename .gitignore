@@ -6,7 +6,8 @@ node_modules/
 .env.local
 .env.*.local
 .env.development
-.env.production
+# .env.production — committed because VITE_ vars are public (baked into the JS bundle)
+# .env.production
 .env.staging
 .env.test
 # Matches server/.env, client/.env.local, etc. anywhere in the tree
