@@ -32,12 +32,16 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-dark p-4 relative overflow-hidden">
       {/* Background video */}
+      {/* eslint-disable-next-line */}
       <video
         autoPlay
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover opacity-20"
+        // @ts-ignore — webkit prefix needed for iOS Safari autoplay
+        webkit-playsinline=""
+        preload="auto"
+        className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none"
       >
         <source src="/about.mp4" type="video/mp4" />
       </video>
