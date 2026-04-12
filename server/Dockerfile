@@ -58,6 +58,5 @@ USER app
 
 EXPOSE 8080
 
-# Apply any pending Prisma migrations on boot, then start the server.
-# `migrate deploy` is safe to run on every boot — it's a no-op when up to date.
-CMD ["node", "dist/index.js"]
+# Sync schema to DB on boot (additive, no data loss), then start the server.
+CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss=false && node dist/index.js"]

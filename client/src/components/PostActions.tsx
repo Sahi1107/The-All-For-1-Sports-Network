@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, MessageCircle, Send, Trash2 } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Bookmark, Send, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -24,6 +24,9 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
   const [liked, setLiked] = useState<boolean>(post.likedByMe ?? false);
   const [likeCount, setLikeCount] = useState<number>(post.likeCount ?? 0);
   const [commentCount, setCommentCount] = useState<number>(post.commentCount ?? 0);
+  const [reposted, setReposted] = useState<boolean>(post.repostedByMe ?? false);
+  const [repostCount, setRepostCount] = useState<number>(post.repostCount ?? 0);
+  const [saved, setSaved] = useState<boolean>(post.savedByMe ?? false);
 
   const likeMutation = useMutation({
     mutationFn: () => api.post(`/posts/${post.id}/like`),
@@ -38,6 +41,35 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
     onError: () => {
       setLiked((prev) => !prev);
       setLikeCount((prev) => (liked ? prev + 1 : prev - 1));
+    },
+  });
+
+  const repostMutation = useMutation({
+    mutationFn: () => api.post(`/posts/${post.id}/repost`),
+    onMutate: () => {
+      setReposted((prev) => !prev);
+      setRepostCount((prev) => (reposted ? prev - 1 : prev + 1));
+    },
+    onSuccess: ({ data }) => {
+      setReposted(data.reposted);
+      setRepostCount(data.repostCount);
+    },
+    onError: () => {
+      setReposted((prev) => !prev);
+      setRepostCount((prev) => (reposted ? prev + 1 : prev - 1));
+    },
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.post(`/posts/${post.id}/save`),
+    onMutate: () => {
+      setSaved((prev) => !prev);
+    },
+    onSuccess: ({ data }) => {
+      setSaved(data.saved);
+    },
+    onError: () => {
+      setSaved((prev) => !prev);
     },
   });
 
@@ -103,6 +135,21 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
           <MessageCircle size={16} />
           {commentCount > 0 && <span>{commentCount}</span>}
         </button>
+        <button
+          onClick={() => repostMutation.mutate()}
+          className={`flex items-center gap-1.5 text-sm transition-colors ${reposted ? 'text-green-400' : 'text-white/40 hover:text-white/70'}`}
+        >
+          <Repeat2 size={16} />
+          {repostCount > 0 && <span>{repostCount}</span>}
+        </button>
+        <div className="ml-auto">
+          <button
+            onClick={() => saveMutation.mutate()}
+            className={`flex items-center gap-1.5 text-sm transition-colors ${saved ? 'text-yellow-400' : 'text-white/40 hover:text-white/70'}`}
+          >
+            <Bookmark size={16} fill={saved ? 'currentColor' : 'none'} />
+          </button>
+        </div>
       </div>
 
       {/* Comments section */}
