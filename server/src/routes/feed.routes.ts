@@ -27,17 +27,14 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     const followingIds = followingList.map((f: any) => f.followingId);
 
     // Admin sees everything; others see own + followed + admin posts
-    let feedUserIds = [req.user!.userId, ...followingIds];
-    if (user.role !== 'ADMIN') {
-      const admins = await prisma.user.findMany({
-        where: { role: 'ADMIN' },
-        select: { id: true },
-      });
-      feedUserIds = [...new Set([...feedUserIds, ...admins.map((a) => a.id)])];
-    }
     const userFilter = user.role === 'ADMIN'
       ? {}
-      : { userId: { in: feedUserIds } };
+      : {
+          OR: [
+            { userId: { in: [req.user!.userId, ...followingIds] } },
+            { user: { is: { role: 'ADMIN' as const } } },
+          ],
+        };
 
     // Fetch posts and highlights in parallel
     const [posts, postCount, highlights, highlightCount] = await Promise.all([
@@ -46,10 +43,8 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         include: {
           user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
           media: { orderBy: { position: 'asc' } },
-          _count: { select: { likes: true, comments: true, reposts: true } },
+          _count: { select: { likes: true, comments: true } },
           likes: { where: { userId: req.user!.userId }, select: { id: true } },
-          reposts: { where: { userId: req.user!.userId }, select: { id: true } },
-          saves: { where: { userId: req.user!.userId }, select: { id: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -84,10 +79,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         createdAt: p.createdAt,
         likeCount: p._count.likes,
         commentCount: p._count.comments,
-        repostCount: p._count.reposts,
         likedByMe: p.likes.length > 0,
-        repostedByMe: p.reposts.length > 0,
-        savedByMe: p.saves.length > 0,
       })),
       ...highlights.map((h) => ({
         id: h.id,
