@@ -27,14 +27,17 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     const followingIds = followingList.map((f: any) => f.followingId);
 
     // Admin sees everything; others see own + followed + admin posts
+    let feedUserIds = [req.user!.userId, ...followingIds];
+    if (user.role !== 'ADMIN') {
+      const admins = await prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true },
+      });
+      feedUserIds = [...new Set([...feedUserIds, ...admins.map((a) => a.id)])];
+    }
     const userFilter = user.role === 'ADMIN'
       ? {}
-      : {
-          OR: [
-            { userId: { in: [req.user!.userId, ...followingIds] } },
-            { user: { is: { role: 'ADMIN' as const } } },
-          ],
-        };
+      : { userId: { in: feedUserIds } };
 
     // Fetch posts and highlights in parallel
     const [posts, postCount, highlights, highlightCount] = await Promise.all([
