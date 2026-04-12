@@ -43,8 +43,10 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         include: {
           user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
           media: { orderBy: { position: 'asc' } },
-          _count: { select: { likes: true, comments: true } },
+          _count: { select: { likes: true, comments: true, reposts: true } },
           likes: { where: { userId: req.user!.userId }, select: { id: true } },
+          reposts: { where: { userId: req.user!.userId }, select: { id: true } },
+          saves: { where: { userId: req.user!.userId }, select: { id: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -79,7 +81,10 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         createdAt: p.createdAt,
         likeCount: p._count.likes,
         commentCount: p._count.comments,
+        repostCount: p._count.reposts,
         likedByMe: p.likes.length > 0,
+        repostedByMe: p.reposts.length > 0,
+        savedByMe: p.saves.length > 0,
       })),
       ...highlights.map((h) => ({
         id: h.id,

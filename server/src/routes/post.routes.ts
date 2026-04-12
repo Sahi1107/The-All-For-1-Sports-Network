@@ -98,8 +98,10 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
       include: {
         user: { select: { id: true, name: true, avatar: true } },
         media: { orderBy: { position: 'asc' } },
-        _count: { select: { likes: true, comments: true } },
+        _count: { select: { likes: true, comments: true, reposts: true } },
         likes: { where: { userId }, select: { id: true } },
+        reposts: { where: { userId }, select: { id: true } },
+        saves: { where: { userId }, select: { id: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -107,7 +109,10 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
       ...p,
       likeCount: p._count.likes,
       commentCount: p._count.comments,
+      repostCount: p._count.reposts,
       likedByMe: p.likes.length > 0,
+      repostedByMe: p.reposts.length > 0,
+      savedByMe: p.saves.length > 0,
     }));
     await signMediaDeepAll(shaped);
     res.json({ posts: shaped });
@@ -152,6 +157,70 @@ router.post('/:id/like', authenticate, writeLimiter, async (req: AuthRequest, re
     }
 
     res.json({ liked: true, likeCount });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/posts/:id/repost  — toggle repost
+router.post('/:id/repost', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const postId = req.params.id as string;
+    const userId = req.user!.userId;
+
+    const existing = await prisma.postRepost.findUnique({
+      where: { postId_userId: { postId, userId } },
+    });
+
+    if (existing) {
+      await prisma.postRepost.delete({ where: { id: existing.id } });
+      const repostCount = await prisma.postRepost.count({ where: { postId } });
+      res.json({ reposted: false, repostCount });
+      return;
+    }
+
+    await prisma.postRepost.create({ data: { postId, userId } });
+    const repostCount = await prisma.postRepost.count({ where: { postId } });
+
+    // Notify post owner (skip self-reposts)
+    const post = await prisma.post.findUnique({ where: { id: postId }, select: { userId: true } });
+    if (post && post.userId !== userId) {
+      const reposter = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+      await prisma.notification.create({
+        data: {
+          userId: post.userId,
+          type: 'REPOST',
+          title: 'New repost',
+          message: `${reposter?.name} reposted your post`,
+          referenceId: postId,
+        },
+      });
+    }
+
+    res.json({ reposted: true, repostCount });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/posts/:id/save  — toggle save/bookmark
+router.post('/:id/save', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const postId = req.params.id as string;
+    const userId = req.user!.userId;
+
+    const existing = await prisma.postSave.findUnique({
+      where: { postId_userId: { postId, userId } },
+    });
+
+    if (existing) {
+      await prisma.postSave.delete({ where: { id: existing.id } });
+      res.json({ saved: false });
+      return;
+    }
+
+    await prisma.postSave.create({ data: { postId, userId } });
+    res.json({ saved: true });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
