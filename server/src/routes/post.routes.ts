@@ -89,6 +89,46 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
   }
 });
 
+// GET /api/posts/saved — current user's saved posts
+router.get('/saved', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user!.userId;
+    const saves = await prisma.postSave.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        post: {
+          include: {
+            user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
+            media: { orderBy: { position: 'asc' } },
+            _count: { select: { likes: true, comments: true, reposts: true } },
+            likes: { where: { userId }, select: { id: true } },
+            reposts: { where: { userId }, select: { id: true } },
+            saves: { where: { userId }, select: { id: true } },
+          },
+        },
+      },
+    });
+    const posts = saves.map((s) => {
+      const p = s.post;
+      return {
+        ...p,
+        likeCount: p._count.likes,
+        commentCount: p._count.comments,
+        repostCount: p._count.reposts,
+        likedByMe: p.likes.length > 0,
+        repostedByMe: p.reposts.length > 0,
+        savedByMe: p.saves.length > 0,
+      };
+    });
+    await signMediaDeepAll(posts);
+    res.json({ posts });
+  } catch (error) {
+    console.error('Saved posts error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/posts/user/:userId
 router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response) => {
   try {

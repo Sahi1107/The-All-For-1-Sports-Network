@@ -21,6 +21,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const ScoutCopilot   = lazy(() => import('./pages/ScoutCopilot'));
 const Grow           = lazy(() => import('./pages/Grow'));
 const Settings       = lazy(() => import('./pages/Settings'));
+const SavedPosts     = lazy(() => import('./pages/SavedPosts'));
 const VerifyEmail        = lazy(() => import('./pages/VerifyEmail'));
 const VerifyEmailPending = lazy(() => import('./pages/VerifyEmailPending'));
 const ForgotPassword     = lazy(() => import('./pages/ForgotPassword'));
@@ -80,6 +81,7 @@ function AppRoutes() {
           <Route path="profile/edit"        element={<EditProfile />} />
           <Route path="admin"               element={<AdminDashboard />} />
           <Route path="settings"            element={<Settings />} />
+          <Route path="saved"               element={<SavedPosts />} />
           <Route path="scout-copilot"       element={<ScoutCopilot />} />
         </Route>
 

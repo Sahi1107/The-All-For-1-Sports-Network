@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../config/firebase';
 import { sendPasswordResetEmail, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { User, Lock, Trash2, Edit, Shield, Bell, LogOut } from 'lucide-react';
+import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
@@ -78,6 +78,23 @@ export default function Settings() {
           >
             <Edit size={14} />
             Edit
+          </Link>
+        </div>
+
+        <div className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Bookmark size={14} className="text-yellow-400" />
+              Saved Posts
+            </p>
+            <p className="text-xs text-gray-custom mt-0.5">View posts you've bookmarked</p>
+          </div>
+          <Link
+            to="/saved"
+            className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors"
+          >
+            <Bookmark size={14} />
+            View
           </Link>
         </div>
 
