@@ -2,11 +2,36 @@ import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../config/socket';
-import { messageLimiter } from '../middleware/rateLimiter';
+import { messageLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { CreateConversationBody, SendMessageBody } from '../validation/message';
+import {
+  CreateConversationBody,
+  SendMessageBody,
+  EditMessageBody,
+  ForwardMessageBody,
+} from '../validation/message';
+import { signMediaDeep } from '../services/storage';
 
 const router = Router();
+
+// ─── Shared select for messages (includes new fields + shared post) ──────
+
+const messageInclude = {
+  sender: { select: { id: true, name: true, avatar: true } },
+  sharedPost: {
+    select: {
+      id: true,
+      type: true,
+      content: true,
+      title: true,
+      mediaUrl: true,
+      sport: true,
+      createdAt: true,
+      user: { select: { id: true, name: true, avatar: true } },
+      media: { orderBy: { position: 'asc' as const }, take: 1 },
+    },
+  },
+};
 
 // ─── Helper ───────────────────────────────────────────────────
 
@@ -29,7 +54,17 @@ async function assertMember(
   return true;
 }
 
-// ─── GET /api/messages/unread-count ──────────────────────
+/**
+ * Strip content from soft-deleted messages so clients see placeholder text.
+ */
+function sanitizeDeleted(msg: any) {
+  if (msg.deletedAt) {
+    return { ...msg, content: '' };
+  }
+  return msg;
+}
+
+// ─── GET /api/messages/unread-count ──────────────────────────
 // Returns the number of distinct conversations with unread incoming messages
 // (i.e. how many senders have sent you something you haven't opened yet).
 
@@ -66,7 +101,7 @@ router.get('/unread-count', authenticate, async (req: AuthRequest, res: Response
   }
 });
 
-// ─── GET /api/messages/conversations ─────────────────────────
+// ─── GET /api/messages/conversations ─────────────────────────────
 
 router.get('/conversations', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -76,7 +111,14 @@ router.get('/conversations', authenticate, async (req: AuthRequest, res: Respons
       },
       include: {
         members: {
-          include: { user: { select: { id: true, name: true, avatar: true } } },
+          include: {
+            user: {
+              select: {
+                id: true, name: true, avatar: true,
+                showOnlineStatus: true, lastActiveAt: true,
+              },
+            },
+          },
         },
         messages: {
           take: 1,
@@ -87,14 +129,20 @@ router.get('/conversations', authenticate, async (req: AuthRequest, res: Respons
       orderBy: { updatedAt: 'desc' },
     });
 
-    res.json({ conversations });
+    // Sanitize the last message preview for soft-deleted messages
+    const sanitized = conversations.map((c) => ({
+      ...c,
+      messages: c.messages.map(sanitizeDeleted),
+    }));
+
+    res.json({ conversations: sanitized });
   } catch (error) {
     console.error('Get conversations error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ─── POST /api/messages/conversations ────────────────────────
+// ─── POST /api/messages/conversations ────────────────────────────
 
 router.post('/conversations', authenticate, validate({ body: CreateConversationBody }), async (req: AuthRequest, res: Response) => {
   try {
@@ -167,7 +215,7 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
   }
 });
 
-// ─── GET /api/messages/conversations/:id ─────────────────────
+// ─── GET /api/messages/conversations/:id ─────────────────────────
 
 router.get('/conversations/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -181,20 +229,26 @@ router.get('/conversations/:id', authenticate, async (req: AuthRequest, res: Res
 
     const messages = await prisma.message.findMany({
       where: { conversationId },
-      include: { sender: { select: { id: true, name: true, avatar: true } } },
+      include: messageInclude,
       skip,
       take: parseInt(limit as string),
       orderBy: { createdAt: 'asc' },
     });
 
-    res.json({ messages });
+    // Sign media URLs for shared post previews and sanitize deleted messages
+    for (const msg of messages) {
+      if (msg.sharedPost) await signMediaDeep(msg.sharedPost);
+    }
+    const sanitized = messages.map(sanitizeDeleted);
+
+    res.json({ messages: sanitized });
   } catch (error) {
     console.error('Get messages error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ─── PATCH /api/messages/conversations/:id/read ──────────
+// ─── PATCH /api/messages/conversations/:id/read ──────────────
 // Mark a conversation as read for the current user.
 router.patch('/conversations/:id/read', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -211,28 +265,44 @@ router.patch('/conversations/:id/read', authenticate, async (req: AuthRequest, r
   }
 });
 
-// ─── POST /api/messages/conversations/:id ────────────────────
+// ─── POST /api/messages/conversations/:id ────────────────────────
+// Send a new message (text and/or shared post)
 
 router.post('/conversations/:id', authenticate, messageLimiter, validate({ body: SendMessageBody }), async (req: AuthRequest, res: Response) => {
   try {
     const conversationId = req.params.id as string;
-    const { content } = req.body;
-    if (!content) {
-      res.status(400).json({ error: 'Message content is required' });
+    const { content, sharedPostId } = req.body;
+    const messageContent = content || (sharedPostId ? '[Shared post]' : '');
+
+    if (!messageContent && !sharedPostId) {
+      res.status(400).json({ error: 'Message content or shared post is required' });
       return;
     }
 
     // IDOR: verify caller is a member of this conversation
     if (!(await assertMember(conversationId, req.user!.userId, res))) return;
 
+    // Validate sharedPostId if provided
+    if (sharedPostId) {
+      const post = await prisma.post.findUnique({ where: { id: sharedPostId }, select: { id: true } });
+      if (!post) {
+        res.status(404).json({ error: 'Post not found' });
+        return;
+      }
+    }
+
     const message = await prisma.message.create({
       data: {
         conversationId,
         senderId: req.user!.userId,
-        content,
+        content: messageContent,
+        ...(sharedPostId && { sharedPostId }),
       },
-      include: { sender: { select: { id: true, name: true, avatar: true } } },
+      include: messageInclude,
     });
+
+    // Sign shared post media if present
+    if (message.sharedPost) await signMediaDeep(message.sharedPost);
 
     // Update conversation timestamp
     await prisma.conversation.update({
@@ -260,13 +330,15 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
         select: { id: true },
       });
       if (recipients.length > 0) {
-        const preview = String(content).slice(0, 80);
+        const preview = sharedPostId
+          ? `${message.sender.name} shared a post`
+          : `${message.sender.name}: ${String(messageContent).slice(0, 80)}`;
         await prisma.notification.createMany({
           data: recipients.map((r) => ({
             userId: r.id,
             type: 'MESSAGE' as const,
             title: 'New message',
-            message: `${message.sender.name}: ${preview}`,
+            message: preview,
             referenceId: conversationId,
           })),
         });
@@ -286,6 +358,203 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
     res.status(201).json({ message });
   } catch (error) {
     console.error('Send message error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── PATCH /api/messages/:id/edit ────────────────────────────
+// Edit a message (sender only). No time limit.
+
+router.patch('/:id/edit', authenticate, writeLimiter, validate({ body: EditMessageBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const messageId = req.params.id as string;
+    const { content } = req.body;
+
+    const existing = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { senderId: true, conversationId: true, deletedAt: true },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    if (existing.senderId !== req.user!.userId) {
+      res.status(403).json({ error: 'You can only edit your own messages' });
+      return;
+    }
+    if (existing.deletedAt) {
+      res.status(400).json({ error: 'Cannot edit a deleted message' });
+      return;
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: { content, editedAt: new Date() },
+      include: messageInclude,
+    });
+
+    // Broadcast edit event
+    try {
+      getIO().to(`conversation:${existing.conversationId}`).emit('message_edited', {
+        ...updated,
+        conversationId: existing.conversationId,
+      });
+    } catch {
+      // Socket.IO not initialized, skip
+    }
+
+    res.json({ message: updated });
+  } catch (error) {
+    console.error('Edit message error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── DELETE /api/messages/:id ────────────────────────────────
+// Soft-delete / unsend a message (sender only).
+
+router.delete('/:id', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const messageId = req.params.id as string;
+
+    const existing = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { senderId: true, conversationId: true, deletedAt: true },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    if (existing.senderId !== req.user!.userId) {
+      res.status(403).json({ error: 'You can only unsend your own messages' });
+      return;
+    }
+    if (existing.deletedAt) {
+      res.status(400).json({ error: 'Message already deleted' });
+      return;
+    }
+
+    const updated = await prisma.message.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date(), content: '' },
+      include: messageInclude,
+    });
+
+    // Broadcast delete event
+    try {
+      getIO().to(`conversation:${existing.conversationId}`).emit('message_deleted', {
+        id: updated.id,
+        conversationId: existing.conversationId,
+        deletedAt: updated.deletedAt,
+      });
+    } catch {
+      // Socket.IO not initialized, skip
+    }
+
+    res.json({ message: { id: updated.id, deleted: true } });
+  } catch (error) {
+    console.error('Unsend message error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/messages/:id/forward ──────────────────────────
+// Forward a message to another conversation.
+
+router.post('/:id/forward', authenticate, messageLimiter, validate({ body: ForwardMessageBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const messageId = req.params.id as string;
+    const { targetConversationId } = req.body;
+
+    // Find the original message
+    const original = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { content: true, conversationId: true, sharedPostId: true, deletedAt: true },
+    });
+
+    if (!original) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    if (original.deletedAt) {
+      res.status(400).json({ error: 'Cannot forward a deleted message' });
+      return;
+    }
+
+    // Verify caller is member of both source and target conversations
+    if (!(await assertMember(original.conversationId, req.user!.userId, res))) return;
+    if (!(await assertMember(targetConversationId, req.user!.userId, res))) return;
+
+    // Create a new message in the target conversation
+    const forwarded = await prisma.message.create({
+      data: {
+        conversationId: targetConversationId,
+        senderId: req.user!.userId,
+        content: original.content,
+        ...(original.sharedPostId && { sharedPostId: original.sharedPostId }),
+      },
+      include: messageInclude,
+    });
+
+    if (forwarded.sharedPost) await signMediaDeep(forwarded.sharedPost);
+
+    // Update target conversation timestamp
+    await prisma.conversation.update({
+      where: { id: targetConversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    // Broadcast to target conversation room
+    try {
+      getIO().to(`conversation:${targetConversationId}`).emit('message', {
+        ...forwarded,
+        conversationId: targetConversationId,
+      });
+    } catch {
+      // Socket.IO not initialized, skip
+    }
+
+    res.status(201).json({ message: forwarded });
+  } catch (error) {
+    console.error('Forward message error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/messages/presence/:userId ──────────────────────
+// Get online status of a user (respects privacy toggle).
+
+router.get('/presence/:userId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const target = await prisma.user.findUnique({
+      where: { id: req.params.userId as string },
+      select: { showOnlineStatus: true, lastActiveAt: true },
+    });
+
+    if (!target) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // If user has disabled online status, return null
+    if (!target.showOnlineStatus) {
+      res.json({ online: null, lastActiveAt: null });
+      return;
+    }
+
+    // Consider "online" if active within the last 2 minutes
+    const isOnline = target.lastActiveAt
+      ? Date.now() - new Date(target.lastActiveAt).getTime() < 2 * 60 * 1000
+      : false;
+
+    res.json({
+      online: isOnline,
+      lastActiveAt: target.lastActiveAt?.toISOString() ?? null,
+    });
+  } catch (error) {
+    console.error('Presence error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

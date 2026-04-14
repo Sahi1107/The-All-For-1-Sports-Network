@@ -100,6 +100,8 @@ model User {
   banner      String?
   verified    Boolean  @default(false)
   messageNotifications Boolean @default(true) @map("message_notifications")
+  showOnlineStatus     Boolean  @default(true) @map("show_online_status")
+  lastActiveAt         DateTime? @map("last_active_at")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -212,6 +214,7 @@ model Post {
   comments PostComment[]
   reposts  PostRepost[]
   saves    PostSave[]
+  sharedMessages Message[]
 
   @@index([userId])
   @@index([sport])
@@ -565,14 +568,18 @@ model ConversationMember {
 }
 
 model Message {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   conversationId String
   senderId       String
   content        String
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
+  editedAt       DateTime? @map("edited_at")
+  deletedAt      DateTime? @map("deleted_at")
+  sharedPostId   String?   @map("shared_post_id")
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  sharedPost   Post?        @relation(fields: [sharedPostId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
 }

@@ -4,6 +4,8 @@ import app from './app';
 import { env } from './config/env';
 import { initIO } from './config/socket';
 import logger from './utils/logger';
+import { getAuth } from 'firebase-admin/auth';
+import prisma from './config/db';
 
 // ─── Crash handlers ───────────────────────────────────────────
 // Log unhandled errors before the process exits so they appear in the
@@ -38,11 +40,47 @@ const io = new Server(server, {
 
 initIO(io);
 
-io.on('connection', (socket) => {
+// ─── Presence helpers ─────────────────────────────────────────
+
+async function updatePresence(userId: string) {
+  try {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lastActiveAt: new Date() },
+    });
+  } catch {
+    // Non-critical — log but don't crash
+    logger.debug('Failed to update presence', { userId });
+  }
+}
+
+// ─── Socket.IO connection handler ─────────────────────────────
+
+io.on('connection', async (socket) => {
   logger.debug('Socket connected', { socketId: socket.id });
 
-  socket.on('join', (userId: string) => {
-    socket.join(`user:${userId}`);
+  // Authenticate socket: extract userId from Firebase token
+  let userId: string | null = null;
+  const token = socket.handshake.auth?.token;
+  if (token) {
+    try {
+      const decoded = await getAuth().verifyIdToken(token);
+      userId = decoded.userId as string || null;
+      if (userId) {
+        socket.join(`user:${userId}`);
+        // Update presence on connect
+        await updatePresence(userId);
+        // Notify others this user is online
+        socket.broadcast.emit('user_online', { userId });
+      }
+    } catch {
+      logger.debug('Socket auth failed', { socketId: socket.id });
+    }
+  }
+
+  socket.on('join', (joinUserId: string) => {
+    socket.join(`user:${joinUserId}`);
+    if (!userId) userId = joinUserId;
   });
 
   socket.on('join_conversation', (conversationId: string) => {
@@ -53,8 +91,17 @@ io.on('connection', (socket) => {
     socket.leave(`conversation:${conversationId}`);
   });
 
-  socket.on('disconnect', () => {
+  // Heartbeat for presence — client sends this every 30s
+  socket.on('heartbeat', async () => {
+    if (userId) await updatePresence(userId);
+  });
+
+  socket.on('disconnect', async () => {
     logger.debug('Socket disconnected', { socketId: socket.id });
+    if (userId) {
+      await updatePresence(userId);
+      socket.broadcast.emit('user_offline', { userId });
+    }
   });
 });
 
@@ -86,3 +133,4 @@ function shutdown(signal: string) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT',  () => shutdown('SIGINT'));
+

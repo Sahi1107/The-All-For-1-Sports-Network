@@ -163,13 +163,14 @@ router.post('/report/:id', authenticate, writeLimiter, async (req: AuthRequest, 
 // PATCH /api/users/settings/notifications — update notification preferences
 router.patch('/settings/notifications', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const { messageNotifications } = req.body ?? {};
+    const { messageNotifications, showOnlineStatus } = req.body ?? {};
     const user = await prisma.user.update({
       where: { id: req.user!.userId },
       data: {
         ...(typeof messageNotifications === 'boolean' && { messageNotifications }),
+        ...(typeof showOnlineStatus === 'boolean' && { showOnlineStatus }),
       },
-      select: { messageNotifications: true },
+      select: { messageNotifications: true, showOnlineStatus: true },
     });
     res.json({ settings: user });
   } catch (error) {
@@ -191,7 +192,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         achievements: true, verified: true, createdAt: true,
         contactEmail: true, banner: true,
         // Email, phone, and notification settings are private
-        ...(isSelf && { email: true, phone: true, messageNotifications: true }),
+        ...(isSelf && { email: true, phone: true, messageNotifications: true, showOnlineStatus: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
         teamMemberships: { include: { team: true } },
         playerRankings: { orderBy: { calculatedAt: 'desc' }, take: 5, include: { tournament: { select: { id: true, name: true } } } },

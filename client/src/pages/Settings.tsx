@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../config/firebase';
 import { sendPasswordResetEmail, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban } from 'lucide-react';
+import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
@@ -15,6 +15,7 @@ export default function Settings() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [msgNotifs, setMsgNotifs] = useState<boolean | null>(null);
+  const [onlineStatus, setOnlineStatus] = useState<boolean | null>(null);
   const [blocked, setBlocked] = useState<any[]>([]);
 
   useEffect(() => {
@@ -22,6 +23,9 @@ export default function Settings() {
     api.get(`/users/${user.id}`).then(({ data }) => {
       if (typeof data?.user?.messageNotifications === 'boolean') {
         setMsgNotifs(data.user.messageNotifications);
+      }
+      if (typeof data?.user?.showOnlineStatus === 'boolean') {
+        setOnlineStatus(data.user.showOnlineStatus);
       }
     }).catch(() => {});
     api.get('/users/blocked').then(({ data }) => setBlocked(data.users ?? [])).catch(() => {});
@@ -200,6 +204,39 @@ export default function Settings() {
             <span
               className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
                 msgNotifs ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+        <div className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Wifi size={14} className="text-emerald-400" />
+              Online Status
+            </p>
+            <p className="text-xs text-gray-custom mt-0.5">Show when you're active on the platform</p>
+          </div>
+          <button
+            onClick={async () => {
+              const next = !onlineStatus;
+              setOnlineStatus(next);
+              try {
+                await api.patch('/users/settings/notifications', { showOnlineStatus: next });
+                toast.success(next ? 'Online status visible' : 'Online status hidden');
+              } catch {
+                setOnlineStatus(!next);
+                toast.error('Failed to update');
+              }
+            }}
+            disabled={onlineStatus === null}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              onlineStatus ? 'bg-emerald-500' : 'bg-dark-lighter'
+            } disabled:opacity-50`}
+            aria-pressed={!!onlineStatus}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                onlineStatus ? 'translate-x-5' : 'translate-x-0.5'
               }`}
             />
           </button>

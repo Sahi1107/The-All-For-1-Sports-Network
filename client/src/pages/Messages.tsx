@@ -1,11 +1,17 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { io, type Socket } from 'socket.io-client';
 import { auth } from '../config/firebase';
-import { Send, MessageCircle, Plus, X, Search, ArrowLeft, Edit } from 'lucide-react';
+import {
+  Send, MessageCircle, Plus, X, Search, ArrowLeft, Edit,
+  Copy, Pencil, Trash2, CornerUpRight, MoreHorizontal, Check,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+
+// ─── Helpers ──────────────────────────────────────────────────
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -18,16 +24,205 @@ function timeAgo(date: string) {
   return `${days}d`;
 }
 
-function Avatar({ user, size = 10 }: { user: any; size?: number }) {
-  const cls = `w-${size} h-${size} rounded-full bg-dark-lighter flex items-center justify-center font-bold shrink-0 overflow-hidden`;
+function presenceLabel(online: boolean | null, lastActiveAt: string | null): string | null {
+  if (online === null) return null; // privacy disabled
+  if (online) return 'Active now';
+  if (!lastActiveAt) return null;
+  const ago = timeAgo(lastActiveAt);
+  return `Active ${ago} ago`;
+}
+
+function Avatar({ user, size = 10, online }: { user: any; size?: number; online?: boolean | null }) {
+  const px = size * 4;
   return (
-    <div className={cls}>
-      {user?.avatar
-        ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-        : <span className="text-sm">{user?.name?.charAt(0)}</span>}
+    <div className="relative shrink-0" style={{ width: px, height: px }}>
+      <div
+        className="rounded-full bg-dark-lighter flex items-center justify-center font-bold overflow-hidden"
+        style={{ width: px, height: px }}
+      >
+        {user?.avatar
+          ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+          : <span className="text-sm">{user?.name?.charAt(0)}</span>}
+      </div>
+      {online === true && (
+        <span
+          className="absolute bottom-0 right-0 block rounded-full bg-emerald-400 ring-2 ring-dark-light"
+          style={{ width: Math.max(8, px * 0.25), height: Math.max(8, px * 0.25) }}
+        />
+      )}
     </div>
   );
 }
+
+// ─── Shared Post Preview Card ─────────────────────────────────
+
+function SharedPostCard({ post }: { post: any }) {
+  if (!post) return null;
+  return (
+    <Link
+      to={`/profile/${post.user?.id}`}
+      className="block mt-1.5 rounded-lg border border-white/10 bg-white/5 overflow-hidden hover:bg-white/10 transition-colors"
+    >
+      {post.media?.[0]?.url && (
+        <img src={post.media[0].url} alt="" className="w-full h-28 object-cover" />
+      )}
+      <div className="p-2.5">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-5 h-5 rounded-full bg-dark-lighter overflow-hidden shrink-0">
+            {post.user?.avatar
+              ? <img src={post.user.avatar} alt="" className="w-full h-full object-cover" />
+              : <span className="text-[9px] font-bold flex items-center justify-center w-full h-full">{post.user?.name?.charAt(0)}</span>}
+          </div>
+          <span className="text-xs font-medium truncate">{post.user?.name}</span>
+        </div>
+        {post.title && <p className="text-xs font-semibold truncate">{post.title}</p>}
+        {post.content && (
+          <p className="text-xs text-white/60 mt-0.5 line-clamp-2">{post.content}</p>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+// ─── Message Action Menu ──────────────────────────────────────
+
+interface ActionMenuProps {
+  msg: any;
+  isMe: boolean;
+  onCopy: () => void;
+  onEdit: () => void;
+  onUnsend: () => void;
+  onForward: () => void;
+  onClose: () => void;
+}
+
+function MessageActionMenu({ msg, isMe, onCopy, onEdit, onUnsend, onForward, onClose }: ActionMenuProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={menuRef}
+      className={`absolute z-30 ${isMe ? 'right-0' : 'left-0'} top-full mt-1 bg-dark-light border border-dark-lighter rounded-xl shadow-xl py-1 min-w-[140px] animate-in fade-in zoom-in-95 duration-150`}
+    >
+      <button
+        onClick={onCopy}
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
+      >
+        <Copy size={14} /> Copy
+      </button>
+      {isMe && !msg.deletedAt && (
+        <button
+          onClick={onEdit}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
+        >
+          <Pencil size={14} /> Edit
+        </button>
+      )}
+      {!msg.deletedAt && (
+        <button
+          onClick={onForward}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
+        >
+          <CornerUpRight size={14} /> Forward
+        </button>
+      )}
+      {isMe && !msg.deletedAt && (
+        <button
+          onClick={onUnsend}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-dark transition-colors"
+        >
+          <Trash2 size={14} /> Unsend
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Forward Picker Modal ─────────────────────────────────────
+
+function ForwardModal({
+  messageId,
+  onClose,
+}: {
+  messageId: string;
+  onClose: () => void;
+}) {
+  const { user } = useAuth();
+  const [convs, setConvs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/messages/conversations')
+      .then(({ data }) => setConvs(data.conversations ?? []))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const forward = async (targetConversationId: string) => {
+    setSending(targetConversationId);
+    try {
+      await api.post(`/messages/${messageId}/forward`, { targetConversationId });
+      toast.success('Message forwarded');
+      onClose();
+    } catch {
+      toast.error('Failed to forward');
+      setSending(null);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-dark-light rounded-t-2xl sm:rounded-xl border border-dark-lighter w-full sm:max-w-sm max-h-[70vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-dark-lighter shrink-0">
+          <h2 className="font-semibold">Forward to…</h2>
+          <button onClick={onClose} className="text-gray-custom hover:text-white"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : convs.length === 0 ? (
+            <p className="text-sm text-gray-custom text-center py-6">No conversations</p>
+          ) : (
+            convs.map((c: any) => {
+              const other = c.members?.find((m: any) => m.userId !== user?.id)?.user;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => forward(c.id)}
+                  disabled={!!sending}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-dark transition-colors text-left disabled:opacity-50"
+                >
+                  <Avatar user={other} size={9} />
+                  <span className="text-sm font-medium truncate flex-1">{other?.name ?? 'Unknown'}</span>
+                  {sending === c.id ? (
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send size={14} className="text-gray-custom" />
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────
 
 export default function Messages() {
   const { user } = useAuth();
@@ -37,9 +232,16 @@ export default function Messages() {
   const [messages, setMessages] = useState<any[]>([]);
   const [showNewConv, setShowNewConv] = useState(false);
   const [recipientSearch, setRecipientSearch] = useState('');
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+  const [forwardingId, setForwardingId] = useState<string | null>(null);
+  const [otherPresence, setOtherPresence] = useState<{ online: boolean | null; lastActiveAt: string | null } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── Socket setup ────────────────────────────────────────────
 
   useEffect(() => {
     let mounted = true;
@@ -50,6 +252,13 @@ export default function Messages() {
         auth: { token },
         transports: ['websocket'],
       });
+
+      // Heartbeat for presence
+      const heartbeat = setInterval(() => {
+        socketRef.current?.emit('heartbeat');
+      }, 30_000);
+
+      socketRef.current.on('disconnect', () => clearInterval(heartbeat));
     });
     return () => {
       mounted = false;
@@ -57,6 +266,8 @@ export default function Messages() {
       socketRef.current = null;
     };
   }, []);
+
+  // ── Conversations query ──────────────────────────────────────
 
   const { data: convData } = useQuery({
     queryKey: ['conversations'],
@@ -66,6 +277,8 @@ export default function Messages() {
     },
     refetchInterval: 10000,
   });
+
+  // ── Fetch messages when active conversation changes ──────────
 
   useEffect(() => {
     if (!activeConvId) return;
@@ -78,10 +291,38 @@ export default function Messages() {
     }).catch(() => {});
   }, [activeConvId, qc]);
 
+  // ── Fetch presence for the other user in active conversation ─
+
+  const conversations = convData?.conversations ?? [];
+  const activeConv = conversations.find((c: any) => c.id === activeConvId);
+
+  const getOther = useCallback((conv: any) =>
+    conv.members?.find((p: any) => p.userId !== user?.id)?.user, [user?.id]);
+
+  useEffect(() => {
+    if (!activeConv) { setOtherPresence(null); return; }
+    const other = getOther(activeConv);
+    if (!other?.id) return;
+    api.get(`/messages/presence/${other.id}`)
+      .then(({ data }) => setOtherPresence(data))
+      .catch(() => setOtherPresence(null));
+
+    // Refresh presence periodically
+    const iv = setInterval(() => {
+      api.get(`/messages/presence/${other.id}`)
+        .then(({ data }) => setOtherPresence(data))
+        .catch(() => {});
+    }, 30_000);
+    return () => clearInterval(iv);
+  }, [activeConv, getOther]);
+
+  // ── Socket listeners ─────────────────────────────────────────
+
   useEffect(() => {
     const s = socketRef.current;
     if (!s) return;
-    s.on('message', (msg: any) => {
+
+    const onMessage = (msg: any) => {
       if (msg.conversationId === activeConvId) {
         setMessages(prev => {
           if (prev.some(m => m.id === msg.id)) return prev;
@@ -91,8 +332,30 @@ export default function Messages() {
       }
       qc.invalidateQueries({ queryKey: ['conversations'] });
       qc.invalidateQueries({ queryKey: ['messages-unread'] });
-    });
-    return () => { s.off('message'); };
+    };
+
+    const onEdited = (msg: any) => {
+      if (msg.conversationId === activeConvId) {
+        setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, content: msg.content, editedAt: msg.editedAt } : m));
+      }
+    };
+
+    const onDeleted = (data: any) => {
+      if (data.conversationId === activeConvId) {
+        setMessages(prev => prev.map(m => m.id === data.id ? { ...m, content: '', deletedAt: data.deletedAt } : m));
+      }
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+    };
+
+    s.on('message', onMessage);
+    s.on('message_edited', onEdited);
+    s.on('message_deleted', onDeleted);
+
+    return () => {
+      s.off('message', onMessage);
+      s.off('message_edited', onEdited);
+      s.off('message_deleted', onDeleted);
+    };
   }, [activeConvId, qc]);
 
   useEffect(() => {
@@ -100,6 +363,8 @@ export default function Messages() {
     socketRef.current.emit('join_conversation', activeConvId);
     return () => { socketRef.current?.emit('leave_conversation', activeConvId); };
   }, [activeConvId]);
+
+  // ── Send message ─────────────────────────────────────────────
 
   const sendMutation = useMutation({
     mutationFn: async () => {
@@ -116,6 +381,38 @@ export default function Messages() {
     },
     onError: () => toast.error('Failed to send'),
   });
+
+  // ── Edit message ─────────────────────────────────────────────
+
+  const editMutation = useMutation({
+    mutationFn: async (msgId: string) => {
+      const { data } = await api.patch(`/messages/${msgId}/edit`, { content: editText });
+      return data;
+    },
+    onSuccess: (data) => {
+      setMessages(prev => prev.map(m => m.id === data.message.id ? data.message : m));
+      setEditingId(null);
+      setEditText('');
+      toast.success('Message edited');
+    },
+    onError: () => toast.error('Failed to edit'),
+  });
+
+  // ── Unsend message ───────────────────────────────────────────
+
+  const unsendMutation = useMutation({
+    mutationFn: async (msgId: string) => {
+      await api.delete(`/messages/${msgId}`);
+      return msgId;
+    },
+    onSuccess: (msgId) => {
+      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: '', deletedAt: new Date().toISOString() } : m));
+      toast.success('Message unsent');
+    },
+    onError: () => toast.error('Failed to unsend'),
+  });
+
+  // ── User search for new conversations ────────────────────────
 
   const { data: searchData } = useQuery({
     queryKey: ['user-search-msg', recipientSearch],
@@ -138,11 +435,7 @@ export default function Messages() {
     onError: () => toast.error('Could not start conversation'),
   });
 
-  const conversations = convData?.conversations ?? [];
-  const activeConv = conversations.find((c: any) => c.id === activeConvId);
-
-  const getOther = (conv: any) =>
-    conv.members?.find((p: any) => p.userId !== user?.id)?.user;
+  // ── Action handlers ──────────────────────────────────────────
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +445,45 @@ export default function Messages() {
 
   const openConv = (id: string) => {
     setActiveConvId(id);
+    setActiveMenu(null);
+    setEditingId(null);
     setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const handleCopy = (content: string) => {
+    navigator.clipboard.writeText(content);
+    toast.success('Copied to clipboard');
+    setActiveMenu(null);
+  };
+
+  const handleStartEdit = (msg: any) => {
+    setEditingId(msg.id);
+    setEditText(msg.content);
+    setActiveMenu(null);
+  };
+
+  const handleConfirmEdit = (msgId: string) => {
+    if (!editText.trim()) return;
+    editMutation.mutate(msgId);
+  };
+
+  const handleUnsend = (msgId: string) => {
+    setActiveMenu(null);
+    unsendMutation.mutate(msgId);
+  };
+
+  const handleForward = (msgId: string) => {
+    setActiveMenu(null);
+    setForwardingId(msgId);
+  };
+
+  // ── Presence helper for conversation list ────────────────────
+
+  const getOnlineStatus = (conv: any): boolean | null => {
+    const other = conv.members?.find((m: any) => m.userId !== user?.id)?.user;
+    if (!other?.showOnlineStatus) return null;
+    if (!other.lastActiveAt) return false;
+    return Date.now() - new Date(other.lastActiveAt).getTime() < 2 * 60 * 1000;
   };
 
   // ── New Conversation Modal ────────────────────────────────────────────────
@@ -224,20 +555,24 @@ export default function Messages() {
         ) : conversations.map((conv: any) => {
           const other = getOther(conv);
           const lastMsg = conv.messages?.[0];
+          const online = getOnlineStatus(conv);
+          const lastPreview = lastMsg?.deletedAt
+            ? 'This message was deleted'
+            : lastMsg?.content ?? 'No messages yet';
           return (
             <button
               key={conv.id}
               onClick={() => openConv(conv.id)}
               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark/40 active:bg-dark/60 transition-colors text-left border-b border-dark-lighter/30"
             >
-              <Avatar user={other} size={12} />
+              <Avatar user={other} size={12} online={online} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                   <p className="text-sm font-semibold truncate">{other?.name ?? 'Unknown'}</p>
                   {lastMsg && <span className="text-xs text-gray-custom shrink-0">{timeAgo(lastMsg.createdAt)}</span>}
                 </div>
-                <p className="text-sm text-gray-custom truncate">
-                  {lastMsg?.content ?? 'No messages yet'}
+                <p className={`text-sm truncate ${lastMsg?.deletedAt ? 'text-gray-custom italic' : 'text-gray-custom'}`}>
+                  {lastPreview}
                 </p>
               </div>
             </button>
@@ -250,6 +585,8 @@ export default function Messages() {
   // ── Chat View ─────────────────────────────────────────────────────────────
   const ChatView = activeConv ? (() => {
     const other = getOther(activeConv);
+    const pLabel = presenceLabel(otherPresence?.online ?? null, otherPresence?.lastActiveAt ?? null);
+
     return (
       <div className="flex flex-col h-full">
         {/* Chat header */}
@@ -261,10 +598,14 @@ export default function Messages() {
           >
             <ArrowLeft size={22} />
           </button>
-          <Avatar user={other} size={10} />
+          <Avatar user={other} size={10} online={otherPresence?.online} />
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm leading-tight truncate">{other?.name}</p>
-            <p className="text-xs text-gray-custom">{other?.role}</p>
+            {pLabel ? (
+              <p className={`text-xs ${otherPresence?.online ? 'text-emerald-400' : 'text-gray-custom'}`}>{pLabel}</p>
+            ) : (
+              <p className="text-xs text-gray-custom">{other?.role}</p>
+            )}
           </div>
         </div>
 
@@ -272,13 +613,83 @@ export default function Messages() {
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {messages.map((msg: any, i: number) => {
             const isMe = msg.senderId === user?.id;
+            const isDeleted = !!msg.deletedAt;
+            const isEditing = editingId === msg.id;
+            const showMenu = activeMenu === msg.id;
+
             return (
-              <div key={msg.id ?? i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                  isMe ? 'bg-primary text-dark rounded-br-sm' : 'bg-dark-lighter text-white rounded-bl-sm'
-                }`}>
-                  <p className="text-sm leading-snug">{msg.content}</p>
-                  <p className={`text-xs mt-1 ${isMe ? 'text-dark/60' : 'text-gray-custom'}`}>{timeAgo(msg.createdAt)}</p>
+              <div key={msg.id ?? i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                <div className="relative max-w-[75%]">
+                  {/* Action trigger */}
+                  {!isDeleted && !isEditing && (
+                    <button
+                      onClick={() => setActiveMenu(showMenu ? null : msg.id)}
+                      className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity text-gray-custom hover:text-white p-1`}
+                    >
+                      <MoreHorizontal size={14} />
+                    </button>
+                  )}
+
+                  {/* Action menu */}
+                  {showMenu && (
+                    <MessageActionMenu
+                      msg={msg}
+                      isMe={isMe}
+                      onCopy={() => handleCopy(msg.content)}
+                      onEdit={() => handleStartEdit(msg)}
+                      onUnsend={() => handleUnsend(msg.id)}
+                      onForward={() => handleForward(msg.id)}
+                      onClose={() => setActiveMenu(null)}
+                    />
+                  )}
+
+                  {/* Message bubble */}
+                  {isEditing ? (
+                    <div className={`rounded-2xl px-4 py-2.5 ${isMe ? 'bg-primary/20 border border-primary/40' : 'bg-dark-lighter border border-white/10'}`}>
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        className="w-full bg-transparent text-sm text-white resize-none focus:outline-none min-h-[2rem]"
+                        autoFocus
+                        rows={2}
+                      />
+                      <div className="flex justify-end gap-2 mt-1">
+                        <button
+                          onClick={() => { setEditingId(null); setEditText(''); }}
+                          className="text-xs text-gray-custom hover:text-white"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleConfirmEdit(msg.id)}
+                          disabled={!editText.trim() || editMutation.isPending}
+                          className="text-xs text-primary hover:text-primary-light disabled:opacity-50 flex items-center gap-1"
+                        >
+                          <Check size={12} /> Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : isDeleted ? (
+                    <div className={`rounded-2xl px-4 py-2.5 ${
+                      isMe ? 'bg-dark-lighter/50 rounded-br-sm' : 'bg-dark-lighter/50 rounded-bl-sm'
+                    }`}>
+                      <p className="text-sm text-white/30 italic">This message was deleted</p>
+                    </div>
+                  ) : (
+                    <div className={`rounded-2xl px-4 py-2.5 ${
+                      isMe ? 'bg-primary text-dark rounded-br-sm' : 'bg-dark-lighter text-white rounded-bl-sm'
+                    }`}>
+                      <p className="text-sm leading-snug">{msg.content}</p>
+
+                      {/* Shared post preview */}
+                      {msg.sharedPost && <SharedPostCard post={msg.sharedPost} />}
+
+                      <div className={`flex items-center gap-1.5 mt-1 ${isMe ? 'text-dark/60' : 'text-gray-custom'}`}>
+                        <span className="text-xs">{timeAgo(msg.createdAt)}</span>
+                        {msg.editedAt && <span className="text-xs italic">(edited)</span>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -317,6 +728,9 @@ export default function Messages() {
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col">
       {showNewConv && NewConvModal}
+      {forwardingId && (
+        <ForwardModal messageId={forwardingId} onClose={() => setForwardingId(null)} />
+      )}
 
       {/* ── Mobile layout ── */}
       <div className="md:hidden flex flex-col flex-1 min-h-0 bg-dark-light rounded-xl border border-dark-lighter overflow-hidden">
@@ -352,6 +766,11 @@ export default function Messages() {
               ) : conversations.map((conv: any) => {
                 const other = getOther(conv);
                 const isActive = conv.id === activeConvId;
+                const online = getOnlineStatus(conv);
+                const lastMsg = conv.messages?.[0];
+                const lastPreview = lastMsg?.deletedAt
+                  ? 'This message was deleted'
+                  : lastMsg?.content ?? 'No messages yet';
                 return (
                   <button
                     key={conv.id}
@@ -360,13 +779,15 @@ export default function Messages() {
                       isActive ? 'bg-primary/10 border-r-2 border-primary' : 'hover:bg-dark/40'
                     }`}
                   >
-                    <Avatar user={other} size={9} />
+                    <Avatar user={other} size={9} online={online} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{other?.name ?? 'Unknown'}</p>
-                      <p className="text-xs text-gray-custom truncate">{conv.messages?.[0]?.content ?? 'No messages yet'}</p>
+                      <p className={`text-xs truncate ${lastMsg?.deletedAt ? 'text-gray-custom italic' : 'text-gray-custom'}`}>
+                        {lastPreview}
+                      </p>
                     </div>
-                    {conv.messages?.[0] && (
-                      <span className="text-xs text-gray-custom shrink-0">{timeAgo(conv.messages[0].createdAt)}</span>
+                    {lastMsg && (
+                      <span className="text-xs text-gray-custom shrink-0">{timeAgo(lastMsg.createdAt)}</span>
                     )}
                   </button>
                 );
