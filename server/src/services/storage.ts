@@ -127,6 +127,7 @@ export async function signMediaDeep<T extends Record<string, any> | null | undef
   if (typeof node.videoUrl === 'string')     node.videoUrl     = await signMediaUrl(node.videoUrl);
   if (typeof node.thumbnailUrl === 'string') node.thumbnailUrl = await signMediaUrl(node.thumbnailUrl);
   if (typeof node.avatar === 'string')       node.avatar       = await signMediaUrl(node.avatar);
+  if (typeof node.banner === 'string')       node.banner       = await signMediaUrl(node.banner);
   if (typeof node.logo === 'string')         node.logo         = await signMediaUrl(node.logo);
 
   if (node.user)  await signMediaDeep(node.user);

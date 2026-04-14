@@ -32,6 +32,8 @@ export default function EditProfile() {
     bio: user?.bio ?? '',
     position: user?.position ?? '',
     height: user?.height ?? '',
+    phone: (user as any)?.phone ?? '',
+    contactEmail: (user as any)?.contactEmail ?? '',
   });
   const [country, setCountry] = useState(() => parseLocation(user?.location).country);
   const [state,   setState]   = useState(() => parseLocation(user?.location).state);
@@ -216,6 +218,23 @@ export default function EditProfile() {
               </select>
             </div>
           )}
+        </div>
+
+        {/* Contact & Socials */}
+        <div>
+          <h3 className="text-sm font-semibold text-white/80 mb-3">Contact & Socials</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">Phone (private)</label>
+              <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210"
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary" />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">Public contact email</label>
+              <input name="contactEmail" type="email" value={form.contactEmail} onChange={handleChange} placeholder="me@example.com"
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary" />
+            </div>
+          </div>
         </div>
 
         {/* Sport & Role (read-only) */}

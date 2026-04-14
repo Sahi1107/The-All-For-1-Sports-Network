@@ -19,6 +19,8 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
     // Never expose ADMIN accounts to other users
     if (role && role !== 'ADMIN') where.role = role;
     else where.role = { not: 'ADMIN' };
+    // Don't show the current user in their own Explore results
+    where.id = { not: req.user!.userId };
     if (sport) where.sport = sport;
     if (location) where.location = { contains: location as string, mode: 'insensitive' };
     if (search) {
@@ -62,8 +64,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         id: true, name: true, role: true, sport: true, avatar: true,
         bio: true, location: true, age: true, height: true, position: true,
         achievements: true, verified: true, createdAt: true,
-        // Email is private — only returned when viewing your own profile
-        ...(isSelf && { email: true }),
+        contactEmail: true, banner: true,
+        // Email and phone are private — only returned when viewing your own profile
+        ...(isSelf && { email: true, phone: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
         teamMemberships: { include: { team: true } },
         playerRankings: { orderBy: { calculatedAt: 'desc' }, take: 5, include: { tournament: { select: { id: true, name: true } } } },
@@ -151,7 +154,7 @@ async function uploadAvatar(file: Express.Multer.File): Promise<string> {
 // PUT /api/users/profile — update own profile
 router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'), validate({ body: UpdateProfileBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, bio, location, age, height, position, achievements } = req.body;
+    const { name, bio, location, age, height, position, achievements, phone, contactEmail } = req.body;
 
     let avatarUrl: string | undefined;
     if (req.file) {
@@ -169,12 +172,15 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
         ...(height !== undefined && { height }),
         ...(position !== undefined && { position }),
         ...(achievements !== undefined && { achievements }),
+        ...(phone !== undefined && { phone }),
+        ...(contactEmail !== undefined && { contactEmail }),
         ...(avatarUrl !== undefined && { avatar: avatarUrl }),
       },
       select: {
         id: true, email: true, name: true, role: true, sport: true, avatar: true,
         bio: true, location: true, age: true, height: true, position: true,
         achievements: true, verified: true, createdAt: true,
+        phone: true, contactEmail: true, banner: true,
       },
     });
 
@@ -182,6 +188,29 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
     res.json({ user });
   } catch (error) {
     console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/users/profile/banner — upload/replace banner image
+router.put('/profile/banner', authenticate, writeLimiter, uploadImage.single('banner'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: 'Banner image is required' });
+      return;
+    }
+    if (!validateImageBytes(req.file, res)) return;
+    const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '');
+    const key = await uploadToGCS(req.file.buffer, 'banners', ext, req.file.mimetype);
+    const user = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: { banner: key },
+      select: { banner: true },
+    });
+    await signMediaDeep(user);
+    res.json({ banner: user.banner });
+  } catch (error) {
+    console.error('Upload banner error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

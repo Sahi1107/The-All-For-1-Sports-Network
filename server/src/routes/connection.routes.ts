@@ -95,6 +95,18 @@ router.put('/:id/accept', authenticate, async (req: AuthRequest, res: Response) 
       data: { status: 'ACCEPTED' },
     });
 
+    // Mark the originating CONNECTION_REQUEST notification as read so the
+    // notification bell count stays in sync with actual pending requests.
+    await prisma.notification.updateMany({
+      where: {
+        userId: req.user!.userId,
+        type: 'CONNECTION_REQUEST',
+        referenceId: connection.senderId,
+        read: false,
+      },
+      data: { read: true },
+    });
+
     const acceptor = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
     await prisma.notification.create({
       data: {
@@ -119,6 +131,15 @@ router.put('/:id/reject', authenticate, async (req: AuthRequest, res: Response) 
     const connection = await prisma.connection.update({
       where: { id: req.params.id as string, receiverId: req.user!.userId },
       data: { status: 'REJECTED' },
+    });
+    await prisma.notification.updateMany({
+      where: {
+        userId: req.user!.userId,
+        type: 'CONNECTION_REQUEST',
+        referenceId: connection.senderId,
+        read: false,
+      },
+      data: { read: true },
     });
     res.json({ connection });
   } catch (error) {
@@ -168,6 +189,42 @@ router.get('/requests', authenticate, async (req: AuthRequest, res: Response) =>
     res.json({ requests });
   } catch (error) {
     console.error('Get requests error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/connections/mutual/:userId — mutual accepted connections between current user and :userId
+router.get('/mutual/:userId', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const me = req.user!.userId;
+    const other = req.params.userId as string;
+    if (me === other) {
+      res.json({ users: [], count: 0 });
+      return;
+    }
+
+    const connectionsOf = async (uid: string) => {
+      const rows = await prisma.connection.findMany({
+        where: {
+          status: 'ACCEPTED',
+          OR: [{ senderId: uid }, { receiverId: uid }],
+        },
+        select: { senderId: true, receiverId: true },
+      });
+      return new Set(rows.map((r) => (r.senderId === uid ? r.receiverId : r.senderId)));
+    };
+
+    const [mine, theirs] = await Promise.all([connectionsOf(me), connectionsOf(other)]);
+    const mutualIds = [...mine].filter((id) => theirs.has(id) && id !== me && id !== other);
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: mutualIds } },
+      select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
+      take: 20,
+    });
+    res.json({ users, count: mutualIds.length });
+  } catch (error) {
+    console.error('Mutual connections error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

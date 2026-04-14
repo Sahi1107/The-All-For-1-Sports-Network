@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X } from 'lucide-react';
+import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -219,6 +219,15 @@ export default function Profile() {
     enabled: !!id,
   });
 
+  const { data: mutualData } = useQuery<{ users: any[]; count: number }>({
+    queryKey: ['mutual-connections', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/connections/mutual/${id}`);
+      return data;
+    },
+    enabled: !!id && !isOwnProfile,
+  });
+
   const { data: followListData, isLoading: followListLoading } = useQuery<{ users: any[] }>({
     queryKey: ['follow-list', id, followModal],
     queryFn: async () => {
@@ -256,6 +265,7 @@ export default function Profile() {
   });
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const bannerRef = useRef<HTMLInputElement>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadForm, setUploadForm] = useState({ title: '', description: '' });
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -343,12 +353,50 @@ export default function Profile() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header Card */}
       <div className="bg-dark-light rounded-xl border border-dark-lighter p-6 relative overflow-hidden">
-        {(() => {
+        {profile.banner ? (
+          <div className="absolute inset-0 pointer-events-none">
+            <img src={profile.banner} alt="" className="w-full h-full object-cover opacity-40" />
+          </div>
+        ) : (() => {
           const Backdrop = profile.role !== 'ADMIN'
             ? { CRICKET: CricketPitchBackdrop, BASKETBALL: BasketballCourtBackdrop, FOOTBALL: FootballPitchBackdrop }[profile.sport as string]
             : undefined;
           return Backdrop ? <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-[0.22]"><Backdrop /></div> : null;
         })()}
+        {isOwnProfile && (
+          <>
+            <input
+              type="file"
+              accept="image/*"
+              ref={bannerRef}
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append('banner', file);
+                try {
+                  const { data: resp } = await api.put('/users/profile/banner', fd, {
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                  });
+                  queryClient.setQueryData(['profile', id], (old: any) =>
+                    old ? { ...old, user: { ...old.user, banner: resp.banner } } : old,
+                  );
+                  toast.success('Banner updated');
+                } catch {
+                  toast.error('Failed to upload banner');
+                }
+              }}
+            />
+            <button
+              onClick={() => bannerRef.current?.click()}
+              className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-black/80 border border-white/10 text-white text-xs rounded-lg transition-colors"
+            >
+              <Edit size={12} />
+              Edit banner
+            </button>
+          </>
+        )}
         <div className="flex flex-col sm:flex-row gap-6 items-start relative z-10">
           {/* Avatar */}
           <div className="w-24 h-24 rounded-full bg-dark-lighter flex items-center justify-center text-3xl font-bold shrink-0 overflow-hidden border-2 border-dark-lighter">
@@ -386,6 +434,26 @@ export default function Profile() {
 
               {/* Actions */}
               <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    const url = `${window.location.origin}/profile/${profile.id}`;
+                    try {
+                      if (navigator.share) {
+                        await navigator.share({ title: profile.name, url });
+                      } else {
+                        await navigator.clipboard.writeText(url);
+                        toast.success('Profile link copied');
+                      }
+                    } catch {
+                      // user cancelled share — no-op
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark text-white text-sm font-medium rounded-lg transition-colors border border-dark-lighter"
+                  title="Share profile"
+                >
+                  <Share2 size={14} />
+                  Share
+                </button>
                 {isOwnProfile ? (
                   <Link
                     to="/profile/edit"
@@ -457,8 +525,47 @@ export default function Profile() {
               </div>
             </div>
 
+            {!isOwnProfile && (mutualData?.count ?? 0) > 0 && (
+              <div className="mt-3 flex items-center gap-2 text-xs text-white/70">
+                <div className="flex -space-x-2">
+                  {mutualData!.users.slice(0, 3).map((u) => (
+                    <Link key={u.id} to={`/profile/${u.id}`} title={u.name}>
+                      {u.avatar ? (
+                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-dark-light" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-primary/20 border-2 border-dark-light flex items-center justify-center text-[10px] font-bold text-primary-light">
+                          {u.name?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+                <span>
+                  {mutualData!.count} mutual connection{mutualData!.count === 1 ? '' : 's'}
+                  {mutualData!.users.length > 0 && (
+                    <> · {mutualData!.users.slice(0, 2).map((u) => u.name).join(', ')}{mutualData!.count > 2 ? ` and ${mutualData!.count - 2} more` : ''}</>
+                  )}
+                </span>
+              </div>
+            )}
+
             {profile.bio && (
               <p className="mt-4 text-sm text-white/75 leading-relaxed">{profile.bio}</p>
+            )}
+
+            {(profile.contactEmail || (profile.phone && isOwnProfile)) && (
+              <div className="mt-4 flex flex-wrap gap-3 text-xs">
+                {profile.contactEmail && (
+                  <a href={`mailto:${profile.contactEmail}`} className="flex items-center gap-1.5 px-2.5 py-1 bg-dark-lighter rounded-full text-white/80 hover:text-white transition-colors">
+                    ✉️ {profile.contactEmail}
+                  </a>
+                )}
+                {profile.phone && isOwnProfile && (
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-dark-lighter rounded-full text-white/80">
+                    📞 {profile.phone} <span className="text-white/40">(private)</span>
+                  </span>
+                )}
+              </div>
             )}
           </div>
         </div>

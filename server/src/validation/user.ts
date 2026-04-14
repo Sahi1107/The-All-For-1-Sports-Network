@@ -10,6 +10,8 @@ export const UpdateProfileBody = z.object({
   height:       optStr(20,   'Height'),
   position:     optStr(50,   'Position'),
   achievements: optText(1000, 'Achievements'),
+  phone:        optStr(30,   'Phone'),
+  contactEmail: optStr(100,  'Contact email'),
   // age: integer 1–100, coerced from string (HTML forms send strings)
   age: z.preprocess(
     (v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
