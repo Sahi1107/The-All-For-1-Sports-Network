@@ -390,7 +390,7 @@ export default function Profile() {
             />
             <button
               onClick={() => bannerRef.current?.click()}
-              className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-black/80 border border-white/10 text-white text-xs rounded-lg transition-colors"
+              className="absolute bottom-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-black/80 border border-white/10 text-white text-xs rounded-lg transition-colors"
             >
               <Edit size={12} />
               Edit banner
