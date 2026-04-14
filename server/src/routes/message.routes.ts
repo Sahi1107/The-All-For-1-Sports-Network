@@ -98,6 +98,20 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
       return;
     }
 
+    // Block check: prevent starting a conversation if either side has blocked the other
+    const block = await prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: req.user!.userId, blockedId: userId },
+          { blockerId: userId, blockedId: req.user!.userId },
+        ],
+      },
+    });
+    if (block) {
+      res.status(403).json({ error: 'Cannot message this user' });
+      return;
+    }
+
     const conversation = await prisma.conversation.create({
       data: {
         members: {
@@ -171,6 +185,39 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
+
+    // Notify other members who have message notifications enabled and haven't blocked the sender
+    const others = await prisma.conversationMember.findMany({
+      where: { conversationId, NOT: { userId: req.user!.userId } },
+      select: { userId: true },
+    });
+    if (others.length > 0) {
+      const recipients = await prisma.user.findMany({
+        where: {
+          id: { in: others.map((m) => m.userId) },
+          messageNotifications: true,
+          NOT: {
+            OR: [
+              { blocksMade:     { some: { blockedId: req.user!.userId } } },
+              { blocksReceived: { some: { blockerId: req.user!.userId } } },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      if (recipients.length > 0) {
+        const preview = String(content).slice(0, 80);
+        await prisma.notification.createMany({
+          data: recipients.map((r) => ({
+            userId: r.id,
+            type: 'MESSAGE' as const,
+            title: 'New message',
+            message: `${message.sender.name}: ${preview}`,
+            referenceId: conversationId,
+          })),
+        });
+      }
+    }
 
     // Broadcast to all sockets in the conversation room
     try {

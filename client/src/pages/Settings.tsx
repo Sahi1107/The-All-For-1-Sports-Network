@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../config/firebase';
 import { sendPasswordResetEmail, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark } from 'lucide-react';
+import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
@@ -14,6 +14,39 @@ export default function Settings() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [msgNotifs, setMsgNotifs] = useState<boolean | null>(null);
+  const [blocked, setBlocked] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    api.get(`/users/${user.id}`).then(({ data }) => {
+      if (typeof data?.user?.messageNotifications === 'boolean') {
+        setMsgNotifs(data.user.messageNotifications);
+      }
+    }).catch(() => {});
+    api.get('/users/blocked').then(({ data }) => setBlocked(data.users ?? [])).catch(() => {});
+  }, [user?.id]);
+
+  const toggleMsgNotifs = async (next: boolean) => {
+    setMsgNotifs(next);
+    try {
+      await api.patch('/users/settings/notifications', { messageNotifications: next });
+      toast.success(next ? 'Message notifications enabled' : 'Message notifications disabled');
+    } catch {
+      setMsgNotifs(!next);
+      toast.error('Failed to update');
+    }
+  };
+
+  const unblock = async (userId: string) => {
+    try {
+      await api.delete(`/users/block/${userId}`);
+      setBlocked((prev) => prev.filter((u) => u.id !== userId));
+      toast.success('User unblocked');
+    } catch {
+      toast.error('Failed to unblock');
+    }
+  };
 
   const handleChangePassword = async () => {
     if (!user?.email) return;
@@ -139,13 +172,73 @@ export default function Settings() {
         </p>
       </section>
 
-      {/* Notifications placeholder */}
+      {/* Notifications */}
+      <section className="bg-dark-light rounded-xl border border-dark-lighter divide-y divide-dark-lighter">
+        <div className="p-5">
+          <h2 className="font-semibold flex items-center gap-2 mb-1">
+            <Bell size={16} className="text-secondary" />
+            Notifications
+          </h2>
+          <p className="text-sm text-gray-custom">You receive notifications for follows, connections, tournament updates and messages.</p>
+        </div>
+        <div className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium flex items-center gap-2">
+              <MessageSquare size={14} className="text-primary-light" />
+              Message notifications
+            </p>
+            <p className="text-xs text-gray-custom mt-0.5">Get notified when someone sends you a direct message</p>
+          </div>
+          <button
+            onClick={() => toggleMsgNotifs(!msgNotifs)}
+            disabled={msgNotifs === null}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              msgNotifs ? 'bg-primary' : 'bg-dark-lighter'
+            } disabled:opacity-50`}
+            aria-pressed={!!msgNotifs}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                msgNotifs ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+      </section>
+
+      {/* Blocked accounts */}
       <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
-        <h2 className="font-semibold flex items-center gap-2 mb-1">
-          <Bell size={16} className="text-secondary" />
-          Notifications
+        <h2 className="font-semibold flex items-center gap-2 mb-3">
+          <Ban size={16} className="text-red-400" />
+          Blocked Accounts
         </h2>
-        <p className="text-sm text-gray-custom">You receive notifications for follows, connections, tournament updates and messages.</p>
+        {blocked.length === 0 ? (
+          <p className="text-sm text-gray-custom">You haven't blocked anyone.</p>
+        ) : (
+          <div className="space-y-2">
+            {blocked.map((u) => (
+              <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-dark border border-dark-lighter">
+                {u.avatar ? (
+                  <img src={u.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary-light">
+                    {u.name?.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{u.name}</p>
+                  <p className="text-xs text-gray-custom capitalize">{u.role?.toLowerCase()} · {u.sport?.toLowerCase()}</p>
+                </div>
+                <button
+                  onClick={() => unblock(u.id)}
+                  className="px-3 py-1.5 text-xs bg-dark-lighter hover:bg-dark border border-dark-lighter rounded-lg transition-colors"
+                >
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Sign out */}

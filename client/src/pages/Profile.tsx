@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2 } from 'lucide-react';
+import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -266,6 +266,11 @@ export default function Profile() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [reportModal, setReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadForm, setUploadForm] = useState({ title: '', description: '' });
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -464,6 +469,50 @@ export default function Profile() {
                   </Link>
                 ) : (
                   <>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowMoreMenu((v) => !v)}
+                        className="flex items-center justify-center w-9 h-9 bg-dark-lighter hover:bg-dark border border-dark-lighter rounded-lg transition-colors"
+                        aria-label="More options"
+                      >
+                        <MoreHorizontal size={16} />
+                      </button>
+                      {showMoreMenu && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+                          <div className="absolute right-0 top-10 z-50 w-44 bg-dark-light border border-dark-lighter rounded-lg shadow-xl overflow-hidden">
+                            <button
+                              onClick={() => { setShowMoreMenu(false); setReportModal(true); }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                            >
+                              <Flag size={14} className="text-yellow-400" /> Report user
+                            </button>
+                            <button
+                              onClick={async () => {
+                                setShowMoreMenu(false);
+                                const isBlocked = data?.isBlocked;
+                                try {
+                                  if (isBlocked) {
+                                    await api.delete(`/users/block/${id}`);
+                                    toast.success('User unblocked');
+                                  } else {
+                                    if (!confirm('Block this user? They will no longer see your profile or messages.')) return;
+                                    await api.post(`/users/block/${id}`);
+                                    toast.success('User blocked');
+                                  }
+                                  queryClient.invalidateQueries({ queryKey: ['profile', id] });
+                                } catch {
+                                  toast.error('Action failed');
+                                }
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-dark transition-colors text-left"
+                            >
+                              <Ban size={14} /> {data?.isBlocked ? 'Unblock user' : 'Block user'}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     <button
                       onClick={() => followMutation.mutate()}
                       disabled={followMutation.isPending}
@@ -822,6 +871,73 @@ export default function Profile() {
                   </Link>
                 ))
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Report user modal */}
+      {reportModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => !submittingReport && setReportModal(false)}
+        >
+          <div
+            className="w-full max-w-md bg-dark-light border border-dark-lighter rounded-xl p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold mb-1">Report {profile.name}</h3>
+            <p className="text-xs text-gray-custom mb-4">Reports are reviewed by admins. False reports may impact your account.</p>
+            <label className="block text-xs text-gray-custom mb-1">Reason</label>
+            <select
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary mb-3"
+            >
+              <option value="">Select a reason</option>
+              <option value="spam">Spam</option>
+              <option value="harassment">Harassment or hateful behavior</option>
+              <option value="impersonation">Impersonation</option>
+              <option value="inappropriate">Inappropriate content</option>
+              <option value="other">Other</option>
+            </select>
+            <label className="block text-xs text-gray-custom mb-1">Details (optional)</label>
+            <textarea
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Add any extra context"
+              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => { setReportModal(false); setReportReason(''); setReportDetails(''); }}
+                disabled={submittingReport}
+                className="flex-1 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!reportReason || submittingReport}
+                onClick={async () => {
+                  setSubmittingReport(true);
+                  try {
+                    await api.post(`/users/report/${id}`, { reason: reportReason, details: reportDetails || undefined });
+                    toast.success('Report submitted');
+                    setReportModal(false);
+                    setReportReason('');
+                    setReportDetails('');
+                  } catch {
+                    toast.error('Failed to submit report');
+                  } finally {
+                    setSubmittingReport(false);
+                  }
+                }}
+                className="flex-1 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-400 text-sm rounded-lg transition-colors disabled:opacity-50"
+              >
+                {submittingReport ? 'Submitting…' : 'Submit report'}
+              </button>
             </div>
           </div>
         </div>
