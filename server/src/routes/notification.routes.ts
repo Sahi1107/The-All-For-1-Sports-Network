@@ -4,21 +4,33 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// Notifications live for 56 days, then they're dropped from view and pruned.
+const NOTIFICATION_TTL_DAYS = 56;
+
 // GET /api/notifications
 router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const { page = '1', limit = '30' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
+    const cutoff = new Date(Date.now() - NOTIFICATION_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+    // Best-effort prune of expired notifications for this user; don't block on it
+    prisma.notification
+      .deleteMany({ where: { userId: req.user!.userId, createdAt: { lt: cutoff } } })
+      .catch((err) => console.error('Prune old notifications failed:', err));
+
+    const baseWhere = { userId: req.user!.userId, createdAt: { gte: cutoff } };
+
     const [rawNotifications, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({
-        where: { userId: req.user!.userId },
+        where: baseWhere,
         skip,
         take: parseInt(limit as string),
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.notification.count({ where: { userId: req.user!.userId } }),
-      prisma.notification.count({ where: { userId: req.user!.userId, read: false } }),
+      prisma.notification.count({ where: baseWhere }),
+      prisma.notification.count({ where: { ...baseWhere, read: false } }),
     ]);
 
     // Resolve referenceId → actor user for FOLLOW / CONNECTION_* notifications
