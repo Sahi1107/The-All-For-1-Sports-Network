@@ -33,6 +33,14 @@ export default function MainLayout() {
   });
   const pendingRequests = reqData?.requests?.length ?? 0;
 
+  // Unread message conversations count (distinct senders with new messages)
+  const { data: msgUnreadData } = useQuery({
+    queryKey: ['messages-unread'],
+    queryFn: async () => { const { data } = await api.get('/messages/unread-count'); return data; },
+    refetchInterval: 30000,
+  });
+  const unreadMessages = msgUnreadData?.count ?? 0;
+
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -61,6 +69,11 @@ export default function MainLayout() {
   const badgeMap: Record<string, boolean> = {
     '/notifications': unreadNotifs > 0,
     '/grow': pendingRequests > 0,
+    '/messages': unreadMessages > 0,
+  };
+  // Optional numeric count rendered inside the badge dot
+  const badgeCountMap: Record<string, number> = {
+    '/messages': unreadMessages,
   };
 
   // Bottom nav — key items for mobile
@@ -111,7 +124,15 @@ export default function MainLayout() {
               >
                 <span className="relative">
                   <Icon size={20} />
-                  {hasBadge && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />}
+                  {hasBadge && (
+                    badgeCountMap[to] ? (
+                      <span className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {badgeCountMap[to] > 9 ? '9+' : badgeCountMap[to]}
+                      </span>
+                    ) : (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                    )
+                  )}
                 </span>
                 <span className="font-medium">{label}</span>
               </Link>

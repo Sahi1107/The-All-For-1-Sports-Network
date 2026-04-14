@@ -29,6 +29,43 @@ async function assertMember(
   return true;
 }
 
+// ─── GET /api/messages/unread-count ──────────────────────
+// Returns the number of distinct conversations with unread incoming messages
+// (i.e. how many senders have sent you something you haven't opened yet).
+
+router.get('/unread-count', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const members = await prisma.conversationMember.findMany({
+      where: { userId: req.user!.userId },
+      select: { conversationId: true, lastReadAt: true },
+    });
+    if (members.length === 0) {
+      res.json({ count: 0 });
+      return;
+    }
+
+    let count = 0;
+    await Promise.all(
+      members.map(async (m) => {
+        const hasUnread = await prisma.message.findFirst({
+          where: {
+            conversationId: m.conversationId,
+            senderId: { not: req.user!.userId },
+            ...(m.lastReadAt ? { createdAt: { gt: m.lastReadAt } } : {}),
+          },
+          select: { id: true },
+        });
+        if (hasUnread) count += 1;
+      }),
+    );
+
+    res.json({ count });
+  } catch (error) {
+    console.error('Unread count error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ─── GET /api/messages/conversations ─────────────────────────
 
 router.get('/conversations', authenticate, async (req: AuthRequest, res: Response) => {
@@ -153,6 +190,23 @@ router.get('/conversations/:id', authenticate, async (req: AuthRequest, res: Res
     res.json({ messages });
   } catch (error) {
     console.error('Get messages error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── PATCH /api/messages/conversations/:id/read ──────────
+// Mark a conversation as read for the current user.
+router.patch('/conversations/:id/read', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const conversationId = req.params.id as string;
+    if (!(await assertMember(conversationId, req.user!.userId, res))) return;
+    await prisma.conversationMember.update({
+      where: { conversationId_userId: { conversationId, userId: req.user!.userId } },
+      data: { lastReadAt: new Date() },
+    });
+    res.json({ read: true });
+  } catch (error) {
+    console.error('Mark conversation read error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

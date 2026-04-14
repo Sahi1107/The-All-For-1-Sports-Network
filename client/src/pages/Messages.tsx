@@ -73,7 +73,10 @@ export default function Messages() {
       setMessages(data.messages ?? []);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     });
-  }, [activeConvId]);
+    api.patch(`/messages/conversations/${activeConvId}/read`).then(() => {
+      qc.invalidateQueries({ queryKey: ['messages-unread'] });
+    }).catch(() => {});
+  }, [activeConvId, qc]);
 
   useEffect(() => {
     const s = socketRef.current;
@@ -87,6 +90,7 @@ export default function Messages() {
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       }
       qc.invalidateQueries({ queryKey: ['conversations'] });
+      qc.invalidateQueries({ queryKey: ['messages-unread'] });
     });
     return () => { s.off('message'); };
   }, [activeConvId, qc]);
