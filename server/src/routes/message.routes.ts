@@ -105,9 +105,12 @@ router.get('/unread-count', authenticate, async (req: AuthRequest, res: Response
 
 router.get('/conversations', authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    const { archived } = req.query;
+    const isArchived = archived === 'true';
+
     const conversations = await prisma.conversation.findMany({
       where: {
-        members: { some: { userId: req.user!.userId } },
+        members: { some: { userId: req.user!.userId, isArchived } },
       },
       include: {
         members: {
@@ -158,9 +161,10 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
       return;
     }
 
-    // Check for existing conversation between these two users
+    // Check for existing 1-on-1 conversation
     const existing = await prisma.conversation.findFirst({
       where: {
+        isGroup: false,
         AND: [
           { members: { some: { userId: req.user!.userId } } },
           { members: { some: { userId } } },
@@ -308,6 +312,12 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
     await prisma.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
+    });
+
+    // Un-archive the conversation for all members since there is a new message
+    await prisma.conversationMember.updateMany({
+      where: { conversationId },
+      data: { isArchived: false },
     });
 
     // Notify other members who have message notifications enabled and haven't blocked the sender
@@ -519,6 +529,71 @@ router.post('/:id/forward', authenticate, messageLimiter, validate({ body: Forwa
     res.status(201).json({ message: forwarded });
   } catch (error) {
     console.error('Forward message error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── PATCH /api/messages/conversations/:id/archive ───────────
+// Toggle archive status for a conversation for the current user
+
+router.patch('/conversations/:id/archive', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const conversationId = req.params.id as string;
+    const { isArchived } = req.body;
+
+    const member = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId: req.user!.userId } },
+    });
+
+    if (!member) {
+      res.status(404).json({ error: 'Conversation member not found' });
+      return;
+    }
+
+    await prisma.conversationMember.update({
+      where: { id: member.id },
+      data: { isArchived: isArchived === true },
+    });
+
+    res.json({ success: true, isArchived: isArchived === true });
+  } catch (error) {
+    console.error('Archive conversation error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── DELETE /api/messages/conversations/:id/exit ─────────────
+// Exit a conversation (delete ConversationMember record)
+
+router.delete('/conversations/:id/exit', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const conversationId = req.params.id as string;
+
+    const member = await prisma.conversationMember.findUnique({
+      where: { conversationId_userId: { conversationId, userId: req.user!.userId } },
+    });
+
+    if (!member) {
+      res.status(404).json({ error: 'Not a member of this conversation' });
+      return;
+    }
+
+    await prisma.conversationMember.delete({
+      where: { id: member.id },
+    });
+
+    // If the conversation is now totally empty, maybe delete it altogether
+    const remaining = await prisma.conversationMember.count({
+      where: { conversationId },
+    });
+
+    if (remaining === 0) {
+      await prisma.conversation.delete({ where: { id: conversationId } });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Exit conversation error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

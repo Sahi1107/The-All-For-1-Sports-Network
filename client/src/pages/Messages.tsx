@@ -8,6 +8,7 @@ import { auth } from '../config/firebase';
 import {
   Send, MessageCircle, Plus, X, Search, ArrowLeft, Edit,
   Copy, Pencil, Trash2, CornerUpRight, MoreHorizontal, Check,
+  Archive, MoreVertical, LogOut, Users,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -237,6 +238,8 @@ export default function Messages() {
   const [editText, setEditText] = useState('');
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   const [otherPresence, setOtherPresence] = useState<{ online: boolean | null; lastActiveAt: string | null } | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [chatMenuOpen, setChatMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -270,9 +273,9 @@ export default function Messages() {
   // ── Conversations query ──────────────────────────────────────
 
   const { data: convData } = useQuery({
-    queryKey: ['conversations'],
+    queryKey: ['conversations', showArchived],
     queryFn: async () => {
-      const { data } = await api.get('/messages/conversations');
+      const { data } = await api.get(`/messages/conversations?archived=${showArchived}`);
       return data;
     },
     refetchInterval: 10000,
@@ -289,6 +292,7 @@ export default function Messages() {
     api.patch(`/messages/conversations/${activeConvId}/read`).then(() => {
       qc.invalidateQueries({ queryKey: ['messages-unread'] });
     }).catch(() => {});
+    setChatMenuOpen(false);
   }, [activeConvId, qc]);
 
   // ── Fetch presence for the other user in active conversation ─
@@ -447,6 +451,7 @@ export default function Messages() {
     setActiveConvId(id);
     setActiveMenu(null);
     setEditingId(null);
+    setChatMenuOpen(false);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
 
@@ -460,6 +465,30 @@ export default function Messages() {
     setEditingId(msg.id);
     setEditText(msg.content);
     setActiveMenu(null);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleArchive = async () => {
+    if (!activeConvId) return;
+    try {
+       await api.patch(`/messages/conversations/${activeConvId}/archive`, { isArchived: !showArchived });
+       toast.success(showArchived ? 'Chat unarchived' : 'Chat archived');
+       qc.invalidateQueries({ queryKey: ['conversations'] });
+       setActiveConvId(null);
+    } catch { toast.error('Failed to update archive status'); }
+    setChatMenuOpen(false);
+  };
+
+  const handleExit = async () => {
+    if (!activeConvId) return;
+    if (!confirm('Are you sure you want to exit this chat? You will lose access to its history.')) return;
+    try {
+      await api.delete(`/messages/conversations/${activeConvId}/exit`);
+      toast.success('Exited chat');
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+      setActiveConvId(null);
+    } catch { toast.error('Failed to exit chat'); }
+    setChatMenuOpen(false);
   };
 
   const handleConfirmEdit = (msgId: string) => {
@@ -545,30 +574,54 @@ export default function Messages() {
         </button>
       </div>
 
+      <div className="flex bg-dark-lighter p-1 mx-4 my-2 rounded-lg shrink-0">
+        <button
+          onClick={() => { setShowArchived(false); setActiveConvId(null); }}
+          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${!showArchived ? 'bg-dark text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+        >
+          Active
+        </button>
+        <button
+          onClick={() => { setShowArchived(true); setActiveConvId(null); }}
+          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${showArchived ? 'bg-dark text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+        >
+          Archived
+        </button>
+      </div>
+
       {/* List */}
       <div className="flex-1 overflow-y-auto">
         {conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8">
             <MessageCircle size={36} className="text-gray-custom" />
-            <p className="text-gray-custom text-sm">No conversations yet.<br />Start one with the pencil icon above.</p>
+            <p className="text-gray-custom text-sm">No {showArchived ? 'archived ' : ''}conversations.</p>
           </div>
         ) : conversations.map((conv: any) => {
+          const isGroup = conv.isGroup;
           const other = getOther(conv);
           const lastMsg = conv.messages?.[0];
-          const online = getOnlineStatus(conv);
+          const online = !isGroup && getOnlineStatus(conv);
           const lastPreview = lastMsg?.deletedAt
             ? 'This message was deleted'
             : lastMsg?.content ?? 'No messages yet';
+          
+          const title = isGroup ? conv.name : (other?.name ?? 'Unknown');
           return (
             <button
               key={conv.id}
               onClick={() => openConv(conv.id)}
               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark/40 active:bg-dark/60 transition-colors text-left border-b border-dark-lighter/30"
             >
-              <Avatar user={other} size={12} online={online} />
+              {isGroup ? (
+                <div className="w-12 h-12 bg-dark-lighter rounded-full flex items-center justify-center shrink-0 border border-dark/50">
+                  <Users size={20} className="text-gray-custom" />
+                </div>
+              ) : (
+                <Avatar user={other} size={12} online={online} />
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <p className="text-sm font-semibold truncate">{other?.name ?? 'Unknown'}</p>
+                  <p className="text-sm font-semibold truncate">{title}</p>
                   {lastMsg && <span className="text-xs text-gray-custom shrink-0">{timeAgo(lastMsg.createdAt)}</span>}
                 </div>
                 <p className={`text-sm truncate ${lastMsg?.deletedAt ? 'text-gray-custom italic' : 'text-gray-custom'}`}>
@@ -584,8 +637,9 @@ export default function Messages() {
 
   // ── Chat View ─────────────────────────────────────────────────────────────
   const ChatView = activeConv ? (() => {
+    const isGroup = activeConv.isGroup;
     const other = getOther(activeConv);
-    const pLabel = presenceLabel(otherPresence?.online ?? null, otherPresence?.lastActiveAt ?? null);
+    const pLabel = isGroup ? `${activeConv.members.length} members` : presenceLabel(otherPresence?.online ?? null, otherPresence?.lastActiveAt ?? null);
 
     return (
       <div className="flex flex-col h-full">
@@ -598,13 +652,49 @@ export default function Messages() {
           >
             <ArrowLeft size={22} />
           </button>
-          <Avatar user={other} size={10} online={otherPresence?.online} />
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm leading-tight truncate">{other?.name}</p>
-            {pLabel ? (
-              <p className={`text-xs ${otherPresence?.online ? 'text-emerald-400' : 'text-gray-custom'}`}>{pLabel}</p>
+          
+          <div className="flex-1 min-w-0 flex items-center gap-3">
+            {isGroup ? (
+              <div className="w-10 h-10 bg-dark rounded-full flex items-center justify-center shrink-0 border border-dark-lighter">
+                <Users size={16} className="text-gray-custom" />
+              </div>
             ) : (
-              <p className="text-xs text-gray-custom">{other?.role}</p>
+              <Avatar user={other} size={10} online={otherPresence?.online ?? false} />
+            )}
+            <div className="min-w-0">
+              <h2 className="font-semibold truncate">{isGroup ? activeConv.name : (other?.name ?? 'Unknown')}</h2>
+              <div className="text-xs text-emerald-400 mt-0.5">{pLabel}</div>
+            </div>
+          </div>
+
+          <div className="relative">
+            <button 
+               onClick={() => setChatMenuOpen(!chatMenuOpen)} 
+               className="p-2 text-gray-custom hover:text-white hover:bg-dark rounded-full transition-colors"
+            >
+              <MoreVertical size={20} />
+            </button>
+
+            {chatMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setChatMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 w-48 bg-dark border border-dark-lighter rounded-xl shadow-xl z-50 overflow-hidden py-1 transform origin-top-right">
+                  <button
+                    onClick={handleArchive}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-dark-light transition-colors"
+                  >
+                    <Archive size={16} />
+                    {showArchived ? 'Unarchive Chat' : 'Archive Chat'}
+                  </button>
+                  <button
+                    onClick={handleExit}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-dark-light transition-colors"
+                  >
+                    <LogOut size={16} />
+                    Exit Chat
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -754,23 +844,37 @@ export default function Messages() {
         <div className="flex flex-1 gap-4 min-h-0">
           {/* Sidebar */}
           <div className="w-72 shrink-0 bg-dark-light rounded-xl border border-dark-lighter flex flex-col overflow-hidden">
-            <div className="p-3 border-b border-dark-lighter">
-              <p className="text-xs text-gray-custom font-medium tracking-wide">CONVERSATIONS</p>
+            <div className="flex bg-dark p-1 mx-3 mt-3 mb-1 rounded-lg shrink-0 border border-dark-lighter">
+              <button
+                onClick={() => { setShowArchived(false); setActiveConvId(null); }}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${!showArchived ? 'bg-dark-light text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+              >
+                Active
+              </button>
+              <button
+                onClick={() => { setShowArchived(true); setActiveConvId(null); }}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${showArchived ? 'bg-dark-light text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+              >
+                Archived
+              </button>
             </div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto mt-2">
               {conversations.length === 0 ? (
                 <div className="p-6 text-center">
                   <MessageCircle size={24} className="mx-auto mb-2 text-gray-custom" />
-                  <p className="text-xs text-gray-custom">No conversations yet</p>
+                  <p className="text-xs text-gray-custom">No {showArchived ? 'archived ' : ''}conversations.</p>
                 </div>
               ) : conversations.map((conv: any) => {
+                const isGroup = conv.isGroup;
                 const other = getOther(conv);
                 const isActive = conv.id === activeConvId;
-                const online = getOnlineStatus(conv);
+                const online = !isGroup && getOnlineStatus(conv);
                 const lastMsg = conv.messages?.[0];
                 const lastPreview = lastMsg?.deletedAt
                   ? 'This message was deleted'
                   : lastMsg?.content ?? 'No messages yet';
+                
+                const title = isGroup ? conv.name : (other?.name ?? 'Unknown');
                 return (
                   <button
                     key={conv.id}
@@ -779,9 +883,15 @@ export default function Messages() {
                       isActive ? 'bg-primary/10 border-r-2 border-primary' : 'hover:bg-dark/40'
                     }`}
                   >
-                    <Avatar user={other} size={9} online={online} />
+                    {isGroup ? (
+                      <div className="w-10 h-10 bg-dark-lighter rounded-full flex items-center justify-center shrink-0 border border-dark/50">
+                        <Users size={16} className="text-gray-custom" />
+                      </div>
+                    ) : (
+                      <Avatar user={other} size={9} online={online} />
+                    )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{other?.name ?? 'Unknown'}</p>
+                      <p className="text-sm font-medium truncate">{title}</p>
                       <p className={`text-xs truncate ${lastMsg?.deletedAt ? 'text-gray-custom italic' : 'text-gray-custom'}`}>
                         {lastPreview}
                       </p>

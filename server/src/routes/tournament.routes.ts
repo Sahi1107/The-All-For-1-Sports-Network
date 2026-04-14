@@ -4,6 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
+import { getIO } from '../config/socket';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody,
@@ -156,6 +157,43 @@ router.post('/:id/register', authenticate, writeLimiter, validate({ body: Regist
       data: { tournamentId: req.params.id as string, teamId },
       include: { team: true, tournament: { select: { id: true, name: true } } },
     });
+
+    // Auto-create team chat (Group Chat)
+    try {
+      const teamMembers = await prisma.teamMember.findMany({
+        where: { teamId },
+        select: { userId: true },
+      });
+      // Ensure the captain is included in case they aren't explicitly in TeamMember
+      const memberUserIds = new Set(teamMembers.map(m => m.userId));
+      memberUserIds.add(team.captainId);
+      
+      const conv = await prisma.conversation.create({
+        data: {
+          isGroup: true,
+          name: `${team.name} (${registration.tournament.name})`,
+          teamId,
+          members: {
+            create: Array.from(memberUserIds).map(userId => ({ userId })),
+          },
+        },
+        include: {
+          members: { include: { user: { select: { id: true, name: true, avatar: true } } } },
+        },
+      });
+
+      // Emit new conversation event to each member's room
+      const io = getIO();
+      for (const userId of memberUserIds) {
+        try {
+          io.to(`user:${userId}`).emit('new_conversation', conv);
+        } catch {
+           // ignore emit errors 
+        }
+      }
+    } catch (chatError) {
+      console.error('Auto-create team chat error:', chatError);
+    }
 
     res.status(201).json({ registration });
   } catch (error: any) {
