@@ -14,6 +14,31 @@ import toast from 'react-hot-toast';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
+/** Turn plain-text URLs into clickable links */
+function Linkify({ children, className }: { children: string; className?: string }) {
+  const parts = children.split(/(https?:\/\/[^\s<]+)/g);
+  return (
+    <p className={className}>
+      {parts.map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline break-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   if (seconds < 60) return 'just now';
@@ -62,7 +87,8 @@ function SharedPostCard({ post }: { post: any }) {
   return (
     <Link
       to={`/profile/${post.user?.id}`}
-      className="block mt-1.5 rounded-lg border border-white/10 bg-white/5 overflow-hidden hover:bg-white/10 transition-colors"
+      className="block mt-1.5 rounded-lg border border-white/20 bg-dark/60 overflow-hidden hover:bg-dark/80 transition-colors"
+      onClick={(e) => e.stopPropagation()}
     >
       {post.media?.[0]?.url && (
         <img src={post.media[0].url} alt="" className="w-full h-28 object-cover" />
@@ -72,14 +98,43 @@ function SharedPostCard({ post }: { post: any }) {
           <div className="w-5 h-5 rounded-full bg-dark-lighter overflow-hidden shrink-0">
             {post.user?.avatar
               ? <img src={post.user.avatar} alt="" className="w-full h-full object-cover" />
-              : <span className="text-[9px] font-bold flex items-center justify-center w-full h-full">{post.user?.name?.charAt(0)}</span>}
+              : <span className="text-[9px] font-bold flex items-center justify-center w-full h-full text-white">{post.user?.name?.charAt(0)}</span>}
           </div>
-          <span className="text-xs font-medium truncate">{post.user?.name}</span>
+          <span className="text-xs font-medium truncate text-white">{post.user?.name}</span>
         </div>
-        {post.title && <p className="text-xs font-semibold truncate">{post.title}</p>}
+        {post.title && <p className="text-xs font-semibold truncate text-white">{post.title}</p>}
         {post.content && (
           <p className="text-xs text-white/60 mt-0.5 line-clamp-2">{post.content}</p>
         )}
+      </div>
+    </Link>
+  );
+}
+
+// ─── Shared Profile Preview Card ──────────────────────────────
+
+function SharedProfileCard({ profile }: { profile: any }) {
+  if (!profile) return null;
+  const meta = [profile.role?.toLowerCase(), profile.sport?.toLowerCase(), profile.position]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <Link
+      to={`/profile/${profile.id}`}
+      className="block mt-1.5 rounded-lg border border-white/20 bg-dark/60 overflow-hidden hover:bg-dark/80 transition-colors"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="p-2.5 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-dark-lighter overflow-hidden shrink-0">
+          {profile.avatar
+            ? <img src={profile.avatar} alt="" className="w-full h-full object-cover" />
+            : <span className="text-sm font-bold flex items-center justify-center w-full h-full text-white">{profile.name?.charAt(0)}</span>}
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-semibold truncate text-white">{profile.name}</p>
+          {meta && <p className="text-[11px] text-white/60 truncate capitalize">{meta}</p>}
+          {profile.bio && <p className="text-[11px] text-white/50 mt-0.5 line-clamp-1">{profile.bio}</p>}
+        </div>
       </div>
     </Link>
   );
@@ -436,7 +491,10 @@ export default function Messages() {
       setShowNewConv(false);
       setRecipientSearch('');
     },
-    onError: () => toast.error('Could not start conversation'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error || 'Could not start conversation';
+      toast.error(msg);
+    },
   });
 
   // ── Action handlers ──────────────────────────────────────────
@@ -465,7 +523,6 @@ export default function Messages() {
     setEditingId(msg.id);
     setEditText(msg.content);
     setActiveMenu(null);
-    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const handleArchive = async () => {
@@ -653,19 +710,25 @@ export default function Messages() {
             <ArrowLeft size={22} />
           </button>
           
-          <div className="flex-1 min-w-0 flex items-center gap-3">
-            {isGroup ? (
+          {isGroup ? (
+            <div className="flex-1 min-w-0 flex items-center gap-3">
               <div className="w-10 h-10 bg-dark rounded-full flex items-center justify-center shrink-0 border border-dark-lighter">
                 <Users size={16} className="text-gray-custom" />
               </div>
-            ) : (
-              <Avatar user={other} size={10} online={otherPresence?.online ?? false} />
-            )}
-            <div className="min-w-0">
-              <h2 className="font-semibold truncate">{isGroup ? activeConv.name : (other?.name ?? 'Unknown')}</h2>
-              <div className="text-xs text-emerald-400 mt-0.5">{pLabel}</div>
+              <div className="min-w-0">
+                <h2 className="font-semibold truncate">{activeConv.name}</h2>
+                <div className="text-xs text-emerald-400 mt-0.5">{pLabel}</div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <Link to={`/profile/${other?.id}`} className="flex-1 min-w-0 flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <Avatar user={other} size={10} online={otherPresence?.online ?? false} />
+              <div className="min-w-0">
+                <h2 className="font-semibold truncate">{other?.name ?? 'Unknown'}</h2>
+                <div className="text-xs text-emerald-400 mt-0.5">{pLabel}</div>
+              </div>
+            </Link>
+          )}
 
           <div className="relative">
             <button 
@@ -714,7 +777,8 @@ export default function Messages() {
                   {!isDeleted && !isEditing && (
                     <button
                       onClick={() => setActiveMenu(showMenu ? null : msg.id)}
-                      className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity text-gray-custom hover:text-white p-1`}
+                      className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} text-gray-custom hover:text-white p-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}
+                      aria-label="Message actions"
                     >
                       <MoreHorizontal size={14} />
                     </button>
@@ -769,10 +833,15 @@ export default function Messages() {
                     <div className={`rounded-2xl px-4 py-2.5 ${
                       isMe ? 'bg-primary text-dark rounded-br-sm' : 'bg-dark-lighter text-white rounded-bl-sm'
                     }`}>
-                      <p className="text-sm leading-snug">{msg.content}</p>
+                      {msg.content && msg.content !== '[Shared post]' && msg.content !== '[Shared profile]' && (
+                        <Linkify className="text-sm leading-snug">{msg.content}</Linkify>
+                      )}
 
                       {/* Shared post preview */}
                       {msg.sharedPost && <SharedPostCard post={msg.sharedPost} />}
+
+                      {/* Shared profile preview */}
+                      {msg.sharedProfile && <SharedProfileCard profile={msg.sharedProfile} />}
 
                       <div className={`flex items-center gap-1.5 mt-1 ${isMe ? 'text-dark/60' : 'text-gray-custom'}`}>
                         <span className="text-xs">{timeAgo(msg.createdAt)}</span>

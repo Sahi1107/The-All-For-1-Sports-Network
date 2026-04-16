@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, MessageCircle, Repeat2, Bookmark, Send, Trash2, CornerUpRight } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Bookmark, Send, Trash2, CornerUpRight, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import SharePostModal from './SharePostModal';
@@ -10,6 +10,121 @@ interface Props {
   post: any;
   /** Additional query keys to invalidate on comment create/delete */
   invalidateKeys?: string[][];
+}
+
+function CommentItem({
+  c,
+  postId,
+  postOwnerId,
+  depth,
+  onDelete,
+  onReply,
+}: {
+  c: any;
+  postId: string;
+  postOwnerId?: string;
+  depth: number;
+  onDelete: (id: string) => void;
+  onReply: (commentId: string, userName: string) => void;
+}) {
+  const { user } = useAuth();
+  const [liked, setLiked] = useState<boolean>(c.likedByMe ?? false);
+  const [likeCount, setLikeCount] = useState<number>(c.likeCount ?? 0);
+  const [showReplies, setShowReplies] = useState(false);
+  const replies: any[] = c.replies ?? [];
+
+  const toggleLike = async () => {
+    setLiked((p: boolean) => !p);
+    setLikeCount((p: number) => liked ? p - 1 : p + 1);
+    try {
+      const { data } = await api.post(`/posts/${postId}/comments/${c.id}/like`);
+      setLiked(data.liked);
+      setLikeCount(data.likeCount);
+    } catch {
+      setLiked((p: boolean) => !p);
+      setLikeCount((p: number) => liked ? p + 1 : p - 1);
+    }
+  };
+
+  return (
+    <div className={depth > 0 ? 'ml-6 border-l border-white/5 pl-3' : ''}>
+      <div className="flex items-start gap-2 group">
+        <Link to={`/profile/${c.user.id}`} className="shrink-0">
+          {c.user.avatar ? (
+            <img src={c.user.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">
+              {c.user.name?.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </Link>
+        <div className="flex-1 min-w-0">
+          <div className="bg-white/5 rounded-lg px-2.5 py-1.5">
+            <Link
+              to={`/profile/${c.user.id}`}
+              className="text-xs font-semibold text-white hover:text-primary-light transition-colors"
+            >
+              {c.user.name}
+            </Link>
+            <p className="text-xs text-white/70 mt-0.5 leading-relaxed">{c.content}</p>
+          </div>
+          <div className="flex items-center gap-3 mt-0.5 px-1">
+            <button
+              onClick={toggleLike}
+              className={`flex items-center gap-1 text-[11px] transition-colors ${liked ? 'text-red-400' : 'text-white/30 hover:text-white/60'}`}
+            >
+              <Heart size={11} fill={liked ? 'currentColor' : 'none'} />
+              {likeCount > 0 && <span>{likeCount}</span>}
+            </button>
+            {depth === 0 && (
+              <button
+                onClick={() => onReply(c.id, c.user.name)}
+                className="text-[11px] text-white/30 hover:text-white/60 transition-colors"
+              >
+                Reply
+              </button>
+            )}
+            {(c.user.id === user?.id || postOwnerId === user?.id) && (
+              <button
+                onClick={() => onDelete(c.id)}
+                className="text-[11px] text-white/30 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+              >
+                <Trash2 size={10} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Replies toggle */}
+      {depth === 0 && replies.length > 0 && (
+        <div className="mt-1">
+          <button
+            onClick={() => setShowReplies(!showReplies)}
+            className="flex items-center gap-1 text-[11px] text-primary-light hover:text-primary ml-8 mb-1"
+          >
+            {showReplies ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+          </button>
+          {showReplies && (
+            <div className="space-y-2">
+              {replies.map((r: any) => (
+                <CommentItem
+                  key={r.id}
+                  c={r}
+                  postId={postId}
+                  postOwnerId={postOwnerId}
+                  depth={1}
+                  onDelete={onDelete}
+                  onReply={onReply}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function PostActions({ post, invalidateKeys = [] }: Props) {
@@ -21,6 +136,7 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
   const [loadingComments, setLoadingComments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
 
   // Optimistic like state seeded from feed/profile data
   const [liked, setLiked] = useState<boolean>(post.likedByMe ?? false);
@@ -29,6 +145,8 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
   const [reposted, setReposted] = useState<boolean>(post.repostedByMe ?? false);
   const [repostCount, setRepostCount] = useState<number>(post.repostCount ?? 0);
   const [saved, setSaved] = useState<boolean>(post.savedByMe ?? false);
+
+  const commentsDisabled = post.commentsDisabled ?? false;
 
   const likeMutation = useMutation({
     mutationFn: () => api.post(`/posts/${post.id}/like`),
@@ -102,9 +220,24 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
     if (!content || submitting) return;
     setSubmitting(true);
     try {
-      const { data } = await api.post(`/posts/${post.id}/comments`, { content });
-      setComments((prev) => [...prev, data.comment]);
+      const { data } = await api.post(`/posts/${post.id}/comments`, {
+        content,
+        parentId: replyingTo?.id ?? undefined,
+      });
+      if (replyingTo) {
+        // Add reply to the parent comment
+        setComments((prev) =>
+          prev.map((c) =>
+            c.id === replyingTo.id
+              ? { ...c, replies: [...(c.replies ?? []), data.comment], replyCount: (c.replyCount ?? 0) + 1 }
+              : c,
+          ),
+        );
+      } else {
+        setComments((prev) => [...prev, data.comment]);
+      }
       setCommentText('');
+      setReplyingTo(null);
       setCommentCount((c) => c + 1);
       invalidate();
     } finally {
@@ -114,9 +247,22 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
 
   const deleteComment = async (commentId: string) => {
     await api.delete(`/posts/${post.id}/comments/${commentId}`);
-    setComments((prev) => prev.filter((c) => c.id !== commentId));
+    // Remove from top-level or from replies
+    setComments((prev) => {
+      const filtered = prev.filter((c) => c.id !== commentId);
+      return filtered.map((c) => ({
+        ...c,
+        replies: (c.replies ?? []).filter((r: any) => r.id !== commentId),
+        replyCount: (c.replies ?? []).filter((r: any) => r.id !== commentId).length,
+      }));
+    });
     setCommentCount((c) => Math.max(0, c - 1));
     invalidate();
+  };
+
+  const handleReply = (commentId: string, userName: string) => {
+    setReplyingTo({ id: commentId, name: userName });
+    setCommentText(`@${userName} `);
   };
 
   return (
@@ -131,13 +277,20 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
             <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
             {likeCount > 0 && <span>{likeCount}</span>}
           </button>
-          <button
-            onClick={toggleComments}
-            className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors"
-          >
-            <MessageCircle size={16} />
-            {commentCount > 0 && <span>{commentCount}</span>}
-          </button>
+          {!commentsDisabled && (
+            <button
+              onClick={toggleComments}
+              className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors"
+            >
+              <MessageCircle size={16} />
+              {commentCount > 0 && <span>{commentCount}</span>}
+            </button>
+          )}
+          {commentsDisabled && (
+            <span className="flex items-center gap-1.5 text-sm text-white/20 cursor-default" title="Comments disabled">
+              <MessageCircle size={16} />
+            </span>
+          )}
           <button
             onClick={() => repostMutation.mutate()}
             className={`flex items-center gap-1.5 text-sm transition-colors ${reposted ? 'text-green-400' : 'text-white/40 hover:text-white/70'}`}
@@ -163,7 +316,7 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
         </div>
 
         {/* Comments section */}
-        {showComments && (
+        {showComments && !commentsDisabled && (
           <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-3">
             {loadingComments ? (
               <div className="flex justify-center py-2">
@@ -172,37 +325,28 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
             ) : comments.length === 0 ? (
               <p className="text-xs text-white/30 text-center py-1">No comments yet</p>
             ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-2 max-h-64 overflow-y-auto">
                 {comments.map((c) => (
-                  <div key={c.id} className="flex items-start gap-2 group">
-                    <Link to={`/profile/${c.user.id}`} className="shrink-0">
-                      {c.user.avatar ? (
-                        <img src={c.user.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">
-                          {c.user.name?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </Link>
-                    <div className="flex-1 bg-white/5 rounded-lg px-2.5 py-1.5">
-                      <Link
-                        to={`/profile/${c.user.id}`}
-                        className="text-xs font-semibold text-white hover:text-primary-light transition-colors"
-                      >
-                        {c.user.name}
-                      </Link>
-                      <p className="text-xs text-white/70 mt-0.5 leading-relaxed">{c.content}</p>
-                    </div>
-                    {(c.user.id === user?.id || post.user?.id === user?.id) && (
-                      <button
-                        onClick={() => deleteComment(c.id)}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-white/30 hover:text-red-400 mt-1"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
+                  <CommentItem
+                    key={c.id}
+                    c={c}
+                    postId={post.id}
+                    postOwnerId={post.user?.id}
+                    depth={0}
+                    onDelete={deleteComment}
+                    onReply={handleReply}
+                  />
                 ))}
+              </div>
+            )}
+
+            {/* Reply indicator */}
+            {replyingTo && (
+              <div className="flex items-center gap-2 px-1 text-xs text-primary-light">
+                <span>Replying to {replyingTo.name}</span>
+                <button onClick={() => { setReplyingTo(null); setCommentText(''); }} className="text-white/40 hover:text-white">
+                  ×
+                </button>
               </div>
             )}
 
@@ -224,7 +368,7 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
                     submitComment();
                   }
                 }}
-                placeholder="Add a comment…"
+                placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'}
                 maxLength={500}
                 className="flex-1 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-primary"
               />

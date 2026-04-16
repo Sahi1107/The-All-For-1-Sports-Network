@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban } from 'lucide-react';
+import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2 } from 'lucide-react';
+import ShareProfileModal from '../components/ShareProfileModal';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -219,7 +220,12 @@ export default function Profile() {
     enabled: !!id,
   });
 
-  const { data: mutualData } = useQuery<{ users: any[]; count: number }>({
+  const { data: mutualData } = useQuery<{
+    users: any[];
+    count: number;
+    connections?: { users: any[]; count: number };
+    followers?: { users: any[]; count: number };
+  }>({
     queryKey: ['mutual-connections', id],
     queryFn: async () => {
       const { data } = await api.get(`/connections/mutual/${id}`);
@@ -268,6 +274,8 @@ export default function Profile() {
   const bannerRef = useRef<HTMLInputElement>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [reportModal, setReportModal] = useState(false);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [shareDmOpen, setShareDmOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -280,6 +288,15 @@ export default function Profile() {
     queryKey: ['user-posts', id],
     queryFn: async () => {
       const { data } = await api.get(`/posts/user/${id}`);
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const { data: repostsData } = useQuery({
+    queryKey: ['user-reposts', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/posts/user/${id}/reposts`);
       return data;
     },
     enabled: !!id,
@@ -353,6 +370,7 @@ export default function Profile() {
   const teams = (profile.teamMemberships ?? []).map((m: any) => m.team);
   const rankings = profile.playerRankings ?? [];
   const posts = postsData?.posts ?? [];
+  const reposts = repostsData?.posts ?? [];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -439,26 +457,58 @@ export default function Profile() {
 
               {/* Actions */}
               <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    const url = `${window.location.origin}/profile/${profile.id}`;
-                    try {
-                      if (navigator.share) {
-                        await navigator.share({ title: profile.name, url });
-                      } else {
-                        await navigator.clipboard.writeText(url);
-                        toast.success('Profile link copied');
-                      }
-                    } catch {
-                      // user cancelled share — no-op
-                    }
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark text-white text-sm font-medium rounded-lg transition-colors border border-dark-lighter"
-                  title="Share profile"
-                >
-                  <Share2 size={14} />
-                  Share
-                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShareMenuOpen((v) => !v)}
+                    className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark text-white text-sm font-medium rounded-lg transition-colors border border-dark-lighter"
+                    title="Share profile"
+                  >
+                    <Share2 size={14} />
+                    Share
+                  </button>
+                  {shareMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShareMenuOpen(false)} />
+                      <div className="absolute left-0 top-full mt-1 z-50 w-52 bg-dark-light border border-dark-lighter rounded-lg shadow-xl overflow-hidden py-1">
+                        {!isOwnProfile && (
+                          <button
+                            onClick={() => { setShareMenuOpen(false); setShareDmOpen(true); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                          >
+                            <Send size={14} /> Send in a chat
+                          </button>
+                        )}
+                        <button
+                          onClick={async () => {
+                            setShareMenuOpen(false);
+                            const url = `${window.location.origin}/profile/${profile.id}`;
+                            try {
+                              await navigator.clipboard.writeText(url);
+                              toast.success('Profile link copied');
+                            } catch {
+                              toast.error('Could not copy link');
+                            }
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                        >
+                          <Link2 size={14} /> Copy link
+                        </button>
+                        {typeof navigator !== 'undefined' && 'share' in navigator && (
+                          <button
+                            onClick={async () => {
+                              setShareMenuOpen(false);
+                              const url = `${window.location.origin}/profile/${profile.id}`;
+                              try { await navigator.share({ title: profile.name, url }); } catch { /* cancelled */ }
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                          >
+                            <Share2 size={14} /> Share to…
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
                 {isOwnProfile ? (
                   <Link
                     to="/profile/edit"
@@ -594,6 +644,29 @@ export default function Profile() {
                   {mutualData!.users.length > 0 && (
                     <> · {mutualData!.users.slice(0, 2).map((u) => u.name).join(', ')}{mutualData!.count > 2 ? ` and ${mutualData!.count - 2} more` : ''}</>
                   )}
+                </span>
+              </div>
+            )}
+
+            {!isOwnProfile && (mutualData?.followers?.count ?? 0) > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-white/70">
+                <div className="flex -space-x-2">
+                  {mutualData!.followers!.users.slice(0, 3).map((u) => (
+                    <Link key={u.id} to={`/profile/${u.id}`} title={u.name}>
+                      {u.avatar ? (
+                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-dark-light" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-secondary/20 border-2 border-dark-light flex items-center justify-center text-[10px] font-bold text-white/80">
+                          {u.name?.charAt(0).toUpperCase()}
+                        </div>
+                      )}
+                    </Link>
+                  ))}
+                </div>
+                <span>
+                  {mutualData!.followers!.count} mutual follower{mutualData!.followers!.count === 1 ? '' : 's'}
+                  {' · '}{mutualData!.followers!.users.slice(0, 2).map((u) => u.name).join(', ')}
+                  {mutualData!.followers!.count > 2 ? ` and ${mutualData!.followers!.count - 2} more` : ''}
                 </span>
               </div>
             )}
@@ -763,6 +836,57 @@ export default function Profile() {
               </div>
             </div>
           )}
+
+          {/* Reposts */}
+          {reposts.length > 0 && (
+            <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+              <h2 className="font-semibold flex items-center gap-2 mb-4">
+                <Repeat2 size={16} className="text-green-400" />
+                Reposts
+              </h2>
+              <div className="space-y-3">
+                {reposts.map((p: any) => (
+                  <div key={p.id} className="bg-dark rounded-lg border border-dark-lighter overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 pt-2.5 text-xs text-green-400">
+                      <Repeat2 size={12} />
+                      <span>{isOwnProfile ? 'You' : profile.name} reposted</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 pt-2">
+                      <Link to={`/profile/${p.user?.id}`} className="shrink-0">
+                        {p.user?.avatar ? (
+                          <img src={p.user.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">
+                            {p.user?.name?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </Link>
+                      <Link to={`/profile/${p.user?.id}`} className="text-sm font-semibold hover:text-primary-light transition-colors">
+                        {p.user?.name}
+                      </Link>
+                    </div>
+                    {p.type === 'IMAGE' && (p.media?.length > 0 ? (
+                      <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
+                    ) : p.mediaUrl ? (
+                      <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-64 object-cover" />
+                    ) : null)}
+                    {p.mediaUrl && p.type === 'HIGHLIGHT' && (
+                      <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
+                    )}
+                    <div className="p-3">
+                      {p.title && <p className="text-sm font-medium mb-1">{p.title}</p>}
+                      {p.content && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
+                      <p className="text-xs text-gray-custom mt-1">{timeAgo(p.createdAt)}</p>
+                    </div>
+                    <PostActions
+                      post={p}
+                      invalidateKeys={[['user-reposts', id as string]]}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -874,6 +998,11 @@ export default function Profile() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share profile in DM */}
+      {shareDmOpen && (
+        <ShareProfileModal profileId={profile.id} onClose={() => setShareDmOpen(false)} />
       )}
 
       {/* Report user modal */}

@@ -199,7 +199,11 @@ router.get('/mutual/:userId', authenticate, async (req: AuthRequest, res: Respon
     const me = req.user!.userId;
     const other = req.params.userId as string;
     if (me === other) {
-      res.json({ users: [], count: 0 });
+      res.json({
+        users: [], count: 0,
+        connections: { users: [], count: 0 },
+        followers: { users: [], count: 0 },
+      });
       return;
     }
 
@@ -214,15 +218,46 @@ router.get('/mutual/:userId', authenticate, async (req: AuthRequest, res: Respon
       return new Set(rows.map((r) => (r.senderId === uid ? r.receiverId : r.senderId)));
     };
 
-    const [mine, theirs] = await Promise.all([connectionsOf(me), connectionsOf(other)]);
-    const mutualIds = [...mine].filter((id) => theirs.has(id) && id !== me && id !== other);
+    const followersOf = async (uid: string) => {
+      const rows = await prisma.follow.findMany({
+        where: { followingId: uid },
+        select: { followerId: true },
+      });
+      return new Set(rows.map((r) => r.followerId));
+    };
 
-    const users = await prisma.user.findMany({
-      where: { id: { in: mutualIds } },
-      select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
-      take: 20,
+    const [myConns, theirConns, myFollowers, theirFollowers] = await Promise.all([
+      connectionsOf(me),
+      connectionsOf(other),
+      followersOf(me),
+      followersOf(other),
+    ]);
+
+    const mutualConnIds = [...myConns].filter((id) => theirConns.has(id) && id !== me && id !== other);
+    const connSet = new Set(mutualConnIds);
+    const mutualFollowerIds = [...myFollowers].filter(
+      (id) => theirFollowers.has(id) && id !== me && id !== other && !connSet.has(id),
+    );
+
+    const [connUsers, followerUsers] = await Promise.all([
+      prisma.user.findMany({
+        where: { id: { in: mutualConnIds } },
+        select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
+        take: 20,
+      }),
+      prisma.user.findMany({
+        where: { id: { in: mutualFollowerIds } },
+        select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
+        take: 20,
+      }),
+    ]);
+
+    res.json({
+      users: connUsers,
+      count: mutualConnIds.length,
+      connections: { users: connUsers, count: mutualConnIds.length },
+      followers: { users: followerUsers, count: mutualFollowerIds.length },
     });
-    res.json({ users, count: mutualIds.length });
   } catch (error) {
     console.error('Mutual connections error:', error);
     res.status(500).json({ error: 'Internal server error' });

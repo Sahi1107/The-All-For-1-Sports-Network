@@ -16,6 +16,7 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [msgNotifs, setMsgNotifs] = useState<boolean | null>(null);
   const [onlineStatus, setOnlineStatus] = useState<boolean | null>(null);
+  const [msgFollowersOnly, setMsgFollowersOnly] = useState<boolean | null>(null);
   const [blocked, setBlocked] = useState<any[]>([]);
 
   useEffect(() => {
@@ -26,6 +27,9 @@ export default function Settings() {
       }
       if (typeof data?.user?.showOnlineStatus === 'boolean') {
         setOnlineStatus(data.user.showOnlineStatus);
+      }
+      if (typeof data?.user?.messagingFollowersOnly === 'boolean') {
+        setMsgFollowersOnly(data.user.messagingFollowersOnly);
       }
     }).catch(() => {});
     api.get('/users/blocked').then(({ data }) => setBlocked(data.users ?? [])).catch(() => {});
@@ -237,6 +241,39 @@ export default function Settings() {
             <span
               className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
                 onlineStatus ? 'translate-x-5' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+        </div>
+        <div className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Shield size={14} className="text-primary-light" />
+              Messaging from followers only
+            </p>
+            <p className="text-xs text-gray-custom mt-0.5">Only people who follow you can start a conversation</p>
+          </div>
+          <button
+            onClick={async () => {
+              const next = !msgFollowersOnly;
+              setMsgFollowersOnly(next);
+              try {
+                await api.patch('/users/settings/notifications', { messagingFollowersOnly: next });
+                toast.success(next ? 'Only followers can message you' : 'Anyone can message you');
+              } catch {
+                setMsgFollowersOnly(!next);
+                toast.error('Failed to update');
+              }
+            }}
+            disabled={msgFollowersOnly === null}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              msgFollowersOnly ? 'bg-primary' : 'bg-dark-lighter'
+            } disabled:opacity-50`}
+            aria-pressed={!!msgFollowersOnly}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                msgFollowersOnly ? 'translate-x-5' : 'translate-x-0.5'
               }`}
             />
           </button>

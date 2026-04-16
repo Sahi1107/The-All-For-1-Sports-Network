@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, MapPin, Clock } from 'lucide-react';
 import api from '../api/client';
-import { useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import React from 'react';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -141,16 +141,42 @@ const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
 
 export default function Home() {
   const { user } = useAuth();
-  const [page, setPage] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['feed', page],
-    queryFn: async () => {
-      const { data } = await api.get(`/feed?page=${page}&limit=20`);
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['feed'],
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await api.get(`/feed?page=${pageParam}&limit=20`);
       return data;
     },
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
   });
+
+  const feedItems: any[] = data?.pages.flatMap((p) => p.feed ?? []) ?? [];
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { root, rootMargin: '400px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, feedItems.length]);
 
   const Backdrop = user?.role !== 'ADMIN' ? SPORT_BACKDROP[user?.sport ?? ''] : undefined;
 

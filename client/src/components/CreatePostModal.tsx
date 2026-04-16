@@ -21,6 +21,7 @@ export default function CreatePostModal({ onClose }: Props) {
   const [title, setTitle] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
+  const [commentsDisabled, setCommentsDisabled] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Crop state: queue of raw files waiting to be cropped
@@ -33,6 +34,7 @@ export default function CreatePostModal({ onClose }: Props) {
       formData.append('type', type);
       if (content) formData.append('content', content);
       if (title) formData.append('title', title);
+      if (commentsDisabled) formData.append('commentsDisabled', 'true');
       for (const file of files) {
         formData.append('media', file);
       }
@@ -259,6 +261,20 @@ export default function CreatePostModal({ onClose }: Props) {
               </div>
             </div>
           )}
+
+          {/* Disable comments toggle */}
+          <label className="flex items-center justify-between cursor-pointer">
+            <span className="text-sm text-white/60">Disable comments</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={commentsDisabled}
+              onClick={() => setCommentsDisabled((v) => !v)}
+              className={`relative w-9 h-5 rounded-full transition-colors ${commentsDisabled ? 'bg-primary' : 'bg-white/15'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${commentsDisabled ? 'translate-x-4' : ''}`} />
+            </button>
+          </label>
 
           {/* Submit */}
           <button

@@ -114,6 +114,11 @@ export default function Explore() {
                         <MapPin size={12} /> {user.location}
                       </p>
                     )}
+                    {user.mutualCount > 0 && (
+                      <p className="text-xs text-primary-light mt-1">
+                        {user.mutualCount} mutual connection{user.mutualCount === 1 ? '' : 's'}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right text-xs text-gray-custom">
                     <p>{user._count?.followers || 0} followers</p>

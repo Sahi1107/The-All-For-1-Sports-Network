@@ -31,6 +31,11 @@ const messageInclude = {
       media: { orderBy: { position: 'asc' as const }, take: 1 },
     },
   },
+  sharedProfile: {
+    select: {
+      id: true, name: true, avatar: true, role: true, sport: true, position: true, bio: true, verified: true,
+    },
+  },
 };
 
 // ─── Helper ───────────────────────────────────────────────────
@@ -59,7 +64,7 @@ async function assertMember(
  */
 function sanitizeDeleted(msg: any) {
   if (msg.deletedAt) {
-    return { ...msg, content: '' };
+    return { ...msg, content: '', sharedPost: null, sharedProfile: null };
   }
   return msg;
 }
@@ -201,6 +206,17 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
       return;
     }
 
+    // Followers-only check: if target user has restricted messaging, sender must follow them
+    if (targetUser.messagingFollowersOnly) {
+      const follows = await prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: req.user!.userId, followingId: userId } },
+      });
+      if (!follows) {
+        res.status(403).json({ error: 'This user only accepts messages from followers' });
+        return;
+      }
+    }
+
     const conversation = await prisma.conversation.create({
       data: {
         members: {
@@ -242,6 +258,7 @@ router.get('/conversations/:id', authenticate, async (req: AuthRequest, res: Res
     // Sign media URLs for shared post previews and sanitize deleted messages
     for (const msg of messages) {
       if (msg.sharedPost) await signMediaDeep(msg.sharedPost);
+      if (msg.sharedProfile) await signMediaDeep(msg.sharedProfile);
     }
     const sanitized = messages.map(sanitizeDeleted);
 
@@ -275,11 +292,14 @@ router.patch('/conversations/:id/read', authenticate, async (req: AuthRequest, r
 router.post('/conversations/:id', authenticate, messageLimiter, validate({ body: SendMessageBody }), async (req: AuthRequest, res: Response) => {
   try {
     const conversationId = req.params.id as string;
-    const { content, sharedPostId } = req.body;
-    const messageContent = content || (sharedPostId ? '[Shared post]' : '');
+    const { content, sharedPostId, sharedProfileId } = req.body;
+    const messageContent =
+      content ||
+      (sharedPostId ? '[Shared post]' : '') ||
+      (sharedProfileId ? '[Shared profile]' : '');
 
-    if (!messageContent && !sharedPostId) {
-      res.status(400).json({ error: 'Message content or shared post is required' });
+    if (!messageContent && !sharedPostId && !sharedProfileId) {
+      res.status(400).json({ error: 'Message content, shared post, or shared profile is required' });
       return;
     }
 
@@ -295,18 +315,29 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
       }
     }
 
+    // Validate sharedProfileId if provided
+    if (sharedProfileId) {
+      const profile = await prisma.user.findUnique({ where: { id: sharedProfileId }, select: { id: true, role: true } });
+      if (!profile || profile.role === 'ADMIN') {
+        res.status(404).json({ error: 'Profile not found' });
+        return;
+      }
+    }
+
     const message = await prisma.message.create({
       data: {
         conversationId,
         senderId: req.user!.userId,
         content: messageContent,
         ...(sharedPostId && { sharedPostId }),
+        ...(sharedProfileId && { sharedProfileId }),
       },
       include: messageInclude,
     });
 
     // Sign shared post media if present
     if (message.sharedPost) await signMediaDeep(message.sharedPost);
+    if (message.sharedProfile) await signMediaDeep(message.sharedProfile);
 
     // Update conversation timestamp
     await prisma.conversation.update({
@@ -342,6 +373,8 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
       if (recipients.length > 0) {
         const preview = sharedPostId
           ? `${message.sender.name} shared a post`
+          : sharedProfileId
+          ? `${message.sender.name} shared a profile`
           : `${message.sender.name}: ${String(messageContent).slice(0, 80)}`;
         await prisma.notification.createMany({
           data: recipients.map((r) => ({
@@ -481,7 +514,7 @@ router.post('/:id/forward', authenticate, messageLimiter, validate({ body: Forwa
     // Find the original message
     const original = await prisma.message.findUnique({
       where: { id: messageId },
-      select: { content: true, conversationId: true, sharedPostId: true, deletedAt: true },
+      select: { content: true, conversationId: true, sharedPostId: true, sharedProfileId: true, deletedAt: true },
     });
 
     if (!original) {
@@ -504,11 +537,13 @@ router.post('/:id/forward', authenticate, messageLimiter, validate({ body: Forwa
         senderId: req.user!.userId,
         content: original.content,
         ...(original.sharedPostId && { sharedPostId: original.sharedPostId }),
+        ...(original.sharedProfileId && { sharedProfileId: original.sharedProfileId }),
       },
       include: messageInclude,
     });
 
     if (forwarded.sharedPost) await signMediaDeep(forwarded.sharedPost);
+    if (forwarded.sharedProfile) await signMediaDeep(forwarded.sharedProfile);
 
     // Update target conversation timestamp
     await prisma.conversation.update({

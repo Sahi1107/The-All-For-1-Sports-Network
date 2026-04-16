@@ -9,6 +9,7 @@ export const CreatePostBody = z.object({
   }),
   content: optStr(2000, 'Content'),
   title:   optStr(100,  'Title'),
+  commentsDisabled: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
 });
 
 // ─── Highlight ────────────────────────────────────────────────────────────────

@@ -56,6 +56,33 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
       prisma.user.count({ where }),
     ]);
 
+    // Attach mutual-connection count per user (accepted connections in common with current user)
+    const meId = req.user!.userId;
+    const myConnRows = await prisma.connection.findMany({
+      where: { status: 'ACCEPTED', OR: [{ senderId: meId }, { receiverId: meId }] },
+      select: { senderId: true, receiverId: true },
+    });
+    const myConnIds = myConnRows.map((r) => (r.senderId === meId ? r.receiverId : r.senderId));
+
+    if (myConnIds.length > 0 && users.length > 0) {
+      const counts = await Promise.all(
+        users.map((u) =>
+          prisma.connection.count({
+            where: {
+              status: 'ACCEPTED',
+              OR: [
+                { senderId: u.id, receiverId: { in: myConnIds } },
+                { receiverId: u.id, senderId: { in: myConnIds } },
+              ],
+            },
+          }),
+        ),
+      );
+      users.forEach((u, i) => { (u as any).mutualCount = counts[i]; });
+    } else {
+      users.forEach((u) => { (u as any).mutualCount = 0; });
+    }
+
     await signMediaDeepAll(users);
     res.json({ users, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
@@ -163,14 +190,15 @@ router.post('/report/:id', authenticate, writeLimiter, async (req: AuthRequest, 
 // PATCH /api/users/settings/notifications — update notification preferences
 router.patch('/settings/notifications', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const { messageNotifications, showOnlineStatus } = req.body ?? {};
+    const { messageNotifications, showOnlineStatus, messagingFollowersOnly } = req.body ?? {};
     const user = await prisma.user.update({
       where: { id: req.user!.userId },
       data: {
         ...(typeof messageNotifications === 'boolean' && { messageNotifications }),
         ...(typeof showOnlineStatus === 'boolean' && { showOnlineStatus }),
+        ...(typeof messagingFollowersOnly === 'boolean' && { messagingFollowersOnly }),
       },
-      select: { messageNotifications: true, showOnlineStatus: true },
+      select: { messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true },
     });
     res.json({ settings: user });
   } catch (error) {
@@ -192,7 +220,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         achievements: true, verified: true, createdAt: true,
         contactEmail: true, banner: true,
         // Email, phone, and notification settings are private
-        ...(isSelf && { email: true, phone: true, messageNotifications: true, showOnlineStatus: true }),
+        ...(isSelf && { email: true, phone: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
         teamMemberships: { include: { team: true } },
         playerRankings: { orderBy: { calculatedAt: 'desc' }, take: 5, include: { tournament: { select: { id: true, name: true } } } },

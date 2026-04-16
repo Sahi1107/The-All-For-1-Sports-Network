@@ -85,6 +85,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         likedByMe: p.likes.length > 0,
         repostedByMe: p.reposts.length > 0,
         savedByMe: p.saves.length > 0,
+        commentsDisabled: p.commentsDisabled,
       })),
       ...highlights.map((h) => ({
         id: h.id,

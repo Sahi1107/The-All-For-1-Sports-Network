@@ -9,9 +9,10 @@ export const SendMessageBody = z
   .object({
     content: reqText(2000, 'Message content').optional(),
     sharedPostId: z.string().uuid('sharedPostId must be a valid UUID').optional(),
+    sharedProfileId: z.string().uuid('sharedProfileId must be a valid UUID').optional(),
   })
-  .refine((d) => d.content || d.sharedPostId, {
-    message: 'Either content or sharedPostId is required',
+  .refine((d) => d.content || d.sharedPostId || d.sharedProfileId, {
+    message: 'Either content, sharedPostId, or sharedProfileId is required',
   });
 
 export const EditMessageBody = z.object({
