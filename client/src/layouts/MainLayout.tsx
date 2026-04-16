@@ -46,6 +46,9 @@ export default function MainLayout() {
     navigate('/login');
   };
 
+  // Profile completeness check for "!" badge
+  const profileIncomplete = !!(user && (!user.bio || !user.avatar || !user.location || !user.age || !user.position));
+
   const navItems = [
     { to: '/',              icon: Home,          label: 'Home' },
     { to: '/explore',       icon: Search,        label: 'Explore' },
@@ -145,12 +148,17 @@ export default function MainLayout() {
           <Link to={`/profile/${user?.id}`}
             className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-colors"
           >
-            {user?.avatar
-              ? <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
-              : <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-bold text-primary">
-                  {user?.name?.charAt(0).toUpperCase()}
-                </div>
-            }
+            <span className="relative shrink-0">
+              {user?.avatar
+                ? <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+                : <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-bold text-primary">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </div>
+              }
+              {profileIncomplete && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-dark text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-black">!</span>
+              )}
+            </span>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.name}</p>
               <p className="text-xs text-gray-custom capitalize">{user?.role?.toLowerCase()}</p>
@@ -204,12 +212,17 @@ export default function MainLayout() {
             <Link to={`/profile/${user?.id}`} onClick={() => setDrawerOpen(false)}
               className="flex items-center gap-3 px-5 py-4 border-b border-white/10 hover:bg-white/5 transition-colors"
             >
-              {user?.avatar
-                ? <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                : <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-bold text-primary">
-                    {user?.name?.charAt(0).toUpperCase()}
-                  </div>
-              }
+              <span className="relative shrink-0">
+                {user?.avatar
+                  ? <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  : <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-bold text-primary">
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </div>
+                }
+                {profileIncomplete && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-dark text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-black">!</span>
+                )}
+              </span>
               <div className="min-w-0">
                 <p className="font-medium truncate">{user?.name}</p>
                 <p className="text-xs text-gray-custom capitalize">{user?.role?.toLowerCase()} · {user?.sport?.toLowerCase()}</p>
@@ -259,6 +272,18 @@ export default function MainLayout() {
         {/* Spacer for mobile top header */}
         <div className="md:hidden h-16" />
         <div className="max-w-4xl mx-auto px-4 py-4 md:px-6 md:py-6 pb-24 md:pb-6">
+          {profileIncomplete && (
+            <Link to="/profile/edit"
+              className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/15 transition-colors"
+            >
+              <span className="w-8 h-8 bg-yellow-500 text-dark rounded-full flex items-center justify-center text-sm font-bold shrink-0">!</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-yellow-400">Complete your profile</p>
+                <p className="text-xs text-yellow-400/60 mt-0.5">Add your bio, avatar, location, age, and position to get verified</p>
+              </div>
+              <span className="text-xs text-yellow-400/80 font-medium shrink-0">Edit</span>
+            </Link>
+          )}
           <Outlet />
         </div>
         {/* Spacer for mobile bottom nav */}
@@ -289,6 +314,9 @@ export default function MainLayout() {
                     )
                 }
                 {hasBadge && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black" />}
+                {!Icon && profileIncomplete && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-yellow-500 text-dark text-[8px] font-bold rounded-full flex items-center justify-center ring-1 ring-black">!</span>
+                )}
               </span>
               <span className="text-[10px] font-medium">{label}</span>
             </Link>

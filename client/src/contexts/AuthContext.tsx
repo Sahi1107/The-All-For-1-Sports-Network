@@ -25,6 +25,8 @@ interface User {
   height?: string;
   position?: string;
   verified: boolean;
+  phoneVerified?: boolean;
+  phone?: string;
 }
 
 interface RegisterData {

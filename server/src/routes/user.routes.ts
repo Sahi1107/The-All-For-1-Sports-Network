@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../config/db';
+import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { uploadImage, validateImageBytes } from '../middleware/upload';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
@@ -207,6 +208,34 @@ router.patch('/settings/notifications', authenticate, writeLimiter, async (req: 
   }
 });
 
+// POST /api/users/settings/verify-phone — confirm phone was linked in Firebase
+router.post('/settings/verify-phone', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    // Look up the Firebase user and check if a phone number is linked
+    const user = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { firebaseUid: true } });
+    if (!user?.firebaseUid) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const fbUser = await admin.auth().getUser(user.firebaseUid);
+    if (!fbUser.phoneNumber) {
+      res.status(400).json({ error: 'No phone number linked to your account' });
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: { phoneVerified: true, phone: fbUser.phoneNumber },
+    });
+
+    res.json({ phoneVerified: true, phone: fbUser.phoneNumber });
+  } catch (error) {
+    console.error('Verify phone error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/users/:id — get user profile
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -220,7 +249,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         achievements: true, verified: true, createdAt: true,
         contactEmail: true, banner: true,
         // Email, phone, and notification settings are private
-        ...(isSelf && { email: true, phone: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
+        ...(isSelf && { email: true, phone: true, phoneVerified: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
         teamMemberships: { include: { team: true } },
         playerRankings: { orderBy: { calculatedAt: 'desc' }, take: 5, include: { tournament: { select: { id: true, name: true } } } },

@@ -122,34 +122,54 @@ router.post('/sync', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Verification helpers ─────────────────────────────────────────────────────
+
+const meSelect = {
+  id: true, email: true, name: true, role: true, sport: true,
+  avatar: true, bio: true, location: true, age: true, height: true,
+  position: true, achievements: true, verified: true, phoneVerified: true,
+  phone: true, createdAt: true,
+};
+
+/** A profile is "complete" when these essential fields are all filled in. */
+function isProfileComplete(u: any): boolean {
+  return !!(u.name && u.bio && u.avatar && u.location && u.age && u.position && u.sport);
+}
+
+/**
+ * Recalculate and persist the `verified` flag.
+ * Verified = email verified + phone verified + complete profile.
+ */
+async function recalcVerified(userId: string, emailVerified: boolean) {
+  const u = await prisma.user.findUnique({ where: { id: userId } });
+  if (!u) return null;
+  const shouldBeVerified = emailVerified && u.phoneVerified && isProfileComplete(u);
+  if (u.verified !== shouldBeVerified) {
+    return prisma.user.update({
+      where: { id: userId },
+      data: { verified: shouldBeVerified },
+      select: meSelect,
+    });
+  }
+  return null;
+}
+
 // ─── GET /api/auth/me ──────────────────────────────────────────────────────────
 
 router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     let user = await prisma.user.findUnique({
       where: { id: req.user!.userId },
-      select: {
-        id: true, email: true, name: true, role: true, sport: true,
-        avatar: true, bio: true, location: true, age: true, height: true,
-        position: true, achievements: true, verified: true, createdAt: true,
-      },
+      select: meSelect,
     });
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
-    // Auto-verify profile when Firebase email has been confirmed
-    if (req.user!.emailVerified && !user.verified) {
-      user = await prisma.user.update({
-        where: { id: req.user!.userId },
-        data: { verified: true },
-        select: {
-          id: true, email: true, name: true, role: true, sport: true,
-          avatar: true, bio: true, location: true, age: true, height: true,
-          position: true, achievements: true, verified: true, createdAt: true,
-        },
-      });
-    }
+    // Recalculate verified status on every /me call
+    const updated = await recalcVerified(req.user!.userId, req.user!.emailVerified);
+    if (updated) user = updated;
+
     await signMediaDeep(user);
     res.json({ user });
   } catch (error) {

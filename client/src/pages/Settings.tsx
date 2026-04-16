@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../config/firebase';
-import { sendPasswordResetEmail, deleteUser, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
-import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi } from 'lucide-react';
+import {
+  sendPasswordResetEmail, deleteUser, EmailAuthProvider, reauthenticateWithCredential,
+  PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
+} from 'firebase/auth';
+import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
 export default function Settings() {
-  const { user, logout } = useAuth();
+  const { user, logout, unverifiedEmail } = useAuth();
   const navigate = useNavigate();
   const [sendingReset, setSendingReset] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -19,18 +22,31 @@ export default function Settings() {
   const [msgFollowersOnly, setMsgFollowersOnly] = useState<boolean | null>(null);
   const [blocked, setBlocked] = useState<any[]>([]);
 
+  // Phone verification state
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [verificationId, setVerificationId] = useState<string | null>(null);
+  const [phoneSending, setPhoneSending] = useState(false);
+  const [phoneVerifying, setPhoneVerifying] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [currentPhone, setCurrentPhone] = useState<string | null>(null);
+  const recaptchaRef = useRef<HTMLDivElement>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  // Profile completeness state (for verification checklist)
+  const [profileData, setProfileData] = useState<any>(null);
+
   useEffect(() => {
     if (!user?.id) return;
     api.get(`/users/${user.id}`).then(({ data }) => {
-      if (typeof data?.user?.messageNotifications === 'boolean') {
-        setMsgNotifs(data.user.messageNotifications);
-      }
-      if (typeof data?.user?.showOnlineStatus === 'boolean') {
-        setOnlineStatus(data.user.showOnlineStatus);
-      }
-      if (typeof data?.user?.messagingFollowersOnly === 'boolean') {
-        setMsgFollowersOnly(data.user.messagingFollowersOnly);
-      }
+      const u = data?.user;
+      if (!u) return;
+      if (typeof u.messageNotifications === 'boolean') setMsgNotifs(u.messageNotifications);
+      if (typeof u.showOnlineStatus === 'boolean') setOnlineStatus(u.showOnlineStatus);
+      if (typeof u.messagingFollowersOnly === 'boolean') setMsgFollowersOnly(u.messagingFollowersOnly);
+      if (typeof u.phoneVerified === 'boolean') setPhoneVerified(u.phoneVerified);
+      if (u.phone) setCurrentPhone(u.phone);
+      setProfileData(u);
     }).catch(() => {});
     api.get('/users/blocked').then(({ data }) => setBlocked(data.users ?? [])).catch(() => {});
   }, [user?.id]);
@@ -91,9 +107,123 @@ export default function Settings() {
     }
   };
 
+  // ── Phone verification handlers ──────────────────────────
+  const sendOtp = async () => {
+    if (!phoneNumber.trim() || !auth.currentUser) return;
+    setPhoneSending(true);
+    try {
+      // Clean up any previous reCAPTCHA
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear();
+        recaptchaVerifierRef.current = null;
+      }
+      const verifier = new RecaptchaVerifier(auth, recaptchaRef.current!, { size: 'invisible' });
+      recaptchaVerifierRef.current = verifier;
+
+      const provider = new PhoneAuthProvider(auth);
+      const vId = await provider.verifyPhoneNumber(phoneNumber, verifier);
+      setVerificationId(vId);
+      toast.success('OTP sent! Check your phone.');
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/invalid-phone-number') {
+        toast.error('Invalid phone number. Use format: +1234567890');
+      } else if (err.code === 'auth/too-many-requests') {
+        toast.error('Too many attempts. Try again later.');
+      } else {
+        toast.error('Failed to send OTP');
+      }
+    } finally {
+      setPhoneSending(false);
+    }
+  };
+
+  const verifyOtp = async () => {
+    if (!otpCode.trim() || !verificationId || !auth.currentUser) return;
+    setPhoneVerifying(true);
+    try {
+      const credential = PhoneAuthProvider.credential(verificationId, otpCode);
+      await linkWithCredential(auth.currentUser, credential);
+      // Tell server to mark phone as verified
+      const { data } = await api.post('/users/settings/verify-phone');
+      setPhoneVerified(true);
+      setCurrentPhone(data.phone);
+      setVerificationId(null);
+      setOtpCode('');
+      toast.success('Phone verified!');
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/invalid-verification-code') {
+        toast.error('Incorrect code. Try again.');
+      } else if (err.code === 'auth/provider-already-linked') {
+        // Phone already linked — just confirm with server
+        try {
+          const { data } = await api.post('/users/settings/verify-phone');
+          setPhoneVerified(true);
+          setCurrentPhone(data.phone);
+          setVerificationId(null);
+          setOtpCode('');
+          toast.success('Phone verified!');
+        } catch {
+          toast.error('Failed to verify phone');
+        }
+      } else {
+        toast.error('Verification failed');
+      }
+    } finally {
+      setPhoneVerifying(false);
+    }
+  };
+
+  // ── Verification checklist ──────────────────────────────
+  const emailVerified = !!(user && !unverifiedEmail);
+  const isProfileComplete = !!(profileData?.name && profileData?.bio && profileData?.avatar && profileData?.location && profileData?.age && profileData?.position);
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
+
+      {/* Verification Checklist */}
+      <section className={`rounded-xl border p-5 ${user?.verified ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-dark-light border-dark-lighter'}`}>
+        <h2 className="font-semibold flex items-center gap-2 mb-3">
+          <BadgeCheck size={16} className={user?.verified ? 'text-emerald-400' : 'text-gray-custom'} />
+          {user?.verified ? 'Verified Profile' : 'Get Verified'}
+        </h2>
+        {user?.verified ? (
+          <p className="text-sm text-emerald-400/80">Your profile is fully verified. The verified badge is visible on your profile.</p>
+        ) : (
+          <>
+            <p className="text-sm text-gray-custom mb-4">Complete all steps below to earn a verified badge on your profile.</p>
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-3">
+                {emailVerified
+                  ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                  : <Circle size={16} className="text-gray-custom shrink-0" />}
+                <span className={`text-sm ${emailVerified ? 'text-white' : 'text-gray-custom'}`}>Email verified</span>
+              </div>
+              <div className="flex items-center gap-3">
+                {phoneVerified
+                  ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                  : <Circle size={16} className="text-gray-custom shrink-0" />}
+                <span className={`text-sm ${phoneVerified ? 'text-white' : 'text-gray-custom'}`}>Phone number verified</span>
+                {!phoneVerified && <span className="text-xs text-primary-light ml-auto">See below</span>}
+              </div>
+              <div className="flex items-center gap-3">
+                {isProfileComplete
+                  ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                  : <Circle size={16} className="text-gray-custom shrink-0" />}
+                <span className={`text-sm ${isProfileComplete ? 'text-white' : 'text-gray-custom'}`}>Complete profile</span>
+                {!isProfileComplete && (
+                  <Link to="/profile/edit" className="text-xs text-primary-light ml-auto hover:underline">Edit profile</Link>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-gray-custom mt-3">
+              Required: name, bio, avatar, location, age, and position.
+            </p>
+          </>
+        )}
+      </section>
 
       {/* Account */}
       <section className="bg-dark-light rounded-xl border border-dark-lighter divide-y divide-dark-lighter">
@@ -155,6 +285,74 @@ export default function Settings() {
             {sendingReset ? 'Sending…' : 'Send Reset Email'}
           </button>
         </div>
+      </section>
+
+      {/* Phone Verification */}
+      <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+        <h2 className="font-semibold flex items-center gap-2 mb-4">
+          <Phone size={16} className="text-primary-light" />
+          Phone Verification
+        </h2>
+        {phoneVerified ? (
+          <div className="flex items-center gap-3">
+            <CheckCircle2 size={16} className="text-emerald-400" />
+            <div>
+              <p className="text-sm text-white font-medium">Phone verified</p>
+              {currentPhone && <p className="text-xs text-gray-custom mt-0.5">{currentPhone}</p>}
+            </div>
+          </div>
+        ) : !verificationId ? (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-custom">Enter your phone number with country code to receive a verification OTP.</p>
+            <div className="flex gap-2">
+              <input
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                placeholder="+1234567890"
+                className="flex-1 bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              />
+              <button
+                onClick={sendOtp}
+                disabled={!phoneNumber.trim() || phoneSending}
+                className="px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-dark font-semibold rounded-lg transition-colors text-sm"
+              >
+                {phoneSending ? (
+                  <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" />
+                ) : 'Send OTP'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-gray-custom">Enter the 6-digit code sent to <span className="text-white font-medium">{phoneNumber}</span></p>
+            <div className="flex gap-2">
+              <input
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                className="flex-1 bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary text-center tracking-[0.3em] font-mono"
+              />
+              <button
+                onClick={verifyOtp}
+                disabled={otpCode.length < 6 || phoneVerifying}
+                className="px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-dark font-semibold rounded-lg transition-colors text-sm"
+              >
+                {phoneVerifying ? (
+                  <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" />
+                ) : 'Verify'}
+              </button>
+            </div>
+            <button
+              onClick={() => { setVerificationId(null); setOtpCode(''); }}
+              className="text-xs text-gray-custom hover:text-white transition-colors"
+            >
+              Change number
+            </button>
+          </div>
+        )}
+        {/* Invisible reCAPTCHA container */}
+        <div ref={recaptchaRef} />
       </section>
 
       {/* Role & Sport */}

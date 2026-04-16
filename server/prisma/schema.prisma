@@ -98,7 +98,8 @@ model User {
   phone       String?
   contactEmail String? @map("contact_email")
   banner      String?
-  verified    Boolean  @default(false)
+  verified      Boolean  @default(false)
+  phoneVerified Boolean  @default(false) @map("phone_verified")
   messageNotifications Boolean @default(true) @map("message_notifications")
   showOnlineStatus     Boolean  @default(true) @map("show_online_status")
   messagingFollowersOnly Boolean @default(false) @map("messaging_followers_only")
