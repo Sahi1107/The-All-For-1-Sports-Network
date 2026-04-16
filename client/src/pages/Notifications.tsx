@@ -1,8 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
-import { Bell, Check, UserPlus, Trophy, Megaphone, MessageCircle } from 'lucide-react';
+import { Bell, Check, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2, MessageSquare as CommentIcon } from 'lucide-react';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -22,6 +22,9 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   TOURNAMENT_RESULT: <Trophy size={16} className="text-secondary" />,
   ANNOUNCEMENT: <Megaphone size={16} className="text-secondary" />,
   MESSAGE: <MessageCircle size={16} className="text-primary-light" />,
+  LIKE: <Heart size={16} className="text-red-400" />,
+  COMMENT: <CommentIcon size={16} className="text-primary-light" />,
+  REPOST: <Repeat2 size={16} className="text-green-400" />,
 };
 
 // Where to navigate when a notification is clicked
@@ -32,34 +35,66 @@ function getNotifLink(n: any): string | null {
   return null;
 }
 
+const PAGE_SIZE = 30;
+
 export default function Notifications() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [allNotifs, setAllNotifs] = useState<any[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const markedReadRef = useRef(false);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['notifications'],
+    queryKey: ['notifications', 1],
     queryFn: async () => {
-      const { data } = await api.get('/notifications');
+      const { data } = await api.get(`/notifications?page=1&limit=${PAGE_SIZE}`);
       return data;
     },
   });
+
+  // Sync first page into state
+  useEffect(() => {
+    if (data?.notifications) {
+      setAllNotifs(data.notifications);
+      setTotal(data.total ?? 0);
+      setPage(1);
+    }
+  }, [data]);
 
   const markReadMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/notifications/${id}/read`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
 
-  const notifications = data?.notifications ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
-  // Auto-mark all as read when page is viewed
+  // Auto-mark all as read when page is viewed (once)
   useEffect(() => {
-    if (unreadCount > 0) {
+    if (unreadCount > 0 && !markedReadRef.current) {
+      markedReadRef.current = true;
       api.patch('/notifications/read-all').then(() => {
         qc.invalidateQueries({ queryKey: ['notifications'] });
       });
     }
   }, [unreadCount, qc]);
+
+  const loadMore = useCallback(async () => {
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    try {
+      const { data } = await api.get(`/notifications?page=${nextPage}&limit=${PAGE_SIZE}`);
+      setAllNotifs((prev) => [...prev, ...(data.notifications ?? [])]);
+      setPage(nextPage);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [page]);
+
+  const hasMore = allNotifs.length < total;
 
   const handleClick = (n: any) => {
     if (!n.read) markReadMutation.mutate(n.id);
@@ -81,14 +116,14 @@ export default function Notifications() {
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : notifications.length === 0 ? (
+      ) : allNotifs.length === 0 ? (
         <div className="bg-dark-light rounded-xl border border-dark-lighter p-16 text-center">
           <Bell size={32} className="mx-auto mb-3 text-gray-custom" />
           <p className="text-gray-custom">No notifications yet.</p>
         </div>
       ) : (
         <div className="bg-dark-light rounded-xl border border-dark-lighter divide-y divide-dark-lighter overflow-hidden">
-          {notifications.map((n: any) => (
+          {allNotifs.map((n: any) => (
             <div
               key={n.id}
               onClick={() => handleClick(n)}
@@ -143,6 +178,21 @@ export default function Notifications() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Load more */}
+      {!isLoading && hasMore && (
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="px-6 py-2.5 bg-dark-light hover:bg-dark-lighter border border-dark-lighter text-sm text-gray-custom hover:text-white rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loadingMore ? (
+              <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mx-4" />
+            ) : 'Load older notifications'}
+          </button>
         </div>
       )}
     </div>
