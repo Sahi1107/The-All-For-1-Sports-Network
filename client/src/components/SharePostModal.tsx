@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Search, Send, MessageCircle } from 'lucide-react';
+import { X, Search } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Props {
   postId: string;
@@ -10,123 +10,134 @@ interface Props {
 }
 
 export default function SharePostModal({ postId, onClose }: Props) {
-  const qc = useQueryClient();
-  const [conversations, setConversations] = useState<any[]>([]);
+  const { user: me } = useAuth();
+  const [connections, setConnections] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sentTo, setSentTo] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState<string | null>(null);
 
   useEffect(() => {
-    api.get('/messages/conversations')
-      .then(({ data }) => setConversations(data.conversations ?? []))
-      .catch(() => toast.error('Failed to load conversations'))
+    if (!me?.id) return;
+    api.get(`/users/${me.id}/following`)
+      .then(({ data }) => setConnections(data.users ?? []))
+      .catch(() => toast.error('Failed to load connections'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [me?.id]);
 
-  const sendMutation = useMutation({
-    mutationFn: async (conversationId: string) => {
-      setSending(conversationId);
-      const { data } = await api.post(`/messages/conversations/${conversationId}`, {
-        sharedPostId: postId,
-      });
-      return data;
-    },
-    onSuccess: () => {
-      toast.success('Post shared!');
-      qc.invalidateQueries({ queryKey: ['conversations'] });
-      onClose();
-    },
-    onError: () => {
-      toast.error('Failed to share post');
+  const handleSend = async (targetUser: any) => {
+    if (sending || sentTo.has(targetUser.id)) return;
+    setSending(targetUser.id);
+    try {
+      // Create or get existing conversation
+      const { data: convData } = await api.post('/messages/conversations', { userId: targetUser.id });
+      const conversationId = convData.conversation.id;
+      // Send the shared post
+      await api.post(`/messages/conversations/${conversationId}`, { sharedPostId: postId });
+      setSentTo((prev) => new Set(prev).add(targetUser.id));
+      toast.success(`Sent to ${targetUser.name}`);
+    } catch {
+      toast.error('Failed to send');
+    } finally {
       setSending(null);
-    },
-  });
+    }
+  };
 
-  const filtered = conversations.filter((c: any) => {
+  const filtered = connections.filter((u: any) => {
     if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return c.members?.some((m: any) =>
-      m.user?.name?.toLowerCase().includes(q)
-    );
+    return u.name?.toLowerCase().includes(search.toLowerCase());
   });
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-dark-light rounded-t-2xl sm:rounded-xl border border-dark-lighter w-full sm:max-w-sm max-h-[70vh] flex flex-col">
+      <div className="bg-[#1a1a1a] rounded-t-2xl sm:rounded-2xl border border-white/10 w-full sm:max-w-md max-h-[75vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-dark-lighter shrink-0">
-          <h2 className="font-semibold">Send in message</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-custom hover:text-white transition-colors"
-          >
-            <X size={18} />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <h2 className="font-semibold text-white text-base">Share to...</h2>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
+            <X size={20} />
           </button>
         </div>
 
         {/* Search */}
-        <div className="p-4 pb-2 shrink-0">
+        <div className="px-4 py-3">
           <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-custom" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search conversations..."
+              placeholder="Search..."
               autoFocus
-              className="w-full pl-8 pr-3 py-2.5 bg-dark border border-dark-lighter rounded-xl text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-primary"
             />
           </div>
         </div>
 
-        {/* Conversation list */}
-        <div className="flex-1 overflow-y-auto px-2 pb-4">
+        {/* User list */}
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
           {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <div className="flex justify-center py-10">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-8">
-              <MessageCircle size={24} className="mx-auto mb-2 text-gray-custom" />
-              <p className="text-sm text-gray-custom">
-                {conversations.length === 0
-                  ? 'No conversations yet. Start one first!'
-                  : 'No conversations match your search'}
+            <div className="text-center py-10">
+              <p className="text-sm text-white/30">
+                {connections.length === 0
+                  ? 'Follow people to share posts with them'
+                  : 'No matches found'}
               </p>
             </div>
           ) : (
             <div className="space-y-1">
-              {filtered.map((conv: any) => {
-                const other = conv.members?.find((m: any) => m.user);
-                const otherUser = other?.user;
-                const isSending = sending === conv.id;
+              {filtered.map((u: any) => {
+                const isSent = sentTo.has(u.id);
+                const isSending = sending === u.id;
                 return (
-                  <button
-                    key={conv.id}
-                    onClick={() => sendMutation.mutate(conv.id)}
-                    disabled={!!sending}
-                    className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-dark transition-colors text-left disabled:opacity-50"
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-3 p-2.5 rounded-xl"
                   >
-                    <div className="w-9 h-9 rounded-full bg-dark-lighter flex items-center justify-center font-bold shrink-0 overflow-hidden">
-                      {otherUser?.avatar ? (
-                        <img src={otherUser.avatar} alt={otherUser.name} className="w-full h-full object-cover" />
+                    {/* Avatar */}
+                    <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-2 ring-white/10">
+                      {u.avatar ? (
+                        <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-sm">{otherUser?.name?.charAt(0)}</span>
+                        <div className="w-full h-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary-light">
+                          {u.name?.charAt(0).toUpperCase()}
+                        </div>
                       )}
                     </div>
+
+                    {/* Name + role */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{otherUser?.name ?? 'Unknown'}</p>
+                      <p className="text-sm font-semibold text-white truncate">{u.name}</p>
+                      <p className="text-xs text-white/40 capitalize truncate">
+                        {u.sport?.toLowerCase()}{u.position ? ` · ${u.position}` : ''}
+                      </p>
                     </div>
-                    <div className="shrink-0">
+
+                    {/* Send button */}
+                    <button
+                      onClick={() => handleSend(u)}
+                      disabled={isSending || isSent}
+                      className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all shrink-0 ${
+                        isSent
+                          ? 'bg-white/10 text-white/40'
+                          : 'bg-primary hover:bg-primary-dark text-dark'
+                      } disabled:cursor-default`}
+                    >
                       {isSending ? (
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <div className="w-3.5 h-3.5 border-2 border-dark border-t-transparent rounded-full animate-spin mx-2" />
+                      ) : isSent ? (
+                        'Sent'
                       ) : (
-                        <Send size={14} className="text-gray-custom" />
+                        'Send'
                       )}
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                 );
               })}
             </div>
