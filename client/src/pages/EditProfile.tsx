@@ -8,6 +8,32 @@ import toast from 'react-hot-toast';
 import ImageCropModal from '../components/ImageCropModal';
 import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
 
+const PHONE_CODES = [
+  { code: '+91', label: '🇮🇳 +91' },
+  { code: '+1',  label: '🇺🇸 +1' },
+  { code: '+44', label: '🇬🇧 +44' },
+  { code: '+61', label: '🇦🇺 +61' },
+  { code: '+971', label: '🇦🇪 +971' },
+  { code: '+966', label: '🇸🇦 +966' },
+  { code: '+65', label: '🇸🇬 +65' },
+  { code: '+60', label: '🇲🇾 +60' },
+  { code: '+92', label: '🇵🇰 +92' },
+  { code: '+94', label: '🇱🇰 +94' },
+  { code: '+880', label: '🇧🇩 +880' },
+  { code: '+977', label: '🇳🇵 +977' },
+  { code: '+27', label: '🇿🇦 +27' },
+  { code: '+234', label: '🇳🇬 +234' },
+  { code: '+254', label: '🇰🇪 +254' },
+  { code: '+49', label: '🇩🇪 +49' },
+  { code: '+33', label: '🇫🇷 +33' },
+  { code: '+39', label: '🇮🇹 +39' },
+  { code: '+34', label: '🇪🇸 +34' },
+  { code: '+55', label: '🇧🇷 +55' },
+  { code: '+86', label: '🇨🇳 +86' },
+  { code: '+81', label: '🇯🇵 +81' },
+  { code: '+82', label: '🇰🇷 +82' },
+];
+
 const POSITIONS: Record<string, string[]> = {
   BASKETBALL: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
   FOOTBALL: ['Goalkeeper', 'Defender', 'Midfielder', 'Winger', 'Striker'],
@@ -27,14 +53,23 @@ export default function EditProfile() {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Parse existing phone into country code + number
+  const existingPhone = (user as any)?.phone ?? '';
+  const parsePhone = (ph: string) => {
+    const match = ph.match(/^(\+\d{1,4})\s*(.*)$/);
+    return match ? { code: match[1], number: match[2] } : { code: '+91', number: ph };
+  };
+  const parsed = parsePhone(existingPhone);
+
   const [form, setForm] = useState({
     name: user?.name ?? '',
     bio: user?.bio ?? '',
     position: user?.position ?? '',
     height: user?.height ?? '',
-    phone: (user as any)?.phone ?? '',
+    phone: parsed.number,
     contactEmail: (user as any)?.contactEmail ?? '',
   });
+  const [phoneCode, setPhoneCode] = useState(parsed.code);
   const [country, setCountry] = useState(() => parseLocation(user?.location).country);
   const [state,   setState]   = useState(() => parseLocation(user?.location).state);
   const [city,    setCity]    = useState(() => parseLocation(user?.location).city);
@@ -58,9 +93,13 @@ export default function EditProfile() {
   const mutation = useMutation({
     mutationFn: async () => {
       const formData = new FormData();
+      // Combine country code + phone number
+      const fullPhone = form.phone.trim() ? `${phoneCode} ${form.phone.trim()}` : '';
       Object.entries(form).forEach(([k, v]) => {
+        if (k === 'phone') return; // handled separately
         if (v !== '') formData.append(k, v);
       });
+      if (fullPhone) formData.append('phone', fullPhone);
       const location = country
         ? state
           ? city ? `${city}, ${state}, ${country}` : `${state}, ${country}`
@@ -226,8 +265,19 @@ export default function EditProfile() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-custom mb-1">Phone (private)</label>
-              <input name="phone" value={form.phone} onChange={handleChange} placeholder="+91 98765 43210"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary" />
+              <div className="flex gap-2">
+                <select
+                  value={phoneCode}
+                  onChange={(e) => setPhoneCode(e.target.value)}
+                  className="w-28 bg-dark border border-dark-lighter rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-primary appearance-none"
+                >
+                  {PHONE_CODES.map(({ code, label }) => (
+                    <option key={code} value={code}>{label}</option>
+                  ))}
+                </select>
+                <input name="phone" value={form.phone} onChange={handleChange} placeholder="98765 43210"
+                  className="flex-1 bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary" />
+              </div>
             </div>
             <div>
               <label className="block text-sm text-gray-custom mb-1">Public contact email</label>
