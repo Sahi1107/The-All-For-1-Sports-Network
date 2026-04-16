@@ -205,7 +205,7 @@ export default function Home() {
           <div className="flex justify-center py-16">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : data?.feed?.length === 0 ? (
+        ) : feedItems.length === 0 ? (
           <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-12 text-center shadow-xl">
             <p className="text-gray-custom text-lg">Your feed is empty</p>
             <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their posts here</p>
@@ -222,7 +222,7 @@ export default function Home() {
             className="snap-y snap-mandatory overflow-y-auto overscroll-y-contain"
             style={{ height: 'calc(100vh - 6rem)' }}
           >
-            {data?.feed?.map((item: any) => (
+            {feedItems.map((item: any) => (
               <div
                 key={`${item.kind}-${item.id}`}
                 className="snap-start flex items-center justify-center px-2"
@@ -324,28 +324,11 @@ export default function Home() {
               </div>
             ))}
 
-            {/* Pagination */}
-            {data?.totalPages > 1 && (
-              <div className="snap-start flex items-center justify-center" style={{ height: 'calc(100vh - 6rem)' }}>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setPage((p) => Math.max(1, p - 1)); scrollRef.current?.scrollTo(0, 0); }}
-                    disabled={page === 1}
-                    className="px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg text-sm disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <span className="px-4 py-2 text-sm text-gray-custom">
-                    Page {page} of {data.totalPages}
-                  </span>
-                  <button
-                    onClick={() => { setPage((p) => p + 1); scrollRef.current?.scrollTo(0, 0); }}
-                    disabled={page >= data.totalPages}
-                    className="px-4 py-2 bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg text-sm disabled:opacity-50"
-                  >
-                    Next
-                  </button>
-                </div>
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} className="h-1" />
+            {isFetchingNextPage && (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             )}
           </div>
