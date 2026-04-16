@@ -217,18 +217,13 @@ export default function Home() {
             </Link>
           </div>
         ) : (
-          <div
-            ref={scrollRef}
-            className="snap-y snap-mandatory overflow-y-auto overscroll-y-contain"
-            style={{ height: 'calc(100vh - 6rem)' }}
-          >
+          <div ref={scrollRef} className="flex flex-col items-center gap-4 py-4">
             {feedItems.map((item: any) => (
               <div
                 key={`${item.kind}-${item.id}`}
-                className="snap-start flex items-center justify-center px-2"
-                style={{ height: 'calc(100vh - 6rem)' }}
+                className="w-full max-w-2xl"
               >
-                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl w-full max-w-2xl max-h-full overflow-y-auto">
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl">
                   {/* User header */}
                   <div className="p-4 flex items-center gap-3">
                     <Link to={`/profile/${item.user?.id}`}>
