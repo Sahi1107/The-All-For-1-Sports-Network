@@ -64,3 +64,171 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* =========================================================
+   SKEUOMORPHISM THEME LAYER
+   Sits on top of the base UI — keeps existing backgrounds &
+   colors, adds glossy highlights, bevels, inset/outer shadows
+   and tactile depth so controls feel physical.
+   All selectors use :where() for zero specificity, so any
+   element that already sets its own shadow/gradient wins.
+   Add the class `skeu-off` to opt an element out.
+   ========================================================= */
+
+/* --- Buttons: glossy beveled pill --------------------------- */
+:where(button):not(.skeu-off) {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.05) 48%,
+    rgba(0, 0, 0, 0.08) 52%,
+    rgba(0, 0, 0, 0.22) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.38),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 4px 10px rgba(0, 0, 0, 0.28);
+  transition:
+    transform 0.08s ease,
+    filter 0.12s ease,
+    box-shadow 0.12s ease;
+}
+:where(button):not(.skeu-off):hover {
+  filter: brightness(1.08) saturate(1.05);
+}
+:where(button):not(.skeu-off):active {
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(0, 0, 0, 0.25),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  filter: brightness(0.95);
+}
+:where(button):disabled {
+  filter: grayscale(0.4) brightness(0.85);
+}
+
+/* Primary lime buttons get an extra glassy pop */
+:where(button[class*="bg-primary"]):not(.skeu-off) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 2px 4px rgba(0, 0, 0, 0.45),
+    0 0 14px rgba(219, 255, 90, 0.28);
+}
+
+/* --- Inputs / textareas / selects: inset pressed-in look ---- */
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  textarea,
+  select
+):not(.skeu-off) {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.22) 0%,
+    rgba(0, 0, 0, 0) 60%
+  );
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+}
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]),
+  textarea,
+  select
+):not(.skeu-off):focus {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(0, 0, 0, 0.3),
+    0 0 0 2px rgba(219, 255, 90, 0.4),
+    0 0 14px rgba(219, 255, 90, 0.22);
+}
+
+/* --- Cards / surfaces: soft drop + hairline bevel ----------- */
+:where(
+  [class*="bg-dark-light"],
+  [class*="bg-dark-lighter"]
+):not(.skeu-off) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    0 4px 14px rgba(0, 0, 0, 0.45),
+    0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* --- Avatars / circular images: inset rim + drop shadow ----- */
+:where(img[class*="rounded-full"]):not(.skeu-off),
+:where([class*="rounded-full"] > img):not(.skeu-off) {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.55);
+}
+
+/* --- Badges / pills: subtle gloss --------------------------- */
+:where(span[class*="rounded-full"][class*="bg-"]):not(.skeu-off) {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.04) 50%,
+    rgba(0, 0, 0, 0.12) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Modals / floating panels: heavy elevation -------------- */
+:where([class*="fixed"] [class*="bg-dark-light"]):not(.skeu-off),
+:where([class*="fixed"] [class*="bg-dark-lighter"]):not(.skeu-off),
+:where([role="dialog"]):not(.skeu-off) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.6),
+    0 20px 60px rgba(0, 0, 0, 0.8),
+    0 8px 20px rgba(0, 0, 0, 0.55);
+}
+
+/* --- Dividers / hairlines ---------------------------------- */
+:where(hr):not(.skeu-off) {
+  border: 0;
+  height: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.5) 0%,
+    rgba(0, 0, 0, 0.5) 50%,
+    rgba(255, 255, 255, 0.05) 51%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+}
+
+/* --- Links inside nav get a gentle engraved feel ------------ */
+:where(nav a):hover {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* --- Checkboxes / radios: glossy bubble --------------------- */
+:where(input[type="checkbox"], input[type="radio"]):not(.skeu-off) {
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(0, 0, 0, 0.2) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Range sliders: embedded track -------------------------- */
+:where(input[type="range"]):not(.skeu-off) {
+  background: transparent;
+}
+:where(input[type="range"]):not(.skeu-off)::-webkit-slider-runnable-track {
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(255, 255, 255, 0.05);
+}
