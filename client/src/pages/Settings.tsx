@@ -183,47 +183,49 @@ export default function Settings() {
     <div className="max-w-2xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
-      {/* Verification Checklist */}
-      <section className={`rounded-xl border p-5 ${user?.verified ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-dark-light border-dark-lighter'}`}>
-        <h2 className="font-semibold flex items-center gap-2 mb-3">
-          <BadgeCheck size={16} className={user?.verified ? 'text-emerald-400' : 'text-gray-custom'} />
-          {user?.verified ? 'Verified Profile' : 'Get Verified'}
-        </h2>
-        {user?.verified ? (
-          <p className="text-sm text-emerald-400/80">Your profile is fully verified. The verified badge is visible on your profile.</p>
-        ) : (
-          <>
-            <p className="text-sm text-gray-custom mb-4">Complete all steps below to earn a verified badge on your profile.</p>
-            <div className="space-y-2.5">
-              <div className="flex items-center gap-3">
-                {emailVerified
-                  ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  : <Circle size={16} className="text-gray-custom shrink-0" />}
-                <span className={`text-sm ${emailVerified ? 'text-white' : 'text-gray-custom'}`}>Email verified</span>
+      {/* Verification Checklist — hidden for admins */}
+      {user?.role !== 'ADMIN' && (
+        <section className={`rounded-xl border p-5 ${user?.verified ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-dark-light border-dark-lighter'}`}>
+          <h2 className="font-semibold flex items-center gap-2 mb-3">
+            <BadgeCheck size={16} className={user?.verified ? 'text-emerald-400' : 'text-gray-custom'} />
+            {user?.verified ? 'Verified Profile' : 'Get Verified'}
+          </h2>
+          {user?.verified ? (
+            <p className="text-sm text-emerald-400/80">Your profile is fully verified. The verified badge is visible on your profile.</p>
+          ) : (
+            <>
+              <p className="text-sm text-gray-custom mb-4">Complete all steps below to earn a verified badge on your profile.</p>
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-3">
+                  {emailVerified
+                    ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                    : <Circle size={16} className="text-gray-custom shrink-0" />}
+                  <span className={`text-sm ${emailVerified ? 'text-white' : 'text-gray-custom'}`}>Email verified</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {phoneVerified
+                    ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                    : <Circle size={16} className="text-gray-custom shrink-0" />}
+                  <span className={`text-sm ${phoneVerified ? 'text-white' : 'text-gray-custom'}`}>Phone number verified</span>
+                  {!phoneVerified && <span className="text-xs text-primary-light ml-auto">See below</span>}
+                </div>
+                <div className="flex items-center gap-3">
+                  {isProfileComplete
+                    ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                    : <Circle size={16} className="text-gray-custom shrink-0" />}
+                  <span className={`text-sm ${isProfileComplete ? 'text-white' : 'text-gray-custom'}`}>Complete profile</span>
+                  {!isProfileComplete && (
+                    <Link to="/profile/edit" className="text-xs text-primary-light ml-auto hover:underline">Edit profile</Link>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                {phoneVerified
-                  ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  : <Circle size={16} className="text-gray-custom shrink-0" />}
-                <span className={`text-sm ${phoneVerified ? 'text-white' : 'text-gray-custom'}`}>Phone number verified</span>
-                {!phoneVerified && <span className="text-xs text-primary-light ml-auto">See below</span>}
-              </div>
-              <div className="flex items-center gap-3">
-                {isProfileComplete
-                  ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
-                  : <Circle size={16} className="text-gray-custom shrink-0" />}
-                <span className={`text-sm ${isProfileComplete ? 'text-white' : 'text-gray-custom'}`}>Complete profile</span>
-                {!isProfileComplete && (
-                  <Link to="/profile/edit" className="text-xs text-primary-light ml-auto hover:underline">Edit profile</Link>
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-gray-custom mt-3">
-              Required: name, bio, avatar, location, age, and position.
-            </p>
-          </>
-        )}
-      </section>
+              <p className="text-xs text-gray-custom mt-3">
+                Required: name, bio, avatar, location, age, and position.
+              </p>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Account */}
       <section className="bg-dark-light rounded-xl border border-dark-lighter divide-y divide-dark-lighter">
@@ -287,8 +289,8 @@ export default function Settings() {
         </div>
       </section>
 
-      {/* Phone Verification */}
-      <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+      {/* Phone Verification — hidden for admins */}
+      {user?.role !== 'ADMIN' && <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
         <h2 className="font-semibold flex items-center gap-2 mb-4">
           <Phone size={16} className="text-primary-light" />
           Phone Verification
@@ -353,7 +355,7 @@ export default function Settings() {
         )}
         {/* Invisible reCAPTCHA container */}
         <div ref={recaptchaRef} />
-      </section>
+      </section>}
 
       {/* Role & Sport */}
       <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">

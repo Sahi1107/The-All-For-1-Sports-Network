@@ -143,7 +143,7 @@ function isProfileComplete(u: any): boolean {
 async function recalcVerified(userId: string, emailVerified: boolean) {
   const u = await prisma.user.findUnique({ where: { id: userId } });
   if (!u) return null;
-  const shouldBeVerified = emailVerified && u.phoneVerified && isProfileComplete(u);
+  const shouldBeVerified = u.role === 'ADMIN' ? true : (emailVerified && u.phoneVerified && isProfileComplete(u));
   if (u.verified !== shouldBeVerified) {
     return prisma.user.update({
       where: { id: userId },

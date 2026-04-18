@@ -47,7 +47,7 @@ export default function MainLayout() {
   };
 
   // Profile completeness check for "!" badge
-  const profileIncomplete = !!(user && (!user.bio || !user.avatar || !user.location || !user.age || !user.position));
+  const profileIncomplete = !!(user && user.role !== 'ADMIN' && (!user.bio || !user.avatar || !user.location || !user.age || !user.position));
 
   const navItems = [
     { to: '/',              icon: Home,          label: 'Home' },
