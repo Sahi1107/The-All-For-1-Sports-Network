@@ -372,12 +372,19 @@ router.post('/:id/comments', authenticate, writeLimiter, async (req: AuthRequest
       return;
     }
 
-    const post = await prisma.post.findUnique({ where: { id: postId }, select: { userId: true, commentsDisabled: true } });
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: {
+        userId: true,
+        commentsDisabled: true,
+        user: { select: { disableAllComments: true } },
+      },
+    });
     if (!post) {
       res.status(404).json({ error: 'Post not found' });
       return;
     }
-    if (post.commentsDisabled) {
+    if (post.commentsDisabled || post.user.disableAllComments) {
       res.status(403).json({ error: 'Comments are disabled on this post' });
       return;
     }

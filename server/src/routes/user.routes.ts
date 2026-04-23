@@ -191,15 +191,16 @@ router.post('/report/:id', authenticate, writeLimiter, async (req: AuthRequest, 
 // PATCH /api/users/settings/notifications — update notification preferences
 router.patch('/settings/notifications', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const { messageNotifications, showOnlineStatus, messagingFollowersOnly } = req.body ?? {};
+    const { messageNotifications, showOnlineStatus, messagingFollowersOnly, disableAllComments } = req.body ?? {};
     const user = await prisma.user.update({
       where: { id: req.user!.userId },
       data: {
         ...(typeof messageNotifications === 'boolean' && { messageNotifications }),
         ...(typeof showOnlineStatus === 'boolean' && { showOnlineStatus }),
         ...(typeof messagingFollowersOnly === 'boolean' && { messagingFollowersOnly }),
+        ...(typeof disableAllComments === 'boolean' && { disableAllComments }),
       },
-      select: { messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true },
+      select: { messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true, disableAllComments: true },
     });
     res.json({ settings: user });
   } catch (error) {
@@ -249,7 +250,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         achievements: true, verified: true, createdAt: true,
         contactEmail: true, banner: true,
         // Email, phone, and notification settings are private
-        ...(isSelf && { email: true, phone: true, phoneVerified: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
+        ...(isSelf && { email: true, phone: true, phoneVerified: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true, disableAllComments: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
         teamMemberships: { include: { team: true } },
         playerRankings: { orderBy: { calculatedAt: 'desc' }, take: 5, include: { tournament: { select: { id: true, name: true } } } },

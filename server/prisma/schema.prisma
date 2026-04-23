@@ -103,6 +103,7 @@ model User {
   messageNotifications Boolean @default(true) @map("message_notifications")
   showOnlineStatus     Boolean  @default(true) @map("show_online_status")
   messagingFollowersOnly Boolean @default(false) @map("messaging_followers_only")
+  disableAllComments   Boolean  @default(false) @map("disable_all_comments")
   lastActiveAt         DateTime? @map("last_active_at")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

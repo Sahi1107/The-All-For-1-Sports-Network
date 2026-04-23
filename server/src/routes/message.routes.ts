@@ -206,13 +206,26 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
       return;
     }
 
-    // Followers-only check: if target user has restricted messaging, sender must follow them
-    if (targetUser.messagingFollowersOnly) {
-      const follows = await prisma.follow.findUnique({
-        where: { followerId_followingId: { followerId: req.user!.userId, followingId: userId } },
+    // Connections-only policy: DMs are restricted to mutual accepted connections.
+    // Admins (either side) are exempt so support/moderation can reach anyone.
+    const sender = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { role: true },
+    });
+    const eitherIsAdmin = sender?.role === 'ADMIN' || targetUser.role === 'ADMIN';
+    if (!eitherIsAdmin) {
+      const connection = await prisma.connection.findFirst({
+        where: {
+          status: 'ACCEPTED',
+          OR: [
+            { senderId: req.user!.userId, receiverId: userId },
+            { senderId: userId, receiverId: req.user!.userId },
+          ],
+        },
+        select: { id: true },
       });
-      if (!follows) {
-        res.status(403).json({ error: 'This user only accepts messages from followers' });
+      if (!connection) {
+        res.status(403).json({ error: 'You can only message your connections' });
         return;
       }
     }

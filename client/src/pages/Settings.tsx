@@ -19,7 +19,7 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [msgNotifs, setMsgNotifs] = useState<boolean | null>(null);
   const [onlineStatus, setOnlineStatus] = useState<boolean | null>(null);
-  const [msgFollowersOnly, setMsgFollowersOnly] = useState<boolean | null>(null);
+  const [disableComments, setDisableComments] = useState<boolean | null>(null);
   const [blocked, setBlocked] = useState<any[]>([]);
 
   // Phone verification state
@@ -43,7 +43,7 @@ export default function Settings() {
       if (!u) return;
       if (typeof u.messageNotifications === 'boolean') setMsgNotifs(u.messageNotifications);
       if (typeof u.showOnlineStatus === 'boolean') setOnlineStatus(u.showOnlineStatus);
-      if (typeof u.messagingFollowersOnly === 'boolean') setMsgFollowersOnly(u.messagingFollowersOnly);
+      if (typeof u.disableAllComments === 'boolean') setDisableComments(u.disableAllComments);
       if (typeof u.phoneVerified === 'boolean') setPhoneVerified(u.phoneVerified);
       if (u.phone) setCurrentPhone(u.phone);
       setProfileData(u);
@@ -449,31 +449,43 @@ export default function Settings() {
           <div>
             <p className="text-sm font-medium flex items-center gap-2">
               <Shield size={14} className="text-primary-light" />
-              Messaging from followers only
+              Messages from connections only
             </p>
-            <p className="text-xs text-gray-custom mt-0.5">Only people who follow you can start a conversation</p>
+            <p className="text-xs text-gray-custom mt-0.5">Only your accepted connections can start a conversation with you</p>
+          </div>
+          <span className="text-[11px] font-medium text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 rounded-full px-2.5 py-1">
+            Always on
+          </span>
+        </div>
+        <div className="p-5 flex items-center justify-between border-t border-dark-lighter">
+          <div>
+            <p className="text-sm font-medium flex items-center gap-2">
+              <MessageSquare size={14} className="text-primary-light" />
+              Disable comments on my posts
+            </p>
+            <p className="text-xs text-gray-custom mt-0.5">Prevent anyone from commenting on any of your posts</p>
           </div>
           <button
             onClick={async () => {
-              const next = !msgFollowersOnly;
-              setMsgFollowersOnly(next);
+              const next = !disableComments;
+              setDisableComments(next);
               try {
-                await api.patch('/users/settings/notifications', { messagingFollowersOnly: next });
-                toast.success(next ? 'Only followers can message you' : 'Anyone can message you');
+                await api.patch('/users/settings/notifications', { disableAllComments: next });
+                toast.success(next ? 'Comments disabled on your posts' : 'Comments enabled on your posts');
               } catch {
-                setMsgFollowersOnly(!next);
+                setDisableComments(!next);
                 toast.error('Failed to update');
               }
             }}
-            disabled={msgFollowersOnly === null}
+            disabled={disableComments === null}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              msgFollowersOnly ? 'bg-primary' : 'bg-dark-lighter'
+              disableComments ? 'bg-primary' : 'bg-dark-lighter'
             } disabled:opacity-50`}
-            aria-pressed={!!msgFollowersOnly}
+            aria-pressed={!!disableComments}
           >
             <span
               className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                msgFollowersOnly ? 'translate-x-5' : 'translate-x-0.5'
+                disableComments ? 'translate-x-5' : 'translate-x-0.5'
               }`}
             />
           </button>
