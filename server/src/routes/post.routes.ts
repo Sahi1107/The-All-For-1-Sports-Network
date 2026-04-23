@@ -374,19 +374,29 @@ router.post('/:id/comments', authenticate, writeLimiter, async (req: AuthRequest
 
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: {
-        userId: true,
-        commentsDisabled: true,
-        user: { select: { disableAllComments: true } },
-      },
+      select: { userId: true, commentsDisabled: true },
     });
     if (!post) {
       res.status(404).json({ error: 'Post not found' });
       return;
     }
-    if (post.commentsDisabled || post.user.disableAllComments) {
+    if (post.commentsDisabled) {
       res.status(403).json({ error: 'Comments are disabled on this post' });
       return;
+    }
+    // Check author's global disable-all-comments toggle separately so a missing
+    // column in prod (pre `prisma db push`) doesn't crash the whole endpoint.
+    try {
+      const author = await prisma.user.findUnique({
+        where: { id: post.userId },
+        select: { disableAllComments: true },
+      });
+      if (author?.disableAllComments) {
+        res.status(403).json({ error: 'Comments are disabled on this post' });
+        return;
+      }
+    } catch {
+      // Column may not exist yet in prod — fail open rather than blocking comments.
     }
 
     // Validate parent comment if replying

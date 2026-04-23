@@ -192,17 +192,45 @@ router.post('/report/:id', authenticate, writeLimiter, async (req: AuthRequest, 
 router.patch('/settings/notifications', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const { messageNotifications, showOnlineStatus, messagingFollowersOnly, disableAllComments } = req.body ?? {};
+
+    // Update the safe fields first.
     const user = await prisma.user.update({
       where: { id: req.user!.userId },
       data: {
         ...(typeof messageNotifications === 'boolean' && { messageNotifications }),
         ...(typeof showOnlineStatus === 'boolean' && { showOnlineStatus }),
         ...(typeof messagingFollowersOnly === 'boolean' && { messagingFollowersOnly }),
-        ...(typeof disableAllComments === 'boolean' && { disableAllComments }),
       },
-      select: { messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true, disableAllComments: true },
+      select: { messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true },
     });
-    res.json({ settings: user });
+
+    // Handle disableAllComments separately so a missing column in prod doesn't
+    // wipe out the whole settings update.
+    let disableAllCommentsValue = false;
+    if (typeof disableAllComments === 'boolean') {
+      try {
+        const updated = await prisma.user.update({
+          where: { id: req.user!.userId },
+          data: { disableAllComments },
+          select: { disableAllComments: true },
+        });
+        disableAllCommentsValue = updated.disableAllComments;
+      } catch (e) {
+        console.error('disableAllComments update failed (column may not exist):', e);
+      }
+    } else {
+      try {
+        const existing = await prisma.user.findUnique({
+          where: { id: req.user!.userId },
+          select: { disableAllComments: true },
+        });
+        disableAllCommentsValue = existing?.disableAllComments ?? false;
+      } catch {
+        // column missing — default false
+      }
+    }
+
+    res.json({ settings: { ...user, disableAllComments: disableAllCommentsValue } });
   } catch (error) {
     console.error('Update settings error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -250,7 +278,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         achievements: true, verified: true, createdAt: true,
         contactEmail: true, banner: true,
         // Email, phone, and notification settings are private
-        ...(isSelf && { email: true, phone: true, phoneVerified: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true, disableAllComments: true }),
+        ...(isSelf && { email: true, phone: true, phoneVerified: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
         teamMemberships: { include: { team: true } },
         playerRankings: { orderBy: { calculatedAt: 'desc' }, take: 5, include: { tournament: { select: { id: true, name: true } } } },
@@ -261,6 +289,20 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
+    }
+
+    // Fetch disableAllComments separately so a missing column (pre `prisma db push`)
+    // doesn't break the entire self-profile endpoint.
+    if (isSelf) {
+      try {
+        const extra = await prisma.user.findUnique({
+          where: { id: req.params.id as string },
+          select: { disableAllComments: true },
+        });
+        (user as any).disableAllComments = extra?.disableAllComments ?? false;
+      } catch {
+        (user as any).disableAllComments = false;
+      }
     }
 
     // Check if current user follows/is connected to / has blocked this user

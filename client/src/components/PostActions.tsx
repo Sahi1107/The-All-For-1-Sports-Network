@@ -68,18 +68,19 @@ function CommentItem({
             </Link>
             <p className="text-xs text-white/70 mt-0.5 leading-relaxed">{c.content}</p>
           </div>
-          <div className="flex items-center gap-3 mt-0.5 px-1">
+          <div className="flex items-center gap-3 mt-1 px-1">
             <button
               onClick={toggleLike}
-              className={`flex items-center gap-1 text-[11px] transition-colors ${liked ? 'text-red-400' : 'text-white/30 hover:text-white/60'}`}
+              className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${liked ? 'text-red-400' : 'text-white/60 hover:text-red-400'}`}
             >
-              <Heart size={11} fill={liked ? 'currentColor' : 'none'} />
-              {likeCount > 0 && <span>{likeCount}</span>}
+              <Heart size={12} fill={liked ? 'currentColor' : 'none'} />
+              <span>{liked ? 'Liked' : 'Like'}</span>
+              {likeCount > 0 && <span className="text-white/50">· {likeCount}</span>}
             </button>
             {depth === 0 && (
               <button
                 onClick={() => onReply(c.id, c.user.name)}
-                className="text-[11px] text-white/30 hover:text-white/60 transition-colors"
+                className="text-[11px] font-medium text-white/60 hover:text-primary-light transition-colors"
               >
                 Reply
               </button>
@@ -87,7 +88,7 @@ function CommentItem({
             {(c.user.id === user?.id || postOwnerId === user?.id) && (
               <button
                 onClick={() => onDelete(c.id)}
-                className="text-[11px] text-white/30 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                className="text-[11px] text-white/40 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
               >
                 <Trash2 size={10} />
               </button>

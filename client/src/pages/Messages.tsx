@@ -803,24 +803,37 @@ export default function Messages() {
                       <textarea
                         value={editText}
                         onChange={(e) => setEditText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (editText.trim() && !editMutation.isPending) handleConfirmEdit(msg.id);
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault();
+                            setEditingId(null);
+                            setEditText('');
+                          }
+                        }}
                         className="w-full bg-transparent text-sm text-white resize-none focus:outline-none min-h-[2rem]"
                         autoFocus
                         rows={2}
                       />
-                      <div className="flex justify-end gap-2 mt-1">
-                        <button
-                          onClick={() => { setEditingId(null); setEditText(''); }}
-                          className="text-xs text-gray-custom hover:text-white"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => handleConfirmEdit(msg.id)}
-                          disabled={!editText.trim() || editMutation.isPending}
-                          className="text-xs text-primary hover:text-primary-light disabled:opacity-50 flex items-center gap-1"
-                        >
-                          <Check size={12} /> Save
-                        </button>
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <span className="text-[10px] text-white/40">Enter to save · Esc to cancel</span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setEditingId(null); setEditText(''); }}
+                            className="text-xs text-gray-custom hover:text-white"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleConfirmEdit(msg.id)}
+                            disabled={!editText.trim() || editMutation.isPending}
+                            className="text-xs text-primary hover:text-primary-light disabled:opacity-50 flex items-center gap-1"
+                          >
+                            <Check size={12} /> Save
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ) : isDeleted ? (
