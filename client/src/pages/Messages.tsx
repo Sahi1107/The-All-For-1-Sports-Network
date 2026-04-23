@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -169,6 +169,7 @@ function MessageActionMenu({ msg, isMe, onCopy, onEdit, onUnsend, onForward, onC
       className={`absolute z-30 ${isMe ? 'right-0' : 'left-0'} top-full mt-1 bg-dark-light border border-dark-lighter rounded-xl shadow-xl py-1 min-w-[140px] animate-in fade-in zoom-in-95 duration-150`}
     >
       <button
+        type="button"
         onClick={onCopy}
         className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
       >
@@ -176,6 +177,7 @@ function MessageActionMenu({ msg, isMe, onCopy, onEdit, onUnsend, onForward, onC
       </button>
       {isMe && !msg.deletedAt && (
         <button
+          type="button"
           onClick={onEdit}
           className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
         >
@@ -184,6 +186,7 @@ function MessageActionMenu({ msg, isMe, onCopy, onEdit, onUnsend, onForward, onC
       )}
       {!msg.deletedAt && (
         <button
+          type="button"
           onClick={onForward}
           className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
         >
@@ -192,6 +195,7 @@ function MessageActionMenu({ msg, isMe, onCopy, onEdit, onUnsend, onForward, onC
       )}
       {isMe && !msg.deletedAt && (
         <button
+          type="button"
           onClick={onUnsend}
           className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-dark transition-colors"
         >
@@ -358,22 +362,26 @@ export default function Messages() {
   const getOther = useCallback((conv: any) =>
     conv.members?.find((p: any) => p.userId !== user?.id)?.user, [user?.id]);
 
-  useEffect(() => {
-    if (!activeConv) { setOtherPresence(null); return; }
-    const other = getOther(activeConv);
-    if (!other?.id) return;
-    api.get(`/messages/presence/${other.id}`)
-      .then(({ data }) => setOtherPresence(data))
-      .catch(() => setOtherPresence(null));
+  // `activeConv` is a fresh object reference every render (Array.find result),
+  // so depending on it re-ran this effect on every render and kicked off a
+  // cascade of presence fetches + `setOtherPresence` re-renders that could
+  // race with other state updates (e.g. Edit-mode flipping `editingId`).
+  // Pin the effect to a primitive id.
+  const otherUserId = useMemo(
+    () => activeConv?.members?.find((p: any) => p.userId !== user?.id)?.userId as string | undefined,
+    [activeConv?.id, user?.id]
+  );
 
-    // Refresh presence periodically
-    const iv = setInterval(() => {
-      api.get(`/messages/presence/${other.id}`)
+  useEffect(() => {
+    if (!otherUserId) { setOtherPresence(null); return; }
+    const fetchPresence = () =>
+      api.get(`/messages/presence/${otherUserId}`)
         .then(({ data }) => setOtherPresence(data))
-        .catch(() => {});
-    }, 30_000);
+        .catch(() => setOtherPresence(null));
+    fetchPresence();
+    const iv = setInterval(fetchPresence, 30_000);
     return () => clearInterval(iv);
-  }, [activeConv, getOther]);
+  }, [otherUserId]);
 
   // ── Socket listeners ─────────────────────────────────────────
 
@@ -520,10 +528,16 @@ export default function Messages() {
   };
 
   const handleStartEdit = (msg: any) => {
+    console.debug('[edit-start]', msg?.id);
     setEditingId(msg.id);
     setEditText(msg.content);
     setActiveMenu(null);
   };
+
+  // [edit-*] diagnostics: remove once edit UX is confirmed working in prod.
+  useEffect(() => {
+    console.debug('[edit-state]', { editingId, editTextLen: editText.length });
+  }, [editingId, editText]);
 
   const handleArchive = async () => {
     if (!activeConvId) return;
@@ -776,6 +790,7 @@ export default function Messages() {
                   {/* Action trigger */}
                   {!isDeleted && !isEditing && (
                     <button
+                      type="button"
                       onClick={() => setActiveMenu(showMenu ? null : msg.id)}
                       className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} text-gray-custom hover:text-white p-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}
                       aria-label="Message actions"
@@ -790,7 +805,7 @@ export default function Messages() {
                       msg={msg}
                       isMe={isMe}
                       onCopy={() => handleCopy(msg.content)}
-                      onEdit={() => handleStartEdit(msg)}
+                      onEdit={() => { console.debug('[edit-click]', msg.id); handleStartEdit(msg); }}
                       onUnsend={() => handleUnsend(msg.id)}
                       onForward={() => handleForward(msg.id)}
                       onClose={() => setActiveMenu(null)}
@@ -821,12 +836,14 @@ export default function Messages() {
                         <span className="text-[10px] text-white/40">Enter to save · Esc to cancel</span>
                         <div className="flex gap-2">
                           <button
+                            type="button"
                             onClick={() => { setEditingId(null); setEditText(''); }}
                             className="text-xs text-gray-custom hover:text-white"
                           >
                             Cancel
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleConfirmEdit(msg.id)}
                             disabled={!editText.trim() || editMutation.isPending}
                             className="text-xs text-primary hover:text-primary-light disabled:opacity-50 flex items-center gap-1"
