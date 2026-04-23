@@ -59,4 +59,6 @@ USER app
 EXPOSE 8080
 
 # Sync schema to DB on boot (additive, no data loss), then start the server.
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss=false && node dist/index.js"]
+# prestart.sql runs one-time destructive migrations that `db push
+# --accept-data-loss=false` would reject; each statement is idempotent.
+CMD ["sh", "-c", "npx prisma db execute --file prisma/prestart.sql --schema prisma/schema.prisma && npx prisma db push --skip-generate --accept-data-loss=false && node dist/index.js"]

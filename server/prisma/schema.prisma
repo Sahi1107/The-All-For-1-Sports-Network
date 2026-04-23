@@ -82,61 +82,61 @@ enum PostType {
 // ─── User ────────────────────────────────────────────────
 
 model User {
-  id          String  @id @default(uuid())
-  firebaseUid String? @unique @map("firebase_uid")
-  email       String  @unique
-  name        String
-  role        Role
-  sport       Sport
-  avatar      String?
-  bio         String?
-  location    String?
-  age         Int?
-  height      String?
-  position    String?
-  achievements String[]
-  phone       String?
-  contactEmail String? @map("contact_email")
-  banner      String?
-  verified      Boolean  @default(false)
-  phoneVerified Boolean  @default(false) @map("phone_verified")
-  messageNotifications Boolean @default(true) @map("message_notifications")
-  showOnlineStatus     Boolean  @default(true) @map("show_online_status")
-  messagingFollowersOnly Boolean @default(false) @map("messaging_followers_only")
-  disableAllComments   Boolean  @default(false) @map("disable_all_comments")
-  lastActiveAt         DateTime? @map("last_active_at")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                     String    @id @default(uuid())
+  firebaseUid            String?   @unique @map("firebase_uid")
+  email                  String    @unique
+  name                   String
+  role                   Role
+  sport                  Sport?
+  avatar                 String?
+  bio                    String?
+  location               String?
+  age                    Int?
+  height                 String?
+  position               String?
+  achievements           String[]
+  phone                  String?
+  contactEmail           String?   @map("contact_email")
+  banner                 String?
+  verified               Boolean   @default(false)
+  phoneVerified          Boolean   @default(false) @map("phone_verified")
+  messageNotifications   Boolean   @default(true) @map("message_notifications")
+  showOnlineStatus       Boolean   @default(true) @map("show_online_status")
+  messagingFollowersOnly Boolean   @default(false) @map("messaging_followers_only")
+  disableAllComments     Boolean   @default(false) @map("disable_all_comments")
+  lastActiveAt           DateTime? @map("last_active_at")
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   // Relations
-  highlights      Highlight[]
-  posts           Post[]
-  postLikes       PostLike[]
-  postComments    PostComment[]
-  commentLikes    CommentLike[]
-  postReposts     PostRepost[]
-  postSaves       PostSave[]
-  sentConnections     Connection[] @relation("ConnectionSender")
-  receivedConnections Connection[] @relation("ConnectionReceiver")
-  followers       Follow[]     @relation("FollowTarget")
-  following       Follow[]     @relation("FollowInitiator")
-  captainOfTeams  Team[]       @relation("TeamCaptain")
-  teamMemberships TeamMember[]
-  createdTournaments Tournament[]
-  tournamentTeamMembers TournamentTeamMember[]
-  basketballStats BasketballStats[]
-  footballStats   FootballStats[]
-  cricketStats    CricketStats[]
-  playerRankings  PlayerRanking[]
-  announcements   Announcement[]
-  notifications   Notification[]
-  sentMessages    Message[]    @relation("MessageSender")
-  sharedInMessages Message[]   @relation("SharedProfileInMessage")
+  highlights              Highlight[]
+  posts                   Post[]
+  postLikes               PostLike[]
+  postComments            PostComment[]
+  commentLikes            CommentLike[]
+  postReposts             PostRepost[]
+  postSaves               PostSave[]
+  sentConnections         Connection[]           @relation("ConnectionSender")
+  receivedConnections     Connection[]           @relation("ConnectionReceiver")
+  followers               Follow[]               @relation("FollowTarget")
+  following               Follow[]               @relation("FollowInitiator")
+  captainOfTeams          Team[]                 @relation("TeamCaptain")
+  teamMemberships         TeamMember[]
+  createdTournaments      Tournament[]
+  tournamentTeamMembers   TournamentTeamMember[]
+  basketballStats         BasketballStats[]
+  footballStats           FootballStats[]
+  cricketStats            CricketStats[]
+  playerRankings          PlayerRanking[]
+  announcements           Announcement[]
+  notifications           Notification[]
+  sentMessages            Message[]              @relation("MessageSender")
+  sharedInMessages        Message[]              @relation("SharedProfileInMessage")
   conversationMemberships ConversationMember[]
-  blocksMade      Block[]      @relation("Blocker")
-  blocksReceived  Block[]      @relation("Blocked")
-  reportsFiled    Report[]     @relation("Reporter")
-  reportsAgainst  Report[]     @relation("Reported")
+  blocksMade              Block[]                @relation("Blocker")
+  blocksReceived          Block[]                @relation("Blocked")
+  reportsFiled            Report[]               @relation("Reporter")
+  reportsAgainst          Report[]               @relation("Reported")
 
   @@index([role])
   @@index([sport])
@@ -179,18 +179,18 @@ model Connection {
 // ─── Highlights ──────────────────────────────────────────
 
 model Highlight {
-  id           String   @id @default(uuid())
-  userId       String
-  title        String
-  description  String?
-  videoUrl     String
-  thumbnailUrl String?
+  id                 String   @id @default(uuid())
+  userId             String
+  title              String
+  description        String?
+  videoUrl           String
+  thumbnailUrl       String?
   sport              Sport
   tournamentId       String?
   tournamentLocation String?
   views              Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   tournament Tournament? @relation(fields: [tournamentId], references: [id])
@@ -203,23 +203,23 @@ model Highlight {
 // ─── Posts ───────────────────────────────────────────────
 
 model Post {
-  id        String   @id @default(uuid())
-  userId    String
-  type      PostType
-  content   String?
-  mediaUrl  String?
-  title     String?
-  sport             Sport
-  commentsDisabled  Boolean  @default(false) @map("comments_disabled")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  userId           String
+  type             PostType
+  content          String?
+  mediaUrl         String?
+  title            String?
+  sport            Sport
+  commentsDisabled Boolean  @default(false) @map("comments_disabled")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  media    PostMedia[]
-  likes    PostLike[]
-  comments PostComment[]
-  reposts  PostRepost[]
-  saves    PostSave[]
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media          PostMedia[]
+  likes          PostLike[]
+  comments       PostComment[]
+  reposts        PostRepost[]
+  saves          PostSave[]
   sharedMessages Message[]
 
   @@index([userId])
@@ -326,11 +326,11 @@ model Team {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  captain    User             @relation("TeamCaptain", fields: [captainId], references: [id])
-  members    TeamMember[]
+  captain                 User             @relation("TeamCaptain", fields: [captainId], references: [id])
+  members                 TeamMember[]
   tournamentRegistrations TournamentTeam[]
-  homeMatches  Match[]        @relation("HomeTeam")
-  awayMatches  Match[]        @relation("AwayTeam")
+  homeMatches             Match[]          @relation("HomeTeam")
+  awayMatches             Match[]          @relation("AwayTeam")
 
   @@index([sport])
   @@index([captainId])
@@ -368,11 +368,11 @@ model Tournament {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  createdBy    User             @relation(fields: [createdById], references: [id])
-  teams        TournamentTeam[]
-  matches      Match[]
-  highlights   Highlight[]
-  rankings     PlayerRanking[]
+  createdBy       User              @relation(fields: [createdById], references: [id])
+  teams           TournamentTeam[]
+  matches         Match[]
+  highlights      Highlight[]
+  rankings        PlayerRanking[]
   basketballStats BasketballStats[]
   footballStats   FootballStats[]
   cricketStats    CricketStats[]
@@ -388,8 +388,8 @@ model TournamentTeam {
   teamId       String
   registeredAt DateTime @default(now())
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  tournament Tournament             @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team       Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   members    TournamentTeamMember[]
 
   @@unique([tournamentId, teamId])
@@ -435,19 +435,19 @@ model Match {
 // ─── Sport-Specific Stats ────────────────────────────────
 
 model BasketballStats {
-  id            String @id @default(uuid())
+  id            String   @id @default(uuid())
   matchId       String
   userId        String
   tournamentId  String
-  points        Int    @default(0)
-  rebounds       Int    @default(0)
-  assists        Int    @default(0)
-  steals         Int    @default(0)
-  blocks         Int    @default(0)
-  threePointers  Int    @default(0)
-  freeThrows     Int    @default(0)
-  turnovers      Int    @default(0)
-  minutesPlayed  Float  @default(0)
+  points        Int      @default(0)
+  rebounds      Int      @default(0)
+  assists       Int      @default(0)
+  steals        Int      @default(0)
+  blocks        Int      @default(0)
+  threePointers Int      @default(0)
+  freeThrows    Int      @default(0)
+  turnovers     Int      @default(0)
+  minutesPlayed Float    @default(0)
   createdAt     DateTime @default(now())
 
   match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
@@ -460,19 +460,19 @@ model BasketballStats {
 }
 
 model FootballStats {
-  id            String @id @default(uuid())
+  id            String   @id @default(uuid())
   matchId       String
   userId        String
   tournamentId  String
-  goals          Int    @default(0)
-  assists        Int    @default(0)
-  shots          Int    @default(0)
-  passes         Int    @default(0)
-  tackles        Int    @default(0)
-  saves          Int    @default(0)
-  yellowCards    Int    @default(0)
-  redCards       Int    @default(0)
-  minutesPlayed  Float  @default(0)
+  goals         Int      @default(0)
+  assists       Int      @default(0)
+  shots         Int      @default(0)
+  passes        Int      @default(0)
+  tackles       Int      @default(0)
+  saves         Int      @default(0)
+  yellowCards   Int      @default(0)
+  redCards      Int      @default(0)
+  minutesPlayed Float    @default(0)
   createdAt     DateTime @default(now())
 
   match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
@@ -485,22 +485,22 @@ model FootballStats {
 }
 
 model CricketStats {
-  id            String @id @default(uuid())
-  matchId       String
-  userId        String
-  tournamentId  String
-  runs           Int    @default(0)
-  ballsFaced     Int    @default(0)
-  fours          Int    @default(0)
-  sixes          Int    @default(0)
-  wickets        Int    @default(0)
-  oversBowled    Float  @default(0)
-  runsConceded   Int    @default(0)
-  catches        Int    @default(0)
-  runOuts        Int    @default(0)
-  strikeRate     Float  @default(0)
-  economy        Float  @default(0)
-  createdAt     DateTime @default(now())
+  id           String   @id @default(uuid())
+  matchId      String
+  userId       String
+  tournamentId String
+  runs         Int      @default(0)
+  ballsFaced   Int      @default(0)
+  fours        Int      @default(0)
+  sixes        Int      @default(0)
+  wickets      Int      @default(0)
+  oversBowled  Float    @default(0)
+  runsConceded Int      @default(0)
+  catches      Int      @default(0)
+  runOuts      Int      @default(0)
+  strikeRate   Float    @default(0)
+  economy      Float    @default(0)
+  createdAt    DateTime @default(now())
 
   match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -576,9 +576,9 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  isGroup   Boolean  @default(false) @map("is_group")
-  name      String?
-  teamId    String?  @map("team_id")
+  isGroup Boolean @default(false) @map("is_group")
+  name    String?
+  teamId  String? @map("team_id")
 
   members  ConversationMember[]
   messages Message[]
@@ -603,7 +603,6 @@ model Message {
   senderId        String
   content         String
   createdAt       DateTime  @default(now())
-  editedAt        DateTime? @map("edited_at")
   deletedAt       DateTime? @map("deleted_at")
   sharedPostId    String?   @map("shared_post_id")
   sharedProfileId String?   @map("shared_profile_id")
@@ -648,7 +647,7 @@ model Report {
   status         ReportStatus @default(OPEN)
   createdAt      DateTime     @default(now())
 
-  reporter User @relation("Reporter", fields: [reporterId],     references: [id], onDelete: Cascade)
+  reporter User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
   reported User @relation("Reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
 
   @@index([reportedUserId])

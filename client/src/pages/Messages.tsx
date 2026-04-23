@@ -7,7 +7,7 @@ import { io, type Socket } from 'socket.io-client';
 import { auth } from '../config/firebase';
 import {
   Send, MessageCircle, Plus, X, Search, ArrowLeft, Edit,
-  Copy, Pencil, Trash2, CornerUpRight, MoreHorizontal, Check,
+  Copy, Trash2, CornerUpRight, MoreHorizontal,
   Archive, MoreVertical, LogOut, Users,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -146,13 +146,12 @@ interface ActionMenuProps {
   msg: any;
   isMe: boolean;
   onCopy: () => void;
-  onEdit: () => void;
   onUnsend: () => void;
   onForward: () => void;
   onClose: () => void;
 }
 
-function MessageActionMenu({ msg, isMe, onCopy, onEdit, onUnsend, onForward, onClose }: ActionMenuProps) {
+function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: ActionMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -175,15 +174,6 @@ function MessageActionMenu({ msg, isMe, onCopy, onEdit, onUnsend, onForward, onC
       >
         <Copy size={14} /> Copy
       </button>
-      {isMe && !msg.deletedAt && (
-        <button
-          type="button"
-          onClick={onEdit}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
-        >
-          <Pencil size={14} /> Edit
-        </button>
-      )}
       {!msg.deletedAt && (
         <button
           type="button"
@@ -293,8 +283,6 @@ export default function Messages() {
   const [showNewConv, setShowNewConv] = useState(false);
   const [recipientSearch, setRecipientSearch] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   const [otherPresence, setOtherPresence] = useState<{ online: boolean | null; lastActiveAt: string | null } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -364,8 +352,7 @@ export default function Messages() {
 
   // `activeConv` is a fresh object reference every render (Array.find result),
   // so depending on it re-ran this effect on every render and kicked off a
-  // cascade of presence fetches + `setOtherPresence` re-renders that could
-  // race with other state updates (e.g. Edit-mode flipping `editingId`).
+  // cascade of presence fetches + `setOtherPresence` re-renders.
   // Pin the effect to a primitive id.
   const otherUserId = useMemo(
     () => activeConv?.members?.find((p: any) => p.userId !== user?.id)?.userId as string | undefined,
@@ -401,12 +388,6 @@ export default function Messages() {
       qc.invalidateQueries({ queryKey: ['messages-unread'] });
     };
 
-    const onEdited = (msg: any) => {
-      if (msg.conversationId === activeConvId) {
-        setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, content: msg.content, editedAt: msg.editedAt } : m));
-      }
-    };
-
     const onDeleted = (data: any) => {
       if (data.conversationId === activeConvId) {
         setMessages(prev => prev.map(m => m.id === data.id ? { ...m, content: '', deletedAt: data.deletedAt } : m));
@@ -415,12 +396,10 @@ export default function Messages() {
     };
 
     s.on('message', onMessage);
-    s.on('message_edited', onEdited);
     s.on('message_deleted', onDeleted);
 
     return () => {
       s.off('message', onMessage);
-      s.off('message_edited', onEdited);
       s.off('message_deleted', onDeleted);
     };
   }, [activeConvId, qc]);
@@ -447,22 +426,6 @@ export default function Messages() {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     },
     onError: () => toast.error('Failed to send'),
-  });
-
-  // ── Edit message ─────────────────────────────────────────────
-
-  const editMutation = useMutation({
-    mutationFn: async (msgId: string) => {
-      const { data } = await api.patch(`/messages/${msgId}/edit`, { content: editText });
-      return data;
-    },
-    onSuccess: (data) => {
-      setMessages(prev => prev.map(m => m.id === data.message.id ? data.message : m));
-      setEditingId(null);
-      setEditText('');
-      toast.success('Message edited');
-    },
-    onError: () => toast.error('Failed to edit'),
   });
 
   // ── Unsend message ───────────────────────────────────────────
@@ -516,7 +479,6 @@ export default function Messages() {
   const openConv = (id: string) => {
     setActiveConvId(id);
     setActiveMenu(null);
-    setEditingId(null);
     setChatMenuOpen(false);
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -526,18 +488,6 @@ export default function Messages() {
     toast.success('Copied to clipboard');
     setActiveMenu(null);
   };
-
-  const handleStartEdit = (msg: any) => {
-    console.debug('[edit-start]', msg?.id);
-    setEditingId(msg.id);
-    setEditText(msg.content);
-    setActiveMenu(null);
-  };
-
-  // [edit-*] diagnostics: remove once edit UX is confirmed working in prod.
-  useEffect(() => {
-    console.debug('[edit-state]', { editingId, editTextLen: editText.length });
-  }, [editingId, editText]);
 
   const handleArchive = async () => {
     if (!activeConvId) return;
@@ -560,11 +510,6 @@ export default function Messages() {
       setActiveConvId(null);
     } catch { toast.error('Failed to exit chat'); }
     setChatMenuOpen(false);
-  };
-
-  const handleConfirmEdit = (msgId: string) => {
-    if (!editText.trim()) return;
-    editMutation.mutate(msgId);
   };
 
   const handleUnsend = (msgId: string) => {
@@ -781,14 +726,13 @@ export default function Messages() {
           {messages.map((msg: any, i: number) => {
             const isMe = msg.senderId === user?.id;
             const isDeleted = !!msg.deletedAt;
-            const isEditing = editingId === msg.id;
             const showMenu = activeMenu === msg.id;
 
             return (
               <div key={msg.id ?? i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
                 <div className="relative max-w-[75%]">
                   {/* Action trigger */}
-                  {!isDeleted && !isEditing && (
+                  {!isDeleted && (
                     <button
                       type="button"
                       onClick={() => setActiveMenu(showMenu ? null : msg.id)}
@@ -805,7 +749,6 @@ export default function Messages() {
                       msg={msg}
                       isMe={isMe}
                       onCopy={() => handleCopy(msg.content)}
-                      onEdit={() => { console.debug('[edit-click]', msg.id); handleStartEdit(msg); }}
                       onUnsend={() => handleUnsend(msg.id)}
                       onForward={() => handleForward(msg.id)}
                       onClose={() => setActiveMenu(null)}
@@ -813,47 +756,7 @@ export default function Messages() {
                   )}
 
                   {/* Message bubble */}
-                  {isEditing ? (
-                    <div className={`rounded-2xl px-4 py-2.5 ${isMe ? 'bg-primary/20 border border-primary/40' : 'bg-dark-lighter border border-white/10'}`}>
-                      <textarea
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (editText.trim() && !editMutation.isPending) handleConfirmEdit(msg.id);
-                          } else if (e.key === 'Escape') {
-                            e.preventDefault();
-                            setEditingId(null);
-                            setEditText('');
-                          }
-                        }}
-                        className="w-full bg-transparent text-sm text-white resize-none focus:outline-none min-h-[2rem]"
-                        autoFocus
-                        rows={2}
-                      />
-                      <div className="flex items-center justify-between gap-2 mt-1">
-                        <span className="text-[10px] text-white/40">Enter to save · Esc to cancel</span>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => { setEditingId(null); setEditText(''); }}
-                            className="text-xs text-gray-custom hover:text-white"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleConfirmEdit(msg.id)}
-                            disabled={!editText.trim() || editMutation.isPending}
-                            className="text-xs text-primary hover:text-primary-light disabled:opacity-50 flex items-center gap-1"
-                          >
-                            <Check size={12} /> Save
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : isDeleted ? (
+                  {isDeleted ? (
                     <div className={`rounded-2xl px-4 py-2.5 ${
                       isMe ? 'bg-dark-lighter/50 rounded-br-sm' : 'bg-dark-lighter/50 rounded-bl-sm'
                     }`}>
@@ -875,7 +778,6 @@ export default function Messages() {
 
                       <div className={`flex items-center gap-1.5 mt-1 ${isMe ? 'text-dark/60' : 'text-gray-custom'}`}>
                         <span className="text-xs">{timeAgo(msg.createdAt)}</span>
-                        {msg.editedAt && <span className="text-xs italic">(edited)</span>}
                       </div>
                     </div>
                   )}

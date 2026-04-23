@@ -15,10 +15,6 @@ export const SendMessageBody = z
     message: 'Either content, sharedPostId, or sharedProfileId is required',
   });
 
-export const EditMessageBody = z.object({
-  content: reqText(2000, 'Message content'),
-});
-
 export const ForwardMessageBody = z.object({
   targetConversationId: z.string().uuid('targetConversationId must be a valid UUID'),
 });

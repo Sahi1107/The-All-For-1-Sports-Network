@@ -67,7 +67,7 @@ router.patch('/users/:id/role', validate({ body: AdminUpdateRoleBody }), async (
     const { role } = req.body;
     const user = await prisma.user.update({
       where: { id: req.params.id as string },
-      data: { role },
+      data: { role, ...(role === 'ADMIN' && { sport: null }) },
     });
 
     // Keep Firebase custom claims in sync so the user's next token has the new role

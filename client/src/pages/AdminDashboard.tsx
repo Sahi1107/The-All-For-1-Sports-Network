@@ -190,7 +190,9 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Sport */}
-                    <div className="col-span-2 text-xs text-gray-custom">{u.sport}</div>
+                    <div className="col-span-2 text-xs text-gray-custom">
+                      {u.role === 'ADMIN' ? '—' : u.sport}
+                    </div>
 
                     {/* Verified */}
                     <div className="col-span-2">

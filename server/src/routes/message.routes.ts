@@ -7,7 +7,6 @@ import { validate } from '../middleware/validate';
 import {
   CreateConversationBody,
   SendMessageBody,
-  EditMessageBody,
   ForwardMessageBody,
 } from '../validation/message';
 import { signMediaDeep } from '../services/storage';
@@ -414,55 +413,6 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
     res.status(201).json({ message });
   } catch (error) {
     console.error('Send message error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// ─── PATCH /api/messages/:id/edit ────────────────────────────
-// Edit a message (sender only). No time limit.
-
-router.patch('/:id/edit', authenticate, writeLimiter, validate({ body: EditMessageBody }), async (req: AuthRequest, res: Response) => {
-  try {
-    const messageId = req.params.id as string;
-    const { content } = req.body;
-
-    const existing = await prisma.message.findUnique({
-      where: { id: messageId },
-      select: { senderId: true, conversationId: true, deletedAt: true },
-    });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Message not found' });
-      return;
-    }
-    if (existing.senderId !== req.user!.userId) {
-      res.status(403).json({ error: 'You can only edit your own messages' });
-      return;
-    }
-    if (existing.deletedAt) {
-      res.status(400).json({ error: 'Cannot edit a deleted message' });
-      return;
-    }
-
-    const updated = await prisma.message.update({
-      where: { id: messageId },
-      data: { content, editedAt: new Date() },
-      include: messageInclude,
-    });
-
-    // Broadcast edit event
-    try {
-      getIO().to(`conversation:${existing.conversationId}`).emit('message_edited', {
-        ...updated,
-        conversationId: existing.conversationId,
-      });
-    } catch {
-      // Socket.IO not initialized, skip
-    }
-
-    res.json({ message: updated });
-  } catch (error) {
-    console.error('Edit message error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
