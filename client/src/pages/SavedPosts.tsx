@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Bookmark, Clock } from 'lucide-react';
 import api from '../api/client';
 import PostActions from '../components/PostActions';
 import ImageCarousel from '../components/ImageCarousel';
+import PostDetailModal from '../components/PostDetailModal';
 
 function timeAgo(date: string) {
   const diff = Date.now() - new Date(date).getTime();
@@ -17,6 +19,7 @@ function timeAgo(date: string) {
 }
 
 export default function SavedPosts() {
+  const [openPost, setOpenPost] = useState<any | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ['saved-posts'],
     queryFn: async () => {
@@ -90,15 +93,20 @@ export default function SavedPosts() {
                 </div>
               )}
               {item.type === 'IMAGE' && (
-                item.media?.length > 0 ? (
-                  <ImageCarousel urls={item.media.map((m: any) => m.url)} alt={item.title || ''} />
-                ) : item.mediaUrl ? (
-                  <img src={item.mediaUrl} alt={item.title || ''} className="w-full max-h-[28rem] object-cover" />
-                ) : null
+                <div onClick={() => setOpenPost(item)} className="cursor-pointer">
+                  {item.media?.length > 0 ? (
+                    <ImageCarousel urls={item.media.map((m: any) => m.url)} alt={item.title || ''} />
+                  ) : item.mediaUrl ? (
+                    <img src={item.mediaUrl} alt={item.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
+                  ) : null}
+                </div>
               )}
 
               {/* Text */}
-              <div className="p-4 pb-2">
+              <div
+                onClick={() => setOpenPost(item)}
+                className="p-4 pb-2 cursor-pointer"
+              >
                 {item.title && <h3 className="font-semibold">{item.title}</h3>}
                 {item.content && (
                   <p className="text-sm text-white/80 mt-1 leading-relaxed">{item.content}</p>
@@ -109,6 +117,14 @@ export default function SavedPosts() {
             </div>
           ))}
         </div>
+      )}
+
+      {openPost && (
+        <PostDetailModal
+          post={openPost}
+          onClose={() => setOpenPost(null)}
+          invalidateKeys={[['saved-posts']]}
+        />
       )}
     </div>
   );

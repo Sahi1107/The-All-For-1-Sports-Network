@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, MapPin, Clock } from 'lucide-react';
 import api from '../api/client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import React from 'react';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
+import PostDetailModal from '../components/PostDetailModal';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -143,6 +144,7 @@ export default function Home() {
   const { user } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [openPost, setOpenPost] = useState<any | null>(null);
 
   const {
     data,
@@ -286,15 +288,23 @@ export default function Home() {
                   )}
 
                   {item.kind === 'post' && item.type === 'IMAGE' && (
-                    item.media?.length > 0 ? (
-                      <ImageCarousel urls={item.media.map((m: any) => m.url)} alt={item.title || ''} />
-                    ) : item.mediaUrl ? (
-                      <img src={item.mediaUrl} alt={item.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
-                    ) : null
+                    <div
+                      onClick={() => setOpenPost(item)}
+                      className="cursor-pointer"
+                    >
+                      {item.media?.length > 0 ? (
+                        <ImageCarousel urls={item.media.map((m: any) => m.url)} alt={item.title || ''} />
+                      ) : item.mediaUrl ? (
+                        <img src={item.mediaUrl} alt={item.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
+                      ) : null}
+                    </div>
                   )}
 
                   {/* Text content / details */}
-                  <div className="p-4 pb-2">
+                  <div
+                    className={`p-4 pb-2 ${item.kind === 'post' ? 'cursor-pointer' : ''}`}
+                    onClick={item.kind === 'post' ? () => setOpenPost(item) : undefined}
+                  >
                     {item.title && <h3 className="font-semibold">{item.title}</h3>}
                     {(item.content || item.description) && (
                       <p className="text-sm text-white/80 mt-1 leading-relaxed">{item.content || item.description}</p>
@@ -329,6 +339,14 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {openPost && (
+        <PostDetailModal
+          post={openPost}
+          onClose={() => setOpenPost(null)}
+          invalidateKeys={[['feed']]}
+        />
+      )}
     </div>
   );
 }

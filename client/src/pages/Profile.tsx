@@ -8,6 +8,7 @@ import ShareProfileModal from '../components/ShareProfileModal';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
+import PostDetailModal from '../components/PostDetailModal';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -210,6 +211,7 @@ export default function Profile() {
 
   const isOwnProfile = me?.id === id;
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+  const [openPost, setOpenPost] = useState<any | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['profile', id],
@@ -802,37 +804,47 @@ export default function Profile() {
                 Posts
               </h2>
               <div className="space-y-3">
-                {posts.map((p: any) => (
-                  <div key={p.id} className="bg-dark rounded-lg border border-dark-lighter overflow-hidden">
-                    {p.type === 'IMAGE' && (p.media?.length > 0 ? (
-                      <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
-                    ) : p.mediaUrl ? (
-                      <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
-                    ) : null)}
-                    {p.mediaUrl && p.type === 'HIGHLIGHT' && (
-                      <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
-                    )}
-                    <div className="p-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        {p.title && <p className="text-sm font-medium mb-1">{p.title}</p>}
-                        {p.content && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
-                        <p className="text-xs text-gray-custom mt-1">{timeAgo(p.createdAt)}</p>
-                      </div>
-                      {isOwnProfile && (
-                        <button
-                          onClick={() => { if (confirm('Delete this post?')) deletePostMutation.mutate(p.id); }}
-                          className="text-gray-custom hover:text-red-400 transition-colors shrink-0 mt-0.5"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                {posts.map((p: any) => {
+                  const postWithUser = { ...p, user: profile };
+                  return (
+                    <div key={p.id} className="bg-dark rounded-lg border border-dark-lighter overflow-hidden">
+                      {p.type === 'IMAGE' && (
+                        <div onClick={() => setOpenPost(postWithUser)} className="cursor-pointer">
+                          {p.media?.length > 0 ? (
+                            <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
+                          ) : p.mediaUrl ? (
+                            <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
+                          ) : null}
+                        </div>
                       )}
+                      {p.mediaUrl && p.type === 'HIGHLIGHT' && (
+                        <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
+                      )}
+                      <div className="p-3 flex items-start justify-between gap-2">
+                        <div
+                          onClick={() => setOpenPost(postWithUser)}
+                          className="min-w-0 cursor-pointer"
+                        >
+                          {p.title && <p className="text-sm font-medium mb-1">{p.title}</p>}
+                          {p.content && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
+                          <p className="text-xs text-gray-custom mt-1">{timeAgo(p.createdAt)}</p>
+                        </div>
+                        {isOwnProfile && (
+                          <button
+                            onClick={() => { if (confirm('Delete this post?')) deletePostMutation.mutate(p.id); }}
+                            className="text-gray-custom hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                      <PostActions
+                        post={postWithUser}
+                        invalidateKeys={[['user-posts', id as string]]}
+                      />
                     </div>
-                    <PostActions
-                      post={{ ...p, user: profile }}
-                      invalidateKeys={[['user-posts', id as string]]}
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -865,15 +877,19 @@ export default function Profile() {
                         {p.user?.name}
                       </Link>
                     </div>
-                    {p.type === 'IMAGE' && (p.media?.length > 0 ? (
-                      <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
-                    ) : p.mediaUrl ? (
-                      <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
-                    ) : null)}
+                    {p.type === 'IMAGE' && (
+                      <div onClick={() => setOpenPost(p)} className="cursor-pointer">
+                        {p.media?.length > 0 ? (
+                          <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
+                        ) : p.mediaUrl ? (
+                          <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
+                        ) : null}
+                      </div>
+                    )}
                     {p.mediaUrl && p.type === 'HIGHLIGHT' && (
                       <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
                     )}
-                    <div className="p-3">
+                    <div onClick={() => setOpenPost(p)} className="p-3 cursor-pointer">
                       {p.title && <p className="text-sm font-medium mb-1">{p.title}</p>}
                       {p.content && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
                       <p className="text-xs text-gray-custom mt-1">{timeAgo(p.createdAt)}</p>
@@ -1070,6 +1086,17 @@ export default function Profile() {
             </div>
           </div>
         </div>
+      )}
+
+      {openPost && (
+        <PostDetailModal
+          post={openPost}
+          onClose={() => setOpenPost(null)}
+          invalidateKeys={[
+            ['user-posts', id as string],
+            ['user-reposts', id as string],
+          ]}
+        />
       )}
     </div>
   );

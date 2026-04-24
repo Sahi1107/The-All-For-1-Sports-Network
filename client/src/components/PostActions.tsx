@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Heart, MessageCircle, Repeat2, Bookmark, Send, Trash2, CornerUpRight, ChevronDown, ChevronUp } from 'lucide-react';
@@ -10,6 +10,8 @@ interface Props {
   post: any;
   /** Additional query keys to invalidate on comment create/delete */
   invalidateKeys?: string[][];
+  /** When true, expand the comments section on mount (used by the detail modal). */
+  defaultExpanded?: boolean;
 }
 
 function CommentItem({
@@ -128,10 +130,10 @@ function CommentItem({
   );
 }
 
-export default function PostActions({ post, invalidateKeys = [] }: Props) {
+export default function PostActions({ post, invalidateKeys = [], defaultExpanded = false }: Props) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(defaultExpanded);
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
@@ -203,6 +205,12 @@ export default function PostActions({ post, invalidateKeys = [] }: Props) {
       setLoadingComments(false);
     }
   };
+
+  // Auto-load comments in the detail modal so the full thread shows on open.
+  useEffect(() => {
+    if (defaultExpanded) fetchComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleComments = () => {
     if (!showComments) fetchComments();
