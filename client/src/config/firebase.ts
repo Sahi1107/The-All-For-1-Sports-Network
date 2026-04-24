@@ -1,5 +1,10 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence,
+  initializeAuth,
+} from 'firebase/auth';
 
 // These values are safe to expose in frontend code — they identify your
 // Firebase project but cannot be used to access data without Auth rules.
@@ -13,5 +18,17 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app  = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+const app = initializeApp(firebaseConfig);
+
+// Instagram/Facebook in-app WebViews on iOS partition storage aggressively —
+// Firebase's default IndexedDB persistence throws on init and crashes the app.
+// Providing an ordered fallback (local → session → memory) lets Firebase pick
+// whichever works; in the worst case auth just doesn't survive a reload,
+// which is fine for an embedded browser session.
+export const auth = initializeAuth(app, {
+  persistence: [
+    browserLocalPersistence,
+    browserSessionPersistence,
+    inMemoryPersistence,
+  ],
+});
