@@ -1,9 +1,12 @@
 import { Router, Response } from 'express';
+import multer from 'multer';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
+import { validateImageBytes } from '../middleware/upload';
+import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { getIO } from '../config/socket';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
@@ -12,30 +15,76 @@ import {
 
 const router = Router();
 
+const thumbnailUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+function extFromFile(file: Express.Multer.File): string {
+  const fromMime = file.mimetype.split('/')[1] || 'bin';
+  return fromMime === 'jpeg' ? 'jpg' : fromMime.replace(/[^a-z0-9]/gi, '');
+}
+
 // POST /api/tournaments — create (admin only)
-router.post('/', authenticate, requireRole('ADMIN'), writeLimiter, validate({ body: CreateTournamentBody }), async (req: AuthRequest, res: Response) => {
+router.post(
+  '/',
+  authenticate,
+  requireRole('ADMIN'),
+  writeLimiter,
+  thumbnailUpload.single('thumbnail'),
+  validate({ body: CreateTournamentBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const {
+        name, sport, category, description, venue, city,
+        startDate, endDate, prizePool, entryFee, maxTeams,
+        ageCategory, genderCategory,
+      } = req.body;
+
+      let thumbnailUrl: string | null = null;
+      if (req.file) {
+        if (!validateImageBytes(req.file, res)) return;
+        thumbnailUrl = await uploadToGCS(
+          req.file.buffer, 'tournaments', extFromFile(req.file), req.file.mimetype,
+        );
+      }
+
+      const tournament = await prisma.tournament.create({
+        data: {
+          name, sport, category, description, venue, city,
+          startDate: new Date(startDate),
+          endDate: new Date(endDate),
+          prizePool: prizePool != null ? parseFloat(prizePool) : null,
+          entryFee:  entryFee  != null ? parseFloat(entryFee)  : null,
+          maxTeams:  maxTeams  != null ? parseInt(maxTeams)    : null,
+          ageCategory:    ageCategory    || null,
+          genderCategory: genderCategory || null,
+          thumbnailUrl,
+          status: 'UPCOMING',
+          createdById: req.user!.userId,
+        },
+      });
+
+      await signMediaDeep(tournament);
+      res.status(201).json({ tournament });
+    } catch (error) {
+      console.error('Create tournament error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// DELETE /api/tournaments/:id — delete (admin only)
+router.delete('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, sport, category, description, venue, city, startDate, endDate, prizePool, maxTeams } = req.body;
-    if (!name || !sport || !startDate || !endDate) {
-      res.status(400).json({ error: 'Name, sport, start date and end date are required' });
+    await prisma.tournament.delete({ where: { id: req.params.id as string } });
+    res.json({ message: 'Tournament deleted' });
+  } catch (error: any) {
+    if (error.code === 'P2025') {
+      res.status(404).json({ error: 'Tournament not found' });
       return;
     }
-
-    const tournament = await prisma.tournament.create({
-      data: {
-        name, sport, category, description, venue, city,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        prizePool: prizePool ? parseFloat(prizePool) : null,
-        maxTeams: maxTeams ? parseInt(maxTeams) : null,
-        status: 'UPCOMING',
-        createdById: req.user!.userId,
-      },
-    });
-
-    res.status(201).json({ tournament });
-  } catch (error) {
-    console.error('Create tournament error:', error);
+    console.error('Delete tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -61,6 +110,7 @@ router.get('/', authenticate, validate({ query: TournamentListQuery }), async (r
       prisma.tournament.count({ where }),
     ]);
 
+    await signMediaDeepAll(tournaments);
     res.json({ tournaments, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
     console.error('Get tournaments error:', error);
@@ -99,6 +149,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    await signMediaDeep(tournament);
     res.json({ tournament });
   } catch (error) {
     console.error('Get tournament error:', error);

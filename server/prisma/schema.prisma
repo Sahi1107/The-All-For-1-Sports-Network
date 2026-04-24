@@ -352,21 +352,25 @@ model TeamMember {
 // ─── Tournaments ─────────────────────────────────────────
 
 model Tournament {
-  id          String           @id @default(uuid())
-  name        String
-  sport       Sport
-  category    String?
-  description String?
-  venue       String?
-  city        String?
-  startDate   DateTime
-  endDate     DateTime
-  prizePool   Float?
-  maxTeams    Int?
-  status      TournamentStatus @default(UPCOMING)
-  createdById String
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id             String           @id @default(uuid())
+  name           String
+  sport          Sport
+  category       String?
+  description    String?
+  venue          String?
+  city           String?
+  startDate      DateTime
+  endDate        DateTime
+  prizePool      Float?
+  entryFee       Float?
+  maxTeams       Int?
+  ageCategory    String?
+  genderCategory String?
+  thumbnailUrl   String?
+  status         TournamentStatus @default(UPCOMING)
+  createdById    String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   createdBy       User              @relation(fields: [createdById], references: [id])
   teams           TournamentTeam[]

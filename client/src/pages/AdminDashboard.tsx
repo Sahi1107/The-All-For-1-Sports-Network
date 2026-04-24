@@ -1,12 +1,37 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-type Tab = 'users' | 'stats' | 'create-admin';
+type Tab = 'users' | 'stats' | 'create-admin' | 'tournaments';
+
+const AGE_CATEGORIES = ['U12', 'U14', 'U16', 'U18', 'U19', 'U21', 'U23', 'OPEN', 'MASTERS'];
+const GENDER_CATEGORIES = ['MEN', 'WOMEN', 'MIXED', 'OPEN'];
+const SPORTS = ['BASKETBALL', 'FOOTBALL', 'CRICKET'];
+
+interface TournamentForm {
+  name: string;
+  sport: string;
+  description: string;
+  venue: string;
+  city: string;
+  startDate: string;
+  endDate: string;
+  entryFee: string;
+  prizePool: string;
+  maxTeams: string;
+  ageCategory: string;
+  genderCategory: string;
+}
+
+const emptyTournamentForm: TournamentForm = {
+  name: '', sport: 'BASKETBALL', description: '', venue: '', city: '',
+  startDate: '', endDate: '', entryFee: '', prizePool: '', maxTeams: '',
+  ageCategory: '', genderCategory: '',
+};
 
 
 export default function AdminDashboard() {
@@ -20,6 +45,13 @@ export default function AdminDashboard() {
   // Create-admin form state
   const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+
+  // Tournament form state
+  const [tournamentForm, setTournamentForm] = useState<TournamentForm>(emptyTournamentForm);
+  const [showTournamentForm, setShowTournamentForm] = useState(false);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   // Redirect non-admins at the route level
   if (user?.role !== 'ADMIN') return <Navigate to="/" replace />;
@@ -82,6 +114,82 @@ export default function AdminDashboard() {
     },
   });
 
+  // ─── Tournaments ──────────────────────────────────────────────
+
+  const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery({
+    queryKey: ['admin-tournaments'],
+    queryFn: async () => {
+      const { data } = await api.get('/tournaments?limit=50');
+      return data;
+    },
+    enabled: tab === 'tournaments',
+  });
+
+  const createTournamentMutation = useMutation({
+    mutationFn: async () => {
+      const fd = new FormData();
+      fd.append('name', tournamentForm.name);
+      fd.append('sport', tournamentForm.sport);
+      // Backend expects ISO-8601. <input type="date"> gives YYYY-MM-DD, so we
+      // append a fixed time-of-day to keep the payload well-formed.
+      fd.append('startDate', new Date(`${tournamentForm.startDate}T00:00:00Z`).toISOString());
+      fd.append('endDate',   new Date(`${tournamentForm.endDate}T23:59:59Z`).toISOString());
+      if (tournamentForm.description)    fd.append('description', tournamentForm.description);
+      if (tournamentForm.venue)          fd.append('venue', tournamentForm.venue);
+      if (tournamentForm.city)           fd.append('city', tournamentForm.city);
+      if (tournamentForm.entryFee)       fd.append('entryFee', tournamentForm.entryFee);
+      if (tournamentForm.prizePool)      fd.append('prizePool', tournamentForm.prizePool);
+      if (tournamentForm.maxTeams)       fd.append('maxTeams', tournamentForm.maxTeams);
+      if (tournamentForm.ageCategory)    fd.append('ageCategory', tournamentForm.ageCategory);
+      if (tournamentForm.genderCategory) fd.append('genderCategory', tournamentForm.genderCategory);
+      if (thumbnailFile)                 fd.append('thumbnail', thumbnailFile);
+      const { data } = await api.post('/tournaments', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Tournament created');
+      setTournamentForm(emptyTournamentForm);
+      setThumbnailFile(null);
+      setThumbnailPreview(null);
+      setShowTournamentForm(false);
+      qc.invalidateQueries({ queryKey: ['admin-tournaments'] });
+    },
+    onError: (err: any) => {
+      const details = err.response?.data?.details;
+      toast.error(
+        Array.isArray(details) && details.length > 0
+          ? details[0]
+          : err.response?.data?.error || 'Failed to create tournament',
+      );
+    },
+  });
+
+  const deleteTournamentMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/tournaments/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-tournaments'] });
+      toast.success('Tournament deleted');
+    },
+    onError: () => toast.error('Delete failed'),
+  });
+
+  const handleThumbnailPick = (file: File | null) => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailFile(file);
+    setThumbnailPreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  const handleCreateTournament = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (new Date(tournamentForm.endDate) < new Date(tournamentForm.startDate)) {
+      toast.error('End date must be on or after start date');
+      return;
+    }
+    createTournamentMutation.mutate();
+  };
+
   const handleCreateAdmin = (e: React.FormEvent) => {
     e.preventDefault();
     createAdminMutation.mutate(adminForm);
@@ -102,6 +210,7 @@ export default function AdminDashboard() {
         {([
           ['users',        'Users',         Users],
           ['stats',        'Platform Stats', BarChart3],
+          ['tournaments',  'Tournaments',    Trophy],
           ['create-admin', 'Create Admin',   UserPlus],
         ] as const).map(([t, label, Icon]) => (
           <button
@@ -317,6 +426,298 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Tournaments Tab ───────────────────────────────────────── */}
+      {tab === 'tournaments' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-custom">
+              {tournamentsData?.total ?? 0} total tournaments
+            </p>
+            <button
+              onClick={() => setShowTournamentForm((v) => !v)}
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg text-sm transition-colors"
+            >
+              <Plus size={15} />
+              {showTournamentForm ? 'Cancel' : 'Add Tournament'}
+            </button>
+          </div>
+
+          {showTournamentForm && (
+            <form
+              onSubmit={handleCreateTournament}
+              className="bg-dark-light rounded-xl border border-dark-lighter p-6 space-y-5"
+            >
+              <div className="flex items-center gap-2">
+                <Trophy size={18} className="text-primary" />
+                <h2 className="font-semibold text-lg">New Tournament</h2>
+              </div>
+
+              {/* Thumbnail */}
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Thumbnail</label>
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => thumbnailInputRef.current?.click()}
+                    className="w-24 h-24 rounded-lg border-2 border-dashed border-dark-lighter hover:border-primary/60 flex items-center justify-center overflow-hidden bg-dark transition-colors"
+                  >
+                    {thumbnailPreview
+                      ? <img src={thumbnailPreview} alt="thumbnail" className="w-full h-full object-cover" />
+                      : <Upload size={20} className="text-gray-custom" />}
+                  </button>
+                  <div className="text-xs text-gray-custom">
+                    <p>JPG, PNG, or WebP — max 5 MB</p>
+                    {thumbnailFile && (
+                      <button
+                        type="button"
+                        onClick={() => handleThumbnailPick(null)}
+                        className="mt-1 text-red-400 hover:text-red-300"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] ?? null;
+                      handleThumbnailPick(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Name + Sport */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Title *</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={100}
+                    value={tournamentForm.name}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g. Summer Hoops Classic"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Sport *</label>
+                  <select
+                    required
+                    value={tournamentForm.sport}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, sport: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                  >
+                    {SPORTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Start Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={tournamentForm.startDate}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, startDate: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">End Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={tournamentForm.endDate}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, endDate: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Description</label>
+                <textarea
+                  rows={3}
+                  maxLength={1000}
+                  value={tournamentForm.description}
+                  onChange={(e) => setTournamentForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Format, rules, highlights…"
+                  className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm resize-none"
+                />
+              </div>
+
+              {/* Venue + City */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Venue</label>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={tournamentForm.venue}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, venue: e.target.value }))}
+                    placeholder="Arena / ground name"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">City</label>
+                  <input
+                    type="text"
+                    maxLength={100}
+                    value={tournamentForm.city}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, city: e.target.value }))}
+                    placeholder="Mumbai"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Fees + Max teams */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Entry Fee</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={tournamentForm.entryFee}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, entryFee: e.target.value }))}
+                    placeholder="0"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Prize Pool</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={tournamentForm.prizePool}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, prizePool: e.target.value }))}
+                    placeholder="0"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Max Teams</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={tournamentForm.maxTeams}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, maxTeams: e.target.value }))}
+                    placeholder="16"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Age + Gender */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Age Category</label>
+                  <select
+                    value={tournamentForm.ageCategory}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, ageCategory: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                  >
+                    <option value="">— None —</option>
+                    {AGE_CATEGORIES.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Gender Category</label>
+                  <select
+                    value={tournamentForm.genderCategory}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, genderCategory: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                  >
+                    <option value="">— None —</option>
+                    {GENDER_CATEGORIES.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowTournamentForm(false); setTournamentForm(emptyTournamentForm); handleThumbnailPick(null); }}
+                  className="px-5 py-2.5 border border-dark-lighter text-gray-custom hover:text-white rounded-lg text-sm transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createTournamentMutation.isPending}
+                  className="flex-1 px-5 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg text-sm transition-colors disabled:opacity-50"
+                >
+                  {createTournamentMutation.isPending ? 'Creating…' : 'Create Tournament'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Existing tournaments */}
+          {tournamentsLoading ? (
+            <div className="flex justify-center py-16">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (tournamentsData?.tournaments ?? []).length === 0 ? (
+            <div className="bg-dark-light rounded-xl border border-dark-lighter p-12 text-center">
+              <Trophy size={28} className="mx-auto mb-3 text-gray-custom" />
+              <p className="text-sm text-gray-custom">No tournaments yet.</p>
+            </div>
+          ) : (
+            <div className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden">
+              <div className="divide-y divide-dark-lighter">
+                {(tournamentsData.tournaments).map((t: any) => (
+                  <div key={t.id} className="flex items-center gap-4 px-5 py-3 hover:bg-dark/20 transition-colors">
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-dark shrink-0 flex items-center justify-center">
+                      {t.thumbnailUrl
+                        ? <img src={t.thumbnailUrl} alt={t.name} className="w-full h-full object-cover" />
+                        : <Trophy size={18} className="text-gray-custom" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{t.name}</p>
+                      <p className="text-xs text-gray-custom">
+                        {t.sport}
+                        {t.ageCategory ? ` · ${t.ageCategory}` : ''}
+                        {t.genderCategory ? ` · ${t.genderCategory}` : ''}
+                        {' · '}
+                        {new Date(t.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-dark text-gray-custom border border-dark-lighter">
+                      {t.status}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete ${t.name}? This cannot be undone.`)) {
+                          deleteTournamentMutation.mutate(t.id);
+                        }
+                      }}
+                      className="p-1.5 text-gray-custom hover:text-red-400 transition-colors rounded"
+                      title="Delete tournament"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
