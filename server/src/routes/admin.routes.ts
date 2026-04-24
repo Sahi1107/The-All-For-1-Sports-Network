@@ -6,6 +6,7 @@ import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { AdminUserListQuery, AdminUpdateRoleBody, AdminVerifyBody, CreateAdminBody } from '../validation/admin';
+import { deleteUserCompletely } from '../services/userDeletion';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -90,9 +91,14 @@ router.delete('/users/:id', async (req: AuthRequest, res: Response) => {
       res.status(400).json({ error: 'Cannot delete your own account' });
       return;
     }
-    await prisma.user.delete({ where: { id: req.params.id as string } });
+    await deleteUserCompletely(req.params.id as string);
+    logger.info('admin.user_deleted', { actorId: req.user!.userId, targetId: req.params.id });
     res.json({ message: 'User deleted' });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
     console.error('Delete user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../config/firebase';
 import {
-  sendPasswordResetEmail, deleteUser, EmailAuthProvider, reauthenticateWithCredential,
+  sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential,
   PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
 } from 'firebase/auth';
 import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck } from 'lucide-react';
@@ -91,8 +91,9 @@ export default function Settings() {
     try {
       const credential = EmailAuthProvider.credential(user.email, deletePassword);
       await reauthenticateWithCredential(auth.currentUser, credential);
+      // Server deletes the Prisma row AND the Firebase Auth record in one go,
+      // so a closed tab mid-flow can't orphan either side.
       await api.delete('/users/account');
-      await deleteUser(auth.currentUser);
       await logout();
       navigate('/login');
       toast.success('Account deleted');

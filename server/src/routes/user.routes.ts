@@ -7,6 +7,8 @@ import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
+import { deleteUserCompletely } from '../services/userDeletion';
+import logger from '../utils/logger';
 
 const router = Router();
 
@@ -261,6 +263,22 @@ router.post('/settings/verify-phone', authenticate, writeLimiter, async (req: Au
     res.json({ phoneVerified: true, phone: fbUser.phoneNumber });
   } catch (error) {
     console.error('Verify phone error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/users/account — current user deletes their own account
+router.delete('/account', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    await deleteUserCompletely(req.user!.userId);
+    logger.info('user.self_deleted', { userId: req.user!.userId });
+    res.json({ message: 'Account deleted' });
+  } catch (error: any) {
+    if (error?.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    console.error('Self-delete error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
