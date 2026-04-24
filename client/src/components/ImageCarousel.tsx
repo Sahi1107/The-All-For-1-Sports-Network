@@ -12,18 +12,18 @@ export default function ImageCarousel({ urls, alt = '', className = '' }: Props)
 
   if (urls.length === 0) return null;
   if (urls.length === 1) {
-    return <img src={urls[0]} alt={alt} className={`w-full max-h-[28rem] object-cover ${className}`} />;
+    return <img src={urls[0]} alt={alt} className={`w-full max-h-[32rem] object-contain bg-black ${className}`} />;
   }
 
   const prev = () => setIdx((i) => (i === 0 ? urls.length - 1 : i - 1));
   const next = () => setIdx((i) => (i === urls.length - 1 ? 0 : i + 1));
 
   return (
-    <div className={`relative group ${className}`}>
+    <div className={`relative group bg-black ${className}`}>
       <img
         src={urls[idx]}
         alt={`${alt} ${idx + 1}`}
-        className="w-full max-h-[28rem] object-cover transition-opacity duration-200"
+        className="w-full max-h-[32rem] object-contain transition-opacity duration-200"
       />
 
       {/* Left arrow */}

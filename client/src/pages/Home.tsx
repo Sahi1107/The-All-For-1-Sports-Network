@@ -289,7 +289,7 @@ export default function Home() {
                     item.media?.length > 0 ? (
                       <ImageCarousel urls={item.media.map((m: any) => m.url)} alt={item.title || ''} />
                     ) : item.mediaUrl ? (
-                      <img src={item.mediaUrl} alt={item.title || ''} className="w-full max-h-[28rem] object-cover" />
+                      <img src={item.mediaUrl} alt={item.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
                     ) : null
                   )}
 

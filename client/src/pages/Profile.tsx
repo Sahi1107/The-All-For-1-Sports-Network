@@ -807,7 +807,7 @@ export default function Profile() {
                     {p.type === 'IMAGE' && (p.media?.length > 0 ? (
                       <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
                     ) : p.mediaUrl ? (
-                      <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-64 object-cover" />
+                      <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
                     ) : null)}
                     {p.mediaUrl && p.type === 'HIGHLIGHT' && (
                       <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
@@ -868,7 +868,7 @@ export default function Profile() {
                     {p.type === 'IMAGE' && (p.media?.length > 0 ? (
                       <ImageCarousel urls={p.media.map((m: any) => m.url)} alt={p.title || ''} />
                     ) : p.mediaUrl ? (
-                      <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-64 object-cover" />
+                      <img src={p.mediaUrl} alt={p.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
                     ) : null)}
                     {p.mediaUrl && p.type === 'HIGHLIGHT' && (
                       <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
