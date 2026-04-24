@@ -79,7 +79,10 @@ export default function CreatePostModal({ onClose }: Props) {
   };
 
   const handleCropped = (blob: Blob) => {
-    const file = new File([blob], rawQueue[0]?.name || 'photo.jpg', { type: 'image/jpeg' });
+    // Cropped blob is always JPEG — strip the source extension so the filename
+    // agrees with the bytes (server rejects ext/magic-byte mismatches).
+    const baseName = (rawQueue[0]?.name || 'photo').replace(/\.[^.]+$/, '');
+    const file = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
     setFiles((prev) => [...prev, file].slice(0, 10));
     // Advance to next in queue
     setCropQueue((q) => q.slice(1));
