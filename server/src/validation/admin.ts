@@ -18,14 +18,14 @@ export const CreateAdminBody = z.object({
 });
 
 export const AdminUserListQuery = PaginationQuery.extend({
-  role:   z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'ADMIN']).optional(),
+  role:   z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'AGENT', 'ADMIN']).optional(),
   sport:  SportEnum.optional(),
   search: z.string().max(100).optional().transform((v) => (v ? v.trim() : undefined)),
 });
 
 export const AdminUpdateRoleBody = z.object({
-  role: z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'ADMIN'], {
-    error: 'role must be ATHLETE, COACH, SCOUT, TEAM, or ADMIN',
+  role: z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'AGENT', 'ADMIN'], {
+    error: 'role must be ATHLETE, COACH, SCOUT, TEAM, AGENT, or ADMIN',
   }),
 });
 

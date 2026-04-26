@@ -15,6 +15,7 @@ enum Role {
   COACH
   SCOUT
   TEAM
+  AGENT
   ADMIN
 }
 

@@ -8,8 +8,8 @@ import { CreateAnnouncementBody, AnnouncementListQuery } from '../validation/ann
 
 const router = Router();
 
-// POST /api/announcements — create (coach/scout only)
-router.post('/', authenticate, requireRole('COACH', 'SCOUT', 'ADMIN'), writeLimiter, validate({ body: CreateAnnouncementBody }), async (req: AuthRequest, res: Response) => {
+// POST /api/announcements — create (coach/scout/agent only)
+router.post('/', authenticate, requireRole('COACH', 'SCOUT', 'AGENT', 'ADMIN'), writeLimiter, validate({ body: CreateAnnouncementBody }), async (req: AuthRequest, res: Response) => {
   try {
     const { title, content, type, sport } = req.body;
     if (!title || !content) {

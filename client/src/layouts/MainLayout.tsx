@@ -55,10 +55,10 @@ export default function MainLayout() {
     { to: '/grow',          icon: TrendingUp,    label: 'Grow' },
     { to: '/tournaments',   icon: Trophy,        label: 'Tournaments' },
     { to: '/rankings',      icon: BarChart3,     label: 'Rankings' },
-    ...(user?.role === 'COACH' || user?.role === 'SCOUT'
+    ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT'
       ? [{ to: '/scout-copilot', icon: Zap, label: 'Scout Copilot' }]
       : []),
-    ...(user?.role === 'COACH' || user?.role === 'SCOUT'
+    ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT'
       ? [{ to: '/announcements', icon: Megaphone, label: 'Announcements' }]
       : []),
     { to: '/messages',      icon: MessageSquare, label: 'Messages' },

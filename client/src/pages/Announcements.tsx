@@ -20,6 +20,7 @@ function timeAgo(date: string) {
 const ROLE_COLORS: Record<string, string> = {
   COACH: 'bg-secondary/20 text-secondary',
   SCOUT: 'bg-accent/20 text-accent',
+  AGENT: 'bg-amber-500/20 text-amber-400',
 };
 
 export default function Announcements() {
@@ -28,7 +29,7 @@ export default function Announcements() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ title: '', content: '', sport: user?.sport ?? '' });
 
-  const canPost = user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'ADMIN';
+  const canPost = user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT' || user?.role === 'ADMIN';
 
   const { data, isLoading } = useQuery({
     queryKey: ['announcements'],

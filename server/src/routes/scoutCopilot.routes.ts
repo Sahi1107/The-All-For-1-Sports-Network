@@ -22,7 +22,7 @@ const extractFiltersTool: Anthropic.Tool = {
       },
       role: {
         type: 'string',
-        enum: ['ATHLETE', 'COACH', 'SCOUT'],
+        enum: ['ATHLETE', 'COACH', 'SCOUT', 'AGENT'],
         description: 'User role to filter by — default is ATHLETE',
       },
       position: {
@@ -83,7 +83,7 @@ const extractFiltersTool: Anthropic.Tool = {
 router.post(
   '/',
   authenticate,
-  requireRole('SCOUT', 'COACH'),
+  requireRole('SCOUT', 'COACH', 'AGENT'),
   writeLimiter,
   async (req: AuthRequest, res: Response) => {
     try {

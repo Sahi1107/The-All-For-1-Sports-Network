@@ -97,8 +97,8 @@ export const SportEnum = z.enum(['BASKETBALL', 'FOOTBALL', 'CRICKET'], {
   error: 'sport must be BASKETBALL, FOOTBALL, or CRICKET',
 });
 
-export const RoleEnum = z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM'], {
-  error: 'role must be ATHLETE, COACH, SCOUT, or TEAM',
+export const RoleEnum = z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'AGENT'], {
+  error: 'role must be ATHLETE, COACH, SCOUT, TEAM, or AGENT',
 });
 
 // ─── Pagination query ─────────────────────────────────────────────────────────

@@ -7,10 +7,11 @@ import { Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
 
 const ROLES = [
-  { value: 'ATHLETE', label: 'Athlete',        desc: 'Showcase your skills & compete' },
-  { value: 'COACH',   label: 'Coach',          desc: 'Discover & develop talent' },
-  { value: 'SCOUT',   label: 'Scout',          desc: 'Find the next big star' },
-  { value: 'TEAM',    label: 'Team / Academy', desc: 'Represent your club or academy' },
+  { value: 'ATHLETE', label: 'Athlete',                 desc: 'Showcase your skills & compete' },
+  { value: 'COACH',   label: 'Coach',                   desc: 'Discover & develop talent' },
+  { value: 'SCOUT',   label: 'Scout',                   desc: 'Find the next big star' },
+  { value: 'TEAM',    label: 'Team / Academy',          desc: 'Represent your club or academy' },
+  { value: 'AGENT',   label: 'Agent / Talent Manager',  desc: 'Represent and manage athletes' },
 ] as const;
 
 const SPORTS = [
@@ -121,7 +122,7 @@ export default function Register() {
   const [done, setDone] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', password: '',
-    role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | '',
+    role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | '',
     sport: '' as 'BASKETBALL' | 'FOOTBALL' | 'CRICKET' | '',
     country: '',
     state: '',

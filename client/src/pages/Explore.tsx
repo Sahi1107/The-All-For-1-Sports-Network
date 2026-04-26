@@ -5,7 +5,7 @@ import { Search, MapPin, Filter } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 
-const ROLES = ['ALL', 'ATHLETE', 'COACH', 'SCOUT'] as const;
+const ROLES = ['ALL', 'ATHLETE', 'COACH', 'SCOUT', 'AGENT'] as const;
 const SPORTS = ['ALL', 'BASKETBALL', 'FOOTBALL', 'CRICKET'] as const;
 
 export default function Explore() {

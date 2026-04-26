@@ -247,6 +247,7 @@ export default function AdminDashboard() {
               <option value="ATHLETE">Athlete</option>
               <option value="COACH">Coach</option>
               <option value="SCOUT">Scout</option>
+              <option value="AGENT">Agent</option>
               <option value="ADMIN">Admin</option>
             </select>
           </div>
@@ -294,6 +295,7 @@ export default function AdminDashboard() {
                         <option value="ATHLETE">Athlete</option>
                         <option value="COACH">Coach</option>
                         <option value="SCOUT">Scout</option>
+                        <option value="AGENT">Agent</option>
                         <option value="ADMIN">Admin</option>
                       </select>
                     </div>
@@ -374,12 +376,14 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 {[
-                  { label: 'Total Users', value: stats.totalUsers, color: 'text-primary-light' },
-                  { label: 'Athletes',    value: stats.athletes,   color: 'text-white' },
-                  { label: 'Coaches',     value: stats.coaches,    color: 'text-secondary' },
-                  { label: 'Scouts',      value: stats.scouts,     color: 'text-accent' },
+                  { label: 'Total Users',   value: stats.totalUsers,   color: 'text-primary-light' },
+                  { label: 'Athletes',      value: stats.athletes,     color: 'text-white' },
+                  { label: 'Coaches',       value: stats.coaches,      color: 'text-secondary' },
+                  { label: 'Scouts',        value: stats.scouts,       color: 'text-accent' },
+                  { label: 'Agents',        value: stats.agents,       color: 'text-amber-400' },
+                  { label: 'Team Accounts', value: stats.teamAccounts, color: 'text-white' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="bg-dark-light rounded-xl border border-dark-lighter p-5 text-center">
                     <p className={`text-3xl font-bold ${color}`}>{value ?? 0}</p>

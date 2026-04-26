@@ -25,6 +25,7 @@ const ROLE_COLORS: Record<string, string> = {
   ATHLETE: 'bg-primary/20 text-primary-light',
   COACH: 'bg-secondary/20 text-secondary',
   SCOUT: 'bg-accent/20 text-accent',
+  AGENT: 'bg-amber-500/20 text-amber-400',
   ADMIN: 'bg-purple-500/20 text-purple-400',
 };
 
