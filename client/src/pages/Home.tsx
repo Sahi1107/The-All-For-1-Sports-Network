@@ -134,10 +134,192 @@ function CricketBackdrop() {
   );
 }
 
+function FieldHockeyBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        <rect x="30" y="30" width="740" height="440" />
+        <line x1="400" y1="30" x2="400" y2="470" />
+        <line x1="190" y1="30" x2="190" y2="470" strokeDasharray="6 4" />
+        <line x1="610" y1="30" x2="610" y2="470" strokeDasharray="6 4" />
+        <path d="M30,160 A140,140 0 0 1 30,340" />
+        <path d="M770,160 A140,140 0 0 0 770,340" />
+        <rect x="15" y="225" width="15" height="50" />
+        <rect x="770" y="225" width="15" height="50" />
+        <circle cx="120" cy="250" r="3" fill="white" stroke="none" />
+        <circle cx="680" cy="250" r="3" fill="white" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
+function BadmintonBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        <rect x="30" y="30" width="740" height="440" />
+        <line x1="400" y1="30" x2="400" y2="470" strokeWidth="2.5" />
+        <line x1="30" y1="60" x2="770" y2="60" />
+        <line x1="30" y1="440" x2="770" y2="440" />
+        <line x1="290" y1="30" x2="290" y2="470" />
+        <line x1="510" y1="30" x2="510" y2="470" />
+        <line x1="80" y1="30" x2="80" y2="470" />
+        <line x1="720" y1="30" x2="720" y2="470" />
+        <line x1="80" y1="250" x2="290" y2="250" />
+        <line x1="510" y1="250" x2="720" y2="250" />
+      </g>
+    </svg>
+  );
+}
+
+function AthleticsBackdrop() {
+  return (
+    <svg viewBox="0 0 940 520" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        <ellipse cx="470" cy="260" rx="430" ry="220" />
+        <ellipse cx="470" cy="260" rx="380" ry="170" />
+        <ellipse cx="470" cy="260" rx="420" ry="210" strokeDasharray="8 6" />
+        <ellipse cx="470" cy="260" rx="410" ry="200" strokeDasharray="8 6" />
+        <ellipse cx="470" cy="260" rx="400" ry="190" strokeDasharray="8 6" />
+        <ellipse cx="470" cy="260" rx="390" ry="180" strokeDasharray="8 6" />
+        <line x1="470" y1="40" x2="470" y2="90" strokeWidth="3" />
+      </g>
+    </svg>
+  );
+}
+
+function WrestlingBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        <rect x="50" y="50" width="700" height="400" />
+        <circle cx="400" cy="250" r="195" />
+        <circle cx="400" cy="250" r="170" />
+        <circle cx="400" cy="250" r="140" strokeDasharray="6 5" />
+        <circle cx="400" cy="250" r="35" strokeWidth="2" />
+        <circle cx="400" cy="250" r="3" fill="white" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
+function BoxingBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        <rect x="50" y="50" width="700" height="400" />
+        <rect x="80" y="80" width="640" height="340" />
+        <rect x="100" y="100" width="600" height="300" />
+        <rect x="120" y="120" width="560" height="260" />
+        <circle cx="80" cy="80" r="6" />
+        <circle cx="720" cy="80" r="6" />
+        <circle cx="80" cy="420" r="6" />
+        <circle cx="720" cy="420" r="6" />
+        <circle cx="400" cy="250" r="4" fill="white" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
+function ShootingBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        <rect x="170" y="20" width="460" height="460" />
+        <circle cx="400" cy="250" r="220" />
+        <circle cx="400" cy="250" r="195" />
+        <circle cx="400" cy="250" r="170" />
+        <circle cx="400" cy="250" r="145" />
+        <circle cx="400" cy="250" r="120" />
+        <circle cx="400" cy="250" r="95" />
+        <circle cx="400" cy="250" r="70" />
+        <circle cx="400" cy="250" r="45" />
+        <circle cx="400" cy="250" r="22" />
+        <line x1="400" y1="20" x2="400" y2="480" strokeDasharray="5 4" strokeWidth="1" />
+        <line x1="170" y1="250" x2="630" y2="250" strokeDasharray="5 4" strokeWidth="1" />
+        <circle cx="400" cy="250" r="3" fill="white" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
+function WeightliftingBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
+        <rect x="60" y="380" width="680" height="40" />
+        <line x1="120" y1="240" x2="680" y2="240" strokeWidth="4" />
+        <line x1="120" y1="232" x2="200" y2="232" strokeWidth="6" />
+        <line x1="600" y1="232" x2="680" y2="232" strokeWidth="6" />
+        <circle cx="170" cy="240" r="100" strokeWidth="2.5" />
+        <circle cx="170" cy="240" r="80" />
+        <circle cx="170" cy="240" r="60" />
+        <circle cx="170" cy="240" r="38" />
+        <circle cx="170" cy="240" r="18" />
+        <circle cx="630" cy="240" r="100" strokeWidth="2.5" />
+        <circle cx="630" cy="240" r="80" />
+        <circle cx="630" cy="240" r="60" />
+        <circle cx="630" cy="240" r="38" />
+        <circle cx="630" cy="240" r="18" />
+        <line x1="200" y1="218" x2="200" y2="262" strokeWidth="3" />
+        <line x1="600" y1="218" x2="600" y2="262" strokeWidth="3" />
+      </g>
+    </svg>
+  );
+}
+
+function ArcheryBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
+        <circle cx="400" cy="250" r="220" />
+        <circle cx="400" cy="250" r="198" />
+        <circle cx="400" cy="250" r="176" />
+        <circle cx="400" cy="250" r="154" />
+        <circle cx="400" cy="250" r="132" />
+        <circle cx="400" cy="250" r="110" />
+        <circle cx="400" cy="250" r="88" />
+        <circle cx="400" cy="250" r="66" />
+        <circle cx="400" cy="250" r="44" />
+        <circle cx="400" cy="250" r="22" />
+        <line x1="392" y1="242" x2="408" y2="258" strokeWidth="2" />
+        <line x1="408" y1="242" x2="392" y2="258" strokeWidth="2" />
+      </g>
+    </svg>
+  );
+}
+
+function TennisBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        <rect x="30" y="30" width="740" height="440" />
+        <line x1="30" y1="80" x2="770" y2="80" />
+        <line x1="30" y1="420" x2="770" y2="420" />
+        <line x1="400" y1="30" x2="400" y2="470" strokeWidth="2.5" />
+        <line x1="200" y1="80" x2="200" y2="420" />
+        <line x1="600" y1="80" x2="600" y2="420" />
+        <line x1="200" y1="250" x2="600" y2="250" />
+        <line x1="395" y1="80" x2="405" y2="80" strokeWidth="3" />
+        <line x1="395" y1="420" x2="405" y2="420" strokeWidth="3" />
+      </g>
+    </svg>
+  );
+}
+
 const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   BASKETBALL: BasketballBackdrop,
   FOOTBALL: FootballBackdrop,
   CRICKET: CricketBackdrop,
+  FIELD_HOCKEY: FieldHockeyBackdrop,
+  BADMINTON: BadmintonBackdrop,
+  ATHLETICS: AthleticsBackdrop,
+  WRESTLING: WrestlingBackdrop,
+  BOXING: BoxingBackdrop,
+  SHOOTING: ShootingBackdrop,
+  WEIGHTLIFTING: WeightliftingBackdrop,
+  ARCHERY: ArcheryBackdrop,
+  TENNIS: TennisBackdrop,
 };
 
 export default function Home() {
