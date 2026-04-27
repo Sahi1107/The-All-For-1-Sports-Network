@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { Sport } from '@prisma/client';
 import prisma from '../config/db';
 import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
@@ -180,7 +181,9 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
       }),
     ]);
 
-    const bySport: Record<string, number> = {};
+    const bySport: Record<string, number> = Object.fromEntries(
+      Object.values(Sport).map((s) => [s, 0]),
+    );
     for (const row of bySportRows) {
       if (row.sport) bySport[row.sport] = row._count._all;
     }
