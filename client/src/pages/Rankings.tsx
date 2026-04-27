@@ -3,17 +3,20 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { Trophy, TrendingUp } from 'lucide-react';
+import { SPORTS, ATHLETICS_EVENTS } from '../data/sports';
 
-const SPORT_ICONS: Record<string, string> = {
-  BASKETBALL: '🏀',
-  FOOTBALL: '⚽',
-  CRICKET: '🏏',
-};
+const SPORT_ICONS: Record<string, string> = Object.fromEntries(
+  SPORTS.map(({ value, emoji }) => [value, emoji]),
+);
+const SPORT_LABELS: Record<string, string> = Object.fromEntries(
+  SPORTS.map(({ value, label }) => [value, label]),
+);
 
 const CATEGORIES: Record<string, string[]> = {
   BASKETBALL: ['OVERALL', 'PG', 'SG', 'SF', 'PF', 'C'],
   FOOTBALL:   ['OVERALL', 'FORWARDS', 'MIDFIELDERS', 'DEFENDERS', 'GOALKEEPERS'],
   CRICKET:    ['OVERALL', 'BATTING', 'BOWLING', 'ALL_ROUND'],
+  ATHLETICS:  ['OVERALL', ...ATHLETICS_EVENTS],
 };
 
 // Maps a position category to substrings we match against athlete.position
@@ -68,15 +71,15 @@ export default function Rankings() {
         <div>
           <p className="text-xs text-gray-custom mb-2">Sport</p>
           <div className="flex gap-2 flex-wrap">
-            {['BASKETBALL', 'FOOTBALL', 'CRICKET'].map(s => (
+            {SPORTS.map(({ value }) => (
               <button
-                key={s}
-                onClick={() => { setSport(s); setCategory('OVERALL'); }}
+                key={value}
+                onClick={() => { setSport(value); setCategory('OVERALL'); }}
                 className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                  sport === s ? 'bg-primary text-dark font-semibold' : 'bg-dark text-gray-custom hover:text-white border border-dark-lighter'
+                  sport === value ? 'bg-primary text-dark font-semibold' : 'bg-dark text-gray-custom hover:text-white border border-dark-lighter'
                 }`}
               >
-                {SPORT_ICONS[s]} {s.charAt(0) + s.slice(1).toLowerCase()}
+                {SPORT_ICONS[value]} {SPORT_LABELS[value]}
               </button>
             ))}
           </div>
