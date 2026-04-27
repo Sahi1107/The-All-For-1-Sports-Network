@@ -30,6 +30,7 @@ const extractFiltersTool: Anthropic.Tool = {
           'WEIGHTLIFTING',
           'ARCHERY',
           'TENNIS',
+          'TABLE_TENNIS',
         ],
         description: 'Sport to filter by',
       },

@@ -308,6 +308,23 @@ function TennisBackdrop() {
   );
 }
 
+function TableTennisBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
+        <rect x="60" y="120" width="680" height="260" />
+        <line x1="400" y1="100" x2="400" y2="400" strokeWidth="3" />
+        <line x1="60" y1="250" x2="740" y2="250" strokeDasharray="6 4" />
+        <line x1="60" y1="120" x2="60" y2="100" />
+        <line x1="740" y1="120" x2="740" y2="100" />
+        <line x1="60" y1="380" x2="60" y2="400" />
+        <line x1="740" y1="380" x2="740" y2="400" />
+        <circle cx="640" cy="220" r="8" />
+      </g>
+    </svg>
+  );
+}
+
 const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   BASKETBALL: BasketballBackdrop,
   FOOTBALL: FootballBackdrop,
@@ -321,6 +338,7 @@ const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   WEIGHTLIFTING: WeightliftingBackdrop,
   ARCHERY: ArcheryBackdrop,
   TENNIS: TennisBackdrop,
+  TABLE_TENNIS: TableTennisBackdrop,
 };
 
 export default function Home() {

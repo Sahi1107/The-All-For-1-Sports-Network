@@ -391,6 +391,20 @@ function TennisCourtBackdrop() {
   );
 }
 
+function TableTennisTableBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <rect x="0" y="0" width="800" height="500" fill="rgba(20,40,80,0.55)" />
+      <rect x="60" y="120" width="680" height="260" fill="rgba(30,90,160,0.65)" stroke="rgba(255,255,255,0.9)" strokeWidth="2.5" />
+      <rect x="395" y="100" width="10" height="300" fill="rgba(20,30,60,0.85)" stroke="rgba(255,255,255,0.6)" strokeWidth="1" />
+      <line x1="395" y1="100" x2="405" y2="100" stroke="rgba(255,255,255,0.9)" strokeWidth="3" />
+      <line x1="395" y1="400" x2="405" y2="400" stroke="rgba(255,255,255,0.9)" strokeWidth="3" />
+      <line x1="60" y1="250" x2="740" y2="250" stroke="rgba(255,255,255,0.85)" strokeDasharray="6 4" strokeWidth="1.6" />
+      <circle cx="640" cy="210" r="10" fill="rgba(245,165,40,0.9)" stroke="rgba(255,255,255,0.7)" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export default function Profile() {
   const { id } = useParams<{ id: string }>();
   const { user: me } = useAuth();
@@ -585,6 +599,7 @@ export default function Profile() {
                 WEIGHTLIFTING: WeightliftingBarbellBackdrop,
                 ARCHERY: ArcheryTargetBackdrop,
                 TENNIS: TennisCourtBackdrop,
+                TABLE_TENNIS: TableTennisTableBackdrop,
               }[profile.sport as string]
             : undefined;
           return Backdrop ? <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-[0.22]"><Backdrop /></div> : null;

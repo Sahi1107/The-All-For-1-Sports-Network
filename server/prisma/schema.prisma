@@ -32,6 +32,7 @@ enum Sport {
   WEIGHTLIFTING
   ARCHERY
   TENNIS
+  TABLE_TENNIS
 }
 
 enum ConnectionStatus {
