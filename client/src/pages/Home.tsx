@@ -9,6 +9,7 @@ import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
 import PostDetailModal from '../components/PostDetailModal';
 import { SPORTS } from '../data/sports';
+import weightlifterSilhouetteUrl from '../assets/weightlifter-silhouette.svg';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -263,38 +264,12 @@ function ShootingBackdrop() {
 
 function WeightliftingBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-      <g fill="white" opacity="0.18">
-        {/* Lifter silhouette — front-rack hold */}
-        {/* Head */}
-        <ellipse cx="400" cy="125" rx="26" ry="30" />
-        {/* Neck */}
-        <rect x="389" y="153" width="22" height="14" />
-        {/* Torso (trapezoid: broad shoulders → narrow waist) */}
-        <path d="M 340 165 L 460 165 L 448 305 L 352 305 Z" />
-        {/* Hips */}
-        <rect x="352" y="303" width="96" height="34" rx="3" />
-        {/* Legs (slight stance) */}
-        <path d="M 358 335 L 397 335 L 392 470 L 358 470 Z" />
-        <path d="M 403 335 L 442 335 L 442 470 L 408 470 Z" />
-        {/* Left arm — chicken-wing: shoulder out and down to elbow, then up to hand on bar */}
-        <path d="M 348 168 L 312 215 L 296 213 L 332 165 Z" />
-        <path d="M 312 215 L 290 168 L 305 158 L 326 210 Z" />
-        {/* Right arm — mirrored */}
-        <path d="M 452 168 L 488 215 L 504 213 L 468 165 Z" />
-        <path d="M 488 215 L 510 168 L 495 158 L 474 210 Z" />
-        {/* Bar at hand level */}
-        <rect x="100" y="155" width="600" height="8" />
-        {/* Left plate stack */}
-        <ellipse cx="140" cy="159" rx="10" ry="50" />
-        <ellipse cx="120" cy="159" rx="13" ry="70" />
-        <ellipse cx="100" cy="159" rx="10" ry="50" />
-        {/* Right plate stack */}
-        <ellipse cx="660" cy="159" rx="10" ry="50" />
-        <ellipse cx="680" cy="159" rx="13" ry="70" />
-        <ellipse cx="700" cy="159" rx="10" ry="50" />
-      </g>
-    </svg>
+    <img
+      src={weightlifterSilhouetteUrl}
+      alt=""
+      className="w-full h-full object-contain opacity-[0.18]"
+      style={{ filter: 'brightness(0) invert(1)' }}
+    />
   );
 }
 
@@ -340,15 +315,33 @@ function TennisBackdrop() {
 function TableTennisBackdrop() {
   return (
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-      <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
-        <rect x="60" y="120" width="680" height="260" />
-        <line x1="400" y1="100" x2="400" y2="400" strokeWidth="3" />
-        <line x1="60" y1="250" x2="740" y2="250" strokeDasharray="6 4" />
-        <line x1="60" y1="120" x2="60" y2="100" />
-        <line x1="740" y1="120" x2="740" y2="100" />
-        <line x1="60" y1="380" x2="60" y2="400" />
-        <line x1="740" y1="380" x2="740" y2="400" />
-        <circle cx="640" cy="220" r="8" />
+      <g opacity="0.55">
+        {/* Table surface */}
+        <rect x="0" y="0" width="800" height="500" fill="#1d4ea3" />
+        {/* Mid-table seam (where the two halves of the folding table meet) */}
+        <rect x="397" y="0" width="6" height="500" fill="#0d2553" />
+        {/* Outer boundary */}
+        <rect x="40" y="40" width="720" height="420" fill="none" stroke="white" strokeWidth="3" />
+        {/* Lengthwise center stripe on each half */}
+        <line x1="40" y1="250" x2="395" y2="250" stroke="white" strokeWidth="3" />
+        <line x1="405" y1="250" x2="760" y2="250" stroke="white" strokeWidth="3" />
+
+        {/* Red paddle — bottom-left, head up-right, handle down-left */}
+        <g transform="rotate(30 200 350)">
+          <rect x="190" y="400" width="20" height="78" rx="6" fill="#8b5a2b" />
+          <rect x="194" y="395" width="12" height="10" rx="2" fill="#5c3a1a" />
+          <ellipse cx="200" cy="350" rx="58" ry="52" fill="#c8302c" stroke="rgba(0,0,0,0.4)" strokeWidth="2" />
+        </g>
+
+        {/* Black paddle — top-right, head down-left, handle up-right */}
+        <g transform="rotate(210 600 150)">
+          <rect x="590" y="200" width="20" height="78" rx="6" fill="#a06b3a" />
+          <rect x="594" y="195" width="12" height="10" rx="2" fill="#6b401a" />
+          <ellipse cx="600" cy="150" rx="58" ry="52" fill="#1a1a1a" stroke="rgba(0,0,0,0.55)" strokeWidth="2" />
+        </g>
+
+        {/* White ball — between the paddles */}
+        <circle cx="450" cy="225" r="11" fill="white" stroke="rgba(0,0,0,0.25)" strokeWidth="1" />
       </g>
     </svg>
   );
