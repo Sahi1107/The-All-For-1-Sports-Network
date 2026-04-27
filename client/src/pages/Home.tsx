@@ -193,12 +193,12 @@ function WrestlingBackdrop() {
   return (
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
-        <rect x="50" y="50" width="700" height="400" />
-        <circle cx="400" cy="250" r="195" />
-        <circle cx="400" cy="250" r="170" />
-        <circle cx="400" cy="250" r="140" strokeDasharray="6 5" />
-        <circle cx="400" cy="250" r="35" strokeWidth="2" />
-        <circle cx="400" cy="250" r="3" fill="white" stroke="none" />
+        <rect x="20" y="20" width="760" height="460" />
+        <circle cx="400" cy="250" r="225" />
+        <circle cx="400" cy="250" r="200" />
+        <circle cx="400" cy="250" r="165" strokeDasharray="6 5" />
+        <circle cx="400" cy="250" r="45" strokeWidth="2" />
+        <circle cx="400" cy="250" r="4" fill="white" stroke="none" />
       </g>
     </svg>
   );
@@ -208,15 +208,32 @@ function BoxingBackdrop() {
   return (
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
-        <rect x="50" y="50" width="700" height="400" />
-        <rect x="80" y="80" width="640" height="340" />
-        <rect x="100" y="100" width="600" height="300" />
-        <rect x="120" y="120" width="560" height="260" />
-        <circle cx="80" cy="80" r="6" />
-        <circle cx="720" cy="80" r="6" />
-        <circle cx="80" cy="420" r="6" />
-        <circle cx="720" cy="420" r="6" />
-        <circle cx="400" cy="250" r="4" fill="white" stroke="none" />
+        {/* Ring floor in perspective (trapezoid) */}
+        <path d="M 60 460 L 740 460 L 560 240 L 240 240 Z" />
+        {/* Front posts */}
+        <line x1="60" y1="460" x2="60" y2="200" strokeWidth="2.5" />
+        <line x1="740" y1="460" x2="740" y2="200" strokeWidth="2.5" />
+        {/* Back posts */}
+        <line x1="240" y1="240" x2="240" y2="135" strokeWidth="2" />
+        <line x1="560" y1="240" x2="560" y2="135" strokeWidth="2" />
+        {/* Back corner pads */}
+        <rect x="232" y="125" width="16" height="22" />
+        <rect x="552" y="125" width="16" height="22" />
+        {/* Side ropes — three rows fanning back into perspective */}
+        <line x1="60" y1="245" x2="240" y2="200" />
+        <line x1="60" y1="285" x2="240" y2="215" />
+        <line x1="60" y1="325" x2="240" y2="230" />
+        <line x1="740" y1="245" x2="560" y2="200" />
+        <line x1="740" y1="285" x2="560" y2="215" />
+        <line x1="740" y1="325" x2="560" y2="230" />
+        {/* Back ropes */}
+        <line x1="240" y1="200" x2="560" y2="200" />
+        <line x1="240" y1="215" x2="560" y2="215" />
+        <line x1="240" y1="230" x2="560" y2="230" />
+        {/* Center back pad */}
+        <rect x="378" y="178" width="44" height="52" />
+        <line x1="378" y1="195" x2="422" y2="195" />
+        <line x1="378" y1="212" x2="422" y2="212" />
       </g>
     </svg>
   );
@@ -247,23 +264,35 @@ function ShootingBackdrop() {
 function WeightliftingBackdrop() {
   return (
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-      <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
-        <rect x="60" y="380" width="680" height="40" />
-        <line x1="120" y1="240" x2="680" y2="240" strokeWidth="4" />
-        <line x1="120" y1="232" x2="200" y2="232" strokeWidth="6" />
-        <line x1="600" y1="232" x2="680" y2="232" strokeWidth="6" />
-        <circle cx="170" cy="240" r="100" strokeWidth="2.5" />
-        <circle cx="170" cy="240" r="80" />
-        <circle cx="170" cy="240" r="60" />
-        <circle cx="170" cy="240" r="38" />
-        <circle cx="170" cy="240" r="18" />
-        <circle cx="630" cy="240" r="100" strokeWidth="2.5" />
-        <circle cx="630" cy="240" r="80" />
-        <circle cx="630" cy="240" r="60" />
-        <circle cx="630" cy="240" r="38" />
-        <circle cx="630" cy="240" r="18" />
-        <line x1="200" y1="218" x2="200" y2="262" strokeWidth="3" />
-        <line x1="600" y1="218" x2="600" y2="262" strokeWidth="3" />
+      <g fill="white" opacity="0.18">
+        {/* Lifter silhouette — front-rack hold */}
+        {/* Head */}
+        <ellipse cx="400" cy="125" rx="26" ry="30" />
+        {/* Neck */}
+        <rect x="389" y="153" width="22" height="14" />
+        {/* Torso (trapezoid: broad shoulders → narrow waist) */}
+        <path d="M 340 165 L 460 165 L 448 305 L 352 305 Z" />
+        {/* Hips */}
+        <rect x="352" y="303" width="96" height="34" rx="3" />
+        {/* Legs (slight stance) */}
+        <path d="M 358 335 L 397 335 L 392 470 L 358 470 Z" />
+        <path d="M 403 335 L 442 335 L 442 470 L 408 470 Z" />
+        {/* Left arm — chicken-wing: shoulder out and down to elbow, then up to hand on bar */}
+        <path d="M 348 168 L 312 215 L 296 213 L 332 165 Z" />
+        <path d="M 312 215 L 290 168 L 305 158 L 326 210 Z" />
+        {/* Right arm — mirrored */}
+        <path d="M 452 168 L 488 215 L 504 213 L 468 165 Z" />
+        <path d="M 488 215 L 510 168 L 495 158 L 474 210 Z" />
+        {/* Bar at hand level */}
+        <rect x="100" y="155" width="600" height="8" />
+        {/* Left plate stack */}
+        <ellipse cx="140" cy="159" rx="10" ry="50" />
+        <ellipse cx="120" cy="159" rx="13" ry="70" />
+        <ellipse cx="100" cy="159" rx="10" ry="50" />
+        {/* Right plate stack */}
+        <ellipse cx="660" cy="159" rx="10" ry="50" />
+        <ellipse cx="680" cy="159" rx="13" ry="70" />
+        <ellipse cx="700" cy="159" rx="10" ry="50" />
       </g>
     </svg>
   );
