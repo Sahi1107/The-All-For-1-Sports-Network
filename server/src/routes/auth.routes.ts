@@ -3,7 +3,7 @@ import { z } from 'zod';
 import prisma from '../config/db';
 import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { reqStr, SportEnum, RoleEnum } from '../validation/common';
+import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum } from '../validation/common';
 import logger from '../utils/logger';
 import { signMediaDeep } from '../services/storage';
 
@@ -12,12 +12,13 @@ const router = Router();
 // ─── Body schema for new-user sync ────────────────────────────────────────────
 
 const SyncBody = z.object({
-  name:     reqStr(50, 'Name'),
-  role:     RoleEnum,
-  sport:    SportEnum,
-  age:      z.number().int().min(10).max(100).optional(),
-  location: z.string().max(200).optional(),
-  height:   z.string().max(20).optional(),
+  name:             reqStr(50, 'Name'),
+  role:             RoleEnum,
+  sport:            SportEnum,
+  athleticsEvents:  z.array(AthleticsEventEnum).max(21).optional(),
+  age:              z.number().int().min(10).max(100).optional(),
+  location:         z.string().max(200).optional(),
+  height:           z.string().max(20).optional(),
 });
 
 // ─── POST /api/auth/sync ───────────────────────────────────────────────────────
@@ -96,7 +97,7 @@ router.post('/sync', async (req: Request, res: Response) => {
       });
       return;
     }
-    const { name, role, sport, age, location, height } = parse.data;
+    const { name, role, sport, athleticsEvents, age, location, height } = parse.data;
 
     const user = await prisma.user.create({
       data: {
@@ -105,6 +106,7 @@ router.post('/sync', async (req: Request, res: Response) => {
         name,
         role,
         sport,
+        ...(sport === 'ATHLETICS' && athleticsEvents && athleticsEvents.length > 0 && { athleticsEvents }),
         ...(age      !== undefined && { age }),
         ...(location && { location }),
         ...(height   && { height }),
@@ -126,6 +128,7 @@ router.post('/sync', async (req: Request, res: Response) => {
 
 const meSelect = {
   id: true, email: true, name: true, role: true, sport: true,
+  athleticsEvents: true,
   avatar: true, bio: true, location: true, age: true, height: true,
   position: true, achievements: true, verified: true, phoneVerified: true,
   phone: true, createdAt: true,

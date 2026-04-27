@@ -161,7 +161,7 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
     const [
       totalUsers, athletes, coaches, scouts, agents, teamAccounts, verifiedUsers,
       highlights, teams, tournaments,
-      basketball, football, cricket,
+      bySportRows,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { role: 'ATHLETE' } }),
@@ -173,16 +173,23 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
       prisma.highlight.count(),
       prisma.team.count(),
       prisma.tournament.count(),
-      prisma.user.count({ where: { sport: 'BASKETBALL' } }),
-      prisma.user.count({ where: { sport: 'FOOTBALL' } }),
-      prisma.user.count({ where: { sport: 'CRICKET' } }),
+      prisma.user.groupBy({
+        by: ['sport'],
+        where: { sport: { not: null } },
+        _count: { _all: true },
+      }),
     ]);
+
+    const bySport: Record<string, number> = {};
+    for (const row of bySportRows) {
+      if (row.sport) bySport[row.sport] = row._count._all;
+    }
 
     res.json({
       stats: {
         totalUsers, athletes, coaches, scouts, agents, teamAccounts, verifiedUsers,
         highlights, teams, tournaments,
-        bySport: { BASKETBALL: basketball, FOOTBALL: football, CRICKET: cricket },
+        bySport,
       },
     });
   } catch (error) {

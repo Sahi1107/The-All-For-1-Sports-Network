@@ -9,6 +9,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import type { Sport } from '../data/sports';
 
 const baseURL = (import.meta.env.VITE_API_URL ?? '') + '/api';
 
@@ -17,7 +18,8 @@ interface User {
   email: string;
   name: string;
   role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'ADMIN';
-  sport: 'BASKETBALL' | 'FOOTBALL' | 'CRICKET';
+  sport: Sport;
+  athleticsEvents?: string[];
   avatar?: string;
   bio?: string;
   location?: string;
@@ -34,7 +36,8 @@ interface RegisterData {
   password: string;
   name: string;
   role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT';
-  sport: 'BASKETBALL' | 'FOOTBALL' | 'CRICKET';
+  sport: Sport;
+  athleticsEvents?: string[];
   age?: number;
   location?: string;
   height?: string;
@@ -99,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Register ─────────────────────────────────────────────────────────────
 
-  const register = async ({ email, password, name, role, sport, age, location, height }: RegisterData) => {
+  const register = async ({ email, password, name, role, sport, athleticsEvents, age, location, height }: RegisterData) => {
     // 1. Create Firebase Auth user
     const cred = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -108,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const rawToken = await cred.user.getIdToken();
     await authedPost(rawToken, '/auth/sync', {
       name, role, sport,
+      ...(athleticsEvents && athleticsEvents.length > 0 && { athleticsEvents }),
       ...(age !== undefined && { age }),
       ...(location && { location }),
       ...(height && { height }),

@@ -93,9 +93,49 @@ export const optUuid = z.string().uuid('Must be a valid ID').optional();
 
 // ─── Shared enums ─────────────────────────────────────────────────────────────
 
-export const SportEnum = z.enum(['BASKETBALL', 'FOOTBALL', 'CRICKET'], {
-  error: 'sport must be BASKETBALL, FOOTBALL, or CRICKET',
-});
+export const SportEnum = z.enum(
+  [
+    'BASKETBALL',
+    'FOOTBALL',
+    'CRICKET',
+    'FIELD_HOCKEY',
+    'BADMINTON',
+    'ATHLETICS',
+    'WRESTLING',
+    'BOXING',
+    'SHOOTING',
+    'WEIGHTLIFTING',
+    'ARCHERY',
+    'TENNIS',
+  ],
+  { error: 'sport must be a supported Sport value' },
+);
+
+export const ATHLETICS_EVENTS = [
+  '100m',
+  '200m',
+  '400m',
+  '800m',
+  '1500m',
+  '3000m Steeplechase',
+  '5000m',
+  '10000m',
+  '100m Hurdles',
+  '110m Hurdles',
+  '400m Hurdles',
+  '4x100m Relay',
+  '4x400m Relay',
+  'High Jump',
+  'Pole Vault',
+  'Long Jump',
+  'Triple Jump',
+  'Shot Put',
+  'Discus Throw',
+  'Hammer Throw',
+  'Javelin Throw',
+] as const;
+
+export const AthleticsEventEnum = z.enum(ATHLETICS_EVENTS);
 
 export const RoleEnum = z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'AGENT'], {
   error: 'role must be ATHLETE, COACH, SCOUT, TEAM, or AGENT',

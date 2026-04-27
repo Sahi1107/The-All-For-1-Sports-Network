@@ -23,6 +23,15 @@ enum Sport {
   BASKETBALL
   FOOTBALL
   CRICKET
+  FIELD_HOCKEY
+  BADMINTON
+  ATHLETICS
+  WRESTLING
+  BOXING
+  SHOOTING
+  WEIGHTLIFTING
+  ARCHERY
+  TENNIS
 }
 
 enum ConnectionStatus {
@@ -89,6 +98,7 @@ model User {
   name                   String
   role                   Role
   sport                  Sport?
+  athleticsEvents        String[]  @map("athletics_events")
   avatar                 String?
   bio                    String?
   location               String?

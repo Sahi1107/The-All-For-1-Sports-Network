@@ -17,7 +17,20 @@ const extractFiltersTool: Anthropic.Tool = {
     properties: {
       sport: {
         type: 'string',
-        enum: ['BASKETBALL', 'FOOTBALL', 'CRICKET'],
+        enum: [
+          'BASKETBALL',
+          'FOOTBALL',
+          'CRICKET',
+          'FIELD_HOCKEY',
+          'BADMINTON',
+          'ATHLETICS',
+          'WRESTLING',
+          'BOXING',
+          'SHOOTING',
+          'WEIGHTLIFTING',
+          'ARCHERY',
+          'TENNIS',
+        ],
         description: 'Sport to filter by',
       },
       role: {

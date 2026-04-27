@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import logoUrl from '../assets/logo.svg';
 import { Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
+import { SPORTS, ATHLETICS_EVENT_GROUPS, type Sport } from '../data/sports';
 
 const ROLES = [
   { value: 'ATHLETE', label: 'Athlete',                 desc: 'Showcase your skills & compete' },
@@ -12,12 +13,6 @@ const ROLES = [
   { value: 'SCOUT',   label: 'Scout',                   desc: 'Find the next big star' },
   { value: 'TEAM',    label: 'Team / Academy',          desc: 'Represent your club or academy' },
   { value: 'AGENT',   label: 'Agent / Talent Manager',  desc: 'Represent and manage athletes' },
-] as const;
-
-const SPORTS = [
-  { value: 'BASKETBALL', label: 'Basketball', emoji: '\u{1F3C0}' },
-  { value: 'FOOTBALL',   label: 'Football',   emoji: '\u{26BD}' },
-  { value: 'CRICKET',    label: 'Cricket',    emoji: '\u{1F3CF}' },
 ] as const;
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -123,7 +118,8 @@ export default function Register() {
   const [form, setForm] = useState({
     name: '', email: '', password: '',
     role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | '',
-    sport: '' as 'BASKETBALL' | 'FOOTBALL' | 'CRICKET' | '',
+    sport: '' as Sport | '',
+    athleticsEvents: [] as string[],
     country: '',
     state: '',
     city: '',
@@ -133,6 +129,8 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
 
   const isTeam = form.role === 'TEAM';
+  const [athleticsSubStep, setAthleticsSubStep] = useState(false);
+  const requiresAthleticsEvents = form.sport === 'ATHLETICS';
 
   const states = form.country ? getStates(form.country) : [];
   const location = form.country
@@ -160,6 +158,7 @@ export default function Register() {
       await register({
         name: form.name, email: form.email, password: form.password,
         role: form.role, sport: form.sport,
+        ...(requiresAthleticsEvents && { athleticsEvents: form.athleticsEvents }),
         ...(age !== undefined && { age }),
         location: location || undefined,
         height: isTeam ? undefined : (form.height || undefined),
@@ -317,13 +316,21 @@ export default function Register() {
           )}
 
           {/* Step 4: Sport */}
-          {step === 4 && (
+          {step === 4 && !athleticsSubStep && (
             <div>
               <h2 className="text-xl font-semibold mb-4">{isTeam ? 'Primary sport' : 'My sport'}</h2>
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
                 {SPORTS.map(({ value, label, emoji }) => (
                   <button key={value} type="button"
-                    onClick={() => { setForm({ ...form, sport: value }); setStep(5); }}
+                    onClick={() => {
+                      const next = { ...form, sport: value, athleticsEvents: [] as string[] };
+                      setForm(next);
+                      if (value === 'ATHLETICS') {
+                        setAthleticsSubStep(true);
+                      } else {
+                        setStep(5);
+                      }
+                    }}
                     className={`w-full p-4 rounded-lg border text-left transition-colors flex items-center gap-3 ${
                       form.sport === value ? 'border-primary bg-primary/10' : 'border-dark-lighter hover:border-gray-custom'
                     }`}>
@@ -334,6 +341,51 @@ export default function Register() {
               </div>
               <button type="button" onClick={() => setStep(isTeam ? 2 : 3)}
                 className="w-full mt-4 py-2 text-gray-custom hover:text-white transition-colors">Back</button>
+            </div>
+          )}
+
+          {/* Step 4b: Athletics events (athletes only) */}
+          {step === 4 && athleticsSubStep && (
+            <div>
+              <h2 className="text-xl font-semibold mb-1">My events</h2>
+              <p className="text-sm text-gray-custom mb-4">Select one or more events you compete in.</p>
+              <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+                {ATHLETICS_EVENT_GROUPS.map(({ label, events }) => (
+                  <div key={label}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-custom mb-2">{label}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {events.map((event) => {
+                        const selected = form.athleticsEvents.includes(event);
+                        return (
+                          <button key={event} type="button"
+                            onClick={() => {
+                              setForm({
+                                ...form,
+                                athleticsEvents: selected
+                                  ? form.athleticsEvents.filter((e) => e !== event)
+                                  : [...form.athleticsEvents, event],
+                              });
+                            }}
+                            className={`px-3 py-2 rounded-lg border text-sm text-left transition-colors ${
+                              selected ? 'border-primary bg-primary/10 text-white' : 'border-dark-lighter text-gray-custom hover:border-gray-custom'
+                            }`}>
+                            {event}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button type="button"
+                onClick={() => { if (form.athleticsEvents.length > 0) { setAthleticsSubStep(false); setStep(5); } }}
+                disabled={form.athleticsEvents.length === 0}
+                className="w-full mt-4 py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50">
+                Continue
+              </button>
+              <button type="button"
+                onClick={() => { setAthleticsSubStep(false); setForm({ ...form, sport: '', athleticsEvents: [] }); }}
+                className="w-full py-2 text-gray-custom hover:text-white transition-colors">Back</button>
             </div>
           )}
 
