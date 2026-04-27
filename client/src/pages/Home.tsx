@@ -317,9 +317,9 @@ function TableTennisBackdrop() {
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
       <g opacity="0.55">
         {/* Table surface */}
-        <rect x="0" y="0" width="800" height="500" fill="#1d4ea3" />
+        <rect x="0" y="0" width="800" height="500" fill="#0a0a0a" />
         {/* Mid-table seam (where the two halves of the folding table meet) */}
-        <rect x="397" y="0" width="6" height="500" fill="#0d2553" />
+        <rect x="397" y="0" width="6" height="500" fill="#1f1f1f" />
         {/* Outer boundary */}
         <rect x="40" y="40" width="720" height="420" fill="none" stroke="white" strokeWidth="3" />
         {/* Lengthwise center stripe on each half */}
