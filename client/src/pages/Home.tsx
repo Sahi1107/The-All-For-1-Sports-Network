@@ -1,13 +1,14 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, MapPin, Clock } from 'lucide-react';
+import { Eye, MapPin, Clock, X } from 'lucide-react';
 import api from '../api/client';
 import { useEffect, useRef, useState } from 'react';
 import React from 'react';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
 import PostDetailModal from '../components/PostDetailModal';
+import { SPORTS } from '../data/sports';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -362,7 +363,18 @@ export default function Home() {
     return () => observer.disconnect();
   }, [fetchNextPage, hasNextPage, isFetchingNextPage, feedItems.length]);
 
-  const Backdrop = user?.role !== 'ADMIN' ? SPORT_BACKDROP[user?.sport ?? ''] : undefined;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const previewSportParam = searchParams.get('previewSport');
+  const previewSport =
+    user?.role === 'ADMIN' && previewSportParam && SPORT_BACKDROP[previewSportParam]
+      ? previewSportParam
+      : null;
+  const previewLabel = previewSport
+    ? SPORTS.find((s) => s.value === previewSport)?.label ?? previewSport
+    : null;
+
+  const effectiveSport = previewSport ?? (user?.role !== 'ADMIN' ? user?.sport ?? '' : '');
+  const Backdrop = SPORT_BACKDROP[effectiveSport];
 
   return (
     <div className="-mx-4 -my-4 md:-mx-6 md:-my-6">
@@ -373,6 +385,25 @@ export default function Home() {
       )}
 
       <div className="relative z-10">
+        {previewSport && (
+          <div className="mb-4 flex items-center justify-between gap-3 bg-purple-500/10 border border-purple-400/30 rounded-xl px-4 py-3 text-sm">
+            <span className="text-white/80">
+              <span className="text-purple-300 font-semibold">Admin preview</span> — viewing the feed as a{' '}
+              <span className="text-white font-medium">{previewLabel}</span> athlete.
+            </span>
+            <button
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('previewSport');
+                setSearchParams(next, { replace: true });
+              }}
+              className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs text-purple-200 hover:text-white border border-purple-400/30 hover:border-purple-300 rounded-lg transition-colors"
+            >
+              <X size={13} /> Exit preview
+            </button>
+          </div>
+        )}
+
         {/* Prompt for users who haven't set their location yet */}
         {!isLoading && user && !user.location && (
           <div className="mb-4 flex items-center justify-between gap-3 bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 text-sm">

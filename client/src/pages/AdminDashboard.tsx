@@ -1,16 +1,16 @@
 import { useState, useRef } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { SPORTS } from '../data/sports';
 
-type Tab = 'users' | 'stats' | 'create-admin' | 'tournaments';
+type Tab = 'users' | 'stats' | 'create-admin' | 'tournaments' | 'feed-preview';
 
 const AGE_CATEGORIES = ['U12', 'U14', 'U16', 'U18', 'U19', 'U21', 'U23', 'OPEN', 'MASTERS'];
 const GENDER_CATEGORIES = ['MEN', 'WOMEN', 'MIXED', 'OPEN'];
-const SPORTS = ['BASKETBALL', 'FOOTBALL', 'CRICKET'];
 
 interface TournamentForm {
   name: string;
@@ -211,6 +211,7 @@ export default function AdminDashboard() {
           ['users',        'Users',         Users],
           ['stats',        'Platform Stats', BarChart3],
           ['tournaments',  'Tournaments',    Trophy],
+          ['feed-preview', 'Feed Preview',   Eye],
           ['create-admin', 'Create Admin',   UserPlus],
         ] as const).map(([t, label, Icon]) => (
           <button
@@ -522,7 +523,7 @@ export default function AdminDashboard() {
                     onChange={(e) => setTournamentForm((f) => ({ ...f, sport: e.target.value }))}
                     className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
                   >
-                    {SPORTS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {SPORTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </div>
               </div>
@@ -724,6 +725,31 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Feed Preview Tab ──────────────────────────────────────── */}
+      {tab === 'feed-preview' && (
+        <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+          <h2 className="font-semibold mb-1 flex items-center gap-2">
+            <Eye size={16} className="text-primary-light" />
+            Feed Preview by Sport
+          </h2>
+          <p className="text-sm text-gray-custom mb-5">
+            Pick a sport to view the home feed with its sport-specific backdrop. Returns to your normal feed when you exit preview.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {SPORTS.map(({ value, label, emoji }) => (
+              <Link
+                key={value}
+                to={`/?previewSport=${value}`}
+                className="flex items-center gap-3 p-4 rounded-lg border border-dark-lighter hover:border-primary hover:bg-primary/5 transition-colors"
+              >
+                <span className="text-2xl">{emoji}</span>
+                <span className="font-medium text-sm">{label}</span>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 
