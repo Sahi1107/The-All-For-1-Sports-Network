@@ -4,12 +4,14 @@ import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
 import { Trophy, MapPin, Calendar, Users, ChevronRight, X } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { SPORTS } from '../data/sports'
 
-const SPORT_ICONS: Record<string, string> = {
-  BASKETBALL: '🏀',
-  FOOTBALL: '⚽',
-  CRICKET: '🏏',
-}
+const SPORT_ICONS: Record<string, string> = Object.fromEntries(
+  SPORTS.map(({ value, emoji }) => [value, emoji]),
+)
+const SPORT_LABELS: Record<string, string> = Object.fromEntries(
+  SPORTS.map(({ value, label }) => [value, label]),
+)
 
 const STATUS_COLORS: Record<string, string> = {
   UPCOMING: 'bg-blue-500/20 text-blue-400',
@@ -75,7 +77,7 @@ export default function Tournaments() {
 
       {/* Sport Filter */}
       <div className="flex gap-2 mb-5 flex-wrap">
-        {['', 'BASKETBALL', 'FOOTBALL', 'CRICKET'].map((s) => (
+        {['', ...SPORTS.map((s) => s.value)].map((s) => (
           <button
             key={s}
             onClick={() => setSportFilter(s)}
@@ -83,7 +85,7 @@ export default function Tournaments() {
               sportFilter === s ? 'bg-primary text-dark font-semibold' : 'bg-dark-light text-gray-custom hover:text-white border border-dark-lighter'
             }`}
           >
-            {s ? `${SPORT_ICONS[s]} ${s}` : 'All Sports'}
+            {s ? `${SPORT_ICONS[s]} ${SPORT_LABELS[s]}` : 'All Sports'}
           </button>
         ))}
       </div>
@@ -108,7 +110,7 @@ export default function Tournaments() {
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold leading-tight">{t.name}</h3>
-                  <span className="text-xs text-gray-custom">{SPORT_ICONS[t.sport]} {t.sport}</span>
+                  <span className="text-xs text-gray-custom">{SPORT_ICONS[t.sport]} {SPORT_LABELS[t.sport] ?? t.sport}</span>
                 </div>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[t.status] ?? ''}`}>
                   {t.status}
@@ -142,7 +144,7 @@ export default function Tournaments() {
               {/* Meta */}
               <div className="flex flex-wrap gap-4 text-sm text-gray-custom">
                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[selected.status] ?? ''}`}>{selected.status}</span>
-                <span className="flex items-center gap-1">{SPORT_ICONS[selected.sport]} {selected.sport}</span>
+                <span className="flex items-center gap-1">{SPORT_ICONS[selected.sport]} {SPORT_LABELS[selected.sport] ?? selected.sport}</span>
                 {(selected.city || selected.venue) && <span className="flex items-center gap-1"><MapPin size={13} />{selected.city || selected.venue}</span>}
                 {selected.startDate && <span className="flex items-center gap-1"><Calendar size={13} />{formatDate(selected.startDate)}</span>}
               </div>
