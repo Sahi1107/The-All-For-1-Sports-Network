@@ -5,6 +5,7 @@ import { Heart, MessageCircle, Repeat2, Bookmark, Send, Trash2, CornerUpRight, C
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import SharePostModal from './SharePostModal';
+import LikesModal from './LikesModal';
 
 interface Props {
   post: any;
@@ -139,6 +140,7 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
   const [loadingComments, setLoadingComments] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showLikes, setShowLikes] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
 
   // Optimistic like state seeded from feed/profile data
@@ -279,13 +281,24 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
       <div>
         {/* Action bar */}
         <div className="flex items-center gap-5 px-4 pb-3 pt-1">
-          <button
-            onClick={() => likeMutation.mutate()}
-            className={`flex items-center gap-1.5 text-sm transition-colors ${liked ? 'text-red-400' : 'text-white/40 hover:text-white/70'}`}
-          >
-            <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
-            {likeCount > 0 && <span>{likeCount}</span>}
-          </button>
+          <div className={`flex items-center gap-1.5 text-sm ${liked ? 'text-red-400' : 'text-white/40'}`}>
+            <button
+              onClick={() => likeMutation.mutate()}
+              className={`transition-colors ${liked ? '' : 'hover:text-white/70'}`}
+              aria-label={liked ? 'Unlike post' : 'Like post'}
+            >
+              <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
+            </button>
+            {likeCount > 0 && (
+              <button
+                onClick={() => setShowLikes(true)}
+                className="hover:underline transition-colors"
+                aria-label="See who liked this post"
+              >
+                {likeCount}
+              </button>
+            )}
+          </div>
           {!commentsDisabled && (
             <button
               onClick={toggleComments}
@@ -394,6 +407,7 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
       </div>
 
       {showShare && <SharePostModal postId={post.id} onClose={() => setShowShare(false)} />}
+      {showLikes && <LikesModal postId={post.id} onClose={() => setShowLikes(false)} />}
     </>
   );
 }

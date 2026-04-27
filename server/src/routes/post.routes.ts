@@ -203,6 +203,27 @@ router.get('/user/:userId/reposts', authenticate, async (req: AuthRequest, res: 
   }
 });
 
+// GET /api/posts/:id/likes  — list users who liked this post
+router.get('/:id/likes', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const postId = req.params.id as string;
+    const likes = await prisma.postLike.findMany({
+      where: { postId },
+      select: {
+        user: {
+          select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const users = likes.map((l) => l.user);
+    await signMediaDeepAll(users);
+    res.json({ users });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/posts/:id/like  — toggle like
 router.post('/:id/like', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
