@@ -69,7 +69,7 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
               {post.user?.role !== 'ADMIN' && post.sport && (
                 <>
                   <span>·</span>
-                  <span className="capitalize">{post.sport?.toLowerCase()}</span>
+                  <span className="capitalize">{post.sport?.toLowerCase().replace(/_/g, ' ')}</span>
                 </>
               )}
               {post.user?.position && post.user?.role !== 'ADMIN' && (

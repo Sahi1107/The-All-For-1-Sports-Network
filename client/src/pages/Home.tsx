@@ -545,7 +545,7 @@ export default function Home() {
                         {item.user?.role !== 'ADMIN' && (
                           <>
                             <span>·</span>
-                            <span className="capitalize">{item.sport?.toLowerCase()}</span>
+                            <span className="capitalize">{item.sport?.toLowerCase().replace(/_/g, ' ')}</span>
                           </>
                         )}
                         {item.user?.position && item.user?.role !== 'ADMIN' && (

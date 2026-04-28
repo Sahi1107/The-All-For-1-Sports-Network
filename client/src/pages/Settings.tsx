@@ -372,7 +372,7 @@ export default function Settings() {
           {user?.role !== 'ADMIN' && (
             <div className="bg-dark rounded-lg p-3">
               <p className="text-gray-custom text-xs mb-1">Sport</p>
-              <p className="font-medium capitalize">{user?.sport?.toLowerCase()}</p>
+              <p className="font-medium capitalize">{user?.sport?.toLowerCase().replace(/_/g, ' ')}</p>
             </div>
           )}
         </div>
@@ -514,7 +514,7 @@ export default function Settings() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{u.name}</p>
-                  <p className="text-xs text-gray-custom capitalize">{u.role?.toLowerCase()} · {u.sport?.toLowerCase()}</p>
+                  <p className="text-xs text-gray-custom capitalize">{u.role?.toLowerCase()} · {u.sport?.toLowerCase().replace(/_/g, ' ')}</p>
                 </div>
                 <button
                   onClick={() => unblock(u.id)}

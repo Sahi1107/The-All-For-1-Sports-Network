@@ -225,7 +225,7 @@ export default function MainLayout() {
               </span>
               <div className="min-w-0">
                 <p className="font-medium truncate">{user?.name}</p>
-                <p className="text-xs text-gray-custom capitalize">{user?.role?.toLowerCase()} · {user?.sport?.toLowerCase()}</p>
+                <p className="text-xs text-gray-custom capitalize">{user?.role?.toLowerCase()} · {user?.sport?.toLowerCase().replace(/_/g, ' ')}</p>
               </div>
             </Link>
 

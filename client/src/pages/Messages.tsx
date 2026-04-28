@@ -115,7 +115,7 @@ function SharedPostCard({ post }: { post: any }) {
 
 function SharedProfileCard({ profile }: { profile: any }) {
   if (!profile) return null;
-  const meta = [profile.role?.toLowerCase(), profile.sport?.toLowerCase(), profile.position]
+  const meta = [profile.role?.toLowerCase(), profile.sport?.toLowerCase().replace(/_/g, ' '), profile.position]
     .filter(Boolean)
     .join(' · ');
   return (
