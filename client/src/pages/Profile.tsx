@@ -391,6 +391,56 @@ function TennisCourtBackdrop() {
   );
 }
 
+function RugbyPitchBackdrop() {
+  return (
+    <svg viewBox="0 0 800 300" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      {/* Grass base */}
+      <rect x="0" y="0" width="800" height="300" fill="rgba(38,115,52,0.55)" />
+      {/* In-goal areas (slightly darker) */}
+      <rect x="20" y="15" width="100" height="270" fill="rgba(28,90,42,0.55)" stroke="none" />
+      <rect x="680" y="15" width="100" height="270" fill="rgba(28,90,42,0.55)" stroke="none" />
+      {/* Mowing stripes */}
+      {Array.from({ length: 10 }).map((_, i) =>
+        i % 2 === 0 ? (
+          <rect key={i} x="20" y={15 + i * 27} width="760" height="27" fill="rgba(255,255,255,0.05)" />
+        ) : null
+      )}
+      <g stroke="rgba(255,255,255,0.85)" fill="none" strokeWidth="2.2">
+        {/* Touchlines + dead-ball lines */}
+        <rect x="20" y="15" width="760" height="270" />
+        {/* Try lines */}
+        <line x1="120" y1="15" x2="120" y2="285" strokeWidth="2.5" />
+        <line x1="680" y1="15" x2="680" y2="285" strokeWidth="2.5" />
+        {/* Halfway line */}
+        <line x1="400" y1="15" x2="400" y2="285" strokeWidth="2" />
+        {/* 22m lines */}
+        <line x1="218" y1="15" x2="218" y2="285" strokeWidth="2" />
+        <line x1="582" y1="15" x2="582" y2="285" strokeWidth="2" />
+        {/* 10m lines */}
+        <line x1="309" y1="15" x2="309" y2="285" strokeDasharray="6 5" strokeWidth="1.6" />
+        <line x1="491" y1="15" x2="491" y2="285" strokeDasharray="6 5" strokeWidth="1.6" />
+        {/* 5m lines from try lines */}
+        <line x1="155" y1="15" x2="155" y2="285" strokeDasharray="4 4" strokeWidth="1.4" />
+        <line x1="645" y1="15" x2="645" y2="285" strokeDasharray="4 4" strokeWidth="1.4" />
+        {/* 5m lines from touchlines */}
+        <line x1="20"  y1="40"  x2="780" y2="40"  strokeDasharray="4 4" strokeWidth="1.4" />
+        <line x1="20"  y1="260" x2="780" y2="260" strokeDasharray="4 4" strokeWidth="1.4" />
+        {/* Goal posts (H) on try lines */}
+        <g strokeWidth="2.5">
+          <line x1="113" y1="135" x2="113" y2="165" />
+          <line x1="127" y1="135" x2="127" y2="165" />
+          <line x1="113" y1="150" x2="127" y2="150" />
+          <line x1="673" y1="135" x2="673" y2="165" />
+          <line x1="687" y1="135" x2="687" y2="165" />
+          <line x1="673" y1="150" x2="687" y2="150" />
+        </g>
+        {/* Centre spot */}
+        <circle cx="400" cy="150" r="3" fill="rgba(255,255,255,0.95)" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
 function TableTennisTableBackdrop() {
   return (
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
@@ -600,6 +650,7 @@ export default function Profile() {
                 ARCHERY: ArcheryTargetBackdrop,
                 TENNIS: TennisCourtBackdrop,
                 TABLE_TENNIS: TableTennisTableBackdrop,
+                RUGBY: RugbyPitchBackdrop,
               }[profile.sport as string]
             : undefined;
           return Backdrop ? <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-[0.22]"><Backdrop /></div> : null;

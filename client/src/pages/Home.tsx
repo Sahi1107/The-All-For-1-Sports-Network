@@ -312,6 +312,48 @@ function TennisBackdrop() {
   );
 }
 
+function RugbyBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        {/* Touchlines + dead-ball lines */}
+        <rect x="30" y="30" width="740" height="440" />
+        {/* Try lines */}
+        <line x1="130" y1="30" x2="130" y2="470" strokeWidth="2.2" />
+        <line x1="670" y1="30" x2="670" y2="470" strokeWidth="2.2" />
+        {/* Halfway line */}
+        <line x1="400" y1="30" x2="400" y2="470" />
+        {/* 22m lines */}
+        <line x1="225" y1="30" x2="225" y2="470" />
+        <line x1="575" y1="30" x2="575" y2="470" />
+        {/* 10m lines */}
+        <line x1="312" y1="30" x2="312" y2="470" strokeDasharray="6 5" />
+        <line x1="488" y1="30" x2="488" y2="470" strokeDasharray="6 5" />
+        {/* 5m lines from try lines */}
+        <line x1="165" y1="30" x2="165" y2="470" strokeDasharray="4 4" strokeWidth="1.2" />
+        <line x1="635" y1="30" x2="635" y2="470" strokeDasharray="4 4" strokeWidth="1.2" />
+        {/* 5m lines from touchlines */}
+        <line x1="30"  y1="65"  x2="770" y2="65"  strokeDasharray="4 4" strokeWidth="1.2" />
+        <line x1="30"  y1="435" x2="770" y2="435" strokeDasharray="4 4" strokeWidth="1.2" />
+        {/* 15m lines from touchlines */}
+        <line x1="30"  y1="125" x2="770" y2="125" strokeDasharray="3 6" strokeWidth="1" />
+        <line x1="30"  y1="375" x2="770" y2="375" strokeDasharray="3 6" strokeWidth="1" />
+        {/* Goal posts (H) on try lines */}
+        <g strokeWidth="2">
+          <line x1="124" y1="232" x2="124" y2="268" />
+          <line x1="136" y1="232" x2="136" y2="268" />
+          <line x1="124" y1="250" x2="136" y2="250" />
+          <line x1="664" y1="232" x2="664" y2="268" />
+          <line x1="676" y1="232" x2="676" y2="268" />
+          <line x1="664" y1="250" x2="676" y2="250" />
+        </g>
+        {/* Centre spot */}
+        <circle cx="400" cy="250" r="3" fill="white" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
 function TableTennisBackdrop() {
   return (
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
@@ -361,6 +403,7 @@ const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   ARCHERY: ArcheryBackdrop,
   TENNIS: TennisBackdrop,
   TABLE_TENNIS: TableTennisBackdrop,
+  RUGBY: RugbyBackdrop,
 };
 
 export default function Home() {

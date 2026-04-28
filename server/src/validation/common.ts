@@ -108,6 +108,7 @@ export const SportEnum = z.enum(
     'ARCHERY',
     'TENNIS',
     'TABLE_TENNIS',
+    'RUGBY',
   ],
   { error: 'sport must be a supported Sport value' },
 );
