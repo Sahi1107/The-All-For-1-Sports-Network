@@ -2,7 +2,9 @@
 
 A professional social network for athletes, coaches, and scouts. Users sign up with a role and sport, build networks, share highlight videos, form teams, register for tournaments, and view rankings. The platform is fully cross-platform with a responsive Web application and native iOS & Android applications.
 
-**Initial sports:** Basketball, Football, Cricket
+**Sports supported (13):**
+- *Head-to-head (team or 1v1):* Basketball, Football, Cricket, Field Hockey, Badminton, Tennis, Table Tennis, Wrestling, Boxing
+- *Individual scoring:* Athletics, Weightlifting, Shooting, Archery
 
 ---
 
@@ -67,7 +69,7 @@ The_AllFor1_Network/
 
 ### Enums
 - **Role:** ATHLETE, COACH, SCOUT, ADMIN
-- **Sport:** BASKETBALL, FOOTBALL, CRICKET
+- **Sport:** BASKETBALL, FOOTBALL, CRICKET, FIELD_HOCKEY, BADMINTON, ATHLETICS, WRESTLING, BOXING, SHOOTING, WEIGHTLIFTING, ARCHERY, TENNIS, TABLE_TENNIS
 - **ConnectionStatus:** PENDING, ACCEPTED, REJECTED
 - **TournamentStatus:** UPCOMING, REGISTRATION_OPEN, REGISTRATION_CLOSED, IN_PROGRESS, COMPLETED, CANCELLED
 - **MatchStatus:** SCHEDULED, LIVE, COMPLETED
@@ -88,10 +90,14 @@ The_AllFor1_Network/
 | Tournament           | Tournaments created by admins (city field)                                  |
 | TournamentTeam       | Team registrations for tournaments                                          |
 | TournamentTeamMember | Individual players in tournament team entries                               |
-| Match                | Matches within tournaments (home vs away scores, round, status)             |
+| Match                | Matches within tournaments. Home/away teams are optional — individual-sport events (athletics, weightlifting, shooting, archery) leave them null and record results in the per-sport stats tables. |
 | BasketballStats      | Per-match basketball stats (points, rebounds, assists, steals, blocks, etc.)|
 | FootballStats        | Per-match football stats (goals, assists, tackles, saves, etc.)             |
 | CricketStats         | Per-match cricket stats (runs, wickets, strike rate, economy, etc.)         |
+| WeightliftingStats   | Per-event weightlifting result (weight class, snatch, clean & jerk, total, rank) |
+| AthleticsStats       | Per-event athletics result (event from `ATHLETICS_EVENTS`, result in seconds or metres, wind, rank, notes) |
+| ShootingStats        | Per-event shooting result (event/discipline, score, inner-tens tiebreaker, rank) |
+| ArcheryStats         | Per-event archery result (distance, score, tens, X-count tiebreaker, rank)  |
 | PlayerRanking        | Tournament-specific player rankings (sport, rank, score, category)          |
 | Announcement         | Coach/scout/admin announcements (trial, training, general) — sport optional |
 | Notification         | User notifications with type and read status                                |
@@ -110,7 +116,7 @@ The_AllFor1_Network/
 - **Highlights** (`/api/highlights`): Upload video highlights via Cloudinary, view across tournaments, filter by player.
 - **Teams** (`/api/teams`): Create, manage, join, and view the roster for your sports teams.
 - **Tournaments** (`/api/tournaments`): Admin-controlled tournament brackets, team registration, and tracking match results + player stats. 
-- **Rankings** (`/api/rankings`): Weighted score calculation algorithms based on accumulated Per-Match stats for Basketball, Football, and Cricket.
+- **Rankings** (`/api/rankings`): Weighted score calculation algorithms based on accumulated per-match stats. Schema-ready for all seven sports with stats tables (Basketball, Football, Cricket, Weightlifting, Athletics, Shooting, Archery); ranking-rule wiring for the four individual sports is part of the in-progress AI-Enhanced Rankings work.
 - **Announcements** (`/api/announcements`): Dedicated broadcast feed for Coach/Scout/Admins types.
 - **Notifications** (`/api/notifications`): Real-time user statuses managed via Socket.io.
 - **Messages** (`/api/messages`): Direct messaging utilizing Socket.io rooms.
