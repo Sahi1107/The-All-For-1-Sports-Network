@@ -267,7 +267,7 @@ function WeightliftingBackdrop() {
     <img
       src={weightlifterSilhouetteUrl}
       alt=""
-      className="w-full h-full object-contain opacity-[0.18]"
+      className="w-full h-full object-contain opacity-[0.18] scale-[1.15]"
       style={{ filter: 'brightness(0) invert(1)' }}
     />
   );
