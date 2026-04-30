@@ -742,7 +742,7 @@ export default function AdminDashboard() {
             {SPORTS.map(({ value, label, emoji }) => (
               <Link
                 key={value}
-                to={`/?previewSport=${value}`}
+                to={`/home?previewSport=${value}`}
                 className="flex items-center gap-3 p-4 rounded-lg border border-dark-lighter hover:border-primary hover:bg-primary/5 transition-colors"
               >
                 <span className="text-2xl">{emoji}</span>
