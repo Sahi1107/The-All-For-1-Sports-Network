@@ -689,11 +689,12 @@
 .l-team__grid {
   position: relative;
   z-index: 2;
-  max-width: 1200px;
+  max-width: 760px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 340px));
   gap: 40px;
+  justify-content: center;
   justify-items: center;
 }
 .l-team__card {
@@ -919,6 +920,95 @@
   gap: 12px;
   font-size: 0.85rem;
   color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── Hero parallax wrappers (mouse + scroll) ─────────────────────────── */
+.l-hero__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transform: translate3d(0, var(--sy, 0px), 0);
+  opacity: var(--so, 1);
+  will-change: transform, opacity;
+}
+.l-hero__orbs {
+  transform: translate3d(var(--mx, 0px), var(--my, 0px), 0);
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+
+/* ── Magnetic CTA — animated lime glow halo on hover ─────────────────── */
+.l-btn--magnetic { position: relative; isolation: isolate; }
+.l-btn--magnetic::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #d7ff5a, #b8d940, #d7ff5a, #b8d940, #d7ff5a);
+  background-size: 300% 100%;
+  z-index: -1;
+  filter: blur(16px);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.l-btn--magnetic:hover::after {
+  opacity: 0.9;
+  animation: magneticGlow 2.4s linear infinite;
+}
+@keyframes magneticGlow {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
+/* ── About video ─────────────────────────────────────────────────────── */
+.l-about__video {
+  position: relative;
+  margin: 56px auto 0;
+  max-width: 760px;
+  width: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  isolation: isolate;
+  box-shadow:
+    0 50px 100px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+.l-about__video video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+.l-about__video-glow {
+  position: absolute;
+  inset: -25%;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 50%, rgba(215, 255, 90, 0.28), transparent 60%);
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+/* ── Team avatar — circular photo cover ──────────────────────────────── */
+.l-team__avatar--photo {
+  background-size: cover;
+  background-position: center 22%;
+  background-repeat: no-repeat;
+  background-color: #161938;
+}
+.l-team__avatar--photo .l-team__avatar-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 4rem;
+  font-weight: 800;
+  color: #d7ff5a;
+  letter-spacing: -0.04em;
+  opacity: 0;
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */

@@ -111,25 +111,22 @@ interface CreatorCard {
   name: string;
   role: string;
   bio: string;
+  photo: string;
 }
 const TEAM: CreatorCard[] = [
   {
-    initials: 'AV',
-    name: 'Aarav Mehta',
-    role: 'Founder · Vision',
-    bio: 'A visionary focused on building performance-driven athlete ecosystems.',
+    initials: 'MA',
+    name: 'Mann Agarwal',
+    role: 'Founder · Tournaments & Rankings',
+    bio: 'Drives tournament systems, rankings and long-term growth strategy.',
+    photo: '/landing/creators/mann.jpeg',
   },
   {
     initials: 'SD',
     name: 'Sahil Desai',
-    role: 'Product · Engineering',
+    role: 'Founder · Product & Engineering',
     bio: 'Drives the product surface, performance, and end-to-end athlete experience.',
-  },
-  {
-    initials: 'RK',
-    name: 'Riya Kapoor',
-    role: 'Tournaments · Growth',
-    bio: 'Drives tournament systems, rankings and long-term growth strategy.',
+    photo: '/landing/creators/sahil.jpeg',
   },
 ];
 
@@ -195,6 +192,43 @@ export default function Landing() {
     return () => clearInterval(id);
   }, []);
 
+  // Mouse-parallax for hero orbs + scroll-linked hero parallax
+  const orbsRef = useRef<HTMLDivElement>(null);
+  const heroContentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf = 0;
+    let mx = 0, my = 0, sy = 0;
+    const apply = () => {
+      raf = 0;
+      const orbs = orbsRef.current;
+      if (orbs) {
+        orbs.style.setProperty('--mx', `${mx}px`);
+        orbs.style.setProperty('--my', `${my}px`);
+      }
+      const hero = heroContentRef.current;
+      if (hero) {
+        hero.style.setProperty('--sy', `${sy * 0.18}px`);
+        hero.style.setProperty('--so', String(Math.max(0, 1 - sy / 600)));
+      }
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };
+    const onMove = (e: MouseEvent) => {
+      const w = window.innerWidth, h = window.innerHeight;
+      mx = ((e.clientX / w) - 0.5) * 60;
+      my = ((e.clientY / h) - 0.5) * 60;
+      schedule();
+    };
+    const onScroll = () => { sy = window.scrollY; schedule(); };
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
     <div className="landing-root">
       <NavBar active={active} onJump={jumpTo} scrolled={scrolled} />
@@ -202,40 +236,42 @@ export default function Landing() {
       {/* ── Hero ─────────────────────────────────────────────────────── */}
       <section ref={homeRef} id="home" className="l-hero">
         <div className="l-hero__bg" aria-hidden />
-        <div className="l-hero__orbs" aria-hidden>
+        <div className="l-hero__orbs" aria-hidden ref={orbsRef}>
           <span className="l-hero__orb l-hero__orb--a" />
           <span className="l-hero__orb l-hero__orb--b" />
           <span className="l-hero__orb l-hero__orb--c" />
         </div>
 
-        <div className="l-hero__eyebrow">
-          <span className="dot" />
-          The Network for the Sports Ecosystem
-        </div>
+        <div className="l-hero__content" ref={heroContentRef}>
+          <div className="l-hero__eyebrow">
+            <span className="dot" />
+            The Network for the Sports Ecosystem
+          </div>
 
-        <h1 className="l-hero__title">
-          Performance is the Test.<br />
-          <em>Elite</em> is the Title.
-        </h1>
+          <h1 className="l-hero__title">
+            Performance is the Test.<br />
+            <em>Elite</em> is the Title.
+          </h1>
 
-        <p className="l-hero__sub">
-          All For One runs performance-driven tournaments where athletes earn recognition
-          through real results. Track rankings, register for events, and connect with the
-          people building the next era of sport.
-        </p>
+          <p className="l-hero__sub">
+            All For One runs performance-driven tournaments where athletes earn recognition
+            through real results. Track rankings, register for events, and connect with the
+            people building the next era of sport.
+          </p>
 
-        <div className="l-hero__buttons">
-          <button className="l-btn l-btn--primary" onClick={() => navigate('/login')}>
-            Sign Up &mdash; It&apos;s Free <ArrowRight size={18} />
-          </button>
-          <button className="l-btn l-btn--outline" onClick={() => jumpTo('about')}>
-            Learn More
-          </button>
-        </div>
+          <div className="l-hero__buttons">
+            <button className="l-btn l-btn--primary l-btn--magnetic" onClick={() => navigate('/login')}>
+              Sign Up &mdash; It&apos;s Free <ArrowRight size={18} />
+            </button>
+            <button className="l-btn l-btn--outline" onClick={() => jumpTo('about')}>
+              Learn More
+            </button>
+          </div>
 
-        <div className="l-hero__counter" aria-live="polite">
-          <span className="live-pulse" />
-          <span><strong>{liveCount.toLocaleString()}</strong> athletes ranked this season</span>
+          <div className="l-hero__counter" aria-live="polite">
+            <span className="live-pulse" />
+            <span><strong>{liveCount.toLocaleString()}</strong> athletes ranked this season</span>
+          </div>
         </div>
 
         <div className="l-hero__scroll" aria-hidden>
@@ -254,6 +290,19 @@ export default function Landing() {
             and rankings &mdash; transparent, performance-based, and built for the next generation
             of competitors, coaches, scouts and clubs.
           </p>
+
+          <div className="l-about__video reveal reveal--scale">
+            <video
+              src="/landing/about.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-hidden
+            />
+            <div className="l-about__video-glow" aria-hidden />
+          </div>
         </div>
       </section>
 
@@ -368,7 +417,13 @@ export default function Landing() {
           {TEAM.map((t, i) => (
             <div key={t.name} className="l-team__card reveal" style={{ transitionDelay: `${i * 100}ms` } as CSSProperties}>
               <div className="l-team__card-inner">
-                <div className="l-team__avatar">{t.initials}</div>
+                <div
+                  className="l-team__avatar l-team__avatar--photo"
+                  style={{ backgroundImage: `url(${t.photo})` } as CSSProperties}
+                  aria-label={t.name}
+                >
+                  <span className="l-team__avatar-fallback">{t.initials}</span>
+                </div>
                 <div className="l-team__card-body">
                   <h3>{t.name}</h3>
                   <span>{t.role}</span>
