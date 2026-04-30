@@ -75,7 +75,7 @@ export default function SavedPosts() {
                     {item.user?.role !== 'ADMIN' && (
                       <>
                         <span>·</span>
-                        <span className="capitalize">{item.sport?.toLowerCase().replace(/_/g, ' ')}</span>
+                        <span className="capitalize">{item.sport?.toLowerCase()}</span>
                       </>
                     )}
                   </p>

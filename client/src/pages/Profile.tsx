@@ -326,90 +326,29 @@ function ShootingTargetBackdrop() {
 }
 
 function WeightliftingBarbellBackdrop() {
-  // Side-view Olympic barbell: long shaft, sleeves, end caps, and stacked
-  // bumper plates in standard IWF colours (25kg red, 20kg blue, 15kg yellow,
-  // 10kg green) on each side, sitting on a wooden lifting platform.
   return (
     <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
-      {/* Background wash */}
-      <rect x="0" y="0" width="800" height="500" fill="rgba(35,42,55,0.55)" />
-
-      {/* Wooden lifting platform */}
-      <rect x="0" y="370" width="800" height="130" fill="rgba(110,72,38,0.55)" />
-      <g stroke="rgba(255,255,255,0.10)" strokeWidth="1">
-        <line x1="0" y1="395" x2="800" y2="395" />
-        <line x1="0" y1="425" x2="800" y2="425" />
-        <line x1="0" y1="460" x2="800" y2="460" />
+      <rect x="0" y="0" width="800" height="500" fill="rgba(80,55,30,0.55)" />
+      <rect x="60" y="380" width="680" height="40" fill="rgba(140,90,40,0.55)" stroke="rgba(255,255,255,0.7)" strokeWidth="2" />
+      <g stroke="rgba(255,255,255,0.9)" fill="none" strokeWidth="2.2">
+        <line x1="120" y1="240" x2="680" y2="240" strokeWidth="5" stroke="rgba(220,220,220,0.95)" />
+        <line x1="120" y1="232" x2="200" y2="232" strokeWidth="7" stroke="rgba(200,200,200,0.95)" />
+        <line x1="600" y1="232" x2="680" y2="232" strokeWidth="7" stroke="rgba(200,200,200,0.95)" />
       </g>
-      <g stroke="rgba(0,0,0,0.18)" strokeWidth="1">
-        <line x1="200" y1="370" x2="200" y2="500" />
-        <line x1="420" y1="370" x2="420" y2="500" />
-        <line x1="610" y1="370" x2="610" y2="500" />
+      <g>
+        <circle cx="170" cy="240" r="100" fill="rgba(20,20,20,0.7)" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" />
+        <circle cx="170" cy="240" r="80" fill="rgba(200,40,40,0.55)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <circle cx="170" cy="240" r="60" fill="rgba(40,80,180,0.55)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <circle cx="170" cy="240" r="38" fill="rgba(220,180,40,0.6)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <circle cx="170" cy="240" r="18" fill="rgba(40,160,80,0.6)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <circle cx="630" cy="240" r="100" fill="rgba(20,20,20,0.7)" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" />
+        <circle cx="630" cy="240" r="80" fill="rgba(200,40,40,0.55)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <circle cx="630" cy="240" r="60" fill="rgba(40,80,180,0.55)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <circle cx="630" cy="240" r="38" fill="rgba(220,180,40,0.6)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <circle cx="630" cy="240" r="18" fill="rgba(40,160,80,0.6)" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
+        <line x1="200" y1="218" x2="200" y2="262" stroke="rgba(255,255,255,0.85)" strokeWidth="3" />
+        <line x1="600" y1="218" x2="600" y2="262" stroke="rgba(255,255,255,0.85)" strokeWidth="3" />
       </g>
-
-      {/* Bar shaft */}
-      <rect x="100" y="246" width="600" height="9" fill="rgba(205,210,220,0.95)" />
-      <rect x="100" y="246" width="600" height="2.5" fill="rgba(255,255,255,0.55)" />
-
-      {/* Knurling on shaft (centre + grip zones) */}
-      <g stroke="rgba(40,45,55,0.55)" strokeWidth="0.9">
-        {Array.from({ length: 32 }).map((_, i) => {
-          const x = 244 + i * 4.5;
-          return <line key={`kc-${i}`} x1={x} y1="247" x2={x} y2="254" />;
-        })}
-        {Array.from({ length: 24 }).map((_, i) => {
-          const x = 408 + i * 4.5;
-          return <line key={`kr-${i}`} x1={x} y1="247" x2={x} y2="254" />;
-        })}
-      </g>
-
-      {/* Inner collar markings (start of grip zone) */}
-      <rect x="320" y="241" width="6" height="19" fill="rgba(120,125,135,0.9)" />
-      <rect x="474" y="241" width="6" height="19" fill="rgba(120,125,135,0.9)" />
-
-      {/* ── LEFT END ── */}
-      {/* Sleeve */}
-      <rect x="100" y="240" width="55" height="21" fill="rgba(160,165,175,0.95)" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
-      {/* Sleeve groove rings */}
-      <g stroke="rgba(75,80,90,0.7)" strokeWidth="1">
-        <line x1="108" y1="240" x2="108" y2="261" />
-        <line x1="118" y1="240" x2="118" y2="261" />
-        <line x1="128" y1="240" x2="128" y2="261" />
-        <line x1="138" y1="240" x2="138" y2="261" />
-      </g>
-      {/* End cap */}
-      <rect x="92" y="232" width="10" height="36" rx="1.5" fill="rgba(95,100,110,0.95)" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />
-
-      {/* Plates: outermost (25kg red) → innermost (10kg green) */}
-      {/* 25kg red */}
-      <ellipse cx="118" cy="250" rx="13" ry="158" fill="rgba(200,40,40,0.88)" stroke="rgba(15,15,20,0.75)" strokeWidth="2" />
-      <ellipse cx="118" cy="250" rx="13" ry="158" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="0.7" />
-      <ellipse cx="118" cy="250" rx="6" ry="60" fill="rgba(15,15,20,0.55)" />
-      {/* 20kg blue */}
-      <ellipse cx="142" cy="250" rx="11" ry="148" fill="rgba(40,100,200,0.85)" stroke="rgba(15,15,20,0.75)" strokeWidth="1.8" />
-      <ellipse cx="142" cy="250" rx="5.5" ry="56" fill="rgba(15,15,20,0.5)" />
-      {/* 15kg yellow */}
-      <ellipse cx="164" cy="250" rx="9" ry="124" fill="rgba(230,200,40,0.85)" stroke="rgba(15,15,20,0.75)" strokeWidth="1.6" />
-      {/* 10kg green */}
-      <ellipse cx="183" cy="250" rx="7.5" ry="98" fill="rgba(40,160,80,0.85)" stroke="rgba(15,15,20,0.75)" strokeWidth="1.4" />
-
-      {/* ── RIGHT END (mirrored) ── */}
-      <rect x="645" y="240" width="55" height="21" fill="rgba(160,165,175,0.95)" stroke="rgba(255,255,255,0.4)" strokeWidth="1" />
-      <g stroke="rgba(75,80,90,0.7)" strokeWidth="1">
-        <line x1="662" y1="240" x2="662" y2="261" />
-        <line x1="672" y1="240" x2="672" y2="261" />
-        <line x1="682" y1="240" x2="682" y2="261" />
-        <line x1="692" y1="240" x2="692" y2="261" />
-      </g>
-      <rect x="698" y="232" width="10" height="36" rx="1.5" fill="rgba(95,100,110,0.95)" stroke="rgba(255,255,255,0.35)" strokeWidth="0.8" />
-
-      <ellipse cx="682" cy="250" rx="13" ry="158" fill="rgba(200,40,40,0.88)" stroke="rgba(15,15,20,0.75)" strokeWidth="2" />
-      <ellipse cx="682" cy="250" rx="13" ry="158" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="0.7" />
-      <ellipse cx="682" cy="250" rx="6" ry="60" fill="rgba(15,15,20,0.55)" />
-      <ellipse cx="658" cy="250" rx="11" ry="148" fill="rgba(40,100,200,0.85)" stroke="rgba(15,15,20,0.75)" strokeWidth="1.8" />
-      <ellipse cx="658" cy="250" rx="5.5" ry="56" fill="rgba(15,15,20,0.5)" />
-      <ellipse cx="636" cy="250" rx="9" ry="124" fill="rgba(230,200,40,0.85)" stroke="rgba(15,15,20,0.75)" strokeWidth="1.6" />
-      <ellipse cx="617" cy="250" rx="7.5" ry="98" fill="rgba(40,160,80,0.85)" stroke="rgba(15,15,20,0.75)" strokeWidth="1.4" />
     </svg>
   );
 }
@@ -1332,7 +1271,7 @@ export default function Profile() {
                       <p className="text-sm font-medium truncate">{u.name}</p>
                       <p className="text-xs text-white/40 capitalize">
                         {u.role?.toLowerCase()}
-                        {u.sport && u.role !== 'ADMIN' && ` · ${u.sport.toLowerCase().replace(/_/g, ' ')}`}
+                        {u.sport && u.role !== 'ADMIN' && ` · ${u.sport.toLowerCase()}`}
                         {u.position && ` · ${u.position}`}
                       </p>
                     </div>

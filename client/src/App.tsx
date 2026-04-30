@@ -6,6 +6,9 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import MainLayout from './layouts/MainLayout';
 
 // Lazy-load every page so the initial bundle is tiny
+const Landing        = lazy(() => import('./pages/Landing'));
+const Terms          = lazy(() => import('./pages/Terms'));
+const Privacy        = lazy(() => import('./pages/Privacy'));
 const Login          = lazy(() => import('./pages/Login'));
 const Register       = lazy(() => import('./pages/Register'));
 const Home           = lazy(() => import('./pages/Home'));
@@ -44,11 +47,20 @@ function PageSpinner() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/landing" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
+/** The public landing page. If the user is already authenticated,
+ *  bounce them straight into the app. */
+function LandingRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (user) return <Navigate to="/" replace />;

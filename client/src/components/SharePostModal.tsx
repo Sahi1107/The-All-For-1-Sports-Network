@@ -115,7 +115,7 @@ export default function SharePostModal({ postId, onClose }: Props) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{u.name}</p>
                       <p className="text-xs text-white/40 capitalize truncate">
-                        {u.sport?.toLowerCase().replace(/_/g, ' ')}{u.position ? ` · ${u.position}` : ''}
+                        {u.sport?.toLowerCase()}{u.position ? ` · ${u.position}` : ''}
                       </p>
                     </div>
 

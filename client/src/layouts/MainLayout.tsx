@@ -121,11 +121,11 @@ export default function MainLayout() {
             const hasBadge = badgeMap[to];
             return (
               <Link key={to} to={to}
-                className={`nav-item flex items-center gap-3 px-4 py-3 rounded-lg ${
-                  active ? 'nav-item--active bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  active ? 'bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <span className="nav-item__icon relative">
+                <span className="relative">
                   <Icon size={20} />
                   {hasBadge && (
                     badgeCountMap[to] ? (
@@ -225,7 +225,7 @@ export default function MainLayout() {
               </span>
               <div className="min-w-0">
                 <p className="font-medium truncate">{user?.name}</p>
-                <p className="text-xs text-gray-custom capitalize">{user?.role?.toLowerCase()} · {user?.sport?.toLowerCase().replace(/_/g, ' ')}</p>
+                <p className="text-xs text-gray-custom capitalize">{user?.role?.toLowerCase()} · {user?.sport?.toLowerCase()}</p>
               </div>
             </Link>
 
@@ -236,11 +236,11 @@ export default function MainLayout() {
                 const hasBadge = badgeMap[to];
                 return (
                   <Link key={to} to={to} onClick={() => setDrawerOpen(false)}
-                    className={`nav-item flex items-center gap-3 px-4 py-3 rounded-lg ${
-                      active ? 'nav-item--active bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      active ? 'bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
                     }`}
                   >
-                    <span className="nav-item__icon relative">
+                    <span className="relative">
                       <Icon size={20} />
                       {hasBadge && <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />}
                     </span>
@@ -284,9 +284,7 @@ export default function MainLayout() {
               <span className="text-xs text-yellow-400/80 font-medium shrink-0">Edit</span>
             </Link>
           )}
-          <div key={location.pathname} className="page-enter">
-            <Outlet />
-          </div>
+          <Outlet />
         </div>
         {/* Spacer for mobile bottom nav */}
         <div className="md:hidden h-16" />

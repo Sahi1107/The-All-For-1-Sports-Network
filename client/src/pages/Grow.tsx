@@ -109,7 +109,7 @@ export default function Grow() {
                   </Link>
                   <p className="text-xs text-gray-custom capitalize">
                     {r.sender.role?.toLowerCase()}
-                    {r.sender.sport && ` · ${r.sender.sport.toLowerCase().replace(/_/g, ' ')}`}
+                    {r.sender.sport && ` · ${r.sender.sport.toLowerCase()}`}
                   </p>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -173,7 +173,7 @@ export default function Grow() {
                   </Link>
                   <p className="text-xs text-gray-custom capitalize truncate">
                     {u.role?.toLowerCase()}
-                    {u.sport && ` · ${u.sport.toLowerCase().replace(/_/g, ' ')}`}
+                    {u.sport && ` · ${u.sport.toLowerCase()}`}
                     {u.position && ` · ${u.position}`}
                   </p>
                   {u.location && (

@@ -65,7 +65,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-white/50">
-          <span>{SPORT_EMOJI[athlete.sport]} {athlete.sport?.toLowerCase().replace(/_/g, ' ')}</span>
+          <span>{SPORT_EMOJI[athlete.sport]} {athlete.sport?.toLowerCase()}</span>
           {athlete.position && (
             <>
               <span>·</span>
@@ -119,7 +119,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
 function FilterSummary({ filters }: { filters: Record<string, any> }) {
   const tags: { label: string; value: string }[] = [];
 
-  if (filters.sport) tags.push({ label: 'sport:', value: filters.sport.toLowerCase().replace(/_/g, ' ') });
+  if (filters.sport) tags.push({ label: 'sport:', value: filters.sport.toLowerCase() });
   if (filters.role && filters.role !== 'ATHLETE') tags.push({ label: 'role:', value: filters.role.toLowerCase() });
   if (filters.position) tags.push({ label: 'position:', value: filters.position });
   if (filters.minAge && filters.maxAge) tags.push({ label: 'age:', value: `${filters.minAge}–${filters.maxAge}` });

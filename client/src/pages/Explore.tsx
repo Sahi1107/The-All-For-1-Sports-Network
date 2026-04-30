@@ -106,7 +106,7 @@ export default function Explore() {
                       {user.verified && currentUser?.role === 'ADMIN' && <span className="text-accent text-xs">Verified</span>}
                     </div>
                     <p className="text-sm text-gray-custom capitalize">
-                      {user.role?.toLowerCase()} · {user.sport?.toLowerCase().replace(/_/g, ' ')}
+                      {user.role?.toLowerCase()} · {user.sport?.toLowerCase()}
                       {user.position && ` · ${user.position}`}
                     </p>
                     {user.location && (
