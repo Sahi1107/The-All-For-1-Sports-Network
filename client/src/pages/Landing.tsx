@@ -153,11 +153,12 @@ export default function Landing() {
 
   // Scroll-spy: highlight nav item for the section currently in view
   useEffect(() => {
-    const targets = [
-      [homeRef.current,  'home'  as const],
-      [aboutRef.current, 'about' as const],
-      [teamRef.current,  'team'  as const],
-    ].filter((t): t is [HTMLElement, SectionId] => t[0] !== null);
+    const targets = ([
+      [homeRef.current,  'home'],
+      [aboutRef.current, 'about'],
+      [teamRef.current,  'team'],
+    ] as Array<[HTMLElement | null, SectionId]>)
+      .filter((t): t is [HTMLElement, SectionId] => t[0] !== null);
 
     if (!('IntersectionObserver' in window)) return;
     const io = new IntersectionObserver(

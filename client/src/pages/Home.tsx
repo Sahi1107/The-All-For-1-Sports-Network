@@ -28,7 +28,7 @@ function BasketballBackdrop() {
       viewBox="0 0 940 520"
       xmlns="http://www.w3.org/2000/svg"
       className="w-full h-full"
-      preserveAspectRatio="xMidYMid slice"
+      preserveAspectRatio="xMidYMid meet"
     >
       <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
         <rect x="20" y="20" width="900" height="480" />
@@ -79,7 +79,7 @@ function FootballBackdrop() {
       viewBox="0 0 800 500"
       xmlns="http://www.w3.org/2000/svg"
       className="w-full h-full"
-      preserveAspectRatio="xMidYMid slice"
+      preserveAspectRatio="xMidYMid meet"
     >
       <g stroke="white" fill="none" strokeWidth="1.5" opacity="0.18">
         <rect x="30" y="30" width="740" height="440" />
@@ -111,7 +111,7 @@ function CricketBackdrop() {
       viewBox="0 0 800 500"
       xmlns="http://www.w3.org/2000/svg"
       className="w-full h-full"
-      preserveAspectRatio="xMidYMid slice"
+      preserveAspectRatio="xMidYMid meet"
     >
       <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
         <ellipse cx="400" cy="250" rx="362" ry="228" />
@@ -138,7 +138,7 @@ function CricketBackdrop() {
 
 function FieldHockeyBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         <rect x="30" y="30" width="740" height="440" />
         <line x1="400" y1="30" x2="400" y2="470" />
@@ -157,7 +157,7 @@ function FieldHockeyBackdrop() {
 
 function BadmintonBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         <rect x="30" y="30" width="740" height="440" />
         <line x1="400" y1="30" x2="400" y2="470" strokeWidth="2.5" />
@@ -176,7 +176,7 @@ function BadmintonBackdrop() {
 
 function AthleticsBackdrop() {
   return (
-    <svg viewBox="0 0 940 520" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 940 520" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         <ellipse cx="470" cy="260" rx="430" ry="220" />
         <ellipse cx="470" cy="260" rx="380" ry="170" />
@@ -192,7 +192,7 @@ function AthleticsBackdrop() {
 
 function WrestlingBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         <rect x="20" y="20" width="760" height="460" />
         <circle cx="400" cy="250" r="225" />
@@ -207,7 +207,7 @@ function WrestlingBackdrop() {
 
 function BoxingBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         {/* Ring floor in perspective (trapezoid) */}
         <path d="M 60 460 L 740 460 L 560 240 L 240 240 Z" />
@@ -242,7 +242,7 @@ function BoxingBackdrop() {
 
 function ShootingBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         <rect x="170" y="20" width="460" height="460" />
         <circle cx="400" cy="250" r="220" />
@@ -275,7 +275,7 @@ function WeightliftingBackdrop() {
 
 function ArcheryBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.8" opacity="0.18">
         <circle cx="400" cy="250" r="220" />
         <circle cx="400" cy="250" r="198" />
@@ -296,7 +296,7 @@ function ArcheryBackdrop() {
 
 function TennisBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         <rect x="30" y="30" width="740" height="440" />
         <line x1="30" y1="80" x2="770" y2="80" />
@@ -314,7 +314,7 @@ function TennisBackdrop() {
 
 function RugbyBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
         {/* Touchlines + dead-ball lines */}
         <rect x="30" y="30" width="740" height="440" />
@@ -356,7 +356,7 @@ function RugbyBackdrop() {
 
 function TableTennisBackdrop() {
   return (
-    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
       <g opacity="0.55">
         {/* Table surface */}
         <rect x="0" y="0" width="800" height="500" fill="#0a0a0a" />

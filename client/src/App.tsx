@@ -71,6 +71,11 @@ function AppRoutes() {
   return (
     <Suspense fallback={<PageSpinner />}>
       <Routes>
+        {/* Public marketing routes */}
+        <Route path="/landing"         element={<LandingRoute><Landing /></LandingRoute>} />
+        <Route path="/terms"           element={<Terms />} />
+        <Route path="/privacy"         element={<Privacy />} />
+
         {/* Public routes */}
         <Route path="/login"           element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register"        element={<PublicRoute><Register /></PublicRoute>} />
