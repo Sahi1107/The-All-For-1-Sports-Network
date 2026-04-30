@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logoUrl from '../assets/logo.svg';
 import logoBlueUrl from '../assets/logo-icon.svg';
@@ -42,29 +42,32 @@ function makeRng(seed: number) {
 
 type HeroSport = {
   sport: (typeof SPORTS)[number];
-  left: number;
-  top: number;
-  delay: number;
-  duration: number;
-  size: number;
+  fontPx: number;
+  r: number;
+  glow: 'lime' | 'blue';
+  initialX: number;
+  initialY: number;
 };
 
-const HERO_SPORTS: HeroSport[] = (() => {
-  const rng = makeRng(7);
-  return Array.from({ length: 56 }, (_, i) => {
-    // 65% bottom-weighted (top: 50–96%), 35% top band (top: 2–35%) — keeps the headline area airier
-    const top = rng() < 0.65 ? 50 + rng() * 46 : 2 + rng() * 33;
-    const left = 1 + rng() * 98;
+function generateHeroSports(count: number, viewportW: number): HeroSport[] {
+  const rngSize = makeRng(7);
+  const rngPos = makeRng(11);
+  const fallSpread = viewportW < 768 ? 1100 : 1700;
+  return Array.from({ length: count }, (_, i): HeroSport => {
+    const size = 0.7 + rngSize() * 0.7;
+    const fontPx = (1.6 + size * 1.4) * 16;
+    const r = fontPx * 0.42;
+    const usableW = Math.max(viewportW - 2 * r, 100);
     return {
       sport: SPORTS[i % SPORTS.length],
-      left,
-      top,
-      delay: -rng() * 30,
-      duration: 18 + rng() * 14,
-      size: 0.7 + rng() * 0.7,
+      fontPx,
+      r,
+      glow: i % 2 === 0 ? 'lime' : 'blue',
+      initialX: r + rngPos() * usableW,
+      initialY: -80 - rngPos() * fallSpread,
     };
   });
-})();
+}
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -79,6 +82,12 @@ export default function Landing() {
   const navTrackRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
   const spritesRef = useRef<Array<HTMLSpanElement | null>>([]);
+
+  const heroSports = useMemo(() => {
+    const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const count = w < 768 ? 80 : 200;
+    return generateHeroSports(count, w);
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('modal-open', expandedCreator !== null);
@@ -138,72 +147,203 @@ export default function Landing() {
     const section = homeRef.current;
     if (!section) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    if (window.matchMedia('(pointer: coarse)').matches) return;
 
-    let cursor: { x: number; y: number } | null = null;
-    let basePositions: { x: number; y: number }[] = [];
-    const current = HERO_SPORTS.map(() => ({ x: 0, y: 0 }));
+    const N = heroSports.length;
+    const sprites = heroSports.map((item) => ({
+      x: item.initialX,
+      y: item.initialY,
+      vx: 0,
+      vy: 0,
+      rot: (Math.random() - 0.5) * 24,
+      vr: (Math.random() - 0.5) * 4,
+      r: item.r,
+    }));
 
+    let width = 0;
+    let height = 0;
     const recompute = () => {
       const rect = section.getBoundingClientRect();
-      basePositions = HERO_SPORTS.map((item) => ({
-        x: (item.left / 100) * rect.width,
-        y: (item.top / 100) * rect.height,
-      }));
+      width = rect.width;
+      height = rect.height;
     };
     recompute();
+
+    let cursor: { x: number; y: number } | null = null;
+    let raf = 0;
+    let active = false;
+    let settleFrames = 0;
+
+    const GRAVITY = 0.6;
+    const DAMP_X = 0.94;
+    const DAMP_Y = 0.99;
+    const FLOOR_BOUNCE = 0.0;
+    const WALL_BOUNCE = 0.5;
+    const REPEL_RADIUS = 220;
+    const REPEL_FORCE = 26;
+    const RESTITUTION = 0.0;
+
+    const tick = () => {
+      // 1. Forces (gravity + cursor repel)
+      for (let i = 0; i < N; i++) {
+        const s = sprites[i];
+        s.vy += GRAVITY;
+        if (cursor) {
+          const dx = s.x - cursor.x;
+          const dy = s.y - cursor.y;
+          const d2 = dx * dx + dy * dy;
+          const R = REPEL_RADIUS;
+          if (d2 < R * R) {
+            const d = Math.sqrt(d2) || 0.01;
+            const f = 1 - d / R;
+            const impulse = f * f * REPEL_FORCE;
+            s.vx += (dx / d) * impulse;
+            s.vy += (dy / d) * impulse;
+            s.vr += (Math.random() - 0.5) * 14 * f;
+          }
+        }
+      }
+
+      // 2. Integrate
+      for (let i = 0; i < N; i++) {
+        const s = sprites[i];
+        s.x += s.vx;
+        s.y += s.vy;
+        s.rot += s.vr;
+      }
+
+      // 3. Constraints (3 passes for stable stacks)
+      for (let pass = 0; pass < 3; pass++) {
+        for (let i = 0; i < N; i++) {
+          const a = sprites[i];
+          for (let j = i + 1; j < N; j++) {
+            const b = sprites[j];
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const minD = a.r + b.r;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < minD * minD && d2 > 0.0001) {
+              const d = Math.sqrt(d2);
+              const overlap = minD - d;
+              const nx = dx / d;
+              const ny = dy / d;
+              const correct = overlap * 0.5;
+              a.x -= nx * correct;
+              a.y -= ny * correct;
+              b.x += nx * correct;
+              b.y += ny * correct;
+              const vaN = a.vx * nx + a.vy * ny;
+              const vbN = b.vx * nx + b.vy * ny;
+              const vRel = vbN - vaN;
+              if (vRel < 0) {
+                const jImp = (-(1 + RESTITUTION) * vRel) / 2;
+                a.vx -= jImp * nx;
+                a.vy -= jImp * ny;
+                b.vx += jImp * nx;
+                b.vy += jImp * ny;
+              }
+            }
+          }
+        }
+        for (let i = 0; i < N; i++) {
+          const s = sprites[i];
+          if (s.y + s.r > height) {
+            s.y = height - s.r;
+            if (s.vy > 0) {
+              s.vy = -s.vy * FLOOR_BOUNCE;
+              s.vx *= 0.85;
+            }
+          }
+          if (s.x - s.r < 0) {
+            s.x = s.r;
+            if (s.vx < 0) s.vx = -s.vx * WALL_BOUNCE;
+          } else if (s.x + s.r > width) {
+            s.x = width - s.r;
+            if (s.vx > 0) s.vx = -s.vx * WALL_BOUNCE;
+          }
+        }
+      }
+
+      // 4. Damping + KE accumulator
+      let totalKE = 0;
+      for (let i = 0; i < N; i++) {
+        const s = sprites[i];
+        s.vx *= DAMP_X;
+        s.vy *= DAMP_Y;
+        s.vr *= 0.93;
+        totalKE += s.vx * s.vx + s.vy * s.vy;
+      }
+
+      // 5. Write DOM transforms
+      const nodes = spritesRef.current;
+      for (let i = 0; i < N; i++) {
+        const node = nodes[i];
+        if (!node) continue;
+        const s = sprites[i];
+        node.style.transform =
+          `translate3d(${(s.x - s.r).toFixed(1)}px, ${(s.y - s.r).toFixed(1)}px, 0) ` +
+          `rotate(${s.rot.toFixed(1)}deg)`;
+      }
+
+      // 6. Sleep when idle
+      if (!cursor && totalKE < N * 0.05) {
+        settleFrames++;
+        if (settleFrames > 40) {
+          active = false;
+          settleFrames = 0;
+          return;
+        }
+      } else {
+        settleFrames = 0;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+
+    const start = () => {
+      if (active) return;
+      active = true;
+      settleFrames = 0;
+      raf = requestAnimationFrame(tick);
+    };
 
     const onMove = (event: MouseEvent) => {
       const rect = section.getBoundingClientRect();
       cursor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      start();
     };
     const onLeave = () => {
       cursor = null;
     };
+    const onResize = () => {
+      recompute();
+      start();
+    };
 
     section.addEventListener('mousemove', onMove);
     section.addEventListener('mouseleave', onLeave);
-    window.addEventListener('resize', recompute);
+    window.addEventListener('resize', onResize);
 
-    const REPEL_RADIUS = 190;
-    const REPEL_STRENGTH = 130;
-    let rafId = 0;
-
-    const tick = () => {
-      const sprites = spritesRef.current;
-      for (let i = 0; i < sprites.length; i++) {
-        const node = sprites[i];
-        const base = basePositions[i];
-        if (!node || !base) continue;
-        let tx = 0;
-        let ty = 0;
-        if (cursor) {
-          const dx = base.x - cursor.x;
-          const dy = base.y - cursor.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist < REPEL_RADIUS && dist > 0.5) {
-            const force = (1 - dist / REPEL_RADIUS) ** 2;
-            tx = (dx / dist) * REPEL_STRENGTH * force;
-            ty = (dy / dist) * REPEL_STRENGTH * force;
-          }
+    const visObserver = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) start();
+        else {
+          cancelAnimationFrame(raf);
+          active = false;
         }
-        const cur = current[i];
-        cur.x += (tx - cur.x) * 0.18;
-        cur.y += (ty - cur.y) * 0.18;
-        node.style.setProperty('--push-x', `${cur.x.toFixed(1)}px`);
-        node.style.setProperty('--push-y', `${cur.y.toFixed(1)}px`);
-      }
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
+      },
+      { threshold: 0 },
+    );
+    visObserver.observe(section);
+
+    start();
 
     return () => {
       section.removeEventListener('mousemove', onMove);
       section.removeEventListener('mouseleave', onLeave);
-      window.removeEventListener('resize', recompute);
-      cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', onResize);
+      visObserver.disconnect();
+      cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [heroSports]);
 
   useEffect(() => {
     const menu = navTrackRef.current;
@@ -265,28 +405,19 @@ export default function Landing() {
       <section id="home" className="hero-wrapper" ref={homeRef}>
         <div className="hero-aurora" aria-hidden />
         <div className="hero-field" aria-hidden>
-          {HERO_SPORTS.map((item, i) => (
+          {heroSports.map((item, i) => (
             <span
               key={i}
               ref={(el) => {
                 spritesRef.current[i] = el;
               }}
-              className="hero-sport"
+              className={`hero-sport hero-sport--${item.glow}`}
               style={{
-                left: `${item.left}%`,
-                top: `${item.top}%`,
-                fontSize: `${(1.6 + item.size * 1.4).toFixed(2)}rem`,
+                fontSize: `${item.fontPx.toFixed(1)}px`,
+                transform: `translate3d(${(item.initialX - item.r).toFixed(1)}px, ${(item.initialY - item.r).toFixed(1)}px, 0)`,
               }}
             >
-              <span
-                className="hero-sport__inner"
-                style={{
-                  animationDelay: `${item.delay.toFixed(2)}s`,
-                  animationDuration: `${item.duration.toFixed(2)}s`,
-                }}
-              >
-                {item.sport.emoji}
-              </span>
+              {item.sport.emoji}
             </span>
           ))}
         </div>
