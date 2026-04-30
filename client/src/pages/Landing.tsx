@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logoUrl from '../assets/logo.svg';
 import logoBlueUrl from '../assets/logo-icon.svg';
+import { SPORTS } from '../data/sports';
 import './landing.css';
 
 type SectionId = 'home' | 'about' | 'team';
@@ -29,7 +30,7 @@ const CREATORS = {
 
 type Creator = (typeof CREATORS)[keyof typeof CREATORS];
 
-const HERO_BALLS = Array.from({ length: 22 }, (_, i) => i);
+const HERO_SPORTS = Array.from({ length: 22 }, (_, i) => SPORTS[i % SPORTS.length]);
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -156,9 +157,17 @@ export default function Landing() {
       </header>
 
       <section id="home" className="hero-wrapper" ref={homeRef}>
+        <div className="hero-aurora" aria-hidden />
         <div className="hero-field" aria-hidden>
-          {HERO_BALLS.map((ball) => (
-            <span key={ball} className={`hero-ball hero-ball--${(ball % 6) + 1}`} />
+          {HERO_SPORTS.map((sport, i) => (
+            <span
+              key={i}
+              className={`hero-sport hero-sport--${(i % 6) + 1}`}
+              role="img"
+              aria-label={sport.label}
+            >
+              {sport.emoji}
+            </span>
           ))}
         </div>
 
