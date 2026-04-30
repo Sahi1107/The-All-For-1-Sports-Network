@@ -289,12 +289,19 @@ export default function Landing() {
             className="contact-form"
             onSubmit={(event) => {
               event.preventDefault();
-              navigate('/login');
+              const data = new FormData(event.currentTarget);
+              const name = String(data.get('name') ?? '').trim();
+              const email = String(data.get('email') ?? '').trim();
+              const message = String(data.get('message') ?? '').trim();
+              const subject = `Contact from ${name || 'AllFor1 Landing'}`;
+              const body = `${message}\n\n— ${name}\n${email}`;
+              const mailto = `mailto:info@allfor1.pro?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+              window.location.href = mailto;
             }}
           >
-            <input type="text" placeholder="Your Name" required />
-            <input type="email" placeholder="Email Address" required />
-            <textarea placeholder="Your message..." rows={4} required />
+            <input name="name"    type="text"  placeholder="Your Name"     required />
+            <input name="email"   type="email" placeholder="Email Address" required />
+            <textarea name="message" placeholder="Your message..." rows={4} required />
             <button className="btn-primary" type="submit">
               Send Message
             </button>
