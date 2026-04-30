@@ -134,6 +134,10 @@ export default function Landing() {
           <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
         </button>
 
+        <button className={`nav-signup nav-signup--corner ${navBlue ? 'nav-signup--blue' : ''}`} onClick={() => navigate('/login')}>
+          Sign Up
+        </button>
+
         <nav className={`nav-container ${navBlue ? 'nav-blue' : ''}`} aria-label="Primary">
           <div className="glass-menu nav-track" ref={navTrackRef}>
             <span className="nav-indicator" />
@@ -148,9 +152,6 @@ export default function Landing() {
               </button>
             ))}
           </div>
-          <button className="nav-signup" onClick={() => navigate('/login')}>
-            Sign Up
-          </button>
         </nav>
       </header>
 
