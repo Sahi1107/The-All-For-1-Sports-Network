@@ -54,7 +54,7 @@ export default function AdminDashboard() {
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
   // Redirect non-admins at the route level
-  if (user?.role !== 'ADMIN') return <Navigate to="/" replace />;
+  if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
 
   // ─── Queries ──────────────────────────────────────────────────
 

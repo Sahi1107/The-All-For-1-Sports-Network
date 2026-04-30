@@ -1,520 +1,395 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import {
-  ArrowRight, Trophy, BarChart3, Users, Eye, Rocket, ShieldCheck,
-  Mail, MapPin, Phone,
-} from 'lucide-react';
 import logoUrl from '../assets/logo.svg';
+import logoBlueUrl from '../assets/logo-icon.svg';
 import './landing.css';
 
 type SectionId = 'home' | 'about' | 'team';
+
 const NAV_LINKS: { id: SectionId; label: string }[] = [
-  { id: 'home',  label: 'Home'  },
+  { id: 'home', label: 'Home' },
   { id: 'about', label: 'About' },
-  { id: 'team',  label: 'Team'  },
+  { id: 'team', label: 'Team' },
 ];
 
-/** Reveal-on-scroll: toggles `is-visible` when at least one element with
- *  the `.reveal` class enters the viewport. Runs once per element. */
-function useReveal() {
-  useEffect(() => {
-    const els = document.querySelectorAll<HTMLElement>('.reveal');
-    if (!('IntersectionObserver' in window)) {
-      els.forEach((el) => el.classList.add('is-visible'));
-      return;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('is-visible');
-            io.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -60px 0px' },
-    );
-    els.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, []);
-}
-
-interface NavBarProps {
-  active: SectionId;
-  onJump: (id: SectionId) => void;
-  scrolled: boolean;
-}
-
-function NavBar({ active, onJump, scrolled }: NavBarProps) {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [indicator, setIndicator] = useState<{ left: number; width: number }>({ left: 0, width: 0 });
-
-  useEffect(() => {
-    const update = () => {
-      const menu = menuRef.current;
-      if (!menu) return;
-      const activeEl = menu.querySelector<HTMLButtonElement>(`button[data-id="${active}"]`);
-      if (!activeEl) return;
-      const menuRect = menu.getBoundingClientRect();
-      const r = activeEl.getBoundingClientRect();
-      setIndicator({ left: r.left - menuRect.left, width: r.width });
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, [active]);
-
-  return (
-    <nav className="l-nav" aria-label="Primary">
-      <div className={`l-nav__bar ${scrolled ? 'l-nav__bar--scrolled' : ''}`}>
-        <button
-          className="l-nav__brand"
-          onClick={() => onJump('home')}
-          style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-          aria-label="All For One — back to top"
-        >
-          <span className="l-nav__brand-mark">A1</span>
-          <span>All For One</span>
-        </button>
-
-        <div className="l-nav__menu" ref={menuRef}>
-          {NAV_LINKS.map((link) => (
-            <button
-              key={link.id}
-              data-id={link.id}
-              className="l-nav__item"
-              onClick={() => onJump(link.id)}
-              aria-current={active === link.id ? 'true' : undefined}
-            >
-              {link.label}
-            </button>
-          ))}
-          <span
-            className="l-nav__indicator"
-            style={{ transform: `translateX(${indicator.left}px)`, width: `${indicator.width}px` }}
-          />
-        </div>
-
-        <div className="l-nav__cta">
-          <Link to="/login" className="l-btn l-btn--ghost">Sign In</Link>
-          <Link to="/login" className="l-btn l-btn--primary">
-            Sign Up <ArrowRight size={16} />
-          </Link>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
-interface CreatorCard {
-  initials: string;
-  name: string;
-  role: string;
-  bio: string;
-  photo: string;
-}
-const TEAM: CreatorCard[] = [
-  {
-    initials: 'MA',
-    name: 'Mann Agarwal',
-    role: 'Founder · Tournaments & Rankings',
-    bio: 'Drives tournament systems, rankings and long-term growth strategy.',
-    photo: '/landing/creators/mann.jpeg',
-  },
-  {
-    initials: 'SD',
+const CREATORS = {
+  sahil: {
     name: 'Sahil Desai',
-    role: 'Founder · Product & Engineering',
-    bio: 'Drives the product surface, performance, and end-to-end athlete experience.',
-    photo: '/landing/creators/sahil.jpeg',
+    role: 'Founder & Creative Head',
+    img: '/c1.jpeg',
+    bio: 'A visionary focused on building performance-driven athlete ecosystems.',
   },
-];
+  mann: {
+    name: 'Mann Agarwal',
+    role: 'Co-Founder & Strategy',
+    img: '/c2.jpeg',
+    bio: 'Drives tournament systems, rankings and long-term growth strategy.',
+  },
+} as const;
+
+type Creator = (typeof CREATORS)[keyof typeof CREATORS];
+
+const HERO_BALLS = Array.from({ length: 22 }, (_, i) => i);
 
 export default function Landing() {
   const navigate = useNavigate();
-  const [scrolled, setScrolled] = useState(false);
   const [active, setActive] = useState<SectionId>('home');
+  const [navBlue, setNavBlue] = useState(false);
+  const [expandedCreator, setExpandedCreator] = useState<Creator | null>(null);
 
-  const homeRef  = useRef<HTMLElement>(null);
+  const homeRef = useRef<HTMLElement>(null);
   const aboutRef = useRef<HTMLElement>(null);
-  const teamRef  = useRef<HTMLElement>(null);
-
-  useReveal();
+  const infoHubRef = useRef<HTMLElement>(null);
+  const teamRef = useRef<HTMLElement>(null);
+  const navTrackRef = useRef<HTMLDivElement>(null);
+  const spotlightRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+    document.body.classList.toggle('modal-open', expandedCreator !== null);
+    return () => document.body.classList.remove('modal-open');
+  }, [expandedCreator]);
 
-  // Scroll-spy: highlight nav item for the section currently in view
   useEffect(() => {
-    const targets = ([
-      [homeRef.current,  'home'],
+    const targets = [
+      [homeRef.current, 'home'],
       [aboutRef.current, 'about'],
-      [teamRef.current,  'team'],
-    ] as Array<[HTMLElement | null, SectionId]>)
-      .filter((t): t is [HTMLElement, SectionId] => t[0] !== null);
+      [teamRef.current, 'team'],
+    ] as Array<[HTMLElement | null, SectionId]>;
 
     if (!('IntersectionObserver' in window)) return;
-    const io = new IntersectionObserver(
+
+    const sectionObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const id = targets.find(([el]) => el === entry.target)?.[1];
-            if (id) setActive(id);
-          }
+          if (!entry.isIntersecting) return;
+          const id = targets.find(([node]) => node === entry.target)?.[1];
+          if (id) setActive(id);
         });
       },
-      { rootMargin: '-45% 0px -45% 0px', threshold: 0 },
+      { rootMargin: '-42% 0px -42% 0px', threshold: 0 },
     );
-    targets.forEach(([el]) => io.observe(el));
-    return () => io.disconnect();
+
+    targets.forEach(([node]) => {
+      if (node) sectionObserver.observe(node);
+    });
+
+    return () => sectionObserver.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!infoHubRef.current || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setNavBlue(entry.isIntersecting),
+      { root: null, threshold: 0, rootMargin: '-100px 0px -90% 0px' },
+    );
+    observer.observe(infoHubRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!teamRef.current || !('IntersectionObserver' in window)) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) teamRef.current?.classList.add('visible');
+      },
+      { threshold: 0.35 },
+    );
+    observer.observe(teamRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const menu = navTrackRef.current;
+    if (!menu) return;
+    const activeItem = menu.querySelector<HTMLButtonElement>(`button[data-id="${active}"]`);
+    const indicator = menu.querySelector<HTMLSpanElement>('.nav-indicator');
+    if (!activeItem || !indicator) return;
+
+    const menuRect = menu.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+    indicator.style.width = `${itemRect.width}px`;
+    indicator.style.left = `${itemRect.left - menuRect.left}px`;
+  }, [active]);
 
   const jumpTo = (id: SectionId) => {
-    const refMap: Record<SectionId, React.RefObject<HTMLElement | null>> = {
-      home: homeRef, about: aboutRef, team: teamRef,
+    const nodes: Record<SectionId, HTMLElement | null> = {
+      home: homeRef.current,
+      about: aboutRef.current,
+      team: teamRef.current,
     };
-    const node = refMap[id].current;
-    if (!node) return;
-    const top = node.getBoundingClientRect().top + window.scrollY - 16;
-    window.scrollTo({ top, behavior: 'smooth' });
+    nodes[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  // Animated live counter (decorative)
-  const [liveCount, setLiveCount] = useState(2143);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setLiveCount((c) => c + Math.floor(Math.random() * 3));
-    }, 4500);
-    return () => clearInterval(id);
-  }, []);
-
-  // Mouse-parallax for hero orbs + scroll-linked hero parallax
-  const orbsRef = useRef<HTMLDivElement>(null);
-  const heroContentRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    let raf = 0;
-    let mx = 0, my = 0, sy = 0;
-    const apply = () => {
-      raf = 0;
-      const orbs = orbsRef.current;
-      if (orbs) {
-        orbs.style.setProperty('--mx', `${mx}px`);
-        orbs.style.setProperty('--my', `${my}px`);
-      }
-      const hero = heroContentRef.current;
-      if (hero) {
-        hero.style.setProperty('--sy', `${sy * 0.18}px`);
-        hero.style.setProperty('--so', String(Math.max(0, 1 - sy / 600)));
-      }
-    };
-    const schedule = () => { if (!raf) raf = requestAnimationFrame(apply); };
-    const onMove = (e: MouseEvent) => {
-      const w = window.innerWidth, h = window.innerHeight;
-      mx = ((e.clientX / w) - 0.5) * 60;
-      my = ((e.clientY / h) - 0.5) * 60;
-      schedule();
-    };
-    const onScroll = () => { sy = window.scrollY; schedule(); };
-    window.addEventListener('mousemove', onMove, { passive: true });
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('scroll', onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
+  const moveSpotlight = (event: React.MouseEvent<HTMLElement>) => {
+    if (!spotlightRef.current || !teamRef.current) return;
+    const rect = teamRef.current.getBoundingClientRect();
+    spotlightRef.current.style.left = `${event.clientX - rect.left}px`;
+    spotlightRef.current.style.top = `${event.clientY - rect.top}px`;
+  };
 
   return (
     <div className="landing-root">
-      <NavBar active={active} onJump={jumpTo} scrolled={scrolled} />
+      <header className="glass-header">
+        <button className="logo" onClick={() => jumpTo('home')} aria-label="All For One home">
+          <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
+        </button>
 
-      {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section ref={homeRef} id="home" className="l-hero">
-        <div className="l-hero__bg" aria-hidden />
-        <div className="l-hero__orbs" aria-hidden ref={orbsRef}>
-          <span className="l-hero__orb l-hero__orb--a" />
-          <span className="l-hero__orb l-hero__orb--b" />
-          <span className="l-hero__orb l-hero__orb--c" />
+        <nav className={`nav-container ${navBlue ? 'nav-blue' : ''}`} aria-label="Primary">
+          <div className="glass-menu nav-track" ref={navTrackRef}>
+            <span className="nav-indicator" />
+            {NAV_LINKS.map((link) => (
+              <button
+                key={link.id}
+                data-id={link.id}
+                className={`nav-item ${active === link.id ? 'active' : ''}`}
+                onClick={() => jumpTo(link.id)}
+              >
+                {link.label}
+              </button>
+            ))}
+          </div>
+          <button className="nav-signup" onClick={() => navigate('/login')}>
+            Sign Up
+          </button>
+        </nav>
+      </header>
+
+      <section id="home" className="hero-wrapper" ref={homeRef}>
+        <div className="hero-field" aria-hidden>
+          {HERO_BALLS.map((ball) => (
+            <span key={ball} className={`hero-ball hero-ball--${(ball % 6) + 1}`} />
+          ))}
         </div>
 
-        <div className="l-hero__content" ref={heroContentRef}>
-          <div className="l-hero__eyebrow">
-            <span className="dot" />
-            The Network for the Sports Ecosystem
-          </div>
-
-          <h1 className="l-hero__title">
-            Performance is the Test.<br />
-            <em>Elite</em> is the Title.
-          </h1>
-
-          <p className="l-hero__sub">
-            All For One runs performance-driven tournaments where athletes earn recognition
-            through real results. Track rankings, register for events, and connect with the
-            people building the next era of sport.
-          </p>
-
-          <div className="l-hero__buttons">
-            <button className="l-btn l-btn--primary l-btn--magnetic" onClick={() => navigate('/login')}>
-              Sign Up &mdash; It&apos;s Free <ArrowRight size={18} />
+        <div className="hero-content">
+          <h1>Performance is the Test. Elite is the Title.</h1>
+          <p>India&apos;s First Unified Sports Platform</p>
+          <div className="hero-buttons">
+            <button className="btn-primary" onClick={() => navigate('/login')}>
+              Sign Up
             </button>
-            <button className="l-btn l-btn--outline" onClick={() => jumpTo('about')}>
-              Learn More
+            <button className="btn-glass" onClick={() => jumpTo('about')}>
+              About All For One
             </button>
-          </div>
-
-          <div className="l-hero__counter" aria-live="polite">
-            <span className="live-pulse" />
-            <span><strong>{liveCount.toLocaleString()}</strong> athletes ranked this season</span>
-          </div>
-        </div>
-
-        <div className="l-hero__scroll" aria-hidden>
-          <span>Scroll</span>
-          <span className="l-hero__scroll-line" />
-        </div>
-      </section>
-
-      {/* ── About ────────────────────────────────────────────────────── */}
-      <section ref={aboutRef} id="about" className="l-about">
-        <div className="l-about__inner reveal reveal--scale">
-          <span className="l-section__eyebrow">About All For One</span>
-          <h2 className="l-section__title">Building an Open Sports Community</h2>
-          <p className="l-section__subtitle">
-            We create real opportunities for athletes to prove themselves through tournaments
-            and rankings &mdash; transparent, performance-based, and built for the next generation
-            of competitors, coaches, scouts and clubs.
-          </p>
-
-          <div className="l-about__video reveal reveal--scale">
-            <video
-              src="/landing/about.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              aria-hidden
-            />
-            <div className="l-about__video-glow" aria-hidden />
           </div>
         </div>
       </section>
 
-      {/* ── Tournaments feature ─────────────────────────────────────── */}
-      <section className="l-feature">
-        <div className="l-feature__inner reveal">
-          <div className="l-feature__copy">
-            <span className="l-section__eyebrow" style={{ color: '#2929db' }}>What We Offer</span>
-            <h2>Tournaments That Matter</h2>
+      <section id="about" className="about-section" ref={aboutRef}>
+        <video
+          src="/about.mp4"
+          className="about-video"
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="metadata"
+          aria-hidden
+        />
+        <div className="about-split">
+          <div className="about-text">
+            <h2>What Is All For One?</h2>
             <p>
-              Competitive events designed to highlight real talent under pressure and
-              reward performance. Every match feeds verified data into the rankings &mdash;
-              no politics, just play.
+              We create real opportunities for athletes to prove themselves through
+              tournaments and rankings.
             </p>
-            <div className="l-feature__list">
-              <div className="l-feature__list-item">
-                <span className="check">&#10003;</span>
-                Open registration across cities, states, and national circuits
-              </div>
-              <div className="l-feature__list-item">
-                <span className="check">&#10003;</span>
-                Live scoring and verified match results
-              </div>
-              <div className="l-feature__list-item">
-                <span className="check">&#10003;</span>
-                Performance feeds directly into ranking algorithms
-              </div>
-            </div>
           </div>
-          <div
-            className="l-feature__visual"
-            style={{ backgroundImage: 'url(/landing/tournament-lines.png)' } as CSSProperties}
-            aria-hidden
+        </div>
+      </section>
+
+      <section className="info-hub" ref={infoHubRef}>
+        <div className="hub-cards">
+          <FlipCard
+            img="/trophy.png"
+            title="Tournaments That Matter"
+            back="Competitive events designed to highlight real talent under pressure and reward performance."
+          />
+          <FlipCard
+            img="/graph.png"
+            title="Performance-Based Rankings"
+            back="Rankings built from real match data and statistics - not opinions or popularity."
+          />
+          <FlipCard
+            img="/eye.png"
+            title="Clear Visibility"
+            back="Players can track where they stand at city, state, and national levels."
           />
         </div>
       </section>
 
-      {/* ── Performance feature ──────────────────────────────────────── */}
-      <section className="l-feature l-feature--alt">
-        <div className="l-feature__inner l-feature__inner--reverse reveal">
-          <div
-            className="l-feature__visual l-feature__visual--mirror"
-            style={{ backgroundImage: 'url(/landing/performance-lines.png)' } as CSSProperties}
-            aria-hidden
-          />
-          <div className="l-feature__copy">
-            <span className="l-section__eyebrow" style={{ color: '#2929db' }}>Performance-Based Rankings</span>
-            <h2>How Rankings Work</h2>
+      <section
+        id="team"
+        className="who-section"
+        ref={teamRef}
+        onMouseMove={moveSpotlight}
+      >
+        <div className="spotlight" ref={spotlightRef} />
+        <div className="who-container">
+          <div className="who-left">
+            <h2>ABOUT ALL FOR ONE</h2>
             <p>
-              Each stat is normalized so players are evaluated relative to realistic
-              performance ceilings rather than raw totals alone. Position, efficiency,
-              and consistency all factor in &mdash; volume alone won&apos;t inflate a rank.
+              All For One is a grassroots sports initiative built around a single objective:
+              creating real, measurable pathways for athletes to advance based on performance.
+              We organize competitive tournaments that produce structured, verified match data,
+              allowing players and teams to be evaluated through consistent, objective metrics
+              rather than reputation or access.
             </p>
-            <div className="l-feature__list">
-              <div className="l-feature__list-item">
-                <span className="check">&#10003;</span>
-                Position-aware weighting across every sport
-              </div>
-              <div className="l-feature__list-item">
-                <span className="check">&#10003;</span>
-                Efficiency adjustment prevents volume gaming
-              </div>
-              <div className="l-feature__list-item">
-                <span className="check">&#10003;</span>
-                Track standings at city, state, and national level
-              </div>
+            <h3 className="who-subtitle">Building an Open Sports Community</h3>
+            <p>
+              All For One is designed to remove traditional gatekeeping in grassroots sports.
+              Talent often remains unseen because access to scouts, organizers, and opportunities
+              is restricted to limited networks.
+            </p>
+            <p>
+              Instead of relying on closed circles or personal connections, athletes will be able
+              to showcase verified performance histories and directly reach the right people
+              through the ecosystem. Opportunities become discoverable through merit, not
+              proximity.
+            </p>
+          </div>
+
+          <div className="who-right">
+            <h2 className="who-title">Meet the Founders</h2>
+            <div className="creator-belt">
+              <CreatorCard creator={CREATORS.sahil} onOpen={setExpandedCreator} />
+              <CreatorCard creator={CREATORS.mann} onOpen={setExpandedCreator} />
             </div>
           </div>
         </div>
-      </section>
 
-      {/* ── Info hub flip cards ──────────────────────────────────────── */}
-      <section className="l-hub">
-        <div className="l-hub__head reveal">
-          <h2>What Is All For One?</h2>
-          <p>A network built for athletes &mdash; with the tools, visibility, and credibility you actually need.</p>
-        </div>
-
-        <div className="l-hub__grid">
-          {[
-            { icon: <Trophy size={24} />,     title: 'Tournaments',          back: 'Real, performance-driven events with verified scoring.' },
-            { icon: <BarChart3 size={24} />,  title: 'Rankings',             back: 'Transparent, position-aware leaderboards across India.' },
-            { icon: <Eye size={24} />,        title: 'Clear Visibility',     back: 'Coaches, scouts and clubs can find you on merit.' },
-            { icon: <Users size={24} />,      title: 'Community',            back: 'Connect with athletes, coaches and teams who care.' },
-            { icon: <Rocket size={24} />,     title: 'Grow Your Career',     back: 'Build a profile that travels with you across seasons.' },
-            { icon: <ShieldCheck size={24} />, title: 'Verified Profiles',   back: 'Every athlete and result is verified before it counts.' },
-          ].map((c, i) => (
-            <div key={i} className="l-flip reveal" style={{ transitionDelay: `${i * 60}ms` } as CSSProperties}>
-              <div className="l-flip__inner">
-                <div className="l-flip__face">
-                  <div className="l-flip__icon">{c.icon}</div>
-                  <h3>{c.title}</h3>
-                </div>
-                <div className="l-flip__face l-flip__face--back">
-                  <p>{c.back}</p>
-                </div>
+        <div className={`creator-expanded ${expandedCreator ? 'active' : ''}`}>
+          {expandedCreator && (
+            <>
+              <div className="expanded-left">
+                <img src={expandedCreator.img} alt={expandedCreator.name} />
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Team ─────────────────────────────────────────────────────── */}
-      <section ref={teamRef} id="team" className="l-team">
-        <div className="l-team__head reveal">
-          <span className="l-section__eyebrow">Meet The Creators</span>
-          <h2>Built by Athletes &amp; Builders</h2>
-          <p>The small team behind the platform &mdash; obsessed with putting performance back at the center of sport.</p>
-        </div>
-
-        <div className="l-team__grid">
-          {TEAM.map((t, i) => (
-            <div key={t.name} className="l-team__card reveal" style={{ transitionDelay: `${i * 100}ms` } as CSSProperties}>
-              <div className="l-team__card-inner">
-                <div
-                  className="l-team__avatar l-team__avatar--photo"
-                  style={{ backgroundImage: `url(${t.photo})` } as CSSProperties}
-                  aria-label={t.name}
-                >
-                  <span className="l-team__avatar-fallback">{t.initials}</span>
-                </div>
-                <div className="l-team__card-body">
-                  <h3>{t.name}</h3>
-                  <span>{t.role}</span>
-                  <p>{t.bio}</p>
-                </div>
+              <div className="expanded-right">
+                <h3>{expandedCreator.name}</h3>
+                <h4>{expandedCreator.role}</h4>
+                <p>{expandedCreator.bio}</p>
+                <button className="close-expanded" onClick={() => setExpandedCreator(null)}>
+                  Close
+                </button>
               </div>
-            </div>
-          ))}
+            </>
+          )}
         </div>
       </section>
 
-      {/* ── Contact ──────────────────────────────────────────────────── */}
-      <section className="l-contact">
-        <div className="l-contact__inner">
-          <div className="l-contact__copy reveal">
-            <span className="l-section__eyebrow">Contact Us</span>
-            <h2>Ready to be ranked?</h2>
+      <section className="contact-section">
+        <div className="contact-container">
+          <div className="contact-left">
+            <h2>Contact Us</h2>
             <p>
-              Drop us a note &mdash; whether you&apos;re an athlete, a club, a tournament
-              organizer, or a brand interested in partnering with All For One.
+              Want to host a tournament, partner with us, or join the next big competition?
+              Reach out and our team will get back within 24 hours.
             </p>
-
-            <div className="l-contact__info">
-              <div className="l-contact__info-item">
-                <span><Mail size={12} style={{ display: 'inline', marginRight: 6 }} /> Email</span>
-                <p>hello@allfor1.network</p>
-              </div>
-              <div className="l-contact__info-item">
-                <span><Phone size={12} style={{ display: 'inline', marginRight: 6 }} /> Phone</span>
-                <p>+91 00000 00000</p>
-              </div>
-              <div className="l-contact__info-item">
-                <span><MapPin size={12} style={{ display: 'inline', marginRight: 6 }} /> Location</span>
-                <p>India</p>
-              </div>
-            </div>
           </div>
-
           <form
-            className="l-contact__form reveal reveal--scale"
-            onSubmit={(e) => {
-              e.preventDefault();
+            className="contact-form"
+            onSubmit={(event) => {
+              event.preventDefault();
               navigate('/login');
             }}
           >
-            <label>Your Name</label>
-            <input type="text" required placeholder="Aarav Mehta" />
-            <label>Email Address</label>
-            <input type="email" required placeholder="you@allfor1.network" />
-            <label>Your Message</label>
-            <textarea required placeholder="Tell us a bit about yourself…" />
-            <button type="submit" className="l-btn l-btn--primary">
-              Send Message <ArrowRight size={16} />
+            <input type="text" placeholder="Your Name" required />
+            <input type="email" placeholder="Email Address" required />
+            <textarea placeholder="Your message..." rows={4} required />
+            <button className="btn-primary" type="submit">
+              Send Message
             </button>
           </form>
         </div>
       </section>
 
-      {/* ── Footer ───────────────────────────────────────────────────── */}
       <footer className="l-footer">
         <div className="l-footer__inner">
-          <div className="l-footer__brand">
-            <img src={logoUrl} alt="All For 1" style={{ height: 60, marginBottom: 12 }} />
-            <h4>All For One</h4>
-            <p>The network for the sports ecosystem &mdash; tournaments, rankings, and a real path forward for athletes.</p>
+          <div>
+            <img src={logoUrl} alt="All For One" className="footer-logo" />
+            <p>The network for the sports ecosystem.</p>
           </div>
-
           <div className="l-footer__col">
             <h5>Product</h5>
             <button onClick={() => jumpTo('home')}>Home</button>
             <button onClick={() => jumpTo('about')}>About</button>
             <button onClick={() => jumpTo('team')}>Team</button>
-            <Link to="/login">Sign In</Link>
             <Link to="/login">Sign Up</Link>
           </div>
-
           <div className="l-footer__col">
             <h5>Legal</h5>
             <Link to="/terms">Terms &amp; Conditions</Link>
             <Link to="/privacy">Privacy Policy</Link>
           </div>
         </div>
-
         <div className="l-footer__bar">
-          <span>&copy; {new Date().getFullYear()} All For One Network. All rights reserved.</span>
+          <span>&copy; {new Date().getFullYear()} The AllFor1 Network. All rights reserved.</span>
           <span>
-            <Link to="/terms" style={{ color: 'inherit', marginRight: 16 }}>Terms</Link>
-            <Link to="/privacy" style={{ color: 'inherit' }}>Privacy</Link>
+            <Link to="/terms">Terms</Link>
+            <Link to="/privacy">Privacy</Link>
           </span>
         </div>
       </footer>
     </div>
+  );
+}
+
+function FlipCard({ img, title, back }: { img: string; title: string; back: string }) {
+  return (
+    <div className="flip-card">
+      <div className="flip-inner">
+        <div className="flip-front">
+          <div className="hub-icon">
+            <img src={img} alt="" aria-hidden />
+          </div>
+          <h3>{title}</h3>
+        </div>
+        <div className="flip-back">
+          <p>{back}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CreatorCard({
+  creator,
+  onOpen,
+}: {
+  creator: Creator;
+  onOpen: (creator: Creator) => void;
+}) {
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
+
+  const onMouseMove = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const card = cardRef.current;
+    const glow = glowRef.current;
+    if (!card || !glow) return;
+    const rect = card.getBoundingClientRect();
+    const x = event.clientX - rect.left - rect.width / 2;
+    const y = event.clientY - rect.top - rect.height / 2;
+    card.style.setProperty('--tilt-x', `${x * 0.18}px`);
+    card.style.setProperty('--tilt-y', `${y * 0.18}px`);
+    glow.style.left = `${event.clientX - rect.left}px`;
+    glow.style.top = `${event.clientY - rect.top}px`;
+  };
+
+  return (
+    <button
+      ref={cardRef}
+      className="creator-card"
+      onClick={() => onOpen(creator)}
+      onMouseMove={onMouseMove}
+      onMouseLeave={() => {
+        cardRef.current?.style.setProperty('--tilt-x', '0px');
+        cardRef.current?.style.setProperty('--tilt-y', '0px');
+      }}
+    >
+      <div className="creator-inner">
+        <img src={creator.img} alt={creator.name} />
+        <div className="creator-glow" ref={glowRef} />
+      </div>
+      <span className="creator-name">{creator.name}</span>
+    </button>
   );
 }

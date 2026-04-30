@@ -50,7 +50,7 @@ export default function MainLayout() {
   const profileIncomplete = !!(user && user.role !== 'ADMIN' && (!user.bio || !user.avatar || !user.location || !user.age || !user.position));
 
   const navItems = [
-    { to: '/',              icon: Home,          label: 'Home' },
+    { to: '/home',          icon: Home,          label: 'Home' },
     { to: '/explore',       icon: Search,        label: 'Explore' },
     { to: '/grow',          icon: TrendingUp,    label: 'Grow' },
     { to: '/tournaments',   icon: Trophy,        label: 'Tournaments' },
@@ -81,7 +81,7 @@ export default function MainLayout() {
 
   // Bottom nav — key items for mobile
   const bottomNav = [
-    { to: '/',              icon: Home,          label: 'Home' },
+    { to: '/home',          icon: Home,          label: 'Home' },
     { to: '/explore',       icon: Search,        label: 'Explore' },
     { to: '/grow',          icon: TrendingUp,    label: 'Grow' },
     { to: '/notifications', icon: Bell,          label: 'Alerts' },
@@ -89,7 +89,7 @@ export default function MainLayout() {
   ];
 
   const isActive = (to: string) =>
-    to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
+    to === '/home' ? location.pathname === '/home' : location.pathname.startsWith(to);
 
   return (
     <div className="flex min-h-screen bg-dark">
@@ -101,7 +101,7 @@ export default function MainLayout() {
       >
         {/* Logo */}
         <div className="px-5 py-5 border-b border-white/10 flex justify-center">
-          <Link to="/"><img src={logoUrl} alt="All For 1" style={{ height: '100px', width: 'auto' }} /></Link>
+          <Link to="/home"><img src={logoUrl} alt="All For 1" style={{ height: '100px', width: 'auto' }} /></Link>
         </div>
 
         {/* Create Post */}
@@ -183,7 +183,7 @@ export default function MainLayout() {
           <Menu size={22} />
         </button>
         <div className="flex-1 flex justify-center">
-          <Link to="/"><img src={logoUrl} alt="All For 1" className="h-9" /></Link>
+          <Link to="/home"><img src={logoUrl} alt="All For 1" className="h-9" /></Link>
         </div>
         <button onClick={() => setShowCreate(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-xs rounded-lg transition-colors w-10 justify-center"

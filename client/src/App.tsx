@@ -47,14 +47,14 @@ function PageSpinner() {
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <PageSpinner />;
-  if (!user) return <Navigate to="/landing" replace />;
+  if (!user) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/home" replace />;
   return <>{children}</>;
 }
 
@@ -63,8 +63,14 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function LandingRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/home" replace />;
   return <>{children}</>;
+}
+
+function CatchAllRoute() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={user ? '/home' : '/'} replace />;
 }
 
 function AppRoutes() {
@@ -72,6 +78,7 @@ function AppRoutes() {
     <Suspense fallback={<PageSpinner />}>
       <Routes>
         {/* Public marketing routes */}
+        <Route index                   element={<LandingRoute><Landing /></LandingRoute>} />
         <Route path="/landing"         element={<LandingRoute><Landing /></LandingRoute>} />
         <Route path="/terms"           element={<Terms />} />
         <Route path="/privacy"         element={<Privacy />} />
@@ -86,7 +93,7 @@ function AppRoutes() {
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-          <Route index                      element={<Home />} />
+          <Route path="home"                element={<Home />} />
           <Route path="explore"             element={<Explore />} />
           <Route path="tournaments"         element={<Tournaments />} />
           <Route path="rankings"            element={<Rankings />} />
@@ -103,7 +110,7 @@ function AppRoutes() {
         </Route>
 
         {/* Catch-all */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<CatchAllRoute />} />
       </Routes>
     </Suspense>
   );
