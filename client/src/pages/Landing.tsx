@@ -285,27 +285,113 @@ export default function Landing() {
               Reach out and our team will get back within 24 hours.
             </p>
           </div>
-          <form
-            className="contact-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.currentTarget);
-              const name = String(data.get('name') ?? '').trim();
-              const email = String(data.get('email') ?? '').trim();
-              const message = String(data.get('message') ?? '').trim();
-              const subject = `Contact from ${name || 'AllFor1 Landing'}`;
-              const body = `${message}\n\n— ${name}\n${email}`;
-              const mailto = `mailto:info@allfor1.pro?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-              window.location.href = mailto;
-            }}
-          >
-            <input name="name"    type="text"  placeholder="Your Name"     required />
-            <input name="email"   type="email" placeholder="Email Address" required />
-            <textarea name="message" placeholder="Your message..." rows={4} required />
-            <button className="btn-primary" type="submit">
-              Send Message
-            </button>
-          </form>
+          <div className="contact-card" aria-label="Contact links">
+            <a className="contact-link" href="mailto:info@allfor1.pro">
+              <span className="contact-icon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M4.5 7.5h15a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="m4.9 8.2 6.5 5a1 1 0 0 0 1.2 0l6.5-5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              <span className="contact-meta">
+                <span className="contact-label">Email</span>
+                <span className="contact-value">info@allfor1.pro</span>
+              </span>
+            </a>
+
+            <a
+              className="contact-link"
+              href="https://instagram.com/allfor1.sport"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="contact-icon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M7.5 3.8h9A3.7 3.7 0 0 1 20.2 7.5v9a3.7 3.7 0 0 1-3.7 3.7h-9A3.7 3.7 0 0 1 3.8 16.5v-9A3.7 3.7 0 0 1 7.5 3.8Z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M12 16.2a4.2 4.2 0 1 0 0-8.4 4.2 4.2 0 0 0 0 8.4Z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M17.2 6.8h.01"
+                    stroke="currentColor"
+                    strokeWidth="2.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              <span className="contact-meta">
+                <span className="contact-label">Instagram</span>
+                <span className="contact-value">allfor1.sport</span>
+              </span>
+            </a>
+
+            <a
+              className="contact-link"
+              href="https://www.linkedin.com/company/all-for-one-sport/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="contact-icon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M6.6 10.2V19"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M6.6 7.2h.01"
+                    stroke="currentColor"
+                    strokeWidth="2.9"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M10.2 19v-5.1c0-1.9 1.2-3.1 3-3.1 1.6 0 2.6 1 2.8 2.3.1.5.1 1 .1 1.5V19"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M10.2 10.2V19"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M4.8 3.8h14.4a2 2 0 0 1 2 2v14.4a2 2 0 0 1-2 2H4.8a2 2 0 0 1-2-2V5.8a2 2 0 0 1 2-2Z"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinejoin="round"
+                    opacity="0.55"
+                  />
+                </svg>
+              </span>
+              <span className="contact-meta">
+                <span className="contact-label">LinkedIn</span>
+                <span className="contact-value">All For One Sport</span>
+              </span>
+            </a>
+          </div>
         </div>
       </section>
 
