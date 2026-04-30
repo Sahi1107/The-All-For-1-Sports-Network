@@ -30,7 +30,41 @@ const CREATORS = {
 
 type Creator = (typeof CREATORS)[keyof typeof CREATORS];
 
-const HERO_SPORTS = Array.from({ length: 22 }, (_, i) => SPORTS[i % SPORTS.length]);
+function makeRng(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), s | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type HeroSport = {
+  sport: (typeof SPORTS)[number];
+  left: number;
+  top: number;
+  delay: number;
+  duration: number;
+  size: number;
+};
+
+const HERO_SPORTS: HeroSport[] = (() => {
+  const rng = makeRng(7);
+  return Array.from({ length: 56 }, (_, i) => {
+    // 65% bottom-weighted (top: 50–96%), 35% top band (top: 2–35%) — keeps the headline area airier
+    const top = rng() < 0.65 ? 50 + rng() * 46 : 2 + rng() * 33;
+    const left = 1 + rng() * 98;
+    return {
+      sport: SPORTS[i % SPORTS.length],
+      left,
+      top,
+      delay: -rng() * 30,
+      duration: 18 + rng() * 14,
+      size: 0.7 + rng() * 0.7,
+    };
+  });
+})();
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -44,6 +78,7 @@ export default function Landing() {
   const teamRef = useRef<HTMLElement>(null);
   const navTrackRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
+  const spritesRef = useRef<Array<HTMLSpanElement | null>>([]);
 
   useEffect(() => {
     document.body.classList.toggle('modal-open', expandedCreator !== null);
@@ -97,6 +132,77 @@ export default function Landing() {
     );
     observer.observe(teamRef.current);
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const section = homeRef.current;
+    if (!section) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (window.matchMedia('(pointer: coarse)').matches) return;
+
+    let cursor: { x: number; y: number } | null = null;
+    let basePositions: { x: number; y: number }[] = [];
+    const current = HERO_SPORTS.map(() => ({ x: 0, y: 0 }));
+
+    const recompute = () => {
+      const rect = section.getBoundingClientRect();
+      basePositions = HERO_SPORTS.map((item) => ({
+        x: (item.left / 100) * rect.width,
+        y: (item.top / 100) * rect.height,
+      }));
+    };
+    recompute();
+
+    const onMove = (event: MouseEvent) => {
+      const rect = section.getBoundingClientRect();
+      cursor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+    const onLeave = () => {
+      cursor = null;
+    };
+
+    section.addEventListener('mousemove', onMove);
+    section.addEventListener('mouseleave', onLeave);
+    window.addEventListener('resize', recompute);
+
+    const REPEL_RADIUS = 190;
+    const REPEL_STRENGTH = 130;
+    let rafId = 0;
+
+    const tick = () => {
+      const sprites = spritesRef.current;
+      for (let i = 0; i < sprites.length; i++) {
+        const node = sprites[i];
+        const base = basePositions[i];
+        if (!node || !base) continue;
+        let tx = 0;
+        let ty = 0;
+        if (cursor) {
+          const dx = base.x - cursor.x;
+          const dy = base.y - cursor.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < REPEL_RADIUS && dist > 0.5) {
+            const force = (1 - dist / REPEL_RADIUS) ** 2;
+            tx = (dx / dist) * REPEL_STRENGTH * force;
+            ty = (dy / dist) * REPEL_STRENGTH * force;
+          }
+        }
+        const cur = current[i];
+        cur.x += (tx - cur.x) * 0.18;
+        cur.y += (ty - cur.y) * 0.18;
+        node.style.setProperty('--push-x', `${cur.x.toFixed(1)}px`);
+        node.style.setProperty('--push-y', `${cur.y.toFixed(1)}px`);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+
+    return () => {
+      section.removeEventListener('mousemove', onMove);
+      section.removeEventListener('mouseleave', onLeave);
+      window.removeEventListener('resize', recompute);
+      cancelAnimationFrame(rafId);
+    };
   }, []);
 
   useEffect(() => {
@@ -159,14 +265,28 @@ export default function Landing() {
       <section id="home" className="hero-wrapper" ref={homeRef}>
         <div className="hero-aurora" aria-hidden />
         <div className="hero-field" aria-hidden>
-          {HERO_SPORTS.map((sport, i) => (
+          {HERO_SPORTS.map((item, i) => (
             <span
               key={i}
-              className={`hero-sport hero-sport--${(i % 6) + 1}`}
-              role="img"
-              aria-label={sport.label}
+              ref={(el) => {
+                spritesRef.current[i] = el;
+              }}
+              className="hero-sport"
+              style={{
+                left: `${item.left}%`,
+                top: `${item.top}%`,
+                fontSize: `${(1.6 + item.size * 1.4).toFixed(2)}rem`,
+              }}
             >
-              {sport.emoji}
+              <span
+                className="hero-sport__inner"
+                style={{
+                  animationDelay: `${item.delay.toFixed(2)}s`,
+                  animationDuration: `${item.duration.toFixed(2)}s`,
+                }}
+              >
+                {item.sport.emoji}
+              </span>
             </span>
           ))}
         </div>
