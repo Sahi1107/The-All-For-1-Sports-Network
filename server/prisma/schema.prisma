@@ -139,10 +139,6 @@ model User {
   basketballStats         BasketballStats[]
   footballStats           FootballStats[]
   cricketStats            CricketStats[]
-  weightliftingStats      WeightliftingStats[]
-  athleticsStats          AthleticsStats[]
-  shootingStats           ShootingStats[]
-  archeryStats            ArcheryStats[]
   playerRankings          PlayerRanking[]
   announcements           Announcement[]
   notifications           Notification[]
@@ -388,18 +384,14 @@ model Tournament {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  createdBy          User                 @relation(fields: [createdById], references: [id])
-  teams              TournamentTeam[]
-  matches            Match[]
-  highlights         Highlight[]
-  rankings           PlayerRanking[]
-  basketballStats    BasketballStats[]
-  footballStats      FootballStats[]
-  cricketStats       CricketStats[]
-  weightliftingStats WeightliftingStats[]
-  athleticsStats     AthleticsStats[]
-  shootingStats      ShootingStats[]
-  archeryStats       ArcheryStats[]
+  createdBy       User              @relation(fields: [createdById], references: [id])
+  teams           TournamentTeam[]
+  matches         Match[]
+  highlights      Highlight[]
+  rankings        PlayerRanking[]
+  basketballStats BasketballStats[]
+  footballStats   FootballStats[]
+  cricketStats    CricketStats[]
 
   @@index([sport])
   @@index([status])
@@ -432,15 +424,11 @@ model TournamentTeamMember {
 
 // ─── Matches ─────────────────────────────────────────────
 
-// Match represents either a head-to-head team game (basketball/football/cricket/...)
-// or an individual-sport event (weightlifting/athletics/shooting/archery), in which
-// case home/away teams and scores are null and per-competitor results live in the
-// sport-specific stats tables below.
 model Match {
   id           String      @id @default(uuid())
   tournamentId String
-  homeTeamId   String?
-  awayTeamId   String?
+  homeTeamId   String
+  awayTeamId   String
   homeScore    Int?
   awayScore    Int?
   round        String?
@@ -449,16 +437,12 @@ model Match {
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
-  tournament         Tournament           @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  homeTeam           Team?                @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeam           Team?                @relation("AwayTeam", fields: [awayTeamId], references: [id])
-  basketballStats    BasketballStats[]
-  footballStats      FootballStats[]
-  cricketStats       CricketStats[]
-  weightliftingStats WeightliftingStats[]
-  athleticsStats     AthleticsStats[]
-  shootingStats      ShootingStats[]
-  archeryStats       ArcheryStats[]
+  tournament      Tournament        @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  homeTeam        Team              @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam        Team              @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  basketballStats BasketballStats[]
+  footballStats   FootballStats[]
+  cricketStats    CricketStats[]
 
   @@index([tournamentId])
   @@index([matchDate])
@@ -541,96 +525,6 @@ model CricketStats {
   @@unique([matchId, userId])
   @@index([userId])
   @@index([tournamentId])
-}
-
-// ─── Individual-sport stats (no head-to-head, results per competitor) ────
-
-model WeightliftingStats {
-  id           String   @id @default(uuid())
-  matchId      String
-  userId       String
-  tournamentId String
-  weightClass  String
-  bodyweight   Float?
-  snatchKg     Float?
-  cleanJerkKg  Float?
-  totalKg      Float?
-  rank         Int?
-  createdAt    DateTime @default(now())
-
-  match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
-
-  @@unique([matchId, userId])
-  @@index([userId])
-  @@index([tournamentId])
-  @@index([weightClass])
-}
-
-model AthleticsStats {
-  id           String   @id @default(uuid())
-  matchId      String
-  userId       String
-  tournamentId String
-  event        String
-  result       Float
-  wind         Float?
-  rank         Int?
-  notes        String?
-  createdAt    DateTime @default(now())
-
-  match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
-
-  @@unique([matchId, userId])
-  @@index([userId])
-  @@index([tournamentId])
-  @@index([event])
-}
-
-model ShootingStats {
-  id           String   @id @default(uuid())
-  matchId      String
-  userId       String
-  tournamentId String
-  event        String
-  score        Float
-  innerTens    Int?
-  rank         Int?
-  createdAt    DateTime @default(now())
-
-  match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
-
-  @@unique([matchId, userId])
-  @@index([userId])
-  @@index([tournamentId])
-  @@index([event])
-}
-
-model ArcheryStats {
-  id           String   @id @default(uuid())
-  matchId      String
-  userId       String
-  tournamentId String
-  distance     String
-  score        Int
-  tens         Int?
-  xs           Int?
-  rank         Int?
-  createdAt    DateTime @default(now())
-
-  match      Match      @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
-
-  @@unique([matchId, userId])
-  @@index([userId])
-  @@index([tournamentId])
-  @@index([distance])
 }
 
 // ─── Rankings ────────────────────────────────────────────

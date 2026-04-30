@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { reqStr, optStr, PaginationQuery, SportEnum, AthleticsEventEnum } from './common';
+import { reqStr, optStr, PaginationQuery, SportEnum } from './common';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -69,19 +69,13 @@ export const RegisterTeamBody = z.object({
   teamId: z.string().uuid('teamId must be a valid UUID'),
 });
 
-// Team IDs are optional so individual-sport events (weightlifting, athletics,
-// shooting, archery) can be scheduled as a Match without a home/away team —
-// per-competitor results are recorded in the sport-specific stats tables.
 export const CreateMatchBody = z.object({
-  homeTeamId: z.string().uuid('homeTeamId must be a valid UUID').optional(),
-  awayTeamId: z.string().uuid('awayTeamId must be a valid UUID').optional(),
+  homeTeamId: z.string().uuid('homeTeamId must be a valid UUID'),
+  awayTeamId: z.string().uuid('awayTeamId must be a valid UUID'),
   round:     optStr(50, 'Round'),
   matchDate: isoDate('Match date'),
 }).refine(
-  (d) => (d.homeTeamId == null) === (d.awayTeamId == null),
-  { message: 'Provide both home and away team, or neither (individual event)', path: ['awayTeamId'] },
-).refine(
-  (d) => !d.homeTeamId || !d.awayTeamId || d.homeTeamId !== d.awayTeamId,
+  (d) => d.homeTeamId !== d.awayTeamId,
   { message: 'Home team and away team must be different', path: ['awayTeamId'] },
 );
 
@@ -125,49 +119,9 @@ const CricketStatsShape = z.object({
   economy:     z.coerce.number().min(0).max(100),
 }).partial();
 
-const WeightliftingStatsShape = z.object({
-  weightClass: reqStr(20, 'weightClass'),
-  bodyweight:  z.coerce.number().min(0).max(300).optional(),
-  snatchKg:    z.coerce.number().min(0).max(500).optional(),
-  cleanJerkKg: z.coerce.number().min(0).max(500).optional(),
-  totalKg:     z.coerce.number().min(0).max(1000).optional(),
-  rank:        z.coerce.number().int().min(1).max(500).optional(),
-});
-
-const AthleticsStatsShape = z.object({
-  event:  AthleticsEventEnum,
-  result: z.coerce.number().min(0).max(100000),
-  wind:   z.coerce.number().min(-10).max(10).optional(),
-  rank:   z.coerce.number().int().min(1).max(500).optional(),
-  notes:  optStr(200, 'notes'),
-});
-
-const ShootingStatsShape = z.object({
-  event:     reqStr(40, 'event'),
-  score:     z.coerce.number().min(0).max(2000),
-  innerTens: z.coerce.number().int().min(0).max(200).optional(),
-  rank:      z.coerce.number().int().min(1).max(500).optional(),
-});
-
-const ArcheryStatsShape = z.object({
-  distance: reqStr(20, 'distance'),
-  score:    z.coerce.number().int().min(0).max(2000),
-  tens:     z.coerce.number().int().min(0).max(200).optional(),
-  xs:       z.coerce.number().int().min(0).max(200).optional(),
-  rank:     z.coerce.number().int().min(1).max(500).optional(),
-});
-
 const PlayerStatEntry = z.object({
   userId: z.string().uuid('playerStats[].userId must be a valid UUID'),
-  stats:  z.union([
-    BasketballStatsShape,
-    FootballStatsShape,
-    CricketStatsShape,
-    WeightliftingStatsShape,
-    AthleticsStatsShape,
-    ShootingStatsShape,
-    ArcheryStatsShape,
-  ]),
+  stats:  z.union([BasketballStatsShape, FootballStatsShape, CricketStatsShape]),
 });
 
 export const MatchResultBody = z.object({

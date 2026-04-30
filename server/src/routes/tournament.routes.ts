@@ -261,6 +261,10 @@ router.post('/:id/register', authenticate, writeLimiter, validate({ body: Regist
 router.post('/:id/matches', authenticate, requireRole('ADMIN'), validate({ body: CreateMatchBody }), async (req: AuthRequest, res: Response) => {
   try {
     const { homeTeamId, awayTeamId, round, matchDate } = req.body;
+    if (!homeTeamId || !awayTeamId || !matchDate) {
+      res.status(400).json({ error: 'Home team, away team, and match date are required' });
+      return;
+    }
 
     const match = await prisma.match.create({
       data: {
