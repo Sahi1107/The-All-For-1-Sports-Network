@@ -98,7 +98,7 @@ body {
 }
 
 .logo img {
-  height: 78px;
+  height: 96px;
   width: auto;
   object-fit: contain;
   transition: opacity 0.35s ease, transform 0.35s ease;
@@ -1024,7 +1024,7 @@ body.modal-open {
 
 @media (max-width: 900px) {
   .logo img {
-    height: 68px;
+    height: 82px;
   }
 
   .nav-container {
@@ -1097,7 +1097,7 @@ body.modal-open {
   .glass-header { min-height: 96px; }
 
   .logo img {
-    height: 58px;
+    height: 70px;
   }
 
   .nav-container {
@@ -1246,7 +1246,7 @@ body.modal-open {
 
 @media (max-width: 480px) {
   .logo img {
-    height: 52px;
+    height: 62px;
   }
 
   .nav-signup--corner {
