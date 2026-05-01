@@ -343,9 +343,18 @@ body {
 
 .hero-content h1 {
   font-size: clamp(2.4rem, 5vw, 3.5rem);
-  line-height: 1.05;
+  line-height: 0.95;
   max-width: 900px;
-  font-weight: 800;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", "Segoe UI", sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #dbff5a;
+  text-shadow:
+    0 1px 0 #111,
+    0 2px 0 #111,
+    0 3px 0 #111,
+    0 6px 16px rgba(0, 0, 0, 0.45);
 }
 
 .hero-content p {
