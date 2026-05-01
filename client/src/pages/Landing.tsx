@@ -224,23 +224,17 @@ export default function Landing() {
           <div className="who-left">
             <h2>ABOUT ALL FOR ONE</h2>
             <p>
-              All For One is a grassroots sports initiative built around a single objective:
-              creating real, measurable pathways for athletes to advance based on performance.
-              We organize competitive tournaments that produce structured, verified match data,
-              allowing players and teams to be evaluated through consistent, objective metrics
-              rather than reputation or access.
+              All For 1 is a social network designed for the entire Indian sports ecosystem. At
+              its core, athletes build verified profiles with verified stats and rankings. These
+              are not self-reported numbers, but rather data recorded and published through our
+              grassroots tournament and league partnerships.
             </p>
             <h3 className="who-subtitle">Building an Open Sports Community</h3>
             <p>
-              All For One is designed to remove traditional gatekeeping in grassroots sports.
-              Talent often remains unseen because access to scouts, organizers, and opportunities
-              is restricted to limited networks.
-            </p>
-            <p>
-              Instead of relying on closed circles or personal connections, athletes will be able
-              to showcase verified performance histories and directly reach the right people
-              through the ecosystem. Opportunities become discoverable through merit, not
-              proximity.
+              Beyond athlete profiles, All For 1 connects the entire ecosystem—including athletes,
+              coaches, scouts, and academies—on one platform. With a two-sided marketplace, social
+              feed, team management, and messaging all built in, we view this as the infrastructure
+              layer Indian sports has never had.
             </p>
           </div>
 
