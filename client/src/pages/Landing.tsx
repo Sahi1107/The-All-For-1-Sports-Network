@@ -16,13 +16,13 @@ const NAV_LINKS: { id: SectionId; label: string }[] = [
 const CREATORS = {
   sahil: {
     name: 'Sahil Desai',
-    role: 'Founder & Creative Head',
+    role: 'Co-founder and CEO',
     img: '/c1.jpeg',
     bio: 'A visionary focused on building performance-driven athlete ecosystems.',
   },
   mann: {
     name: 'Mann Agarwal',
-    role: 'Co-Founder & Strategy',
+    role: 'Co-founder and COO',
     img: '/c2.jpeg',
     bio: 'Drives tournament systems, rankings and long-term growth strategy.',
   },
