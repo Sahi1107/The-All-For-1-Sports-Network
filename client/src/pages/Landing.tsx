@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import logoUrl from '../assets/logo.svg';
 import logoBlueUrl from '../assets/logo-icon.svg';
-import { SPORTS } from '../data/sports';
 import './landing.css';
 
 type SectionId = 'home' | 'about' | 'team';
@@ -30,45 +29,6 @@ const CREATORS = {
 
 type Creator = (typeof CREATORS)[keyof typeof CREATORS];
 
-function makeRng(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s + 0x6d2b79f5) | 0;
-    let t = Math.imul(s ^ (s >>> 15), s | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-type HeroSport = {
-  sport: (typeof SPORTS)[number];
-  fontPx: number;
-  r: number;
-  glow: 'lime' | 'blue';
-  initialX: number;
-  initialY: number;
-};
-
-function generateHeroSports(count: number, viewportW: number): HeroSport[] {
-  const rngSize = makeRng(7);
-  const rngPos = makeRng(11);
-  const fallSpread = viewportW < 768 ? 1100 : 1700;
-  return Array.from({ length: count }, (_, i): HeroSport => {
-    const size = 0.7 + rngSize() * 0.7;
-    const fontPx = (1.6 + size * 1.4) * 16;
-    const r = fontPx * 0.42;
-    const usableW = Math.max(viewportW - 2 * r, 100);
-    return {
-      sport: SPORTS[i % SPORTS.length],
-      fontPx,
-      r,
-      glow: i % 2 === 0 ? 'lime' : 'blue',
-      initialX: r + rngPos() * usableW,
-      initialY: -80 - rngPos() * fallSpread,
-    };
-  });
-}
-
 export default function Landing() {
   const navigate = useNavigate();
   const [active, setActive] = useState<SectionId>('home');
@@ -81,13 +41,6 @@ export default function Landing() {
   const teamRef = useRef<HTMLElement>(null);
   const navTrackRef = useRef<HTMLDivElement>(null);
   const spotlightRef = useRef<HTMLDivElement>(null);
-  const spritesRef = useRef<Array<HTMLSpanElement | null>>([]);
-
-  const heroSports = useMemo(() => {
-    const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
-    const count = w < 480 ? 90 : w < 768 ? 150 : 250;
-    return generateHeroSports(count, w);
-  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('modal-open', expandedCreator !== null);
@@ -143,260 +96,6 @@ export default function Landing() {
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    const section = homeRef.current;
-    if (!section) return;
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-
-    const N = heroSports.length;
-    const sprites = heroSports.map((item, i) => ({
-      x: item.initialX,
-      y: item.initialY,
-      vx: 0,
-      vy: 0,
-      rot: (Math.random() - 0.5) * 24,
-      vr: (Math.random() - 0.5) * 4,
-      r: item.r,
-      spinDir: i % 2 === 0 ? 1 : -1,
-    }));
-
-    let width = 0;
-    let height = 0;
-    const recompute = () => {
-      const rect = section.getBoundingClientRect();
-      width = rect.width;
-      height = rect.height;
-    };
-    recompute();
-
-    let cursor: { x: number; y: number } | null = null;
-    let cursorTarget: { x: number; y: number } | null = null;
-    let raf = 0;
-    let active = false;
-    let settleFrames = 0;
-
-    const GRAVITY = 0.6;
-    const DAMP_X = 0.94;
-    const DAMP_Y = 0.99;
-    const FLOOR_BOUNCE = 0.0;
-    const WALL_BOUNCE = 0.5;
-    const REPEL_RADIUS = 165;
-    const REPEL_FORCE = 12;
-    const RESTITUTION = 0.0;
-    const CELL_SIZE = 84;
-
-    const tick = () => {
-      // 1. Forces (gravity + cursor repel)
-      if (cursorTarget) {
-        if (!cursor) {
-          cursor = { x: cursorTarget.x, y: cursorTarget.y };
-        } else {
-          cursor.x += (cursorTarget.x - cursor.x) * 0.28;
-          cursor.y += (cursorTarget.y - cursor.y) * 0.28;
-        }
-      } else {
-        cursor = null;
-      }
-
-      for (let i = 0; i < N; i++) {
-        const s = sprites[i];
-        s.vy += GRAVITY;
-        if (cursor) {
-          const dx = s.x - cursor.x;
-          const dy = s.y - cursor.y;
-          const d2 = dx * dx + dy * dy;
-          const R = REPEL_RADIUS;
-          if (d2 < R * R) {
-            const d = Math.sqrt(d2) || 0.01;
-            const f = 1 - d / R;
-            const impulse = f * f * REPEL_FORCE;
-            s.vx += (dx / d) * impulse;
-            s.vy += (dy / d) * impulse;
-            s.vr += s.spinDir * 7 * f;
-          }
-        }
-      }
-
-      // 2. Integrate
-      for (let i = 0; i < N; i++) {
-        const s = sprites[i];
-        s.x += s.vx;
-        s.y += s.vy;
-        s.rot += s.vr;
-      }
-
-      // 3. Constraints (broad-phase grid + 2 passes for stable stacks)
-      for (let pass = 0; pass < 2; pass++) {
-        const grid = new Map<string, number[]>();
-        for (let i = 0; i < N; i++) {
-          const s = sprites[i];
-          const gx = Math.floor(s.x / CELL_SIZE);
-          const gy = Math.floor(s.y / CELL_SIZE);
-          const key = `${gx},${gy}`;
-          const bucket = grid.get(key);
-          if (bucket) bucket.push(i);
-          else grid.set(key, [i]);
-        }
-
-        for (let i = 0; i < N; i++) {
-          const a = sprites[i];
-          const gx = Math.floor(a.x / CELL_SIZE);
-          const gy = Math.floor(a.y / CELL_SIZE);
-          for (let oy = -1; oy <= 1; oy++) {
-            for (let ox = -1; ox <= 1; ox++) {
-              const bucket = grid.get(`${gx + ox},${gy + oy}`);
-              if (!bucket) continue;
-              for (let k = 0; k < bucket.length; k++) {
-                const j = bucket[k];
-                if (j <= i) continue;
-                const b = sprites[j];
-                const dx = b.x - a.x;
-                const dy = b.y - a.y;
-                const minD = a.r + b.r;
-                const d2 = dx * dx + dy * dy;
-                if (d2 < minD * minD && d2 > 0.0001) {
-                  const d = Math.sqrt(d2);
-                  const overlap = minD - d;
-                  const nx = dx / d;
-                  const ny = dy / d;
-                  const correct = overlap * 0.5;
-                  a.x -= nx * correct;
-                  a.y -= ny * correct;
-                  b.x += nx * correct;
-                  b.y += ny * correct;
-                  const vaN = a.vx * nx + a.vy * ny;
-                  const vbN = b.vx * nx + b.vy * ny;
-                  const vRel = vbN - vaN;
-                  if (vRel < 0) {
-                    const jImp = (-(1 + RESTITUTION) * vRel) / 2;
-                    a.vx -= jImp * nx;
-                    a.vy -= jImp * ny;
-                    b.vx += jImp * nx;
-                    b.vy += jImp * ny;
-                  }
-                }
-              }
-            }
-          }
-        }
-        for (let i = 0; i < N; i++) {
-          const s = sprites[i];
-          if (s.y + s.r > height) {
-            s.y = height - s.r;
-            if (s.vy > 0) {
-              s.vy = -s.vy * FLOOR_BOUNCE;
-              s.vx *= 0.85;
-            }
-          }
-          if (s.x - s.r < 0) {
-            s.x = s.r;
-            if (s.vx < 0) s.vx = -s.vx * WALL_BOUNCE;
-          } else if (s.x + s.r > width) {
-            s.x = width - s.r;
-            if (s.vx > 0) s.vx = -s.vx * WALL_BOUNCE;
-          }
-        }
-      }
-
-      // 4. Damping + KE accumulator
-      let totalKE = 0;
-      for (let i = 0; i < N; i++) {
-        const s = sprites[i];
-        s.vx *= DAMP_X;
-        s.vy *= DAMP_Y;
-        s.vr *= 0.93;
-        totalKE += s.vx * s.vx + s.vy * s.vy;
-      }
-
-      // 5. Write DOM transforms
-      const nodes = spritesRef.current;
-      for (let i = 0; i < N; i++) {
-        const node = nodes[i];
-        if (!node) continue;
-        const s = sprites[i];
-        node.style.transform =
-          `translate3d(${(s.x - s.r).toFixed(1)}px, ${(s.y - s.r).toFixed(1)}px, 0) ` +
-          `rotate(${s.rot.toFixed(1)}deg)`;
-      }
-
-      // 6. Sleep when idle
-      if (!cursor && totalKE < N * 0.05) {
-        settleFrames++;
-        if (settleFrames > 40) {
-          active = false;
-          settleFrames = 0;
-          return;
-        }
-      } else {
-        settleFrames = 0;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-
-    const start = () => {
-      if (active) return;
-      active = true;
-      settleFrames = 0;
-      raf = requestAnimationFrame(tick);
-    };
-
-    const onMove = (event: MouseEvent) => {
-      const rect = section.getBoundingClientRect();
-      cursorTarget = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      start();
-    };
-    const onLeave = () => {
-      cursorTarget = null;
-    };
-    const onTouch = (event: TouchEvent) => {
-      const t = event.touches[0];
-      if (!t) return;
-      const rect = section.getBoundingClientRect();
-      cursorTarget = { x: t.clientX - rect.left, y: t.clientY - rect.top };
-      start();
-    };
-    const onTouchEnd = (event: TouchEvent) => {
-      if (event.touches.length === 0) cursorTarget = null;
-    };
-    const onResize = () => {
-      recompute();
-      start();
-    };
-
-    section.addEventListener('mousemove', onMove);
-    section.addEventListener('mouseleave', onLeave);
-    section.addEventListener('touchstart', onTouch, { passive: true });
-    section.addEventListener('touchmove', onTouch, { passive: true });
-    section.addEventListener('touchend', onTouchEnd);
-    section.addEventListener('touchcancel', onTouchEnd);
-    window.addEventListener('resize', onResize);
-
-    const visObserver = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) start();
-        else {
-          cancelAnimationFrame(raf);
-          active = false;
-        }
-      },
-      { threshold: 0 },
-    );
-    visObserver.observe(section);
-
-    start();
-
-    return () => {
-      section.removeEventListener('mousemove', onMove);
-      section.removeEventListener('mouseleave', onLeave);
-      section.removeEventListener('touchstart', onTouch);
-      section.removeEventListener('touchmove', onTouch);
-      section.removeEventListener('touchend', onTouchEnd);
-      section.removeEventListener('touchcancel', onTouchEnd);
-      window.removeEventListener('resize', onResize);
-      visObserver.disconnect();
-      cancelAnimationFrame(raf);
-    };
-  }, [heroSports]);
 
   useEffect(() => {
     const menu = navTrackRef.current;
@@ -457,24 +156,6 @@ export default function Landing() {
 
       <section id="home" className="hero-wrapper" ref={homeRef}>
         <div className="hero-aurora" aria-hidden />
-        <div className="hero-field" aria-hidden>
-          {heroSports.map((item, i) => (
-            <span
-              key={i}
-              ref={(el) => {
-                spritesRef.current[i] = el;
-              }}
-              className={`hero-sport hero-sport--${item.glow}`}
-              style={{
-                fontSize: `${item.fontPx.toFixed(1)}px`,
-                transform: `translate3d(${(item.initialX - item.r).toFixed(1)}px, ${(item.initialY - item.r).toFixed(1)}px, 0)`,
-              }}
-            >
-              {item.sport.emoji}
-            </span>
-          ))}
-        </div>
-
         <div className="hero-content">
           <h1>Performance is the Test. Elite is the Title.</h1>
           <p>India&apos;s First Unified Sports Platform</p>
