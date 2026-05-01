@@ -85,7 +85,7 @@ export default function Landing() {
 
   const heroSports = useMemo(() => {
     const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
-    const count = w < 480 ? 55 : w < 768 ? 80 : 200;
+    const count = w < 480 ? 38 : w < 768 ? 58 : 120;
     return generateHeroSports(count, w);
   }, []);
 
@@ -149,7 +149,7 @@ export default function Landing() {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     const N = heroSports.length;
-    const sprites = heroSports.map((item) => ({
+    const sprites = heroSports.map((item, i) => ({
       x: item.initialX,
       y: item.initialY,
       vx: 0,
@@ -157,6 +157,7 @@ export default function Landing() {
       rot: (Math.random() - 0.5) * 24,
       vr: (Math.random() - 0.5) * 4,
       r: item.r,
+      spinDir: i % 2 === 0 ? 1 : -1,
     }));
 
     let width = 0;
@@ -181,6 +182,7 @@ export default function Landing() {
     const REPEL_RADIUS = 220;
     const REPEL_FORCE = 26;
     const RESTITUTION = 0.0;
+    const CELL_SIZE = 84;
 
     const tick = () => {
       // 1. Forces (gravity + cursor repel)
@@ -198,7 +200,7 @@ export default function Landing() {
             const impulse = f * f * REPEL_FORCE;
             s.vx += (dx / d) * impulse;
             s.vy += (dy / d) * impulse;
-            s.vr += (Math.random() - 0.5) * 14 * f;
+            s.vr += s.spinDir * 7 * f;
           }
         }
       }
@@ -211,35 +213,56 @@ export default function Landing() {
         s.rot += s.vr;
       }
 
-      // 3. Constraints (3 passes for stable stacks)
-      for (let pass = 0; pass < 3; pass++) {
+      // 3. Constraints (broad-phase grid + 2 passes for stable stacks)
+      for (let pass = 0; pass < 2; pass++) {
+        const grid = new Map<string, number[]>();
+        for (let i = 0; i < N; i++) {
+          const s = sprites[i];
+          const gx = Math.floor(s.x / CELL_SIZE);
+          const gy = Math.floor(s.y / CELL_SIZE);
+          const key = `${gx},${gy}`;
+          const bucket = grid.get(key);
+          if (bucket) bucket.push(i);
+          else grid.set(key, [i]);
+        }
+
         for (let i = 0; i < N; i++) {
           const a = sprites[i];
-          for (let j = i + 1; j < N; j++) {
-            const b = sprites[j];
-            const dx = b.x - a.x;
-            const dy = b.y - a.y;
-            const minD = a.r + b.r;
-            const d2 = dx * dx + dy * dy;
-            if (d2 < minD * minD && d2 > 0.0001) {
-              const d = Math.sqrt(d2);
-              const overlap = minD - d;
-              const nx = dx / d;
-              const ny = dy / d;
-              const correct = overlap * 0.5;
-              a.x -= nx * correct;
-              a.y -= ny * correct;
-              b.x += nx * correct;
-              b.y += ny * correct;
-              const vaN = a.vx * nx + a.vy * ny;
-              const vbN = b.vx * nx + b.vy * ny;
-              const vRel = vbN - vaN;
-              if (vRel < 0) {
-                const jImp = (-(1 + RESTITUTION) * vRel) / 2;
-                a.vx -= jImp * nx;
-                a.vy -= jImp * ny;
-                b.vx += jImp * nx;
-                b.vy += jImp * ny;
+          const gx = Math.floor(a.x / CELL_SIZE);
+          const gy = Math.floor(a.y / CELL_SIZE);
+          for (let oy = -1; oy <= 1; oy++) {
+            for (let ox = -1; ox <= 1; ox++) {
+              const bucket = grid.get(`${gx + ox},${gy + oy}`);
+              if (!bucket) continue;
+              for (let k = 0; k < bucket.length; k++) {
+                const j = bucket[k];
+                if (j <= i) continue;
+                const b = sprites[j];
+                const dx = b.x - a.x;
+                const dy = b.y - a.y;
+                const minD = a.r + b.r;
+                const d2 = dx * dx + dy * dy;
+                if (d2 < minD * minD && d2 > 0.0001) {
+                  const d = Math.sqrt(d2);
+                  const overlap = minD - d;
+                  const nx = dx / d;
+                  const ny = dy / d;
+                  const correct = overlap * 0.5;
+                  a.x -= nx * correct;
+                  a.y -= ny * correct;
+                  b.x += nx * correct;
+                  b.y += ny * correct;
+                  const vaN = a.vx * nx + a.vy * ny;
+                  const vbN = b.vx * nx + b.vy * ny;
+                  const vRel = vbN - vaN;
+                  if (vRel < 0) {
+                    const jImp = (-(1 + RESTITUTION) * vRel) / 2;
+                    a.vx -= jImp * nx;
+                    a.vy -= jImp * ny;
+                    b.vx += jImp * nx;
+                    b.vy += jImp * ny;
+                  }
+                }
               }
             }
           }
