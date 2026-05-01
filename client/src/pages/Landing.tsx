@@ -85,7 +85,7 @@ export default function Landing() {
 
   const heroSports = useMemo(() => {
     const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
-    const count = w < 480 ? 38 : w < 768 ? 58 : 120;
+    const count = w < 480 ? 90 : w < 768 ? 150 : 250;
     return generateHeroSports(count, w);
   }, []);
 
@@ -170,6 +170,7 @@ export default function Landing() {
     recompute();
 
     let cursor: { x: number; y: number } | null = null;
+    let cursorTarget: { x: number; y: number } | null = null;
     let raf = 0;
     let active = false;
     let settleFrames = 0;
@@ -179,13 +180,24 @@ export default function Landing() {
     const DAMP_Y = 0.99;
     const FLOOR_BOUNCE = 0.0;
     const WALL_BOUNCE = 0.5;
-    const REPEL_RADIUS = 220;
-    const REPEL_FORCE = 26;
+    const REPEL_RADIUS = 165;
+    const REPEL_FORCE = 12;
     const RESTITUTION = 0.0;
     const CELL_SIZE = 84;
 
     const tick = () => {
       // 1. Forces (gravity + cursor repel)
+      if (cursorTarget) {
+        if (!cursor) {
+          cursor = { x: cursorTarget.x, y: cursorTarget.y };
+        } else {
+          cursor.x += (cursorTarget.x - cursor.x) * 0.28;
+          cursor.y += (cursorTarget.y - cursor.y) * 0.28;
+        }
+      } else {
+        cursor = null;
+      }
+
       for (let i = 0; i < N; i++) {
         const s = sprites[i];
         s.vy += GRAVITY;
@@ -330,21 +342,21 @@ export default function Landing() {
 
     const onMove = (event: MouseEvent) => {
       const rect = section.getBoundingClientRect();
-      cursor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      cursorTarget = { x: event.clientX - rect.left, y: event.clientY - rect.top };
       start();
     };
     const onLeave = () => {
-      cursor = null;
+      cursorTarget = null;
     };
     const onTouch = (event: TouchEvent) => {
       const t = event.touches[0];
       if (!t) return;
       const rect = section.getBoundingClientRect();
-      cursor = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+      cursorTarget = { x: t.clientX - rect.left, y: t.clientY - rect.top };
       start();
     };
     const onTouchEnd = (event: TouchEvent) => {
-      if (event.touches.length === 0) cursor = null;
+      if (event.touches.length === 0) cursorTarget = null;
     };
     const onResize = () => {
       recompute();
