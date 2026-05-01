@@ -85,7 +85,7 @@ export default function Landing() {
 
   const heroSports = useMemo(() => {
     const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
-    const count = w < 768 ? 80 : 200;
+    const count = w < 480 ? 55 : w < 768 ? 80 : 200;
     return generateHeroSports(count, w);
   }, []);
 
@@ -313,6 +313,16 @@ export default function Landing() {
     const onLeave = () => {
       cursor = null;
     };
+    const onTouch = (event: TouchEvent) => {
+      const t = event.touches[0];
+      if (!t) return;
+      const rect = section.getBoundingClientRect();
+      cursor = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+      start();
+    };
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length === 0) cursor = null;
+    };
     const onResize = () => {
       recompute();
       start();
@@ -320,6 +330,10 @@ export default function Landing() {
 
     section.addEventListener('mousemove', onMove);
     section.addEventListener('mouseleave', onLeave);
+    section.addEventListener('touchstart', onTouch, { passive: true });
+    section.addEventListener('touchmove', onTouch, { passive: true });
+    section.addEventListener('touchend', onTouchEnd);
+    section.addEventListener('touchcancel', onTouchEnd);
     window.addEventListener('resize', onResize);
 
     const visObserver = new IntersectionObserver(
@@ -339,6 +353,10 @@ export default function Landing() {
     return () => {
       section.removeEventListener('mousemove', onMove);
       section.removeEventListener('mouseleave', onLeave);
+      section.removeEventListener('touchstart', onTouch);
+      section.removeEventListener('touchmove', onTouch);
+      section.removeEventListener('touchend', onTouchEnd);
+      section.removeEventListener('touchcancel', onTouchEnd);
       window.removeEventListener('resize', onResize);
       visObserver.disconnect();
       cancelAnimationFrame(raf);
@@ -367,11 +385,11 @@ export default function Landing() {
     nodes[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const moveSpotlight = (event: React.MouseEvent<HTMLElement>) => {
+  const moveSpotlightTo = (clientX: number, clientY: number) => {
     if (!spotlightRef.current || !teamRef.current) return;
     const rect = teamRef.current.getBoundingClientRect();
-    spotlightRef.current.style.left = `${event.clientX - rect.left}px`;
-    spotlightRef.current.style.top = `${event.clientY - rect.top}px`;
+    spotlightRef.current.style.left = `${clientX - rect.left}px`;
+    spotlightRef.current.style.top = `${clientY - rect.top}px`;
   };
 
   return (
@@ -482,7 +500,8 @@ export default function Landing() {
         id="team"
         className="who-section"
         ref={teamRef}
-        onMouseMove={moveSpotlight}
+        onPointerDown={(event) => moveSpotlightTo(event.clientX, event.clientY)}
+        onPointerMove={(event) => moveSpotlightTo(event.clientX, event.clientY)}
       >
         <div className="spotlight" ref={spotlightRef} />
         <div className="who-container">
@@ -715,17 +734,17 @@ function CreatorCard({
   const cardRef = useRef<HTMLButtonElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
 
-  const onMouseMove = (event: React.MouseEvent<HTMLButtonElement>) => {
+  const updateGlow = (clientX: number, clientY: number) => {
     const card = cardRef.current;
     const glow = glowRef.current;
     if (!card || !glow) return;
     const rect = card.getBoundingClientRect();
-    const x = event.clientX - rect.left - rect.width / 2;
-    const y = event.clientY - rect.top - rect.height / 2;
+    const x = clientX - rect.left - rect.width / 2;
+    const y = clientY - rect.top - rect.height / 2;
     card.style.setProperty('--tilt-x', `${x * 0.18}px`);
     card.style.setProperty('--tilt-y', `${y * 0.18}px`);
-    glow.style.left = `${event.clientX - rect.left}px`;
-    glow.style.top = `${event.clientY - rect.top}px`;
+    glow.style.left = `${clientX - rect.left}px`;
+    glow.style.top = `${clientY - rect.top}px`;
   };
 
   return (
@@ -733,8 +752,9 @@ function CreatorCard({
       ref={cardRef}
       className="creator-card"
       onClick={() => onOpen(creator)}
-      onMouseMove={onMouseMove}
-      onMouseLeave={() => {
+      onPointerDown={(event) => updateGlow(event.clientX, event.clientY)}
+      onPointerMove={(event) => updateGlow(event.clientX, event.clientY)}
+      onPointerLeave={() => {
         cardRef.current?.style.setProperty('--tilt-x', '0px');
         cardRef.current?.style.setProperty('--tilt-y', '0px');
       }}
