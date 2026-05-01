@@ -268,9 +268,8 @@ body {
   overflow: hidden;
   touch-action: pan-y;
   background:
-    radial-gradient(ellipse at 20% 18%, rgba(215, 255, 90, 0.18), transparent 40%),
-    radial-gradient(ellipse at 82% 78%, rgba(255, 255, 255, 0.08), transparent 42%),
-    linear-gradient(180deg, #080808 0%, #111111 100%);
+    linear-gradient(180deg, rgba(8, 8, 8, 0.44) 0%, rgba(8, 8, 8, 0.62) 100%),
+    url("/landing/background%202.png") center / cover no-repeat;
 }
 
 .hero-aurora {
