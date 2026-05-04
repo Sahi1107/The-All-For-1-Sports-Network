@@ -100,14 +100,24 @@ export default function Landing() {
   useEffect(() => {
     const menu = navTrackRef.current;
     if (!menu) return;
-    const activeItem = menu.querySelector<HTMLButtonElement>(`button[data-id="${active}"]`);
-    const indicator = menu.querySelector<HTMLSpanElement>('.nav-indicator');
-    if (!activeItem || !indicator) return;
 
-    const menuRect = menu.getBoundingClientRect();
-    const itemRect = activeItem.getBoundingClientRect();
-    indicator.style.width = `${itemRect.width}px`;
-    indicator.style.left = `${itemRect.left - menuRect.left}px`;
+    const positionIndicator = () => {
+      const activeItem = menu.querySelector<HTMLButtonElement>(`button[data-id="${active}"]`);
+      const indicator = menu.querySelector<HTMLSpanElement>('.nav-indicator');
+      if (!activeItem || !indicator) return;
+      const menuRect = menu.getBoundingClientRect();
+      const itemRect = activeItem.getBoundingClientRect();
+      indicator.style.width = `${itemRect.width}px`;
+      indicator.style.left = `${itemRect.left - menuRect.left}px`;
+    };
+
+    positionIndicator();
+    window.addEventListener('resize', positionIndicator);
+    window.addEventListener('orientationchange', positionIndicator);
+    return () => {
+      window.removeEventListener('resize', positionIndicator);
+      window.removeEventListener('orientationchange', positionIndicator);
+    };
   }, [active]);
 
   const jumpTo = (id: SectionId) => {
@@ -119,7 +129,8 @@ export default function Landing() {
     nodes[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const moveSpotlightTo = (clientX: number, clientY: number) => {
+  const moveSpotlightTo = (clientX: number, clientY: number, pointerType: string) => {
+    if (pointerType === 'touch') return;
     if (!spotlightRef.current || !teamRef.current) return;
     const rect = teamRef.current.getBoundingClientRect();
     spotlightRef.current.style.left = `${clientX - rect.left}px`;
@@ -179,6 +190,7 @@ export default function Landing() {
           muted
           playsInline
           preload="metadata"
+          poster="/landing/background%202.png"
           aria-hidden
         />
         <div className="about-split">
@@ -216,8 +228,8 @@ export default function Landing() {
         id="team"
         className="who-section"
         ref={teamRef}
-        onPointerDown={(event) => moveSpotlightTo(event.clientX, event.clientY)}
-        onPointerMove={(event) => moveSpotlightTo(event.clientX, event.clientY)}
+        onPointerDown={(event) => moveSpotlightTo(event.clientX, event.clientY, event.pointerType)}
+        onPointerMove={(event) => moveSpotlightTo(event.clientX, event.clientY, event.pointerType)}
       >
         <div className="spotlight" ref={spotlightRef} />
         <div className="who-container">
@@ -417,8 +429,15 @@ export default function Landing() {
 }
 
 function FlipCard({ img, title, back }: { img: string; title: string; back: string }) {
+  const [flipped, setFlipped] = useState(false);
   return (
-    <div className="flip-card">
+    <button
+      type="button"
+      className={`flip-card ${flipped ? 'is-flipped' : ''}`}
+      onClick={() => setFlipped((f) => !f)}
+      aria-label={`${title}. Tap to ${flipped ? 'hide' : 'show'} details.`}
+      aria-pressed={flipped}
+    >
       <div className="flip-inner">
         <div className="flip-front">
           <div className="hub-icon">
@@ -430,7 +449,7 @@ function FlipCard({ img, title, back }: { img: string; title: string; back: stri
           <p>{back}</p>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -444,7 +463,8 @@ function CreatorCard({
   const cardRef = useRef<HTMLButtonElement>(null);
   const glowRef = useRef<HTMLDivElement>(null);
 
-  const updateGlow = (clientX: number, clientY: number) => {
+  const updateGlow = (clientX: number, clientY: number, pointerType: string) => {
+    if (pointerType === 'touch') return;
     const card = cardRef.current;
     const glow = glowRef.current;
     if (!card || !glow) return;
@@ -462,8 +482,8 @@ function CreatorCard({
       ref={cardRef}
       className="creator-card"
       onClick={() => onOpen(creator)}
-      onPointerDown={(event) => updateGlow(event.clientX, event.clientY)}
-      onPointerMove={(event) => updateGlow(event.clientX, event.clientY)}
+      onPointerDown={(event) => updateGlow(event.clientX, event.clientY, event.pointerType)}
+      onPointerMove={(event) => updateGlow(event.clientX, event.clientY, event.pointerType)}
       onPointerLeave={() => {
         cardRef.current?.style.setProperty('--tilt-x', '0px');
         cardRef.current?.style.setProperty('--tilt-y', '0px');

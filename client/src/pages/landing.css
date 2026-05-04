@@ -88,8 +88,8 @@ body {
 .logo {
   pointer-events: auto;
   position: fixed;
-  top: 10px;
-  left: 12px;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: max(12px, env(safe-area-inset-left, 0px));
   z-index: 60;
   background: transparent;
   border: 0;
@@ -111,7 +111,7 @@ body {
 .nav-container {
   pointer-events: auto;
   position: fixed;
-  top: 12px;
+  top: calc(12px + env(safe-area-inset-top, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -208,9 +208,9 @@ body {
 .landing-root .nav-signup--corner {
   pointer-events: auto;
   position: fixed;
-  top: 12px;
+  top: calc(12px + env(safe-area-inset-top, 0px));
   left: auto;
-  right: clamp(12px, 2vw, 24px);
+  right: max(clamp(12px, 2vw, 24px), env(safe-area-inset-right, 0px));
   z-index: 60;
   display: inline-flex;
   align-items: center;
@@ -264,6 +264,8 @@ body {
 
 .hero-wrapper {
   height: 100vh;
+  height: 100svh;
+  min-height: 560px;
   position: relative;
   overflow: hidden;
   touch-action: pan-y;
@@ -454,6 +456,14 @@ body {
   width: 100%;
   height: 320px;
   perspective: 1400px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .flip-inner {
@@ -464,7 +474,13 @@ body {
   transform-style: preserve-3d;
 }
 
-.flip-card:hover .flip-inner {
+@media (hover: hover) {
+  .flip-card:hover .flip-inner {
+    transform: rotateY(180deg);
+  }
+}
+
+.flip-card.is-flipped .flip-inner {
   transform: rotateY(180deg);
 }
 
@@ -502,8 +518,15 @@ body {
   transition: 0.9s;
 }
 
-.flip-card:hover .flip-front::before,
-.flip-card:hover .flip-back::before {
+@media (hover: hover) {
+  .flip-card:hover .flip-front::before,
+  .flip-card:hover .flip-back::before {
+    top: 120%;
+  }
+}
+
+.flip-card.is-flipped .flip-front::before,
+.flip-card.is-flipped .flip-back::before {
   top: 120%;
 }
 
@@ -641,8 +664,14 @@ body {
   transform: translate(var(--tilt-x, 0px), var(--tilt-y, 0px)) scale(1);
 }
 
-.creator-card:hover {
-  transform: translate(var(--tilt-x, 0px), var(--tilt-y, 0px)) scale(1.07);
+@media (hover: hover) {
+  .creator-card:hover {
+    transform: translate(var(--tilt-x, 0px), var(--tilt-y, 0px)) scale(1.07);
+  }
+
+  .creator-card:hover .creator-glow {
+    opacity: 1;
+  }
 }
 
 .creator-inner {
@@ -785,9 +814,6 @@ body {
   transition: opacity 0.2s;
 }
 
-.creator-card:hover .creator-glow {
-  opacity: 1;
-}
 
 .contact-section {
   padding: 200px 20px;
@@ -1102,29 +1128,44 @@ body.modal-open {
 }
 
 @media (max-width: 640px) {
-  .glass-header { min-height: 96px; }
+  .glass-header {
+    min-height: 96px;
+    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .logo {
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    left: max(10px, env(safe-area-inset-left, 0px));
+  }
 
   .logo img {
-    height: 70px;
+    height: 60px;
   }
 
   .nav-container {
-    top: 9px;
+    top: calc(14px + env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%);
     width: fit-content;
     padding: 5px 8px;
-    left: 55%;
+  }
+
+  .nav-blue {
+    transform: translateX(-50%) translateY(2px);
   }
 
   .landing-root .nav-signup--corner {
-    top: 10px;
+    top: calc(14px + env(safe-area-inset-top, 0px));
     left: auto;
-    right: 12px;
+    right: max(10px, env(safe-area-inset-right, 0px));
   }
 
   .hero-content {
-    padding-top: 100px;
+    padding-top: 90px;
+    padding-bottom: 28px;
     padding-left: 18px;
     padding-right: 18px;
+    justify-content: center;
   }
 
   .hero-content h1 {
@@ -1254,17 +1295,22 @@ body.modal-open {
 
 @media (max-width: 480px) {
   .logo img {
-    height: 62px;
+    height: 54px;
   }
 
-  .nav-signup--corner {
-    min-width: 74px;
-    padding: 6px 9px;
+  .landing-root .nav-signup--corner {
+    min-width: 70px;
+    padding: 6px 10px;
     font-size: 0.76rem;
   }
 
-  .nav-container {
-    left: 56%;
+  .nav-item {
+    padding: 4px 5px;
+    font-size: 0.74rem;
+  }
+
+  .glass-menu {
+    gap: 4px;
   }
 
   .hero-content p {
@@ -1277,6 +1323,23 @@ body.modal-open {
 
   .contact-container {
     gap: 44px;
+  }
+}
+
+@media (max-width: 360px) {
+  .logo img {
+    height: 48px;
+  }
+
+  .nav-item {
+    padding: 4px 4px;
+    font-size: 0.7rem;
+  }
+
+  .landing-root .nav-signup--corner {
+    min-width: 64px;
+    padding: 6px 9px;
+    font-size: 0.72rem;
   }
 }
 
@@ -1293,5 +1356,79 @@ body.modal-open {
   .nav-indicator,
   .creator-card {
     transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-aurora {
+    animation-duration: 30s;
+    filter: blur(20px);
+  }
+
+  .nav-container,
+  .nav-signup--corner,
+  .btn-primary,
+  .btn-glass,
+  .contact-link,
+  .close-expanded,
+  .creator-inner,
+  .flip-front,
+  .flip-back,
+  .about-text,
+  .contact-card,
+  .creator-expanded,
+  .expanded-right {
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .who-section::before {
+    width: 360px;
+    height: 360px;
+    filter: blur(120px);
+  }
+
+  .l-footer__inner {
+    text-align: left;
+  }
+
+  .l-footer__bar {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .l-footer__bar a {
+    margin-left: 0;
+    margin-right: 12px;
+  }
+}
+
+@media (max-width: 640px) and (orientation: landscape) {
+  .hero-wrapper {
+    min-height: 480px;
+  }
+
+  .hero-content {
+    padding-top: 80px;
+  }
+
+  .hero-content h1 {
+    font-size: clamp(1.6rem, 5.4vw, 2.2rem);
+  }
+
+  .hero-content p {
+    margin-top: 8px;
+    font-size: 0.92rem;
+  }
+
+  .hero-buttons {
+    margin-top: 14px;
+    flex-direction: row;
+    width: auto;
+  }
+
+  .hero-buttons .btn-primary,
+  .hero-buttons .btn-glass {
+    width: auto;
   }
 }
