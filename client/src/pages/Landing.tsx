@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logoUrl from '../assets/logo.svg';
 import logoBlueUrl from '../assets/logo-icon.svg';
 import './landing.css';
@@ -31,6 +31,7 @@ type Creator = (typeof CREATORS)[keyof typeof CREATORS];
 
 export default function Landing() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [active, setActive] = useState<SectionId>('home');
   const [navBlue, setNavBlue] = useState(false);
   const [expandedCreator, setExpandedCreator] = useState<Creator | null>(null);
@@ -46,6 +47,16 @@ export default function Landing() {
     document.body.classList.toggle('modal-open', expandedCreator !== null);
     return () => document.body.classList.remove('modal-open');
   }, [expandedCreator]);
+
+  useEffect(() => {
+    const hash = location.hash.replace('#', '');
+    if (!hash) return;
+    const target = document.getElementById(hash);
+    if (!target) return;
+    requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [location.hash]);
 
   useEffect(() => {
     const targets = [
@@ -161,6 +172,12 @@ export default function Landing() {
                 {link.label}
               </button>
             ))}
+            <button
+              className="nav-item"
+              onClick={() => navigate('/challenges')}
+            >
+              Challenges
+            </button>
           </div>
         </nav>
       </header>
@@ -408,6 +425,7 @@ export default function Landing() {
             <button onClick={() => jumpTo('home')}>Home</button>
             <button onClick={() => jumpTo('about')}>About</button>
             <button onClick={() => jumpTo('team')}>Team</button>
+            <Link to="/challenges">Challenges</Link>
             <Link to="/login">Sign Up</Link>
           </div>
           <div className="l-footer__col">

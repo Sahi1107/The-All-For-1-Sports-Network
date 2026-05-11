@@ -7,6 +7,7 @@ import MainLayout from './layouts/MainLayout';
 
 // Lazy-load every page so the initial bundle is tiny
 const Landing        = lazy(() => import('./pages/Landing'));
+const Challenges     = lazy(() => import('./pages/Challenges'));
 const Terms          = lazy(() => import('./pages/Terms'));
 const Privacy        = lazy(() => import('./pages/Privacy'));
 const Login          = lazy(() => import('./pages/Login'));
@@ -80,6 +81,7 @@ function AppRoutes() {
         {/* Public marketing routes */}
         <Route index                   element={<LandingRoute><Landing /></LandingRoute>} />
         <Route path="/landing"         element={<LandingRoute><Landing /></LandingRoute>} />
+        <Route path="/challenges"      element={<Challenges />} />
         <Route path="/terms"           element={<Terms />} />
         <Route path="/privacy"         element={<Privacy />} />
 
