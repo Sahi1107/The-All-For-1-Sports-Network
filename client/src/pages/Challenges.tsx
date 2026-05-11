@@ -16,6 +16,7 @@ type Challenge = {
   participants: number;
   banner: string;
   teaser: string;
+  eligibility?: string;
   description: string;
   rules: string[];
   postedBy: {
@@ -41,6 +42,7 @@ const CHALLENGES: Challenge[] = [
       "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%), url('/landing/dribble-dash-cover.png') center/cover no-repeat",
     teaser:
       'A timed cone-weave finished with a shot on goal. Fastest clean run wins.',
+    eligibility: 'U-18 · Born on or after 01/01/2008',
     description:
       "A timed individual drill where players weave through a cone course at full speed and finish with a shot on goal. Simple, competitive, and pure skill — the fastest clean run wins. Set up 6 cones in a zigzag line 2 metres apart, with the finish cone positioned 18 metres from goal (edge of the box). On the starter's signal, dribble through all 6 cones without missing any, then take a shot on goal. The clock stops the moment the ball crosses the goal line.",
     rules: [
@@ -190,6 +192,12 @@ export default function Challenges() {
                   <span aria-hidden>•</span>
                   <span>{c.participants.toLocaleString()} entered</span>
                 </div>
+                {c.eligibility && (
+                  <div className="challenge-eligibility">
+                    <span className="challenge-eligibility-label">Eligibility</span>
+                    <span className="challenge-eligibility-value">{c.eligibility}</span>
+                  </div>
+                )}
                 <div className="challenge-prize">
                   <span className="challenge-prize-label">Prize</span>
                   <span className="challenge-prize-value">{c.prize}</span>
@@ -237,6 +245,12 @@ export default function Challenges() {
 
             <div className="challenge-modal-body">
               <h2 id="challenge-modal-title">{selected.title}</h2>
+              {selected.eligibility && (
+                <div className="challenge-modal-eligibility">
+                  <span className="challenge-modal-eligibility-label">Eligibility</span>
+                  <span className="challenge-modal-eligibility-value">{selected.eligibility}</span>
+                </div>
+              )}
               <div className="challenge-modal-stats">
                 <div>
                   <span>Prize</span>
