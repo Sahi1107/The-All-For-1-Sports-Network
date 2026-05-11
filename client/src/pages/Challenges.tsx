@@ -44,6 +44,7 @@ const CHALLENGES: Challenge[] = [
     description:
       "A timed individual drill where players weave through a cone course at full speed and finish with a shot on goal. Simple, competitive, and pure skill — the fastest clean run wins. Set up 6 cones in a zigzag line 2 metres apart, with the finish cone positioned 18 metres from goal (edge of the box). On the starter's signal, dribble through all 6 cones without missing any, then take a shot on goal. The clock stops the moment the ball crosses the goal line.",
     rules: [
+      'Eligibility: U-18 — open to athletes born on or after 01/01/2008.',
       'Timing & recording: Run must be filmed on a fixed camera capturing the full cone course and goal in one frame — no panning or zooming.',
       'A visible stopwatch or timer must be placed in front of the camera so it appears on screen throughout the entire run.',
       'No post-edit cuts or jump cuts allowed — video must run uninterrupted from starting signal to ball crossing the line.',
