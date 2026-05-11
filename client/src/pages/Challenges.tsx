@@ -49,7 +49,6 @@ const CHALLENGES: Challenge[] = [
       'No post-edit cuts or jump cuts allowed — video must run uninterrupted from starting signal to ball crossing the line.',
       'Cones must not be kicked, moved, or knocked over — any displaced cone is an automatic disqualification.',
       'Player must clearly pass on the correct side of each cone — footage reviewed at 0.5x speed if disputed.',
-      'A referee must be physically present at the course for all official attempts.',
       'Ball must be placed at the start position before the timer begins — no rolling start or pre-momentum.',
       'Shot must be taken from behind the penalty spot line — shooting from closer in is a DQ.',
       'Goal must be an official-size goal or clearly marked equivalent.',
