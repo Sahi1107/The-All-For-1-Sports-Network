@@ -38,7 +38,7 @@ const CHALLENGES: Challenge[] = [
     duration: 'Closes 24 May 2026, 11:59 PM',
     participants: 0,
     banner:
-      'radial-gradient(120% 120% at 0% 0%, rgba(215,255,90,0.55), transparent 55%), linear-gradient(135deg, #14290a 0%, #2d4d10 100%)',
+      "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%), url('/landing/dribble-dash-cover.png') center/cover no-repeat",
     teaser:
       'A timed cone-weave finished with a shot on goal. Fastest clean run wins.',
     description:
