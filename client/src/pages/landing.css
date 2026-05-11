@@ -1500,9 +1500,34 @@ body.modal-open {
 }
 
 .challenges-section {
+  position: relative;
+  padding: 64px 0 120px;
+  background-image: url('/landing/hub.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.challenges-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 6, 8, 0.18) 0%,
+    rgba(5, 6, 8, 0.05) 30%,
+    rgba(5, 6, 8, 0.05) 70%,
+    rgba(5, 6, 8, 0.55) 100%
+  );
+  pointer-events: none;
+}
+
+.challenges-section-inner {
+  position: relative;
+  z-index: 1;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px 24px 120px;
+  padding: 0 24px;
 }
 
 .challenges-filter-row {
@@ -1516,24 +1541,26 @@ body.modal-open {
 .challenges-chip {
   padding: 8px 16px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(10, 10, 10, 0.25);
+  background: rgba(255, 255, 255, 0.55);
+  color: #0a0a0a;
   font-size: 0.85rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
 .challenges-chip:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.78);
+  transform: translateY(-1px);
 }
 
 .challenges-chip.is-active {
-  background: #d7ff5a;
-  border-color: #d7ff5a;
-  color: #0a0a0a;
+  background: #0a0a0a;
+  border-color: #0a0a0a;
+  color: #d7ff5a;
 }
 
 .challenges-grid {
@@ -1545,7 +1572,7 @@ body.modal-open {
 .challenge-card {
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.03);
+  background: #0c0e12;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   overflow: hidden;
@@ -1554,13 +1581,14 @@ body.modal-open {
   padding: 0;
   color: inherit;
   font: inherit;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.28);
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .challenge-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(215, 255, 90, 0.4);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.45);
+  border-color: rgba(10, 10, 10, 0.6);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.45);
 }
 
 .challenge-banner {

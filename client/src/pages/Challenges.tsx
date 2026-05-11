@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import logoBlueUrl from '../assets/logo-icon.svg';
 import logoUrl from '../assets/logo.svg';
 import './landing.css';
 
@@ -30,178 +29,41 @@ type Challenge = {
 
 const CHALLENGES: Challenge[] = [
   {
-    id: 'sprint-100m',
-    title: '100m Sprint Showdown',
-    sport: 'Track & Field',
-    sportEmoji: '🏃',
-    status: 'LIVE',
-    prize: '₹25,000 + Ranking Boost',
-    duration: '7 days left',
-    participants: 248,
-    banner:
-      'radial-gradient(120% 120% at 0% 0%, rgba(215,255,90,0.55), transparent 55%), linear-gradient(135deg, #14290a 0%, #2d4d10 100%)',
-    teaser:
-      'Submit your verified 100m timing and climb the national speed leaderboard.',
-    description:
-      'The 100m Sprint Showdown is open to all registered athletes across India. Record your timing at any AllFor1 partner venue or affiliated meet, and our verification system will lock your result onto the public leaderboard. Top three finishers earn cash prizes and a permanent ranking boost on their profile.',
-    rules: [
-      'Timing must be captured at an AllFor1 partner venue with electronic timing.',
-      'Athletes between 14 and 24 years are eligible.',
-      'One official attempt per athlete; best of two preliminary trials counts.',
-      'Submission window closes on 2026-05-18 at 23:59 IST.',
-    ],
-    postedBy: {
-      name: 'AllFor1 Admin',
-      handle: '@allfor1',
-      role: 'Official',
-      avatar: logoBlueUrl,
-    },
-    postedAt: '2 days ago',
-  },
-  {
-    id: 'free-throw-50',
-    title: '50-Shot Free Throw Frenzy',
-    sport: 'Basketball',
-    sportEmoji: '🏀',
-    status: 'LIVE',
-    prize: 'Featured profile + ₹10,000',
-    duration: '12 days left',
-    participants: 412,
-    banner:
-      'radial-gradient(120% 120% at 100% 0%, rgba(255,140,40,0.6), transparent 55%), linear-gradient(135deg, #2a1407 0%, #4a2611 100%)',
-    teaser:
-      'Make the most free throws out of 50. Record, upload, and let the rankings settle it.',
-    description:
-      'How many free throws can you sink out of 50 consecutive attempts? Record a continuous, unedited clip of your run from a single camera angle and upload it through your AllFor1 profile. Our scout panel reviews the top 20 submissions and the highest verified score wins.',
-    rules: [
-      'One unedited take. The camera cannot pan or cut.',
-      'Standard FIBA free throw line distance (4.6m).',
-      'Submit by 2026-05-23 at 23:59 IST.',
-      'Ties broken by longest consecutive made-shot streak.',
-    ],
-    postedBy: {
-      name: 'AllFor1 Admin',
-      handle: '@allfor1',
-      role: 'Official',
-      avatar: logoBlueUrl,
-    },
-    postedAt: '4 days ago',
-  },
-  {
-    id: 'serve-speed',
-    title: 'Tennis Serve Speed Trial',
-    sport: 'Tennis',
-    sportEmoji: '🎾',
-    status: 'ENDING SOON',
-    prize: 'National scout invite',
-    duration: '3 days left',
-    participants: 137,
-    banner:
-      'radial-gradient(120% 120% at 0% 100%, rgba(120,220,255,0.55), transparent 55%), linear-gradient(135deg, #051e2a 0%, #0e3a52 100%)',
-    teaser:
-      'Bring the heat. Fastest verified serve in your age bracket gets a scout invite.',
-    description:
-      'Show us your fastest serve. Submissions require radar gun data captured at an AllFor1 partner academy. Winners in the U16, U18, and Open categories receive a direct invite to a national-level scouting camp later this season.',
-    rules: [
-      'Radar gun reading must be visible in the submission clip.',
-      'Three serve attempts max; fastest counts.',
-      'Categories: U16, U18, Open.',
-      'Submission window closes 2026-05-14 at 23:59 IST.',
-    ],
-    postedBy: {
-      name: 'AllFor1 Admin',
-      handle: '@allfor1',
-      role: 'Official',
-      avatar: logoBlueUrl,
-    },
-    postedAt: '1 week ago',
-  },
-  {
-    id: 'cricket-batting',
-    title: '30-Ball Batting Average',
-    sport: 'Cricket',
-    sportEmoji: '🏏',
-    status: 'LIVE',
-    prize: 'AllFor1 gear pack',
-    duration: '18 days left',
-    participants: 521,
-    banner:
-      'radial-gradient(120% 120% at 100% 100%, rgba(80,255,170,0.45), transparent 55%), linear-gradient(135deg, #0a1f14 0%, #15402a 100%)',
-    teaser:
-      'Face 30 deliveries, post your runs, and stake your claim on the batting board.',
-    description:
-      'Step into the nets, face 30 deliveries from a verified bowler or bowling machine, and submit your run tally. Athletes ranked in the top 50 receive an AllFor1 gear pack and a featured slot in the weekly highlights reel.',
-    rules: [
-      'Continuous footage, single camera angle on the batter.',
-      'Bowling machine or verified partner bowler only.',
-      'Submission must include a scorer logging each delivery.',
-      'Open until 2026-05-29 at 23:59 IST.',
-    ],
-    postedBy: {
-      name: 'AllFor1 Admin',
-      handle: '@allfor1',
-      role: 'Official',
-      avatar: logoBlueUrl,
-    },
-    postedAt: '5 days ago',
-  },
-  {
-    id: 'football-keepy',
-    title: 'Football Skill Streak',
+    id: 'dribble-dash',
+    title: 'Dribble Dash',
     sport: 'Football',
     sportEmoji: '⚽',
     status: 'LIVE',
-    prize: 'Pro academy trial slot',
-    duration: '9 days left',
-    participants: 304,
+    prize: 'Adidas F50 Football Boots',
+    duration: 'Closes 24 May 2026, 11:59 PM',
+    participants: 0,
     banner:
-      'radial-gradient(120% 120% at 0% 0%, rgba(215,90,255,0.45), transparent 55%), linear-gradient(135deg, #1a0a2a 0%, #2e144a 100%)',
+      'radial-gradient(120% 120% at 0% 0%, rgba(215,255,90,0.55), transparent 55%), linear-gradient(135deg, #14290a 0%, #2d4d10 100%)',
     teaser:
-      'Three skills, one take, no edits. Show the panel what your touch looks like.',
+      'A timed cone-weave finished with a shot on goal. Fastest clean run wins.',
     description:
-      'Record a single uninterrupted clip of yourself performing three different ball-control skills: any juggle sequence, a wall-pass set, and a 1v1 cone weave. Highest cumulative score across all three earns a trial slot at a partner pro academy.',
+      "A timed individual drill where players weave through a cone course at full speed and finish with a shot on goal. Simple, competitive, and pure skill — the fastest clean run wins. Set up 6 cones in a zigzag line 2 metres apart, with the finish cone positioned 18 metres from goal (edge of the box). On the starter's signal, dribble through all 6 cones without missing any, then take a shot on goal. The clock stops the moment the ball crosses the goal line.",
     rules: [
-      'One unedited take. No cuts.',
-      'Open to athletes 13–22 years.',
-      'Skills judged on control, fluency, and tempo.',
-      'Submission window closes 2026-05-20 at 23:59 IST.',
+      'Timing & recording: Run must be filmed on a fixed camera capturing the full cone course and goal in one frame — no panning or zooming.',
+      'A visible stopwatch or timer must be placed in front of the camera so it appears on screen throughout the entire run.',
+      'No post-edit cuts or jump cuts allowed — video must run uninterrupted from starting signal to ball crossing the line.',
+      'Cones must not be kicked, moved, or knocked over — any displaced cone is an automatic disqualification.',
+      'Player must clearly pass on the correct side of each cone — footage reviewed at 0.5x speed if disputed.',
+      'A referee must be physically present at the course for all official attempts.',
+      'Ball must be placed at the start position before the timer begins — no rolling start or pre-momentum.',
+      'Shot must be taken from behind the penalty spot line — shooting from closer in is a DQ.',
+      'Goal must be an official-size goal or clearly marked equivalent.',
+      'Video submitted as one unedited file with original metadata intact.',
+      "Player must state their name and date at the start of the video before beginning.",
+      'Deadline: 24 May 2026, 11:59 PM.',
     ],
     postedBy: {
       name: 'AllFor1 Admin',
       handle: '@allfor1',
       role: 'Official',
-      avatar: logoBlueUrl,
+      avatar: logoUrl,
     },
-    postedAt: '3 days ago',
-  },
-  {
-    id: 'endurance-run',
-    title: '30-Day Endurance Run',
-    sport: 'Running',
-    sportEmoji: '🏅',
-    status: 'UPCOMING',
-    prize: 'Top 10 featured on rankings',
-    duration: 'Starts 2026-05-15',
-    participants: 1024,
-    banner:
-      'radial-gradient(120% 120% at 100% 0%, rgba(255,90,140,0.5), transparent 55%), linear-gradient(135deg, #2a070f 0%, #520f1f 100%)',
-    teaser:
-      'Log every kilometre for 30 days. Highest verified total wins.',
-    description:
-      'A month-long endurance test for runners at every level. Sync your runs through an AllFor1-supported tracker and your verified kilometres add to your total. Top 10 athletes earn a featured slot on the national endurance leaderboard for the next season.',
-    rules: [
-      'Runs must be tracked via a supported device or app.',
-      'GPS data required for verification; treadmill runs do not count.',
-      'Daily cap of 25km to keep things fair.',
-      'Challenge runs 2026-05-15 to 2026-06-14.',
-    ],
-    postedBy: {
-      name: 'AllFor1 Admin',
-      handle: '@allfor1',
-      role: 'Official',
-      avatar: logoBlueUrl,
-    },
-    postedAt: '6 days ago',
+    postedAt: 'Just now',
   },
 ];
 
@@ -248,11 +110,11 @@ export default function Challenges() {
           onClick={() => navigate('/')}
           aria-label="All For One home"
         >
-          <img src={logoBlueUrl} className="logo-anim" alt="All For One" />
+          <img src={logoUrl} className="logo-anim" alt="All For One" />
         </button>
 
         <button
-          className="nav-signup nav-signup--corner nav-signup--blue"
+          className="nav-signup nav-signup--corner"
           onClick={() => navigate('/login')}
         >
           Sign Up
@@ -289,22 +151,23 @@ export default function Challenges() {
       </section>
 
       <section className="challenges-section">
-        <div className="challenges-filter-row" role="tablist" aria-label="Filter by sport">
-          {sports.map((s) => (
-            <button
-              key={s}
-              role="tab"
-              aria-selected={sportFilter === s}
-              className={`challenges-chip ${sportFilter === s ? 'is-active' : ''}`}
-              onClick={() => setSportFilter(s)}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+        <div className="challenges-section-inner">
+          <div className="challenges-filter-row" role="tablist" aria-label="Filter by sport">
+            {sports.map((s) => (
+              <button
+                key={s}
+                role="tab"
+                aria-selected={sportFilter === s}
+                className={`challenges-chip ${sportFilter === s ? 'is-active' : ''}`}
+                onClick={() => setSportFilter(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
 
-        <div className="challenges-grid">
-          {visible.map((c) => (
+          <div className="challenges-grid">
+            {visible.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -334,12 +197,13 @@ export default function Challenges() {
                 </div>
               </div>
             </button>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        {visible.length === 0 && (
-          <p className="challenges-empty">No challenges live for this sport yet — check back soon.</p>
-        )}
+          {visible.length === 0 && (
+            <p className="challenges-empty">No challenges live for this sport yet — check back soon.</p>
+          )}
+        </div>
       </section>
 
       {selected && (
