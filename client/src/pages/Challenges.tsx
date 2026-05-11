@@ -138,7 +138,6 @@ export default function Challenges() {
       </header>
 
       <section className="challenges-hero">
-        <div className="challenges-hero-aurora" aria-hidden />
         <div className="challenges-hero-content">
           <span className="challenges-eyebrow">Live on the Network</span>
           <h1>Challenges</h1>
