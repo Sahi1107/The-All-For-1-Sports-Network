@@ -79,6 +79,12 @@ export default function Challenges() {
   const navigate = useNavigate();
   const [selected, setSelected] = useState<Challenge | null>(null);
   const [sportFilter, setSportFilter] = useState<string>('All');
+  const [wipeActive, setWipeActive] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setWipeActive(false), 1200);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('modal-open', selected !== null);
@@ -105,7 +111,13 @@ export default function Challenges() {
   };
 
   return (
-    <div className="landing-root challenges-page">
+    <div className="landing-root challenges-page challenges-enter">
+      {wipeActive && (
+        <>
+          <div className="challenges-wipe challenges-wipe--back" aria-hidden />
+          <div className="challenges-wipe challenges-wipe--front" aria-hidden />
+        </>
+      )}
       <header className="glass-header">
         <button
           className="logo"
