@@ -1741,8 +1741,8 @@ body.modal-open {
   color: rgba(255, 255, 255, 0.55);
 }
 
-/* ── Page-enter transition ─────────────────────────────────── */
-.challenges-wipe {
+/* ── Page-enter transition (shared) ────────────────────────── */
+.page-wipe {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -1752,12 +1752,12 @@ body.modal-open {
   transform-origin: left center;
 }
 
-.challenges-wipe--back {
+.page-wipe--back {
   background: linear-gradient(110deg, #0c0e12 0%, #161a22 60%, #0c0e12 100%);
-  animation: ch-wipe 1.05s cubic-bezier(0.77, 0, 0.18, 1) 0s both;
+  animation: page-wipe 1.05s cubic-bezier(0.77, 0, 0.18, 1) 0s both;
 }
 
-.challenges-wipe--front {
+.page-wipe--front {
   background: linear-gradient(
     110deg,
     rgba(215, 255, 90, 0.95) 0%,
@@ -1765,16 +1765,24 @@ body.modal-open {
     rgba(215, 255, 90, 0.85) 100%
   );
   box-shadow: 0 0 80px rgba(215, 255, 90, 0.55);
-  animation: ch-wipe 1.05s cubic-bezier(0.77, 0, 0.18, 1) 0.12s both;
+  animation: page-wipe 1.05s cubic-bezier(0.77, 0, 0.18, 1) 0.12s both;
 }
 
-@keyframes ch-wipe {
+@keyframes page-wipe {
   0%   { transform: translate3d(-101%, 0, 0) skewX(-10deg); }
   55%  { transform: translate3d(0%, 0, 0) skewX(-10deg); }
   100% { transform: translate3d(101%, 0, 0) skewX(-10deg); }
 }
 
-/* Hold content invisible while the wipe is mid-sweep, then stagger it in */
+@keyframes ch-rise {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ch-card-in {
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Challenges page stagger */
 .challenges-enter .challenges-hero-content > * {
   opacity: 0;
   transform: translateY(22px);
@@ -1802,19 +1810,22 @@ body.modal-open {
 .challenges-enter .challenge-card:nth-child(5) { animation-delay: 1.58s; }
 .challenges-enter .challenge-card:nth-child(n + 6) { animation-delay: 1.68s; }
 
-@keyframes ch-rise {
-  to { opacity: 1; transform: translateY(0); }
+/* Landing page stagger */
+.landing-enter .hero-content > * {
+  opacity: 0;
+  transform: translateY(22px);
+  animation: ch-rise 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-
-@keyframes ch-card-in {
-  to { opacity: 1; transform: translateY(0) scale(1); }
-}
+.landing-enter .hero-content > *:nth-child(1) { animation-delay: 0.70s; }
+.landing-enter .hero-content > *:nth-child(2) { animation-delay: 0.82s; }
+.landing-enter .hero-content > *:nth-child(3) { animation-delay: 0.96s; }
 
 @media (prefers-reduced-motion: reduce) {
-  .challenges-wipe { display: none; }
+  .page-wipe { display: none; }
   .challenges-enter .challenges-hero-content > *,
   .challenges-enter .challenges-filter-row,
-  .challenges-enter .challenge-card {
+  .challenges-enter .challenge-card,
+  .landing-enter .hero-content > * {
     opacity: 1;
     transform: none;
     animation: none;

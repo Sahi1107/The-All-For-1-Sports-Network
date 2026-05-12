@@ -114,8 +114,8 @@ export default function Challenges() {
     <div className="landing-root challenges-page challenges-enter">
       {wipeActive && (
         <>
-          <div className="challenges-wipe challenges-wipe--back" aria-hidden />
-          <div className="challenges-wipe challenges-wipe--front" aria-hidden />
+          <div className="page-wipe page-wipe--back" aria-hidden />
+          <div className="page-wipe page-wipe--front" aria-hidden />
         </>
       )}
       <header className="glass-header">

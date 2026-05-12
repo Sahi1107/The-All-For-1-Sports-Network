@@ -35,6 +35,12 @@ export default function Landing() {
   const [active, setActive] = useState<SectionId>('home');
   const [navBlue, setNavBlue] = useState(false);
   const [expandedCreator, setExpandedCreator] = useState<Creator | null>(null);
+  const [wipeActive, setWipeActive] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setWipeActive(false), 1200);
+    return () => clearTimeout(t);
+  }, []);
 
   const homeRef = useRef<HTMLElement>(null);
   const aboutRef = useRef<HTMLElement>(null);
@@ -149,7 +155,13 @@ export default function Landing() {
   };
 
   return (
-    <div className="landing-root">
+    <div className="landing-root landing-enter">
+      {wipeActive && (
+        <>
+          <div className="page-wipe page-wipe--back" aria-hidden />
+          <div className="page-wipe page-wipe--front" aria-hidden />
+        </>
+      )}
       <header className="glass-header">
         <button className="logo" onClick={() => jumpTo('home')} aria-label="All For One home">
           <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
