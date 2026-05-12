@@ -51,3 +51,9 @@ coverage/
 # Migration artifacts (contain live URLs / keys)
 server/cloudinary-to-gcs-mapping.json
 server/neon-backup.dump
+
+.claude/
+skills-lock.json
+.firebase/
+server/cloud-sql-proxy
+graphify-out/
