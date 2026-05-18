@@ -16,7 +16,9 @@ const Home           = lazy(() => import('./pages/Home'));
 const Explore        = lazy(() => import('./pages/Explore'));
 const Profile        = lazy(() => import('./pages/Profile'));
 const EditProfile    = lazy(() => import('./pages/EditProfile'));
-const Tournaments    = lazy(() => import('./pages/Tournaments'));
+const Tournaments       = lazy(() => import('./pages/Tournaments'));
+const TournamentRegister = lazy(() => import('./pages/TournamentRegister'));
+const TeamManage         = lazy(() => import('./pages/TeamManage'));
 const Rankings       = lazy(() => import('./pages/Rankings'));
 const Messages       = lazy(() => import('./pages/Messages'));
 const Notifications  = lazy(() => import('./pages/Notifications'));
@@ -97,7 +99,9 @@ function AppRoutes() {
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
           <Route path="home"                element={<Home />} />
           <Route path="explore"             element={<Explore />} />
-          <Route path="tournaments"         element={<Tournaments />} />
+          <Route path="tournaments"              element={<Tournaments />} />
+          <Route path="tournaments/:id/register" element={<TournamentRegister />} />
+          <Route path="teams/:id"                element={<TeamManage />} />
           <Route path="rankings"            element={<Rankings />} />
           <Route path="announcements"       element={<Announcements />} />
           <Route path="messages"            element={<Messages />} />

@@ -7,7 +7,6 @@ import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateImageBytes } from '../middleware/upload';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
-import { getIO } from '../config/socket';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody,
@@ -18,6 +17,11 @@ const router = Router();
 const thumbnailUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
+});
+
+const teamLogoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
 });
 
 function extFromFile(file: Express.Multer.File): string {
@@ -38,7 +42,7 @@ router.post(
       const {
         name, sport, category, description, venue, city,
         startDate, endDate, prizePool, entryFee, maxTeams,
-        ageCategory, genderCategory,
+        ageCategory, genderCategory, format, minRosterSize, maxRosterSize,
       } = req.body;
 
       let thumbnailUrl: string | null = null;
@@ -61,6 +65,9 @@ router.post(
           genderCategory: genderCategory || null,
           thumbnailUrl,
           status: 'UPCOMING',
+          format: format ?? 'TEAM',
+          minRosterSize: minRosterSize != null ? parseInt(minRosterSize) : null,
+          maxRosterSize: maxRosterSize != null ? parseInt(maxRosterSize) : null,
           createdById: req.user!.userId,
         },
       });
@@ -121,8 +128,11 @@ router.get('/', authenticate, validate({ query: TournamentListQuery }), async (r
 // GET /api/tournaments/:id
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
+    const tournamentId = req.params.id as string;
+    const userId = req.user!.userId;
+
     const tournament = await prisma.tournament.findUnique({
-      where: { id: req.params.id as string },
+      where: { id: tournamentId },
       include: {
         teams: {
           include: {
@@ -149,6 +159,46 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    // Teams the requester is a member of (or captain/coach of) for this tournament.
+    const myTeamsRaw = await prisma.team.findMany({
+      where: {
+        tournamentId,
+        OR: [
+          { captainId: userId },
+          { coachId: userId },
+          { members: { some: { userId } } },
+        ],
+      },
+      include: {
+        captain: { select: { id: true, name: true, avatar: true } },
+        coach:   { select: { id: true, name: true, avatar: true } },
+        members: {
+          include: { user: { select: { id: true, name: true, avatar: true, position: true } } },
+          orderBy: { invitedAt: 'asc' },
+        },
+      },
+    });
+
+    const myTeams = myTeamsRaw.map((t) => {
+      const total    = t.members.length;
+      const accepted = t.members.filter((m) => m.status === 'ACCEPTED').length;
+      const pending  = t.members.filter((m) => m.status === 'PENDING').length;
+      const declined = t.members.filter((m) => m.status === 'DECLINED').length;
+      const myMembership = t.members.find((m) => m.userId === userId) ?? null;
+      const myRole =
+        t.captainId === userId ? 'CAPTAIN'
+        : t.coachId === userId ? 'COACH'
+        : myMembership?.role ?? null;
+      return {
+        ...t,
+        summary: { total, accepted, pending, declined, isComplete: pending === 0 && declined === 0 },
+        myRole,
+        myStatus: myMembership?.status ?? null,
+      };
+    });
+
+    (tournament as any).myTeams = myTeams;
+
     await signMediaDeep(tournament);
     res.json({ tournament });
   } catch (error) {
@@ -160,7 +210,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 // PUT /api/tournaments/:id — update (admin only)
 router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, status, description, venue, city, prizePool, maxTeams } = req.body;
+    const { name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize } = req.body;
 
     const tournament = await prisma.tournament.update({
       where: { id: req.params.id as string },
@@ -172,6 +222,8 @@ router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTo
         ...(city !== undefined && { city }),
         ...(prizePool !== undefined && { prizePool: parseFloat(prizePool) }),
         ...(maxTeams !== undefined && { maxTeams: parseInt(maxTeams) }),
+        ...(minRosterSize !== undefined && { minRosterSize: parseInt(minRosterSize) }),
+        ...(maxRosterSize !== undefined && { maxRosterSize: parseInt(maxRosterSize) }),
       },
     });
 
@@ -182,77 +234,218 @@ router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTo
   }
 });
 
-// POST /api/tournaments/:id/register — register team
-router.post('/:id/register', authenticate, writeLimiter, validate({ body: RegisterTeamBody }), async (req: AuthRequest, res: Response) => {
+// POST /api/tournaments/:id/register — create a per-tournament team and invite players
+router.post(
+  '/:id/register',
+  authenticate,
+  writeLimiter,
+  teamLogoUpload.single('logo'),
+  validate({ body: RegisterTeamBody }),
+  async (req: AuthRequest, res: Response) => {
   try {
-    const { teamId } = req.body;
-    if (!teamId) {
-      res.status(400).json({ error: 'Team ID is required' });
+    const tournamentId = req.params.id as string;
+    const creatorId = req.user!.userId;
+    const { teamName, captainUserId, coachUserId, playerUserIds } = req.body as {
+      teamName: string;
+      captainUserId: string;
+      coachUserId?: string;
+      playerUserIds: string[];
+    };
+
+    const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId } });
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+    if (!['UPCOMING', 'REGISTRATION_OPEN'].includes(tournament.status)) {
+      res.status(400).json({ error: 'Registration is not open for this tournament' });
+      return;
+    }
+    if (tournament.format === 'INDIVIDUAL') {
+      res.status(400).json({ error: 'This tournament does not accept team registrations' });
       return;
     }
 
-    // Verify user is captain
-    const team = await prisma.team.findUnique({ where: { id: teamId } });
-    if (!team || team.captainId !== req.user!.userId) {
-      res.status(403).json({ error: 'Only team captain can register' });
+    // Roster size validation
+    if (tournament.minRosterSize != null && playerUserIds.length < tournament.minRosterSize) {
+      res.status(400).json({ error: `At least ${tournament.minRosterSize} players are required` });
+      return;
+    }
+    if (tournament.maxRosterSize != null && playerUserIds.length > tournament.maxRosterSize) {
+      res.status(400).json({ error: `At most ${tournament.maxRosterSize} players are allowed` });
       return;
     }
 
-    const tournament = await prisma.tournament.findUnique({ where: { id: req.params.id as string } });
-    if (!tournament || !['UPCOMING', 'REGISTRATION_OPEN'].includes(tournament.status)) {
-      res.status(400).json({ error: 'Registration not available' });
+    // Determine coach: if the creator is a COACH user, they are the coach (overrides any passed value).
+    const creatorUser = await prisma.user.findUnique({
+      where: { id: creatorId },
+      select: { role: true },
+    });
+    const isCreatorACoach = creatorUser?.role === 'COACH';
+    const finalCoachId = isCreatorACoach ? creatorId : (coachUserId ?? null);
+
+    // The creator must be either the coach or one of the listed players (anti-abuse).
+    const isCreatorPlayer = playerUserIds.includes(creatorId);
+    if (!isCreatorACoach && !isCreatorPlayer) {
+      res.status(403).json({ error: 'You must be a player on the team or the registering coach' });
       return;
     }
 
-    const registration = await prisma.tournamentTeam.create({
-      data: { tournamentId: req.params.id as string, teamId },
-      include: { team: true, tournament: { select: { id: true, name: true } } },
+    // Verify all referenced users exist.
+    const referencedIds = Array.from(new Set([
+      ...playerUserIds,
+      ...(finalCoachId ? [finalCoachId] : []),
+    ]));
+    const foundUsers = await prisma.user.findMany({
+      where: { id: { in: referencedIds } },
+      select: { id: true, role: true },
+    });
+    if (foundUsers.length !== referencedIds.length) {
+      res.status(400).json({ error: 'One or more selected users were not found' });
+      return;
+    }
+    if (finalCoachId && !isCreatorACoach) {
+      const coach = foundUsers.find(u => u.id === finalCoachId);
+      if (!coach || coach.role !== 'COACH') {
+        res.status(400).json({ error: 'Selected coach does not have a coach profile' });
+        return;
+      }
+    }
+
+    // Optional logo upload — done before the DB transaction (GCS calls can't be transactional).
+    let logoUrl: string | null = null;
+    if (req.file) {
+      if (!validateImageBytes(req.file, res)) return;
+      logoUrl = await uploadToGCS(
+        req.file.buffer, 'team-logos', extFromFile(req.file), req.file.mimetype,
+      );
+    }
+
+    // Build member rows. Creator is auto-accepted; everyone else is invited.
+    type MemberRow = {
+      userId: string;
+      role: 'CAPTAIN' | 'PLAYER' | 'COACH';
+      status: 'ACCEPTED' | 'PENDING';
+      respondedAt: Date | null;
+    };
+    const now = new Date();
+    const memberRows: MemberRow[] = playerUserIds.map((playerId) => ({
+      userId: playerId,
+      role: playerId === captainUserId ? 'CAPTAIN' : 'PLAYER',
+      status: playerId === creatorId ? 'ACCEPTED' : 'PENDING',
+      respondedAt: playerId === creatorId ? now : null,
+    }));
+    if (finalCoachId && !playerUserIds.includes(finalCoachId)) {
+      memberRows.push({
+        userId: finalCoachId,
+        role: 'COACH',
+        status: finalCoachId === creatorId ? 'ACCEPTED' : 'PENDING',
+        respondedAt: finalCoachId === creatorId ? now : null,
+      });
+    }
+
+    const { team, registration } = await prisma.$transaction(async (tx) => {
+      const team = await tx.team.create({
+        data: {
+          name: teamName,
+          sport: tournament.sport,
+          captainId: captainUserId,
+          coachId: finalCoachId,
+          tournamentId,
+          logo: logoUrl,
+        },
+      });
+      await tx.teamMember.createMany({
+        data: memberRows.map((m) => ({
+          teamId: team.id,
+          userId: m.userId,
+          role: m.role,
+          status: m.status,
+          respondedAt: m.respondedAt,
+        })),
+      });
+      const registration = await tx.tournamentTeam.create({
+        data: { tournamentId, teamId: team.id },
+        include: {
+          team: { include: { captain: { select: { id: true, name: true, avatar: true } }, coach: { select: { id: true, name: true, avatar: true } } } },
+          tournament: { select: { id: true, name: true } },
+        },
+      });
+      return { team, registration };
     });
 
-    // Auto-create team chat (Group Chat)
-    try {
-      const teamMembers = await prisma.teamMember.findMany({
-        where: { teamId },
-        select: { userId: true },
+    // Fire TEAM_INVITE notifications to all pending invitees.
+    const pendingInvitees = memberRows.filter((m) => m.status === 'PENDING').map((m) => m.userId);
+    if (pendingInvitees.length > 0) {
+      await prisma.notification.createMany({
+        data: pendingInvitees.map((userId) => ({
+          userId,
+          type: 'TEAM_INVITE' as const,
+          title: 'Team invitation',
+          message: `You've been invited to ${team.name} for ${registration.tournament.name}`,
+          referenceId: team.id,
+        })),
       });
-      // Ensure the captain is included in case they aren't explicitly in TeamMember
-      const memberUserIds = new Set(teamMembers.map(m => m.userId));
-      memberUserIds.add(team.captainId);
-      
-      const conv = await prisma.conversation.create({
-        data: {
-          isGroup: true,
-          name: `${team.name} (${registration.tournament.name})`,
-          teamId,
-          members: {
-            create: Array.from(memberUserIds).map(userId => ({ userId })),
-          },
-        },
-        include: {
-          members: { include: { user: { select: { id: true, name: true, avatar: true } } } },
-        },
-      });
-
-      // Emit new conversation event to each member's room
-      const io = getIO();
-      for (const userId of memberUserIds) {
-        try {
-          io.to(`user:${userId}`).emit('new_conversation', conv);
-        } catch {
-           // ignore emit errors 
-        }
-      }
-    } catch (chatError) {
-      console.error('Auto-create team chat error:', chatError);
     }
 
-    res.status(201).json({ registration });
+    res.status(201).json({
+      team,
+      registration,
+      pendingInvites: pendingInvitees.length,
+      message: pendingInvitees.length > 0
+        ? `Invites sent to ${pendingInvitees.length} member(s). Registration completes once everyone accepts.`
+        : 'Registration complete.',
+    });
   } catch (error: any) {
-    if (error.code === 'P2002') {
-      res.status(409).json({ error: 'Team already registered' });
+    console.error('Register team error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tournaments/:id/registrations — admin: list all registered teams + rosters + invite statuses
+router.get('/:id/registrations', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true, name: true, format: true, minRosterSize: true, maxRosterSize: true, sport: true },
+    });
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
       return;
     }
-    console.error('Register team error:', error);
+
+    const registrations = await prisma.tournamentTeam.findMany({
+      where: { tournamentId },
+      include: {
+        team: {
+          include: {
+            captain: { select: { id: true, name: true, avatar: true } },
+            coach:   { select: { id: true, name: true, avatar: true } },
+            members: {
+              include: { user: { select: { id: true, name: true, avatar: true, position: true } } },
+              orderBy: { invitedAt: 'asc' },
+            },
+          },
+        },
+      },
+      orderBy: { registeredAt: 'desc' },
+    });
+
+    const enriched = registrations.map((r) => {
+      const total    = r.team.members.length;
+      const accepted = r.team.members.filter((m) => m.status === 'ACCEPTED').length;
+      const pending  = r.team.members.filter((m) => m.status === 'PENDING').length;
+      const declined = r.team.members.filter((m) => m.status === 'DECLINED').length;
+      return {
+        ...r,
+        summary: { total, accepted, pending, declined, isComplete: pending === 0 && declined === 0 },
+      };
+    });
+
+    res.json({ tournament, registrations: enriched });
+  } catch (error) {
+    console.error('Get tournament registrations error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

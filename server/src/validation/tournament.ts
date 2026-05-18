@@ -24,6 +24,10 @@ const positiveInt = (label: string) =>
 
 // ─── Tournament CRUD ──────────────────────────────────────────────────────────
 
+const TournamentFormatEnum = z.enum(['TEAM', 'INDIVIDUAL', 'DOUBLES'], {
+  error: 'format must be TEAM, INDIVIDUAL, or DOUBLES',
+});
+
 export const CreateTournamentBody = z.object({
   name:           reqStr(100, 'Tournament name'),
   sport:          SportEnum,
@@ -38,23 +42,34 @@ export const CreateTournamentBody = z.object({
   maxTeams:       positiveInt('Max teams'),
   ageCategory:    optStr(30, 'Age category'),
   genderCategory: optStr(20, 'Gender category'),
+  format:         TournamentFormatEnum.optional().default('TEAM'),
+  minRosterSize:  positiveInt('Minimum roster size'),
+  maxRosterSize:  positiveInt('Maximum roster size'),
 }).refine(
   (d) => d.endDate >= d.startDate,
   { message: 'End date must be on or after start date', path: ['endDate'] },
+).refine(
+  (d) => d.minRosterSize == null || d.maxRosterSize == null || d.minRosterSize <= d.maxRosterSize,
+  { message: 'Minimum roster size must be ≤ maximum roster size', path: ['minRosterSize'] },
 );
 
 export const UpdateTournamentBody = z.object({
-  name:        optStr(100,  'Tournament name'),
-  status:      z.enum(
+  name:          optStr(100,  'Tournament name'),
+  status:        z.enum(
     ['UPCOMING', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
     { error: 'Invalid tournament status' },
   ).optional(),
-  description: optStr(1000, 'Description'),
-  venue:       optStr(100,  'Venue'),
-  city:        optStr(100,  'City'),
-  prizePool:   nonNegNum('Prize pool'),
-  maxTeams:    positiveInt('Max teams'),
-});
+  description:   optStr(1000, 'Description'),
+  venue:         optStr(100,  'Venue'),
+  city:          optStr(100,  'City'),
+  prizePool:     nonNegNum('Prize pool'),
+  maxTeams:      positiveInt('Max teams'),
+  minRosterSize: positiveInt('Minimum roster size'),
+  maxRosterSize: positiveInt('Maximum roster size'),
+}).refine(
+  (d) => d.minRosterSize == null || d.maxRosterSize == null || d.minRosterSize <= d.maxRosterSize,
+  { message: 'Minimum roster size must be ≤ maximum roster size', path: ['minRosterSize'] },
+);
 
 export const TournamentListQuery = PaginationQuery.extend({
   sport:  SportEnum.optional(),
@@ -63,11 +78,38 @@ export const TournamentListQuery = PaginationQuery.extend({
   ).optional(),
 });
 
-// ─── Match management ─────────────────────────────────────────────────────────
+// ─── Tournament registration (inline team creation) ──────────────────────────
+
+// Multipart sends arrays as JSON strings; JSON requests send native arrays.
+// Pre-parse strings into arrays so the rest of the schema works for both.
+const jsonStringArray = z.preprocess(
+  (v) => {
+    if (typeof v !== 'string') return v;
+    try { return JSON.parse(v); } catch { return v; }
+  },
+  z.array(z.string().uuid('playerUserIds must contain valid UUIDs'))
+    .min(1, 'At least one player is required')
+    .max(50, 'Cannot register more than 50 players'),
+);
 
 export const RegisterTeamBody = z.object({
-  teamId: z.string().uuid('teamId must be a valid UUID'),
-});
+  teamName:      reqStr(50, 'Team name'),
+  captainUserId: z.string().uuid('captainUserId must be a valid UUID'),
+  coachUserId:   z.string().uuid('coachUserId must be a valid UUID').optional(),
+  playerUserIds: jsonStringArray,
+}).refine(
+  (d) => d.playerUserIds.includes(d.captainUserId),
+  { message: 'Captain must be one of the players', path: ['captainUserId'] },
+).refine(
+  (d) => new Set(d.playerUserIds).size === d.playerUserIds.length,
+  { message: 'Player list contains duplicates', path: ['playerUserIds'] },
+);
+
+// ─── Team invite responses ────────────────────────────────────────────────────
+
+// (No body required — both endpoints derive the user from auth and the team from the URL.)
+
+// ─── Match management ─────────────────────────────────────────────────────────
 
 export const CreateMatchBody = z.object({
   homeTeamId: z.string().uuid('homeTeamId must be a valid UUID'),

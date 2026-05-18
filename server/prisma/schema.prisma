@@ -51,6 +51,12 @@ enum TournamentStatus {
   CANCELLED
 }
 
+enum TournamentFormat {
+  TEAM
+  INDIVIDUAL
+  DOUBLES
+}
+
 enum MatchStatus {
   SCHEDULED
   LIVE
@@ -60,6 +66,13 @@ enum MatchStatus {
 enum TeamMemberRole {
   CAPTAIN
   PLAYER
+  COACH
+}
+
+enum TeamMemberStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 enum AnnouncementType {
@@ -129,27 +142,27 @@ model User {
   commentLikes            CommentLike[]
   postReposts             PostRepost[]
   postSaves               PostSave[]
-  sentConnections         Connection[]           @relation("ConnectionSender")
-  receivedConnections     Connection[]           @relation("ConnectionReceiver")
-  followers               Follow[]               @relation("FollowTarget")
-  following               Follow[]               @relation("FollowInitiator")
-  captainOfTeams          Team[]                 @relation("TeamCaptain")
+  sentConnections         Connection[]         @relation("ConnectionSender")
+  receivedConnections     Connection[]         @relation("ConnectionReceiver")
+  followers               Follow[]             @relation("FollowTarget")
+  following               Follow[]             @relation("FollowInitiator")
+  captainOfTeams          Team[]               @relation("TeamCaptain")
+  coachOfTeams            Team[]               @relation("TeamCoach")
   teamMemberships         TeamMember[]
   createdTournaments      Tournament[]
-  tournamentTeamMembers   TournamentTeamMember[]
   basketballStats         BasketballStats[]
   footballStats           FootballStats[]
   cricketStats            CricketStats[]
   playerRankings          PlayerRanking[]
   announcements           Announcement[]
   notifications           Notification[]
-  sentMessages            Message[]              @relation("MessageSender")
-  sharedInMessages        Message[]              @relation("SharedProfileInMessage")
+  sentMessages            Message[]            @relation("MessageSender")
+  sharedInMessages        Message[]            @relation("SharedProfileInMessage")
   conversationMemberships ConversationMember[]
-  blocksMade              Block[]                @relation("Blocker")
-  blocksReceived          Block[]                @relation("Blocked")
-  reportsFiled            Report[]               @relation("Reporter")
-  reportsAgainst          Report[]               @relation("Reported")
+  blocksMade              Block[]              @relation("Blocker")
+  blocksReceived          Block[]              @relation("Blocked")
+  reportsFiled            Report[]             @relation("Reporter")
+  reportsAgainst          Report[]             @relation("Reported")
 
   @@index([role])
   @@index([sport])
@@ -330,16 +343,20 @@ model PostMedia {
 // ─── Teams ───────────────────────────────────────────────
 
 model Team {
-  id          String   @id @default(uuid())
-  name        String
-  sport       Sport
-  captainId   String
-  logo        String?
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  name         String
+  sport        Sport
+  captainId    String
+  coachId      String?
+  tournamentId String?
+  logo         String?
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   captain                 User             @relation("TeamCaptain", fields: [captainId], references: [id])
+  coach                   User?            @relation("TeamCoach", fields: [coachId], references: [id])
+  tournament              Tournament?      @relation("TeamTournament", fields: [tournamentId], references: [id], onDelete: Cascade)
   members                 TeamMember[]
   tournamentRegistrations TournamentTeam[]
   homeMatches             Match[]          @relation("HomeTeam")
@@ -347,19 +364,26 @@ model Team {
 
   @@index([sport])
   @@index([captainId])
+  @@index([coachId])
+  @@index([tournamentId])
 }
 
 model TeamMember {
-  id       String         @id @default(uuid())
-  teamId   String
-  userId   String
-  role     TeamMemberRole @default(PLAYER)
-  joinedAt DateTime       @default(now())
+  id          String           @id @default(uuid())
+  teamId      String
+  userId      String
+  role        TeamMemberRole   @default(PLAYER)
+  status      TeamMemberStatus @default(PENDING)
+  invitedAt   DateTime         @default(now())
+  respondedAt DateTime?
+  joinedAt    DateTime         @default(now())
 
   team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, userId])
+  @@index([userId, status])
+  @@index([teamId, status])
 }
 
 // ─── Tournaments ─────────────────────────────────────────
@@ -381,12 +405,16 @@ model Tournament {
   genderCategory String?
   thumbnailUrl   String?
   status         TournamentStatus @default(UPCOMING)
+  format         TournamentFormat @default(TEAM)
+  minRosterSize  Int?
+  maxRosterSize  Int?
   createdById    String
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
   createdBy       User              @relation(fields: [createdById], references: [id])
   teams           TournamentTeam[]
+  registeredTeams Team[]            @relation("TeamTournament")
   matches         Match[]
   highlights      Highlight[]
   rankings        PlayerRanking[]
@@ -405,22 +433,10 @@ model TournamentTeam {
   teamId       String
   registeredAt DateTime @default(now())
 
-  tournament Tournament             @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  team       Team                   @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  members    TournamentTeamMember[]
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@unique([tournamentId, teamId])
-}
-
-model TournamentTeamMember {
-  id               String @id @default(uuid())
-  tournamentTeamId String
-  userId           String
-
-  tournamentTeam TournamentTeam @relation(fields: [tournamentTeamId], references: [id], onDelete: Cascade)
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([tournamentTeamId, userId])
 }
 
 // ─── Matches ─────────────────────────────────────────────

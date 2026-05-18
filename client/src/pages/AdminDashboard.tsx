@@ -3,7 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
 
@@ -11,6 +11,11 @@ type Tab = 'users' | 'stats' | 'create-admin' | 'tournaments' | 'feed-preview';
 
 const AGE_CATEGORIES = ['U12', 'U14', 'U16', 'U18', 'U19', 'U21', 'U23', 'OPEN', 'MASTERS'];
 const GENDER_CATEGORIES = ['MEN', 'WOMEN', 'MIXED', 'OPEN'];
+const TOURNAMENT_FORMATS = [
+  { value: 'TEAM',       label: 'Team' },
+  { value: 'DOUBLES',    label: 'Doubles' },
+  { value: 'INDIVIDUAL', label: 'Individual' },
+];
 
 interface TournamentForm {
   name: string;
@@ -25,14 +30,114 @@ interface TournamentForm {
   maxTeams: string;
   ageCategory: string;
   genderCategory: string;
+  format: string;
+  minRosterSize: string;
+  maxRosterSize: string;
 }
 
 const emptyTournamentForm: TournamentForm = {
   name: '', sport: 'BASKETBALL', description: '', venue: '', city: '',
   startDate: '', endDate: '', entryFee: '', prizePool: '', maxTeams: '',
   ageCategory: '', genderCategory: '',
+  format: 'TEAM', minRosterSize: '', maxRosterSize: '',
 };
 
+
+function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-tournament-registrations', tournamentId],
+    queryFn: async () => {
+      const { data } = await api.get(`/tournaments/${tournamentId}/registrations`);
+      return data;
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="px-5 py-4 bg-dark/30 flex justify-center">
+        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const registrations: any[] = data?.registrations ?? [];
+  if (registrations.length === 0) {
+    return (
+      <div className="px-5 py-4 bg-dark/30 text-xs text-gray-custom">
+        No teams have registered yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-5 py-4 bg-dark/30 space-y-3">
+      {registrations.map((r: any) => {
+        const { team, summary } = r;
+        return (
+          <div key={r.id} className="bg-dark rounded-lg border border-dark-lighter p-4">
+            <div className="flex items-center justify-between mb-3 gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold truncate">{team.name}</p>
+                <p className="text-xs text-gray-custom">
+                  Registered {new Date(r.registeredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  summary.isComplete
+                    ? 'bg-accent/20 text-accent'
+                    : 'bg-amber-500/20 text-amber-300'
+                }`}
+              >
+                {summary.isComplete
+                  ? 'Complete'
+                  : `${summary.accepted}/${summary.total} accepted${summary.declined ? ` · ${summary.declined} declined` : ''}`}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-3 text-xs mb-3">
+              {team.captain && (
+                <span className="flex items-center gap-1.5 text-amber-400">
+                  <Crown size={11} />
+                  {team.captain.name} <span className="text-gray-custom">(captain)</span>
+                </span>
+              )}
+              {team.coach && (
+                <span className="flex items-center gap-1.5 text-primary-light">
+                  <Award size={11} />
+                  {team.coach.name} <span className="text-gray-custom">(coach)</span>
+                </span>
+              )}
+            </div>
+
+            <div className="border-t border-dark-lighter pt-3 space-y-1.5">
+              {team.members.map((m: any) => (
+                <div key={m.id} className="flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {m.user.avatar
+                      ? <img src={m.user.avatar} alt={m.user.name} className="w-5 h-5 rounded-full object-cover" />
+                      : <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">{m.user.name?.charAt(0).toUpperCase()}</div>}
+                    <span className="truncate">{m.user.name}</span>
+                    <span className="text-gray-custom shrink-0">· {m.role.toLowerCase()}</span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
+                      m.status === 'ACCEPTED' ? 'bg-accent/20 text-accent'
+                        : m.status === 'DECLINED' ? 'bg-red-500/20 text-red-400'
+                        : 'bg-gray-500/20 text-gray-400'
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -52,6 +157,7 @@ export default function AdminDashboard() {
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const [expandedTournamentId, setExpandedTournamentId] = useState<string | null>(null);
 
   // Redirect non-admins at the route level
   if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
@@ -142,6 +248,9 @@ export default function AdminDashboard() {
       if (tournamentForm.maxTeams)       fd.append('maxTeams', tournamentForm.maxTeams);
       if (tournamentForm.ageCategory)    fd.append('ageCategory', tournamentForm.ageCategory);
       if (tournamentForm.genderCategory) fd.append('genderCategory', tournamentForm.genderCategory);
+      if (tournamentForm.format)         fd.append('format', tournamentForm.format);
+      if (tournamentForm.minRosterSize)  fd.append('minRosterSize', tournamentForm.minRosterSize);
+      if (tournamentForm.maxRosterSize)  fd.append('maxRosterSize', tournamentForm.maxRosterSize);
       if (thumbnailFile)                 fd.append('thumbnail', thumbnailFile);
       const { data } = await api.post('/tournaments', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -657,6 +766,48 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
+              {/* Format + Roster size */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Format *</label>
+                  <select
+                    value={tournamentForm.format}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, format: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                  >
+                    {TOURNAMENT_FORMATS.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Min Roster</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    disabled={tournamentForm.format === 'INDIVIDUAL'}
+                    value={tournamentForm.minRosterSize}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, minRosterSize: e.target.value }))}
+                    placeholder="e.g. 11"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Max Roster</label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    disabled={tournamentForm.format === 'INDIVIDUAL'}
+                    value={tournamentForm.maxRosterSize}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, maxRosterSize: e.target.value }))}
+                    placeholder="e.g. 18"
+                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -689,39 +840,56 @@ export default function AdminDashboard() {
           ) : (
             <div className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden">
               <div className="divide-y divide-dark-lighter">
-                {(tournamentsData.tournaments).map((t: any) => (
-                  <div key={t.id} className="flex items-center gap-4 px-5 py-3 hover:bg-dark/20 transition-colors">
-                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-dark shrink-0 flex items-center justify-center">
-                      {t.thumbnailUrl
-                        ? <img src={t.thumbnailUrl} alt={t.name} className="w-full h-full object-cover" />
-                        : <Trophy size={18} className="text-gray-custom" />}
+                {(tournamentsData.tournaments).map((t: any) => {
+                  const isExpanded = expandedTournamentId === t.id;
+                  return (
+                    <div key={t.id}>
+                      <div className="flex items-center gap-4 px-5 py-3 hover:bg-dark/20 transition-colors">
+                        <div className="w-14 h-14 rounded-lg overflow-hidden bg-dark shrink-0 flex items-center justify-center">
+                          {t.thumbnailUrl
+                            ? <img src={t.thumbnailUrl} alt={t.name} className="w-full h-full object-cover" />
+                            : <Trophy size={18} className="text-gray-custom" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{t.name}</p>
+                          <p className="text-xs text-gray-custom">
+                            {t.sport}
+                            {t.format ? ` · ${t.format}` : ''}
+                            {t.ageCategory ? ` · ${t.ageCategory}` : ''}
+                            {t.genderCategory ? ` · ${t.genderCategory}` : ''}
+                            {' · '}
+                            {new Date(t.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                        </div>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-dark text-gray-custom border border-dark-lighter">
+                          {t._count?.teams ?? 0} registered
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-dark text-gray-custom border border-dark-lighter">
+                          {t.status}
+                        </span>
+                        <button
+                          onClick={() => setExpandedTournamentId(isExpanded ? null : t.id)}
+                          className="flex items-center gap-1 p-1.5 text-xs text-gray-custom hover:text-white transition-colors rounded"
+                          title={isExpanded ? 'Hide registrations' : 'View registrations'}
+                        >
+                          {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete ${t.name}? This cannot be undone.`)) {
+                              deleteTournamentMutation.mutate(t.id);
+                            }
+                          }}
+                          className="p-1.5 text-gray-custom hover:text-red-400 transition-colors rounded"
+                          title="Delete tournament"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      {isExpanded && <TournamentRegistrationsPanel tournamentId={t.id} />}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{t.name}</p>
-                      <p className="text-xs text-gray-custom">
-                        {t.sport}
-                        {t.ageCategory ? ` · ${t.ageCategory}` : ''}
-                        {t.genderCategory ? ` · ${t.genderCategory}` : ''}
-                        {' · '}
-                        {new Date(t.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                    </div>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-dark text-gray-custom border border-dark-lighter">
-                      {t.status}
-                    </span>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete ${t.name}? This cannot be undone.`)) {
-                          deleteTournamentMutation.mutate(t.id);
-                        }
-                      }}
-                      className="p-1.5 text-gray-custom hover:text-red-400 transition-colors rounded"
-                      title="Delete tournament"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

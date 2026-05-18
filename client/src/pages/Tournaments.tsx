@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
-import { Trophy, MapPin, Calendar, Users, ChevronRight, X } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { Trophy, MapPin, Calendar, Users, ChevronRight, X, Crown, Award, Settings } from 'lucide-react'
 import { SPORTS } from '../data/sports'
 
 const SPORT_ICONS: Record<string, string> = Object.fromEntries(
@@ -25,7 +25,7 @@ function formatDate(d: string) {
 
 export default function Tournaments() {
   useAuth()
-  const qc = useQueryClient()
+  const navigate = useNavigate()
   const [selected, setSelected] = useState<any | null>(null)
   const [sportFilter, setSportFilter] = useState('')
 
@@ -47,27 +47,11 @@ export default function Tournaments() {
     enabled: !!selected?.id,
   })
 
-  const { data: myTeams } = useQuery({
-    queryKey: ['teams', 'mine'],
-    queryFn: async () => {
-      const { data } = await api.get('/teams?mine=true')
-      return data
-    },
-    enabled: !!selected,
-  })
-
-  const [selectedTeamId, setSelectedTeamId] = useState('')
-
-  const registerMutation = useMutation({
-    mutationFn: (teamId: string) => api.post(`/tournaments/${selected?.id}/register`, { teamId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tournament', selected?.id] })
-      toast.success('Team registered!')
-    },
-    onError: () => toast.error('Registration failed'),
-  })
-
   const tournaments = data?.tournaments ?? []
+  const selectedDetail = detail?.tournament ?? selected
+  const acceptsTeamRegistration =
+    selectedDetail && selectedDetail.format !== 'INDIVIDUAL' &&
+    ['UPCOMING', 'REGISTRATION_OPEN'].includes(selectedDetail.status)
 
   return (
     <div>
@@ -151,30 +135,58 @@ export default function Tournaments() {
 
               {selected.description && <p className="text-sm text-gray-custom">{selected.description}</p>}
 
-              {/* Register */}
-              {selected.status === 'UPCOMING' && (
-                <div className="bg-dark rounded-lg p-4 border border-dark-lighter">
-                  <h3 className="text-sm font-medium mb-3">Register Your Team</h3>
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedTeamId}
-                      onChange={(e) => setSelectedTeamId(e.target.value)}
-                      className="flex-1 bg-dark-light border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
-                    >
-                      <option value="">Select a team</option>
-                      {(myTeams?.teams ?? []).map((team: any) => (
-                        <option key={team.id} value={team.id}>{team.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => { if (selectedTeamId) registerMutation.mutate(selectedTeamId) }}
-                      disabled={!selectedTeamId || registerMutation.isPending}
-                      className="px-4 py-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark font-semibold text-sm rounded-lg transition-colors"
-                    >
-                      Register
-                    </button>
+              {/* Your team(s) — only visible if the user is a member of any team in this tournament */}
+              {(detail?.tournament?.myTeams ?? []).map((t: any) => {
+                const isCaptain = t.myRole === 'CAPTAIN'
+                return (
+                  <div key={t.id} className="bg-dark rounded-lg border border-primary/30 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {t.logo
+                          ? <img src={t.logo} alt={t.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                          : <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center font-bold text-primary-light shrink-0">{t.name?.charAt(0).toUpperCase()}</div>}
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{t.name}</p>
+                          <p className="text-xs text-gray-custom">
+                            Your team
+                            {t.myRole === 'CAPTAIN' && <> · <Crown size={10} className="inline -mt-0.5" /> Captain</>}
+                            {t.myRole === 'COACH'   && <> · <Award size={10} className="inline -mt-0.5" /> Coach</>}
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                          t.summary.isComplete
+                            ? 'bg-accent/20 text-accent'
+                            : 'bg-amber-500/20 text-amber-300'
+                        }`}
+                      >
+                        {t.summary.isComplete
+                          ? 'Complete'
+                          : `${t.summary.accepted}/${t.summary.total} accepted${t.summary.declined ? ` · ${t.summary.declined} declined` : ''}`}
+                      </span>
+                    </div>
+
+                    {isCaptain && (
+                      <button
+                        onClick={() => navigate(`/teams/${t.id}`)}
+                        className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-dark-light hover:bg-dark-lighter border border-dark-lighter text-sm rounded-lg transition-colors"
+                      >
+                        <Settings size={13} /> Manage team
+                      </button>
+                    )}
                   </div>
-                </div>
+                )
+              })}
+
+              {/* Register CTA — only show if user has no existing team in this tournament */}
+              {acceptsTeamRegistration && (detail?.tournament?.myTeams ?? []).length === 0 && (
+                <button
+                  onClick={() => navigate(`/tournaments/${selected.id}/register`)}
+                  className="w-full px-4 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors"
+                >
+                  Register a team
+                </button>
               )}
 
               {/* Registered Teams */}

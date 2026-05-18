@@ -1,11 +1,7 @@
-import { z } from 'zod';
-import { reqStr, optStr, PaginationQuery, SportEnum } from './common';
+import { optStr, PaginationQuery, SportEnum } from './common';
 
-export const CreateTeamBody = z.object({
-  name:        reqStr(50,  'Team name'),
-  sport:       SportEnum,
-  description: optStr(500, 'Description'),
-});
+// Standalone team creation has been removed — teams are now created inline at
+// tournament registration via POST /api/tournaments/:id/register.
 
 export const TeamSearchQuery = PaginationQuery.extend({
   sport:  SportEnum.optional(),

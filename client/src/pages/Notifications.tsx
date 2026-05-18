@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import api from '../api/client';
-import { Bell, Check, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2, MessageSquare as CommentIcon } from 'lucide-react';
+import { Bell, Check, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2, MessageSquare as CommentIcon, Users } from 'lucide-react';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -25,6 +26,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   LIKE: <Heart size={16} className="text-red-400" />,
   COMMENT: <CommentIcon size={16} className="text-primary-light" />,
   REPOST: <Repeat2 size={16} className="text-green-400" />,
+  TEAM_INVITE: <Users size={16} className="text-primary-light" />,
 };
 
 // Where to navigate when a notification is clicked
@@ -66,6 +68,40 @@ export default function Notifications() {
   const markReadMutation = useMutation({
     mutationFn: (id: string) => api.patch(`/notifications/${id}/read`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+  });
+
+  const [respondingTeamId, setRespondingTeamId] = useState<string | null>(null);
+
+  const acceptInviteMutation = useMutation({
+    mutationFn: (teamId: string) => api.post(`/teams/${teamId}/members/me/accept`),
+    onSuccess: (res: any, teamId: string) => {
+      const data = res?.data;
+      toast.success(
+        data?.isComplete
+          ? 'Joined the team — registration is now complete!'
+          : 'Invite accepted',
+      );
+      setAllNotifs((prev) => prev.filter((n) => !(n.type === 'TEAM_INVITE' && n.referenceId === teamId)));
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+      qc.invalidateQueries({ queryKey: ['tournament'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Could not accept invite');
+    },
+    onSettled: () => setRespondingTeamId(null),
+  });
+
+  const declineInviteMutation = useMutation({
+    mutationFn: (teamId: string) => api.post(`/teams/${teamId}/members/me/decline`),
+    onSuccess: (_res, teamId: string) => {
+      toast('Invite declined');
+      setAllNotifs((prev) => prev.filter((n) => !(n.type === 'TEAM_INVITE' && n.referenceId === teamId)));
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Could not decline invite');
+    },
+    onSettled: () => setRespondingTeamId(null),
   });
 
   const unreadCount = data?.unreadCount ?? 0;
@@ -170,6 +206,32 @@ export default function Notifications() {
                   {TYPE_ICONS[n.type]}
                   {timeAgo(n.createdAt)}
                 </p>
+
+                {/* Team invite — inline accept / decline */}
+                {n.type === 'TEAM_INVITE' && n.referenceId && n.title === 'Team invitation' && (
+                  <div className="flex gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => {
+                        setRespondingTeamId(n.referenceId);
+                        acceptInviteMutation.mutate(n.referenceId);
+                      }}
+                      disabled={respondingTeamId === n.referenceId}
+                      className="px-3 py-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark text-xs font-semibold rounded-lg transition-colors"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => {
+                        setRespondingTeamId(n.referenceId);
+                        declineInviteMutation.mutate(n.referenceId);
+                      }}
+                      disabled={respondingTeamId === n.referenceId}
+                      className="px-3 py-1.5 bg-dark hover:bg-dark-lighter disabled:opacity-50 border border-dark-lighter text-xs text-gray-custom hover:text-white rounded-lg transition-colors"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Unread dot */}
