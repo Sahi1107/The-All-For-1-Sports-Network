@@ -389,6 +389,47 @@ function TableTennisBackdrop() {
   );
 }
 
+function SwimmingBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        {/* Pool outline */}
+        <rect x="30" y="30" width="740" height="440" />
+        {/* Lane dividers (8 lanes) */}
+        <line x1="30" y1="85"  x2="770" y2="85" />
+        <line x1="30" y1="140" x2="770" y2="140" />
+        <line x1="30" y1="195" x2="770" y2="195" />
+        <line x1="30" y1="250" x2="770" y2="250" strokeWidth="2.2" />
+        <line x1="30" y1="305" x2="770" y2="305" />
+        <line x1="30" y1="360" x2="770" y2="360" />
+        <line x1="30" y1="415" x2="770" y2="415" />
+        {/* Backstroke flag lines (5m from each wall) */}
+        <line x1="105" y1="30" x2="105" y2="470" strokeDasharray="4 4" strokeWidth="1.2" />
+        <line x1="695" y1="30" x2="695" y2="470" strokeDasharray="4 4" strokeWidth="1.2" />
+        {/* T-markers at each end of each lane */}
+        <g strokeWidth="2.2">
+          <line x1="50"  y1="57"  x2="50"  y2="113" />
+          <line x1="50"  y1="112" x2="80"  y2="112" />
+          <line x1="50"  y1="167" x2="50"  y2="223" />
+          <line x1="50"  y1="222" x2="80"  y2="222" />
+          <line x1="50"  y1="277" x2="50"  y2="333" />
+          <line x1="50"  y1="332" x2="80"  y2="332" />
+          <line x1="50"  y1="387" x2="50"  y2="443" />
+          <line x1="50"  y1="442" x2="80"  y2="442" />
+          <line x1="750" y1="57"  x2="750" y2="113" />
+          <line x1="720" y1="112" x2="750" y2="112" />
+          <line x1="750" y1="167" x2="750" y2="223" />
+          <line x1="720" y1="222" x2="750" y2="222" />
+          <line x1="750" y1="277" x2="750" y2="333" />
+          <line x1="720" y1="332" x2="750" y2="332" />
+          <line x1="750" y1="387" x2="750" y2="443" />
+          <line x1="720" y1="442" x2="750" y2="442" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
 const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   BASKETBALL: BasketballBackdrop,
   FOOTBALL: FootballBackdrop,
@@ -404,6 +445,7 @@ const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   TENNIS: TennisBackdrop,
   TABLE_TENNIS: TableTennisBackdrop,
   RUGBY: RugbyBackdrop,
+  SWIMMING: SwimmingBackdrop,
 };
 
 export default function Home() {

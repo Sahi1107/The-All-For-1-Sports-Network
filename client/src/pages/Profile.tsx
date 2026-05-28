@@ -455,6 +455,30 @@ function TableTennisTableBackdrop() {
   );
 }
 
+function SwimmingPoolBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      {/* Pool deck */}
+      <rect x="0" y="0" width="800" height="500" fill="rgba(40,70,110,0.55)" />
+      {/* Water */}
+      <rect x="50" y="50" width="700" height="400" fill="rgba(30,120,200,0.7)" stroke="rgba(255,255,255,0.9)" strokeWidth="3" />
+      <g stroke="rgba(255,255,255,0.85)" fill="none" strokeWidth="2">
+        {/* Lane dividers */}
+        <line x1="50" y1="100" x2="750" y2="100" />
+        <line x1="50" y1="150" x2="750" y2="150" />
+        <line x1="50" y1="200" x2="750" y2="200" />
+        <line x1="50" y1="250" x2="750" y2="250" strokeWidth="2.6" />
+        <line x1="50" y1="300" x2="750" y2="300" />
+        <line x1="50" y1="350" x2="750" y2="350" />
+        <line x1="50" y1="400" x2="750" y2="400" />
+        {/* Backstroke flag lines */}
+        <line x1="125" y1="50" x2="125" y2="450" strokeDasharray="4 4" strokeWidth="1.4" />
+        <line x1="675" y1="50" x2="675" y2="450" strokeDasharray="4 4" strokeWidth="1.4" />
+      </g>
+    </svg>
+  );
+}
+
 export default function Profile() {
   const { id } = useParams<{ id: string }>();
   const { user: me } = useAuth();
@@ -651,6 +675,7 @@ export default function Profile() {
                 TENNIS: TennisCourtBackdrop,
                 TABLE_TENNIS: TableTennisTableBackdrop,
                 RUGBY: RugbyPitchBackdrop,
+                SWIMMING: SwimmingPoolBackdrop,
               }[profile.sport as string]
             : undefined;
           return Backdrop ? <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-[0.22]"><Backdrop /></div> : null;

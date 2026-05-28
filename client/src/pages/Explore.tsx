@@ -4,9 +4,13 @@ import { Link } from 'react-router-dom';
 import { Search, MapPin, Filter } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
+import { SPORTS as ALL_SPORTS } from '../data/sports';
 
 const ROLES = ['ALL', 'ATHLETE', 'COACH', 'SCOUT', 'AGENT'] as const;
-const SPORTS = ['ALL', 'BASKETBALL', 'FOOTBALL', 'CRICKET'] as const;
+const SPORTS = [
+  { value: 'ALL', label: 'All', emoji: '' },
+  ...ALL_SPORTS.map((s) => ({ value: s.value, label: s.label, emoji: s.emoji })),
+] as const;
 
 export default function Explore() {
   const { user: currentUser } = useAuth();
@@ -65,13 +69,13 @@ export default function Explore() {
             <span className="text-sm text-gray-custom">Sport:</span>
             {SPORTS.map((s) => (
               <button
-                key={s}
-                onClick={() => { setSport(s); setPage(1); }}
+                key={s.value}
+                onClick={() => { setSport(s.value); setPage(1); }}
                 className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                  sport === s ? 'bg-secondary text-white' : 'bg-dark-lighter text-gray-custom hover:text-white'
+                  sport === s.value ? 'bg-secondary text-white' : 'bg-dark-lighter text-gray-custom hover:text-white'
                 }`}
               >
-                {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
+                {s.emoji ? `${s.emoji} ${s.label}` : s.label}
               </button>
             ))}
           </div>

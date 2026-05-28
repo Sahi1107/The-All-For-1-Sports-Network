@@ -34,6 +34,7 @@ enum Sport {
   TENNIS
   TABLE_TENNIS
   RUGBY
+  SWIMMING
 }
 
 enum ConnectionStatus {
