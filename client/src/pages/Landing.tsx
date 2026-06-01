@@ -226,7 +226,7 @@ export default function Landing() {
           <div className="about-text">
             <h2>What Is All For One?</h2>
             <p>
-              All For 1 is a social network designed for the entire Indian sports
+              All For 1 is a professional network designed for the entire Indian sports
               ecosystem.
             </p>
           </div>
