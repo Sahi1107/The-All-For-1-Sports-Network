@@ -13,6 +13,7 @@ const ROLES = [
   { value: 'SCOUT',   label: 'Scout',                   desc: 'Find the next big star' },
   { value: 'TEAM',    label: 'Team / Academy',          desc: 'Represent your club or academy' },
   { value: 'AGENT',   label: 'Agent / Talent Manager',  desc: 'Represent and manage athletes' },
+  { value: 'MEDIA',   label: 'Media',                   desc: 'Cover athletes & events' },
 ] as const;
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -117,7 +118,7 @@ export default function Register() {
   const [done, setDone] = useState(false);
   const [form, setForm] = useState({
     name: '', email: '', password: '',
-    role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | '',
+    role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA' | '',
     sport: '' as Sport | '',
     athleticsEvents: [] as string[],
     country: '',

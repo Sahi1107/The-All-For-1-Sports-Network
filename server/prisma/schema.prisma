@@ -16,6 +16,7 @@ enum Role {
   SCOUT
   TEAM
   AGENT
+  MEDIA
   ADMIN
 }
 

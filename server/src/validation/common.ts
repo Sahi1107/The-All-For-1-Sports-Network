@@ -140,8 +140,8 @@ export const ATHLETICS_EVENTS = [
 
 export const AthleticsEventEnum = z.enum(ATHLETICS_EVENTS);
 
-export const RoleEnum = z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'AGENT'], {
-  error: 'role must be ATHLETE, COACH, SCOUT, TEAM, or AGENT',
+export const RoleEnum = z.enum(['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'AGENT', 'MEDIA'], {
+  error: 'role must be ATHLETE, COACH, SCOUT, TEAM, AGENT, or MEDIA',
 });
 
 // ─── Pagination query ─────────────────────────────────────────────────────────

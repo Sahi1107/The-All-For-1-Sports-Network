@@ -358,6 +358,7 @@ export default function AdminDashboard() {
               <option value="COACH">Coach</option>
               <option value="SCOUT">Scout</option>
               <option value="AGENT">Agent</option>
+              <option value="MEDIA">Media</option>
               <option value="ADMIN">Admin</option>
             </select>
           </div>
@@ -406,6 +407,7 @@ export default function AdminDashboard() {
                         <option value="COACH">Coach</option>
                         <option value="SCOUT">Scout</option>
                         <option value="AGENT">Agent</option>
+                        <option value="MEDIA">Media</option>
                         <option value="ADMIN">Admin</option>
                       </select>
                     </div>

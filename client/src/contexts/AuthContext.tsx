@@ -17,7 +17,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'ADMIN';
+  role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA' | 'ADMIN';
   sport: Sport;
   athleticsEvents?: string[];
   avatar?: string;
@@ -35,7 +35,7 @@ interface RegisterData {
   email: string;
   password: string;
   name: string;
-  role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT';
+  role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA';
   sport: Sport;
   athleticsEvents?: string[];
   age?: number;

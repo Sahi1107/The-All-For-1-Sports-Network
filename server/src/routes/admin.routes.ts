@@ -160,7 +160,7 @@ router.post('/create-admin', writeLimiter, validate({ body: CreateAdminBody }), 
 router.get('/stats', async (_req: AuthRequest, res: Response) => {
   try {
     const [
-      totalUsers, athletes, coaches, scouts, agents, teamAccounts, verifiedUsers,
+      totalUsers, athletes, coaches, scouts, agents, teamAccounts, mediaAccounts, verifiedUsers,
       highlights, teams, tournaments,
       bySportRows,
     ] = await Promise.all([
@@ -170,6 +170,7 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
       prisma.user.count({ where: { role: 'SCOUT' } }),
       prisma.user.count({ where: { role: 'AGENT' } }),
       prisma.user.count({ where: { role: 'TEAM' } }),
+      prisma.user.count({ where: { role: 'MEDIA' } }),
       prisma.user.count({ where: { verified: true } }),
       prisma.highlight.count(),
       prisma.team.count(),
@@ -190,7 +191,7 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
 
     res.json({
       stats: {
-        totalUsers, athletes, coaches, scouts, agents, teamAccounts, verifiedUsers,
+        totalUsers, athletes, coaches, scouts, agents, teamAccounts, mediaAccounts, verifiedUsers,
         highlights, teams, tournaments,
         bySport,
       },
