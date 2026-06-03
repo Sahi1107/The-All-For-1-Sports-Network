@@ -93,19 +93,34 @@ export function validateImageBytes(file: Express.Multer.File, res: Response): bo
 }
 
 export function validateVideoBytes(file: Express.Multer.File, res: Response): boolean {
-  const allowed    = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm']);
-  const claimedExt = file.originalname.toLowerCase().replace(/.*(\.[^.]+)$/, '$1');
-
-  if (!allowed.has(claimedExt)) {
-    res.status(400).json({ error: 'Only MP4, MOV, AVI, MKV, and WebM videos are allowed' });
+  const result = validateVideoBuffer(file.buffer, file.originalname);
+  if (!result.ok) {
+    if (result.logEvent) logger.warn(result.logEvent, { claimed: result.claimedExt, detected: result.detected, mime: file.mimetype });
+    res.status(400).json({ error: result.error });
     return false;
   }
+  return true;
+}
 
-  const detected = detectExt(file.buffer, VIDEO_MAGIC);
+// Buffer-based variant of the video check, decoupled from Express. Used both by
+// the multipart path (via validateVideoBytes above) and by the direct-to-GCS
+// path, where the API only has the object's first bytes — not a Multer file.
+// `nameOrExt` may be a full filename or a bare extension (".mp4" / "mp4").
+export function validateVideoBuffer(
+  buffer: Buffer,
+  nameOrExt: string,
+): { ok: boolean; error?: string; logEvent?: string; claimedExt?: string; detected?: string | null } {
+  const allowed    = new Set(['.mp4', '.mov', '.avi', '.mkv', '.webm']);
+  const lower      = nameOrExt.toLowerCase();
+  const claimedExt = lower.includes('.') ? lower.replace(/.*(\.[^.]+)$/, '$1') : `.${lower}`;
+
+  if (!allowed.has(claimedExt)) {
+    return { ok: false, error: 'Only MP4, MOV, AVI, MKV, and WebM videos are allowed', claimedExt };
+  }
+
+  const detected = detectExt(buffer, VIDEO_MAGIC);
   if (!detected) {
-    logger.warn('upload.invalid_magic', { claimed: claimedExt, mime: file.mimetype });
-    res.status(400).json({ error: 'File content does not match a supported video format' });
-    return false;
+    return { ok: false, error: 'File content does not match a supported video format', logEvent: 'upload.invalid_magic', claimedExt, detected };
   }
 
   // MP4 and MOV share the "ftyp" box — either extension is valid for both
@@ -115,12 +130,10 @@ export function validateVideoBytes(file: Express.Multer.File, res: Response): bo
     claimedExt === detected;
 
   if (!ok) {
-    logger.warn('upload.ext_spoofed', { claimed: claimedExt, detected });
-    res.status(400).json({ error: 'File extension does not match file content' });
-    return false;
+    return { ok: false, error: 'File extension does not match file content', logEvent: 'upload.ext_spoofed', claimedExt, detected };
   }
 
-  return true;
+  return { ok: true, claimedExt, detected };
 }
 
 // ─── Multer instances ─────────────────────────────────────────────────────────

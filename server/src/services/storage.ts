@@ -58,6 +58,58 @@ export async function signKey(key: string): Promise<string> {
   return url;
 }
 
+// ─── Sign-on-write (direct browser → GCS upload) ─────────────────────────────
+//
+// Cloud Run caps inbound HTTP/1 request bodies at 32 MiB, so large videos can
+// never reach the API as multipart form data. Instead we mint a short-lived V4
+// signed PUT URL and the browser uploads the file straight to GCS, bypassing
+// Cloud Run entirely. The API only ever sees the resulting object key.
+//
+// `contentType` is baked into the signature: the client MUST send a matching
+// Content-Type header on the PUT or GCS rejects it. The caller picks the key
+// (always a fresh uuid under a controlled folder) so clients can't choose it.
+
+const UPLOAD_TTL_MS = 15 * 60 * 1000; // 15 minutes to start + finish the upload
+
+export async function signUploadUrl(
+  folder: string,
+  ext: string,
+  contentType: string,
+): Promise<{ uploadUrl: string; key: string }> {
+  if (!bucket) throw new Error('GCS_BUCKET not configured');
+
+  const { randomUUID } = await import('crypto');
+  const key = `${folder}/${randomUUID()}.${ext.replace(/^\./, '')}`;
+
+  const [uploadUrl] = await bucket.file(key).getSignedUrl({
+    version: 'v4',
+    action: 'write',
+    expires: Date.now() + UPLOAD_TTL_MS,
+    contentType,
+  });
+
+  return { uploadUrl, key };
+}
+
+// Read the first `n` bytes of an object — used to magic-byte-validate a
+// directly-uploaded file without downloading the whole thing.
+export async function readObjectHead(key: string, n: number): Promise<Buffer> {
+  if (!bucket) throw new Error('GCS_BUCKET not configured');
+  const [buf] = await bucket.file(key).download({ start: 0, end: n - 1 });
+  return buf;
+}
+
+// Return an object's size in bytes (from metadata, no download), or null if it
+// doesn't exist — used to enforce a size cap after a direct upload.
+export async function getObjectSize(key: string): Promise<number | null> {
+  if (!bucket) throw new Error('GCS_BUCKET not configured');
+  const file = bucket.file(key);
+  const [exists] = await file.exists();
+  if (!exists) return null;
+  const [meta] = await file.getMetadata();
+  return typeof meta.size === 'string' ? parseInt(meta.size, 10) : (meta.size ?? null);
+}
+
 // ─── Hybrid resolver ─────────────────────────────────────────────────────────
 //
 // During the migration the DB will contain a mix of:

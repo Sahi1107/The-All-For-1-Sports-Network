@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import axios from 'axios';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Type, Image, Video, Upload, Plus, Trash2, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -30,6 +31,44 @@ export default function CreatePostModal({ onClose }: Props) {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      // Highlights upload straight to GCS via a signed URL — Cloud Run caps API
+      // request bodies at 32 MiB, so large videos can't go through /posts as
+      // multipart. We send only the resulting object key to the API.
+      if (type === 'HIGHLIGHT') {
+        const file = files[0];
+        // Prefer the browser-reported MIME; some browsers leave it blank, so
+        // fall back to the file extension. Must land in the server's allow-list.
+        const extMime: Record<string, string> = {
+          mp4: 'video/mp4', mov: 'video/quicktime', avi: 'video/x-msvideo',
+          mkv: 'video/x-matroska', webm: 'video/webm',
+        };
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        const contentType = file.type || extMime[ext] || 'video/mp4';
+
+        const { data: signed } = await api.post('/posts/upload-url', {
+          filename: file.name,
+          contentType,
+        });
+
+        // PUT directly to GCS (bare axios — no API baseURL / auth header).
+        // The Content-Type must match what the signed URL was minted with.
+        await axios.put(signed.uploadUrl, file, {
+          headers: { 'Content-Type': contentType },
+          onUploadProgress: (e) => {
+            if (e.total) setProgress(Math.round((e.loaded / e.total) * 100));
+          },
+        });
+
+        const { data } = await api.post('/posts', {
+          type,
+          ...(content ? { content } : {}),
+          ...(title ? { title } : {}),
+          ...(commentsDisabled ? { commentsDisabled: true } : {}),
+          videoKey: signed.key,
+        });
+        return data;
+      }
+
       const formData = new FormData();
       formData.append('type', type);
       if (content) formData.append('content', content);

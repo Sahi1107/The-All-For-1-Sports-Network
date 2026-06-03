@@ -4,9 +4,17 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { uploadLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { validateImageBytes, validateVideoBytes } from '../middleware/upload';
-import { CreatePostBody } from '../validation/post';
-import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
+import { validateImageBytes, validateVideoBytes, validateVideoBuffer } from '../middleware/upload';
+import { CreatePostBody, UploadUrlBody } from '../validation/post';
+import {
+  uploadToGCS,
+  signMediaDeep,
+  signMediaDeepAll,
+  signUploadUrl,
+  readObjectHead,
+  getObjectSize,
+  deleteFromGCS,
+} from '../services/storage';
 
 const router = Router();
 
@@ -22,10 +30,42 @@ function extFromFile(file: Express.Multer.File): string {
   return fromMime === 'jpeg' ? 'jpg' : fromMime.replace(/[^a-z0-9]/gi, '');
 }
 
+// Video MIME → extension. Also the allow-list for direct-upload URLs.
+const VIDEO_MIME_EXT: Record<string, string> = {
+  'video/mp4':        'mp4',
+  'video/quicktime':  'mov',
+  'video/x-msvideo':  'avi',
+  'video/x-matroska': 'mkv',
+  'video/webm':       'webm',
+};
+
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100 MB
+
+// POST /api/posts/upload-url — mint a short-lived signed PUT URL so the browser
+// can upload a highlight video straight to GCS, bypassing Cloud Run's 32 MiB
+// request-body cap. The client then calls POST /api/posts with the returned key.
+router.post('/upload-url', authenticate, writeLimiter, validate({ body: UploadUrlBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { contentType } = req.body as { contentType: string };
+
+    const ext = VIDEO_MIME_EXT[contentType];
+    if (!ext) {
+      res.status(400).json({ error: 'Only MP4, MOV, AVI, MKV, and WebM videos are allowed' });
+      return;
+    }
+
+    const { uploadUrl, key } = await signUploadUrl('posts', ext, contentType);
+    res.json({ uploadUrl, key });
+  } catch (error) {
+    console.error('Sign upload URL error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/posts
 router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validate({ body: CreatePostBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { type, content, title, commentsDisabled } = req.body;
+    const { type, content, title, commentsDisabled, videoKey } = req.body;
     const files = (req.files as Express.Multer.File[]) || [];
 
     // Magic-byte validation for uploaded media
@@ -48,6 +88,27 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
         ),
       );
       mediaUrls.push(...keys);
+    } else if (type === 'HIGHLIGHT' && videoKey) {
+      // Direct-to-GCS path: the video is already in the bucket. We never saw the
+      // bytes, so validate size + magic on the stored object before trusting it.
+      const size = await getObjectSize(videoKey);
+      if (size === null) {
+        res.status(400).json({ error: 'Uploaded video not found — please try again' });
+        return;
+      }
+      if (size > MAX_VIDEO_BYTES) {
+        await deleteFromGCS(videoKey).catch(() => {});
+        res.status(400).json({ error: 'Video exceeds the 100 MB limit' });
+        return;
+      }
+      const head  = await readObjectHead(videoKey, 16);
+      const check = validateVideoBuffer(head, videoKey);
+      if (!check.ok) {
+        await deleteFromGCS(videoKey).catch(() => {});
+        res.status(400).json({ error: check.error });
+        return;
+      }
+      mediaUrls.push(videoKey);
     }
 
     if (type === 'TEXT' && !content) {

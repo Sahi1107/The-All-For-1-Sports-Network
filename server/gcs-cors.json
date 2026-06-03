@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://allfor1.pro",
+      "https://www.allfor1.pro",
+      "http://localhost:5173"
+    ],
+    "method": ["PUT", "GET"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
