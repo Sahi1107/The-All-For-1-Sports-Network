@@ -42,11 +42,11 @@ const CHALLENGES: Challenge[] = [
       "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%), url('/landing/dribble-dash-cover.png') center/cover no-repeat",
     teaser:
       'A timed cone-weave finished with a shot on goal. Fastest clean run wins.',
-    eligibility: 'U-18 · Born on or after 01/01/2008',
+    eligibility: 'U-25 · Born on or after 01/01/2001',
     description:
       "A timed individual drill where players weave through a cone course at full speed and finish with a shot on goal. Simple, competitive, and pure skill — the fastest clean run wins. Set up 6 cones in a straight line about a meter apart, with the finish cone positioned 18 metres from goal (edge of the box). On the starter's signal, dribble through all 6 cones without missing any, then take a shot on goal. The clock stops the moment the ball crosses the goal line.",
     rules: [
-      'Eligibility: U-18 — open to athletes born on or after 01/01/2008.',
+      'Eligibility: U-25 — open to athletes born on or after 01/01/2001.',
       'Timing & recording: Run must be filmed on a fixed camera capturing the full cone course and goal in one frame — no panning or zooming.',
       'A visible stopwatch or timer must be placed in front of the camera so it appears on screen throughout the entire run.',
       'No post-edit cuts or jump cuts allowed — video must run uninterrupted from starting signal to ball crossing the line.',
