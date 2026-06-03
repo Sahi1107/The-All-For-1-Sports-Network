@@ -29,6 +29,9 @@ interface User {
   verified: boolean;
   phoneVerified?: boolean;
   phone?: string;
+  dateOfBirth?: string;
+  guardianManaged?: boolean;
+  handoverStatus?: 'NONE' | 'PENDING' | 'CONSENTED';
 }
 
 interface RegisterData {
@@ -39,6 +42,7 @@ interface RegisterData {
   sport: Sport;
   athleticsEvents?: string[];
   age?: number;
+  dateOfBirth?: string;
   location?: string;
   height?: string;
 }
@@ -102,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Register ─────────────────────────────────────────────────────────────
 
-  const register = async ({ email, password, name, role, sport, athleticsEvents, age, location, height }: RegisterData) => {
+  const register = async ({ email, password, name, role, sport, athleticsEvents, age, dateOfBirth, location, height }: RegisterData) => {
     // 1. Create Firebase Auth user
     const cred = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -113,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name, role, sport,
       ...(athleticsEvents && athleticsEvents.length > 0 && { athleticsEvents }),
       ...(age !== undefined && { age }),
+      ...(dateOfBirth && { dateOfBirth }),
       ...(location && { location }),
       ...(height && { height }),
     });

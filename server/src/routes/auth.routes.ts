@@ -3,11 +3,33 @@ import { z } from 'zod';
 import prisma from '../config/db';
 import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { validate } from '../middleware/validate';
 import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum } from '../validation/common';
+import { HandoverConsentBody, HandoverCompleteBody } from '../validation/auth';
+import { generateSecureToken, hashToken } from '../utils/crypto';
+import { sendGuardianConsentEmail } from '../services/email';
+import { env } from '../config/env';
 import logger from '../utils/logger';
 import { signMediaDeep } from '../services/storage';
 
 const router = Router();
+
+/** Age below which an athlete account must be managed by a parent/academy. */
+const GUARDIAN_AGE_THRESHOLD = 13;
+/** Handover consent links stay valid for 7 days. */
+const HANDOVER_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Single client origin for building links (CLIENT_URL may be a comma list). */
+const clientOrigin = Array.isArray(env.CLIENT_URL) ? env.CLIENT_URL[0] : env.CLIENT_URL;
+
+/** Whole years between a date of birth and now. */
+function ageFromDob(dob: Date): number {
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const m = today.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+  return age;
+}
 
 // ─── Body schema for new-user sync ────────────────────────────────────────────
 
@@ -17,6 +39,8 @@ const SyncBody = z.object({
   sport:            SportEnum,
   athleticsEvents:  z.array(AthleticsEventEnum).max(21).optional(),
   age:              z.number().int().min(10).max(100).optional(),
+  // ISO date string; age is derived from this server-side when present.
+  dateOfBirth:      z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date').optional(),
   location:         z.string().max(200).optional(),
   height:           z.string().max(20).optional(),
 });
@@ -97,7 +121,16 @@ router.post('/sync', async (req: Request, res: Response) => {
       });
       return;
     }
-    const { name, role, sport, athleticsEvents, age, location, height } = parse.data;
+    const { name, role, sport, athleticsEvents, age, dateOfBirth, location, height } = parse.data;
+
+    // Derive age from the date of birth when provided (don't trust the client age).
+    const dob = dateOfBirth ? new Date(dateOfBirth) : null;
+    const effectiveAge = dob ? ageFromDob(dob) : age;
+
+    // Athletes registering under 13 are managed by a parent/academy: the account
+    // email/password (already set on the Firebase account) belong to the guardian.
+    const guardianManaged =
+      role === 'ATHLETE' && effectiveAge !== undefined && effectiveAge < GUARDIAN_AGE_THRESHOLD;
 
     const user = await prisma.user.create({
       data: {
@@ -107,16 +140,18 @@ router.post('/sync', async (req: Request, res: Response) => {
         role,
         sport,
         ...(sport === 'ATHLETICS' && athleticsEvents && athleticsEvents.length > 0 && { athleticsEvents }),
-        ...(age      !== undefined && { age }),
+        ...(effectiveAge !== undefined && { age: effectiveAge }),
+        ...(dob && { dateOfBirth: dob }),
         ...(location && { location }),
         ...(height   && { height }),
+        ...(guardianManaged && { guardianManaged: true, guardianEmail: email }),
       },
     });
 
     // Set custom claims so the client's next getIdToken(true) includes them
     await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
 
-    logger.info('auth.register', { userId: user.id, role: user.role, sport: user.sport });
+    logger.info('auth.register', { userId: user.id, role: user.role, sport: user.sport, guardianManaged });
     res.status(201).json({ user, refreshClaims: true });
   } catch (error) {
     logger.error('Sync error', { error: String(error) });
@@ -132,6 +167,7 @@ const meSelect = {
   avatar: true, bio: true, location: true, age: true, height: true,
   position: true, achievements: true, verified: true, phoneVerified: true,
   phone: true, createdAt: true,
+  dateOfBirth: true, guardianManaged: true, handoverStatus: true,
 };
 
 /** A profile is "complete" when these essential fields are all filled in. */
@@ -177,6 +213,137 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     res.json({ user });
   } catch (error) {
     logger.error('Me error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Guardian handover (under-13 athletes) ─────────────────────────────────────
+//
+// Flow:
+//   1. POST /handover/request  (athlete/guardian, authenticated) — emails a
+//      consent form to the guardian email. Allowed only once the athlete is 13+.
+//   2. POST /handover/consent  (guardian, public + token) — guardian accepts.
+//   3. POST /handover/complete (athlete, authenticated) — after consent, the
+//      athlete's new email is recorded and the account leaves guardian management.
+//      (The Firebase email/password change happens client-side beforehand.)
+
+// ─── POST /api/auth/handover/request ────────────────────────────────────────────
+
+router.post('/handover/request', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (!user.guardianManaged) {
+      res.status(400).json({ error: 'This account is not under guardian management' });
+      return;
+    }
+    const age = user.dateOfBirth ? ageFromDob(user.dateOfBirth) : user.age ?? 0;
+    if (age < GUARDIAN_AGE_THRESHOLD) {
+      res.status(403).json({ error: `Handover is available once the athlete turns ${GUARDIAN_AGE_THRESHOLD}` });
+      return;
+    }
+
+    const rawToken = generateSecureToken();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        handoverStatus:         'PENDING',
+        handoverTokenHash:      hashToken(rawToken),
+        handoverTokenExpiresAt: new Date(Date.now() + HANDOVER_TOKEN_TTL_MS),
+        handoverRequestedAt:    new Date(),
+        handoverConsentAt:      null,
+      },
+    });
+
+    const consentUrl = `${clientOrigin}/handover/consent?token=${rawToken}`;
+    await sendGuardianConsentEmail(user.guardianEmail ?? user.email, {
+      athleteName: user.name,
+      consentUrl,
+    });
+
+    logger.info('auth.handover.requested', { userId: user.id });
+    res.json({ status: 'PENDING' });
+  } catch (error) {
+    logger.error('Handover request error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/handover/consent ─────────────────────────────────────────────
+// Public — the guardian clicks the emailed link. Identified solely by the token.
+
+router.post('/handover/consent', validate({ body: HandoverConsentBody }), async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body as { token: string };
+    const user = await prisma.user.findFirst({
+      where: { handoverTokenHash: hashToken(token), handoverStatus: 'PENDING' },
+    });
+    if (!user || !user.handoverTokenExpiresAt || user.handoverTokenExpiresAt < new Date()) {
+      res.status(400).json({ error: 'This consent link is invalid or has expired' });
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        handoverStatus:         'CONSENTED',
+        handoverConsentAt:      new Date(),
+        handoverTokenHash:      null,
+        handoverTokenExpiresAt: null,
+      },
+    });
+
+    logger.info('auth.handover.consented', { userId: user.id });
+    res.json({ status: 'CONSENTED', athleteName: user.name });
+  } catch (error) {
+    logger.error('Handover consent error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/handover/complete ────────────────────────────────────────────
+// Authenticated. Called after the client has changed the Firebase email/password.
+// Records the athlete's new email and lifts guardian management.
+
+router.post('/handover/complete', authenticate, validate({ body: HandoverCompleteBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { newEmail } = req.body as { newEmail: string };
+    const user = await prisma.user.findUnique({ where: { id: req.user!.userId } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (user.handoverStatus !== 'CONSENTED') {
+      res.status(400).json({ error: 'Guardian consent is required before completing handover' });
+      return;
+    }
+
+    // Guard against colliding with another account's email.
+    const clash = await prisma.user.findUnique({ where: { email: newEmail } });
+    if (clash && clash.id !== user.id) {
+      res.status(409).json({ error: 'That email is already in use' });
+      return;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        email:           newEmail,
+        guardianManaged: false,
+        handoverStatus:  'NONE',
+        // guardianEmail + handoverConsentAt are intentionally retained for audit.
+      },
+      select: meSelect,
+    });
+
+    logger.info('auth.handover.completed', { userId: user.id });
+    await signMediaDeep(updated);
+    res.json({ user: updated });
+  } catch (error) {
+    logger.error('Handover complete error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

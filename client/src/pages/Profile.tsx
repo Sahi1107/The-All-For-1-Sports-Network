@@ -746,6 +746,12 @@ export default function Profile() {
                   {profile.position && profile.role !== 'ADMIN' && (
                     <span className="text-white/70 text-sm">· {profile.position}</span>
                   )}
+                  {profile.guardianManaged && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary-light font-medium">
+                      <Users size={11} />
+                      Parent / academy managed
+                    </span>
+                  )}
                 </div>
               </div>
 

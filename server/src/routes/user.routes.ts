@@ -294,9 +294,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         id: true, name: true, role: true, sport: true, avatar: true,
         bio: true, location: true, age: true, height: true, position: true,
         achievements: true, verified: true, createdAt: true,
-        contactEmail: true, banner: true,
-        // Email, phone, and notification settings are private
-        ...(isSelf && { email: true, phone: true, phoneVerified: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
+        contactEmail: true, banner: true, guardianManaged: true,
+        // Email, phone, DOB, and notification settings are private
+        ...(isSelf && { email: true, phone: true, phoneVerified: true, dateOfBirth: true, handoverStatus: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
         teamMemberships: { include: { team: true } },
         playerRankings: { orderBy: { calculatedAt: 'desc' }, take: 5, include: { tournament: { select: { id: true, name: true } } } },

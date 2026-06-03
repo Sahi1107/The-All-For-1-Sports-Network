@@ -64,3 +64,14 @@ export const LogoutBody = z.object({
   // refreshToken is optional — route still revokes the access token
   refreshToken: z.string().min(1).max(512).optional(),
 });
+
+// ─── Guardian handover (under-13 athletes) ─────────────────────────────────────
+
+export const HandoverConsentBody = z.object({
+  token: z.string({ error: 'Consent token is required' }).min(1).max(128),
+});
+
+export const HandoverCompleteBody = z.object({
+  // The athlete's own new email. Password is changed client-side via Firebase.
+  newEmail: email,
+});

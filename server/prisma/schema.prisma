@@ -106,6 +106,12 @@ enum PostType {
   HIGHLIGHT
 }
 
+enum HandoverStatus {
+  NONE      // no handover in progress
+  PENDING   // consent email sent, awaiting guardian decision
+  CONSENTED // guardian accepted; athlete may set their own credentials
+}
+
 // ─── User ────────────────────────────────────────────────
 
 model User {
@@ -126,6 +132,7 @@ model User {
   phone                  String?
   contactEmail           String?   @map("contact_email")
   banner                 String?
+  dateOfBirth            DateTime? @map("date_of_birth")
   verified               Boolean   @default(false)
   phoneVerified          Boolean   @default(false) @map("phone_verified")
   messageNotifications   Boolean   @default(true) @map("message_notifications")
@@ -133,6 +140,16 @@ model User {
   messagingFollowersOnly Boolean   @default(false) @map("messaging_followers_only")
   disableAllComments     Boolean   @default(false) @map("disable_all_comments")
   lastActiveAt           DateTime? @map("last_active_at")
+
+  // ── Guardian management (athletes who registered under 13) ──
+  guardianManaged        Boolean        @default(false) @map("guardian_managed")
+  guardianEmail          String?        @map("guardian_email") // parent/academy email; retained for audit after handover
+  handoverStatus         HandoverStatus @default(NONE) @map("handover_status")
+  handoverTokenHash      String?        @map("handover_token_hash")
+  handoverTokenExpiresAt DateTime?      @map("handover_token_expires_at")
+  handoverRequestedAt    DateTime?      @map("handover_requested_at")
+  handoverConsentAt      DateTime?      @map("handover_consent_at")
+
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

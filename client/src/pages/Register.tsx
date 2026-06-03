@@ -128,10 +128,21 @@ export default function Register() {
   });
   const [dob, setDob]         = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
+  const [guardianConsent, setGuardianConsent] = useState(false);
 
   const isTeam = form.role === 'TEAM';
   const [athleticsSubStep, setAthleticsSubStep] = useState(false);
   const requiresAthleticsEvents = form.sport === 'ATHLETICS';
+
+  const ageFrom = (d: Date) => {
+    const today = new Date();
+    let a = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) a--;
+    return a;
+  };
+  // Athletes under 13 must be managed by a parent/academy.
+  const isUnder13Athlete = form.role === 'ATHLETE' && !!dob && ageFrom(dob) < 13;
 
   const states = form.country ? getStates(form.country) : [];
   const location = form.country
@@ -146,21 +157,14 @@ export default function Register() {
     if (!isTeam && !dob) return;
     setLoading(true);
     try {
-      let age: number | undefined;
-      if (!isTeam && dob) {
-        const today     = new Date();
-        const birthDate = new Date(dob);
-        let a = today.getFullYear() - birthDate.getFullYear();
-        const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) a--;
-        age = a;
-      }
+      const age = !isTeam && dob ? ageFrom(dob) : undefined;
 
       await register({
         name: form.name, email: form.email, password: form.password,
         role: form.role, sport: form.sport,
         ...(requiresAthleticsEvents && { athleticsEvents: form.athleticsEvents }),
         ...(age !== undefined && { age }),
+        ...(!isTeam && dob && { dateOfBirth: dob.toISOString() }),
         location: location || undefined,
         height: isTeam ? undefined : (form.height || undefined),
       });
@@ -189,9 +193,13 @@ export default function Register() {
             </div>
             <h2 className="text-xl font-semibold mb-2">Check your email</h2>
             <p className="text-gray-custom text-sm mb-3">
-              We sent a verification link to{' '}
-              <span className="text-white font-medium">{form.email}</span>.
-              Click it to activate your account.
+              {isUnder13Athlete
+                ? <>We sent a verification link to the parent/academy email{' '}
+                    <span className="text-white font-medium">{form.email}</span>.
+                    The parent or academy should click it to activate this account.</>
+                : <>We sent a verification link to{' '}
+                    <span className="text-white font-medium">{form.email}</span>.
+                    Click it to activate your account.</>}
             </p>
             <p className="text-yellow-400/80 text-xs mb-6">
               Can't find it? Check your <span className="font-semibold">spam or junk folder</span>.
@@ -307,7 +315,30 @@ export default function Register() {
                   </span>
                 </p>
               )}
-              <button type="button" onClick={() => { if (dob) setStep(4); }} disabled={!dob}
+
+              {/* Parental guidance — athletes under 13 are managed by a parent/academy */}
+              {isUnder13Athlete && (
+                <div className="rounded-lg border border-yellow-400/30 bg-yellow-400/5 p-4 space-y-3">
+                  <p className="text-sm text-yellow-300/90">
+                    Athletes under 13 must be managed by a parent or academy. The email and password
+                    you entered will belong to the <span className="font-semibold">parent or academy</span>,
+                    and the verification link will be sent to that email. Once the athlete turns 13, you
+                    can hand over the account to them from Settings.
+                  </p>
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" checked={guardianConsent}
+                      onChange={(e) => setGuardianConsent(e.target.checked)}
+                      className="mt-0.5 accent-primary w-4 h-4 shrink-0" />
+                    <span className="text-sm text-white/80">
+                      I am the parent, guardian, or academy (or have their consent), and the email and
+                      password provided belong to them.
+                    </span>
+                  </label>
+                </div>
+              )}
+
+              <button type="button" onClick={() => { if (dob) setStep(4); }}
+                disabled={!dob || (isUnder13Athlete && !guardianConsent)}
                 className="w-full py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50">
                 Continue
               </button>

@@ -56,6 +56,15 @@ export const env = {
   GCP_PROJECT_ID: process.env.GCP_PROJECT_ID || '',
   GCS_BUCKET:     process.env.GCS_BUCKET || '',
 
+  // ─── SMTP (transactional email — e.g. guardian consent form) ──
+  // All optional: when unset, the email service logs the message instead of
+  // sending, so local/dev startup never breaks.
+  SMTP_HOST: process.env.SMTP_HOST || '',
+  SMTP_PORT: parseInt(process.env.SMTP_PORT || '587', 10),
+  SMTP_USER: process.env.SMTP_USER || '',
+  SMTP_PASS: process.env.SMTP_PASS || '',
+  SMTP_FROM: process.env.SMTP_FROM || 'All For 1 <no-reply@allfor1.network>',
+
   // ─── Logging ─────────────────────────────────────────────────
   // Accepted values: error | warn | info | http | verbose | debug
   LOG_LEVEL: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),

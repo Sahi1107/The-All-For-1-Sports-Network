@@ -5,13 +5,14 @@ import { auth } from '../config/firebase';
 import {
   sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential,
   PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
+  updatePassword, verifyBeforeUpdateEmail,
 } from 'firebase/auth';
-import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck } from 'lucide-react';
+import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
 export default function Settings() {
-  const { user, logout, unverifiedEmail } = useAuth();
+  const { user, logout, unverifiedEmail, updateUser } = useAuth();
   const navigate = useNavigate();
   const [sendingReset, setSendingReset] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -35,6 +36,28 @@ export default function Settings() {
 
   // Profile completeness state (for verification checklist)
   const [profileData, setProfileData] = useState<any>(null);
+
+  // ── Guardian handover state ──────────────────────────────
+  const [handoverStatus, setHandoverStatus] = useState<'NONE' | 'PENDING' | 'CONSENTED'>(user?.handoverStatus ?? 'NONE');
+  const [handoverRequesting, setHandoverRequesting] = useState(false);
+  const [handoverSubmitting, setHandoverSubmitting] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+
+  const guardianManaged = !!user?.guardianManaged;
+  const athleteAge = (() => {
+    if (!user?.dateOfBirth) return user?.age ?? null;
+    const dob = new Date(user.dateOfBirth);
+    const today = new Date();
+    let a = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
+    return a;
+  })();
+  const handoverEligible = athleteAge !== null && athleteAge >= 13;
+
+  const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -82,6 +105,55 @@ export default function Settings() {
       toast.error('Failed to send reset email');
     } finally {
       setSendingReset(false);
+    }
+  };
+
+  // ── Guardian handover handlers ───────────────────────────
+  const requestHandover = async () => {
+    setHandoverRequesting(true);
+    try {
+      const { data } = await api.post('/auth/handover/request');
+      setHandoverStatus(data.status ?? 'PENDING');
+      toast.success('Consent form sent to the parent/academy email');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error ?? 'Failed to send consent form');
+    } finally {
+      setHandoverRequesting(false);
+    }
+  };
+
+  const completeHandover = async () => {
+    if (!auth.currentUser || !user?.email) return;
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      toast.error('Password must be 8+ chars with uppercase, lowercase, and a number');
+      return;
+    }
+    setHandoverSubmitting(true);
+    try {
+      // 1. Reauthenticate with the current (guardian) credentials.
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      // 2. Set the athlete's new password (takes effect immediately).
+      await updatePassword(auth.currentUser, newPassword);
+      // 3. Send a verification link to the new email; the login email switches
+      //    once the athlete clicks it.
+      await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
+      // 4. Lift guardian management on the server and record the new email.
+      const { data } = await api.post('/auth/handover/complete', { newEmail });
+      updateUser(data.user);
+      setHandoverStatus('NONE');
+      setNewEmail(''); setNewPassword(''); setCurrentPassword('');
+      toast.success('Handover complete — check the new email to confirm the address');
+    } catch (err: any) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        toast.error('Incorrect current password');
+      } else if (err.code === 'auth/email-already-in-use') {
+        toast.error('That email is already in use');
+      } else {
+        toast.error(err.response?.data?.error ?? 'Failed to complete handover');
+      }
+    } finally {
+      setHandoverSubmitting(false);
     }
   };
 
@@ -238,6 +310,12 @@ export default function Settings() {
           <div className="space-y-1 text-sm text-gray-custom">
             <p>Email</p>
             <p className="text-white font-medium">{user?.email}</p>
+            {guardianManaged && (
+              <p className="flex items-center gap-1.5 text-xs text-primary-light mt-2">
+                <Users size={13} />
+                Managed by a parent / academy
+              </p>
+            )}
           </div>
         </div>
 
@@ -289,6 +367,85 @@ export default function Settings() {
           </button>
         </div>
       </section>
+
+      {/* Profile Handover — only for guardian-managed (under-13) athlete accounts */}
+      {guardianManaged && (
+        <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+          <h2 className="font-semibold flex items-center gap-2 mb-2">
+            <Users size={16} className="text-primary-light" />
+            Profile Handover
+          </h2>
+          <p className="text-sm text-gray-custom mb-4">
+            This account is managed by a parent or academy. Once the athlete turns 13, the parent or
+            academy can hand the account over so the athlete sets their own email and password.
+          </p>
+
+          {!handoverEligible ? (
+            <div className="flex items-start gap-3 rounded-lg bg-dark border border-dark-lighter p-3">
+              <Circle size={16} className="text-gray-custom shrink-0 mt-0.5" />
+              <p className="text-sm text-gray-custom">
+                Handover becomes available once the athlete turns 13.
+              </p>
+            </div>
+          ) : handoverStatus === 'NONE' ? (
+            <button
+              onClick={requestHandover}
+              disabled={handoverRequesting}
+              className="px-4 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors disabled:opacity-50"
+            >
+              {handoverRequesting ? 'Sending…' : 'Request handover'}
+            </button>
+          ) : handoverStatus === 'PENDING' ? (
+            <div className="flex items-start gap-3 rounded-lg bg-yellow-400/5 border border-yellow-400/30 p-3">
+              <Circle size={16} className="text-yellow-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-yellow-300/90">
+                  A consent form was emailed to the parent/academy. Handover unlocks once they accept it.
+                </p>
+                <button
+                  onClick={requestHandover}
+                  disabled={handoverRequesting}
+                  className="text-xs text-primary-light hover:underline mt-2 disabled:opacity-50"
+                >
+                  {handoverRequesting ? 'Resending…' : 'Resend consent form'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-emerald-400">
+                <CheckCircle2 size={16} />
+                Consent received — set the athlete's own credentials.
+              </div>
+              <input
+                type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
+                placeholder="New email (the athlete's own)"
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              />
+              <input
+                type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="New password (8+ chars, upper + lower + number)"
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              />
+              <input
+                type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Current (parent/academy) password"
+                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              />
+              <button
+                onClick={completeHandover}
+                disabled={handoverSubmitting || !newEmail || !newPassword || !currentPassword}
+                className="px-4 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors disabled:opacity-50"
+              >
+                {handoverSubmitting ? 'Completing…' : 'Complete handover'}
+              </button>
+              <p className="text-xs text-gray-custom">
+                A verification link is sent to the new email; the login email switches once it's confirmed.
+              </p>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Phone Verification — hidden for admins */}
       {user?.role !== 'ADMIN' && <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
