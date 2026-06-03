@@ -56,6 +56,7 @@ const CHALLENGES: Challenge[] = [
       'Shot must be taken from behind the penalty spot line — shooting from closer in is a DQ.',
       'Goal must be an official-size goal or clearly marked equivalent.',
       'Video submitted as one unedited file with original metadata intact.',
+      'Player must upload the video from their own All For 1 profile.',
       "Player must state their name and date at the start of the video before beginning.",
       'Deadline: 20 June 2026, 11:59 PM.',
     ],
