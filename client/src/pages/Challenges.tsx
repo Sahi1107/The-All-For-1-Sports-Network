@@ -36,7 +36,7 @@ const CHALLENGES: Challenge[] = [
     sportEmoji: '⚽',
     status: 'LIVE',
     prize: 'Adidas F50 Football Boots',
-    duration: 'Closes 10 June 2026, 11:59 PM',
+    duration: 'Closes 20 June 2026, 11:59 PM',
     participants: 0,
     banner:
       "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%), url('/landing/dribble-dash-cover.png') center/cover no-repeat",
@@ -57,7 +57,7 @@ const CHALLENGES: Challenge[] = [
       'Goal must be an official-size goal or clearly marked equivalent.',
       'Video submitted as one unedited file with original metadata intact.',
       "Player must state their name and date at the start of the video before beginning.",
-      'Deadline: 10 June 2026, 11:59 PM.',
+      'Deadline: 20 June 2026, 11:59 PM.',
     ],
     postedBy: {
       name: 'AllFor1 Admin',
