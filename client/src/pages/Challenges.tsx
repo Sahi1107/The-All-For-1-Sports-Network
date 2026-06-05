@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import api from '../api/client';
 import logoUrl from '../assets/logo.svg';
 import './landing.css';
+
+// Map a human-readable sport label to its Sport enum value on the server.
+const sportToEnum = (sport: string) => sport.trim().toUpperCase().replace(/\s+/g, '_');
 
 type ChallengeStatus = 'LIVE' | 'UPCOMING' | 'ENDING SOON';
 
@@ -81,10 +85,46 @@ export default function Challenges() {
   const [selected, setSelected] = useState<Challenge | null>(null);
   const [sportFilter, setSportFilter] = useState<string>('All');
   const [wipeActive, setWipeActive] = useState(true);
+  // Live athlete count per challenge id, fetched from the public stats endpoint.
+  const [counts, setCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const t = setTimeout(() => setWipeActive(false), 1200);
     return () => clearTimeout(t);
+  }, []);
+
+  // Fetch the live number of athlete profiles per sport so each card shows a
+  // real "entered" figure rather than a hardcoded value. One request per
+  // distinct sport; failures leave the card on its static fallback.
+  useEffect(() => {
+    let cancelled = false;
+    const sportsToFetch = Array.from(new Set(CHALLENGES.map((c) => c.sport)));
+    Promise.all(
+      sportsToFetch.map(async (sport) => {
+        try {
+          const { data } = await api.get('/stats/athletes', {
+            params: { sport: sportToEnum(sport) },
+          });
+          return [sport, data.count as number] as const;
+        } catch {
+          return [sport, null] as const;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+      const bySport = new Map(results);
+      setCounts(
+        Object.fromEntries(
+          CHALLENGES.flatMap((c) => {
+            const n = bySport.get(c.sport);
+            return n == null ? [] : [[c.id, n] as const];
+          }),
+        ),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -203,7 +243,7 @@ export default function Challenges() {
                 <div className="challenge-meta">
                   <span>{c.duration}</span>
                   <span aria-hidden>•</span>
-                  <span>{c.participants.toLocaleString()} entered</span>
+                  <span>{(counts[c.id] ?? c.participants).toLocaleString()} entered</span>
                 </div>
                 {c.eligibility && (
                   <div className="challenge-eligibility">
@@ -275,7 +315,7 @@ export default function Challenges() {
                 </div>
                 <div>
                   <span>Athletes</span>
-                  <strong>{selected.participants.toLocaleString()}</strong>
+                  <strong>{(counts[selected.id] ?? selected.participants).toLocaleString()}</strong>
                 </div>
               </div>
 
