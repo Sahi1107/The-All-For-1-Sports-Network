@@ -479,6 +479,30 @@ function SwimmingPoolBackdrop() {
   );
 }
 
+function VolleyballCourtBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid slice">
+      {/* Free zone */}
+      <rect x="0" y="0" width="800" height="500" fill="rgba(150,90,40,0.5)" />
+      {/* Back zones */}
+      <rect x="30" y="30" width="740" height="440" fill="rgba(30,90,170,0.5)" stroke="none" />
+      {/* Front (attack) zones either side of the net */}
+      <rect x="277" y="30" width="246" height="440" fill="rgba(220,170,40,0.5)" stroke="none" />
+      <g stroke="rgba(255,255,255,0.9)" fill="none" strokeWidth="2.2">
+        {/* Court outline */}
+        <rect x="30" y="30" width="740" height="440" />
+        {/* Net / centre line */}
+        <line x1="400" y1="30" x2="400" y2="470" strokeWidth="3.2" />
+        {/* Attack (3m) lines */}
+        <line x1="277" y1="30" x2="277" y2="470" />
+        <line x1="523" y1="30" x2="523" y2="470" />
+      </g>
+      {/* Net mesh hint along the centre line */}
+      <line x1="400" y1="30" x2="400" y2="470" stroke="rgba(255,255,255,0.55)" strokeWidth="1" strokeDasharray="3 5" />
+    </svg>
+  );
+}
+
 export default function Profile() {
   const { id } = useParams<{ id: string }>();
   const { user: me } = useAuth();
@@ -676,6 +700,7 @@ export default function Profile() {
                 TABLE_TENNIS: TableTennisTableBackdrop,
                 RUGBY: RugbyPitchBackdrop,
                 SWIMMING: SwimmingPoolBackdrop,
+                VOLLEYBALL: VolleyballCourtBackdrop,
               }[profile.sport as string]
             : undefined;
           return Backdrop ? <div className="absolute inset-0 pointer-events-none opacity-[0.10] md:opacity-[0.22]"><Backdrop /></div> : null;

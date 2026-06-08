@@ -14,6 +14,7 @@ export const SPORTS = [
   { value: 'TABLE_TENNIS',  label: 'Table Tennis',  emoji: '\u{1F3D3}' },
   { value: 'RUGBY',         label: 'Rugby',         emoji: '\u{1F3C9}' },
   { value: 'SWIMMING',      label: 'Swimming',      emoji: '\u{1F3CA}' },
+  { value: 'VOLLEYBALL',    label: 'Volleyball',    emoji: '\u{1F3D0}' },
 ] as const;
 
 export type Sport = (typeof SPORTS)[number]['value'];

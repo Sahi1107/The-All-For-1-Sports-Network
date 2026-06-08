@@ -33,6 +33,7 @@ const extractFiltersTool: Anthropic.Tool = {
           'TABLE_TENNIS',
           'RUGBY',
           'SWIMMING',
+          'VOLLEYBALL',
         ],
         description: 'Sport to filter by',
       },

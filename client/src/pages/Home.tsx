@@ -430,6 +430,22 @@ function SwimmingBackdrop() {
   );
 }
 
+function VolleyballBackdrop() {
+  return (
+    <svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+      <g stroke="white" fill="none" strokeWidth="1.6" opacity="0.18">
+        {/* Court outline (18m x 9m) */}
+        <rect x="30" y="30" width="740" height="440" />
+        {/* Net / centre line — extends past the sidelines to suggest the posts */}
+        <line x1="400" y1="10" x2="400" y2="490" strokeWidth="2.5" />
+        {/* Attack (3m) lines either side of the net */}
+        <line x1="277" y1="30" x2="277" y2="470" />
+        <line x1="523" y1="30" x2="523" y2="470" />
+      </g>
+    </svg>
+  );
+}
+
 const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   BASKETBALL: BasketballBackdrop,
   FOOTBALL: FootballBackdrop,
@@ -446,6 +462,7 @@ const SPORT_BACKDROP: Record<string, () => React.ReactElement> = {
   TABLE_TENNIS: TableTennisBackdrop,
   RUGBY: RugbyBackdrop,
   SWIMMING: SwimmingBackdrop,
+  VOLLEYBALL: VolleyballBackdrop,
 };
 
 export default function Home() {
