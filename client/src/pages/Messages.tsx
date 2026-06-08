@@ -431,15 +431,34 @@ export default function Messages() {
   // ── Unsend message ───────────────────────────────────────────
 
   const unsendMutation = useMutation({
+    // Cap the request so a stalled network call fails loudly (rollback + toast)
+    // instead of hanging forever and looking like nothing happened.
     mutationFn: async (msgId: string) => {
-      await api.delete(`/messages/${msgId}`);
+      await api.delete(`/messages/${msgId}`, { timeout: 15000 });
       return msgId;
     },
-    onSuccess: (msgId) => {
-      setMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: '', deletedAt: new Date().toISOString() } : m));
-      toast.success('Message unsent');
+    // Optimistically mark the message deleted so the UI reacts instantly on click,
+    // independent of the round-trip. Snapshot prior state for rollback on failure.
+    onMutate: (msgId: string) => {
+      let prevContent = '';
+      let prevDeletedAt: string | null = null;
+      setMessages(prev => prev.map(m => {
+        if (m.id !== msgId) return m;
+        prevContent = m.content;
+        prevDeletedAt = m.deletedAt ?? null;
+        return { ...m, content: '', deletedAt: new Date().toISOString() };
+      }));
+      return { msgId, prevContent, prevDeletedAt };
     },
-    onError: () => toast.error('Failed to unsend'),
+    onSuccess: () => toast.success('Message unsent'),
+    onError: (_err, _msgId, ctx) => {
+      if (ctx) {
+        setMessages(prev => prev.map(m => m.id === ctx.msgId
+          ? { ...m, content: ctx.prevContent, deletedAt: ctx.prevDeletedAt }
+          : m));
+      }
+      toast.error('Failed to unsend');
+    },
   });
 
   // ── User search for new conversations ────────────────────────
