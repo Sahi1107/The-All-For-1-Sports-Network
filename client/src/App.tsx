@@ -27,6 +27,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const StatTrackerLauncher = lazy(() => import('./features/statTracker/StatTrackerLauncher'));
 const TrackerDashboard     = lazy(() => import('./features/statTracker/TrackerDashboard'));
 const TrackerMatchRoute    = lazy(() => import('./features/statTracker/MatchRoute'));
+const TrackerDemoRoute     = lazy(() => import('./features/statTracker/demo/DemoMatchRoute'));
 const ScoutCopilot   = lazy(() => import('./pages/ScoutCopilot'));
 const Grow           = lazy(() => import('./pages/Grow'));
 const Settings       = lazy(() => import('./pages/Settings'));
@@ -116,6 +117,7 @@ function AppRoutes() {
           <Route path="profile/edit"        element={<EditProfile />} />
           <Route path="admin"               element={<AdminDashboard />} />
           <Route path="admin/stat-tracker"                              element={<StatTrackerLauncher />} />
+          <Route path="admin/stat-tracker/demo/:sport"                  element={<TrackerDemoRoute />} />
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />
           <Route path="admin/stat-tracker/:tournamentId/match/:matchId" element={<TrackerMatchRoute />} />
           <Route path="settings"            element={<Settings />} />

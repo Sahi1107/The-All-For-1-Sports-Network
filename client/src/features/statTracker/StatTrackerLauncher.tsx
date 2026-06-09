@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api/client';
-import { Activity, ChevronRight, Trophy } from 'lucide-react';
+import { Activity, ChevronRight, Trophy, FlaskConical } from 'lucide-react';
 import type { TrackerSport } from './types';
 
 const SPORTS: { value: TrackerSport; label: string; emoji: string }[] = [
@@ -40,6 +40,27 @@ export default function StatTrackerLauncher() {
       <p className="text-sm text-gray-custom mb-6">
         Pick a sport, then choose a tournament to import its teams and generate fixtures.
       </p>
+
+      {/* Demo sandbox */}
+      <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5">
+        <div className="flex items-center gap-2 mb-2">
+          <FlaskConical size={16} className="text-amber-300" />
+          <p className="text-sm font-semibold">Try a demo</p>
+        </div>
+        <p className="text-xs text-gray-custom mb-3">
+          Test the trackers with sample teams and players. Nothing is saved — results aren't published.
+        </p>
+        <div className="flex gap-2">
+          <Link to="/admin/stat-tracker/demo/basketball"
+            className="flex items-center gap-2 px-3 py-2 bg-dark border border-dark-lighter hover:border-primary rounded-lg text-sm">
+            🏀 Basketball demo
+          </Link>
+          <Link to="/admin/stat-tracker/demo/football"
+            className="flex items-center gap-2 px-3 py-2 bg-dark border border-dark-lighter hover:border-primary rounded-lg text-sm">
+            ⚽ Football demo
+          </Link>
+        </div>
+      </div>
 
       {/* Sport picker */}
       <div className="flex gap-2 mb-6">
