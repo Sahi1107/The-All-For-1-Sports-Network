@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -117,12 +117,16 @@ function AppRoutes() {
           <Route path="profile/edit"        element={<EditProfile />} />
           <Route path="admin"               element={<AdminDashboard />} />
           <Route path="admin/stat-tracker"                              element={<StatTrackerLauncher />} />
-          <Route path="admin/stat-tracker/demo/:sport"                  element={<TrackerDemoRoute />} />
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />
-          <Route path="admin/stat-tracker/:tournamentId/match/:matchId" element={<TrackerMatchRoute />} />
           <Route path="settings"            element={<Settings />} />
           <Route path="saved"               element={<SavedPosts />} />
           <Route path="scout-copilot"       element={<ScoutCopilot />} />
+        </Route>
+
+        {/* Full-screen live trackers (no app sidebar) */}
+        <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>
+          <Route path="/admin/stat-tracker/demo/:sport"                  element={<TrackerDemoRoute />} />
+          <Route path="/admin/stat-tracker/:tournamentId/match/:matchId" element={<TrackerMatchRoute />} />
         </Route>
 
         {/* Catch-all */}

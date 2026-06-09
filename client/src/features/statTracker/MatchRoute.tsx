@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTrackerMatch } from './useTrackerMatch';
 import { publishMatch } from './api';
 import { exportMatchExcel } from './excel';
+import FullscreenShell from './FullscreenShell';
 import FootballMatch from './football/FootballMatch';
 import BasketballMatch from './basketball/BasketballMatch';
 import { Download, Loader2, UploadCloud, CheckCircle2 } from 'lucide-react';
@@ -21,9 +22,11 @@ export default function MatchRoute() {
 
   if (loading || !match || !session) {
     return (
-      <div className="flex justify-center py-16">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
+      <FullscreenShell backTo={`/admin/stat-tracker/${tournamentId}`}>
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      </FullscreenShell>
     );
   }
 
@@ -47,22 +50,20 @@ export default function MatchRoute() {
   }
 
   return (
-    <div className="space-y-4 pb-24">
-      <div className="flex items-center justify-between">
-        <Link to={`/admin/stat-tracker/${tournamentId}`} className="text-sm text-gray-custom hover:text-white">
-          ← Tournament
-        </Link>
-        <span className="flex items-center gap-1.5 text-xs text-gray-custom">
+    <FullscreenShell
+      backTo={`/admin/stat-tracker/${tournamentId}`}
+      topRight={
+        <span className="flex items-center gap-1.5 text-xs text-gray-custom bg-dark-light/80 border border-dark-lighter rounded-full px-3 py-1">
           {saving ? <><Loader2 size={12} className="animate-spin" /> Saving…</> : 'Saved'}
         </span>
-      </div>
-
+      }
+    >
       {session.sport === 'FOOTBALL'
         ? <FootballMatch ctrl={ctrl} />
         : <BasketballMatch ctrl={ctrl} />}
 
       {/* Publish / export bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-dark-light border-t border-dark-lighter px-4 py-3 flex items-center justify-end gap-2 z-20">
+      <div className="fixed bottom-0 left-0 right-0 bg-dark-light border-t border-dark-lighter px-4 py-3 flex items-center justify-end gap-2 z-30">
         <button
           onClick={() => exportMatchExcel(match, session)}
           className="flex items-center gap-2 px-4 py-2 bg-dark border border-dark-lighter hover:border-primary rounded-lg text-sm"
@@ -82,6 +83,6 @@ export default function MatchRoute() {
           {isPublished ? 'Re-publish' : 'Publish to platform'}
         </button>
       </div>
-    </div>
+    </FullscreenShell>
   );
 }

@@ -153,20 +153,22 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
           onSave={(h, a) => updateState((s) => ({ ...(s as BasketballState), onCourtHome: h, onCourtAway: a }))} />
       )}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th>
-            <th>FGM / FGA</th><th>FG%</th><th>3PM / 3PA</th><th>3P%</th><th>FTM / FTA</th><th>FT%</th>
-          </tr>
-        </thead>
-        <tbody>
-          <TeamBlock side="home" teamName={getTeamName(home)} headerBg="#061528" headerColor="#e6eef6"
-            team={homeTeam} state={state} disabled={locked} adjust={adjust} />
-          <TeamBlock side="away" teamName={getTeamName(away)} headerBg="#24060a" headerColor="#ffe4e6"
-            team={awayTeam} state={state} disabled={locked} adjust={adjust} />
-        </tbody>
-      </table>
+      <div className="bball-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th>
+              <th>FGM / FGA</th><th>FG%</th><th>3PM / 3PA</th><th>3P%</th><th>FTM / FTA</th><th>FT%</th>
+            </tr>
+          </thead>
+          <tbody>
+            <TeamBlock side="home" teamName={getTeamName(home)} headerBg="#061528" headerColor="#e6eef6"
+              team={homeTeam} state={state} disabled={locked} adjust={adjust} />
+            <TeamBlock side="away" teamName={getTeamName(away)} headerBg="#24060a" headerColor="#ffe4e6"
+              team={awayTeam} state={state} disabled={locked} adjust={adjust} />
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
