@@ -1,0 +1,37 @@
+/* Component classes ported from stat_tracker/Football/src/index.css, scoped
+   under .ftm-tracker so they don't collide with the rest of the app. The
+   pitch/ink utility colors used directly in the JSX are registered in the
+   global @theme (client/src/index.css). */
+
+.ftm-tracker { color: #e5e7eb; }
+
+.ftm-tracker .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+  border-radius: 0.375rem; padding: 0.5rem 0.75rem; font-size: 0.875rem;
+  font-weight: 500; transition: background-color 0.15s; border: none; cursor: pointer;
+}
+.ftm-tracker .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ftm-tracker .btn-primary { background: #059669; color: #fff; }
+.ftm-tracker .btn-primary:hover:not(:disabled) { background: #047857; }
+.ftm-tracker .btn-ghost { background: #1f2937; color: #e5e7eb; }
+.ftm-tracker .btn-ghost:hover:not(:disabled) { background: #374151; }
+.ftm-tracker .btn-danger { background: #dc2626; color: #fff; }
+.ftm-tracker .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+
+.ftm-tracker .card {
+  background: #111827; border: 1px solid #1f2937; border-radius: 0.5rem; padding: 1rem;
+}
+.ftm-tracker .input {
+  width: 100%; background: #0b1220; border: 1px solid #1f2937; border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem; color: #e5e7eb;
+}
+.ftm-tracker .input::placeholder { color: #9ca3af; }
+.ftm-tracker .input:focus { outline: none; box-shadow: 0 0 0 2px #10b981; }
+.ftm-tracker .label {
+  display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #9ca3af; margin-bottom: 0.25rem;
+}
+.ftm-tracker .chip {
+  display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 9999px;
+  background: #1f2937; padding: 0.125rem 0.5rem; font-size: 0.75rem; color: #e5e7eb;
+}
