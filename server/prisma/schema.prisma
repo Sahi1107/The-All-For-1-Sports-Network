@@ -66,6 +66,19 @@ enum MatchStatus {
   COMPLETED
 }
 
+enum TrackerBracketFormat {
+  LEAGUE
+  KNOCKOUT
+  MIXED
+}
+
+enum TrackerMatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  PUBLISHED
+}
+
 enum TeamMemberRole {
   CAPTAIN
   PLAYER
@@ -108,8 +121,8 @@ enum PostType {
 }
 
 enum HandoverStatus {
-  NONE      // no handover in progress
-  PENDING   // consent email sent, awaiting guardian decision
+  NONE // no handover in progress
+  PENDING // consent email sent, awaiting guardian decision
   CONSENTED // guardian accepted; athlete may set their own credentials
 }
 
@@ -151,8 +164,8 @@ model User {
   handoverRequestedAt    DateTime?      @map("handover_requested_at")
   handoverConsentAt      DateTime?      @map("handover_consent_at")
 
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   highlights              Highlight[]
@@ -441,10 +454,54 @@ model Tournament {
   basketballStats BasketballStats[]
   footballStats   FootballStats[]
   cricketStats    CricketStats[]
+  trackerSession  TrackerSession?
 
   @@index([sport])
   @@index([status])
   @@index([startDate])
+}
+
+// ─── Stat Tracker (admin live tracking, decoupled from platform matches) ──
+
+model TrackerSession {
+  id           String               @id @default(uuid())
+  tournamentId String               @unique
+  sport        Sport
+  format       TrackerBracketFormat
+  groups       Json? // [{ id, name, teamIds[] }] for LEAGUE / MIXED
+  bracket      Json? // knockout structure: { stages[], slots[] }
+  config       Json? // { halfLengthSeconds, quarterSeconds, groupsCount, advancePerGroup, thirdPlace }
+  roster       Json? // snapshot: [{ teamId, name, players:[{ userId, name, position, number }] }]
+  createdById  String
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  tournament Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches    TrackerMatch[]
+}
+
+model TrackerMatch {
+  id               String             @id @default(uuid())
+  sessionId        String
+  stage            String // "group" | "league" | "r32" | "r16" | "qf" | "sf" | "final" | "third_place"
+  round            String? // display label e.g. "Group A", "Quarter-final"
+  groupId          String?
+  bracketSlot      String? // "qf-1"
+  feedsInto        String? // "sf-1"
+  orderIndex       Int                @default(0)
+  homeTeamId       String? // platform Team id (nullable until seeded)
+  awayTeamId       String?
+  homeScore        Int                @default(0)
+  awayScore        Int                @default(0)
+  status           TrackerMatchStatus @default(SCHEDULED)
+  state            Json? // full live state (clock, lineups, per-player stats, event/action log)
+  publishedMatchId String? // platform Match id once published (updated in place on re-publish)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  session TrackerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 model TournamentTeam {

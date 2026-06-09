@@ -3,7 +3,7 @@ import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
 
@@ -313,6 +313,21 @@ export default function AdminDashboard() {
         <Shield size={22} className="text-purple-400" />
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
       </div>
+
+      {/* Stat Tracker entry */}
+      <Link
+        to="/admin/stat-tracker"
+        className="flex items-center gap-4 mb-6 p-4 rounded-xl border border-primary/40 bg-primary/5 hover:bg-primary/10 transition-colors"
+      >
+        <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+          <Activity size={20} className="text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">Open Stat Tracker</p>
+          <p className="text-xs text-gray-custom">Live-track basketball & football tournaments, export sheets, publish to profiles.</p>
+        </div>
+        <ChevronRight size={18} className="text-gray-custom" />
+      </Link>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">

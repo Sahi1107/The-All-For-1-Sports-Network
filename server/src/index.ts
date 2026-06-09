@@ -91,6 +91,15 @@ io.on('connection', async (socket) => {
     socket.leave(`conversation:${conversationId}`);
   });
 
+  // Stat tracker: join/leave a live match room to receive state broadcasts.
+  socket.on('tracker:join', (matchId: string) => {
+    if (typeof matchId === 'string') socket.join(`tracker:${matchId}`);
+  });
+
+  socket.on('tracker:leave', (matchId: string) => {
+    if (typeof matchId === 'string') socket.leave(`tracker:${matchId}`);
+  });
+
   // Heartbeat for presence — client sends this every 30s
   socket.on('heartbeat', async () => {
     if (userId) await updatePresence(userId);

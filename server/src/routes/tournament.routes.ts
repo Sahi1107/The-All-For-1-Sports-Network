@@ -7,6 +7,7 @@ import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateImageBytes } from '../middleware/upload';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
+import { writeMatchPlayerStats } from '../services/matchStats';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody,
@@ -518,103 +519,12 @@ router.put('/matches/:matchId/result', authenticate, requireRole('ADMIN'), valid
 
     // Insert player stats with whitelisted fields to prevent mass assignment
     if (playerStats && Array.isArray(playerStats)) {
-      const sport = tournamentRecord.sport;
-      const base = { matchId, tournamentId: matchRecord.tournamentId };
-
-      for (const stat of playerStats) {
-        if (!stat.userId || typeof stat.userId !== 'string') continue;
-        const s = stat.stats ?? {};
-
-        if (sport === 'BASKETBALL') {
-          await prisma.basketballStats.upsert({
-            where: { matchId_userId: { matchId: base.matchId, userId: stat.userId } },
-            create: {
-              ...base,
-              userId: stat.userId,
-              points:       Number(s.points       ?? 0),
-              rebounds:     Number(s.rebounds      ?? 0),
-              assists:      Number(s.assists       ?? 0),
-              steals:       Number(s.steals        ?? 0),
-              blocks:       Number(s.blocks        ?? 0),
-              threePointers:Number(s.threePointers ?? 0),
-              freeThrows:   Number(s.freeThrows    ?? 0),
-              turnovers:    Number(s.turnovers     ?? 0),
-              minutesPlayed:Number(s.minutesPlayed ?? 0),
-            },
-            update: {
-              points:       Number(s.points       ?? 0),
-              rebounds:     Number(s.rebounds      ?? 0),
-              assists:      Number(s.assists       ?? 0),
-              steals:       Number(s.steals        ?? 0),
-              blocks:       Number(s.blocks        ?? 0),
-              threePointers:Number(s.threePointers ?? 0),
-              freeThrows:   Number(s.freeThrows    ?? 0),
-              turnovers:    Number(s.turnovers     ?? 0),
-              minutesPlayed:Number(s.minutesPlayed ?? 0),
-            },
-          });
-        } else if (sport === 'FOOTBALL') {
-          await prisma.footballStats.upsert({
-            where: { matchId_userId: { matchId: base.matchId, userId: stat.userId } },
-            create: {
-              ...base,
-              userId: stat.userId,
-              goals:        Number(s.goals        ?? 0),
-              assists:      Number(s.assists       ?? 0),
-              shots:        Number(s.shots         ?? 0),
-              passes:       Number(s.passes        ?? 0),
-              tackles:      Number(s.tackles       ?? 0),
-              saves:        Number(s.saves         ?? 0),
-              yellowCards:  Number(s.yellowCards   ?? 0),
-              redCards:     Number(s.redCards      ?? 0),
-              minutesPlayed:Number(s.minutesPlayed ?? 0),
-            },
-            update: {
-              goals:        Number(s.goals        ?? 0),
-              assists:      Number(s.assists       ?? 0),
-              shots:        Number(s.shots         ?? 0),
-              passes:       Number(s.passes        ?? 0),
-              tackles:      Number(s.tackles       ?? 0),
-              saves:        Number(s.saves         ?? 0),
-              yellowCards:  Number(s.yellowCards   ?? 0),
-              redCards:     Number(s.redCards      ?? 0),
-              minutesPlayed:Number(s.minutesPlayed ?? 0),
-            },
-          });
-        } else if (sport === 'CRICKET') {
-          await prisma.cricketStats.upsert({
-            where: { matchId_userId: { matchId: base.matchId, userId: stat.userId } },
-            create: {
-              ...base,
-              userId: stat.userId,
-              runs:        Number(s.runs         ?? 0),
-              ballsFaced:  Number(s.ballsFaced   ?? 0),
-              fours:       Number(s.fours        ?? 0),
-              sixes:       Number(s.sixes        ?? 0),
-              wickets:     Number(s.wickets      ?? 0),
-              oversBowled: Number(s.oversBowled  ?? 0),
-              runsConceded:Number(s.runsConceded ?? 0),
-              catches:     Number(s.catches      ?? 0),
-              runOuts:     Number(s.runOuts      ?? 0),
-              strikeRate:  Number(s.strikeRate   ?? 0),
-              economy:     Number(s.economy      ?? 0),
-            },
-            update: {
-              runs:        Number(s.runs         ?? 0),
-              ballsFaced:  Number(s.ballsFaced   ?? 0),
-              fours:       Number(s.fours        ?? 0),
-              sixes:       Number(s.sixes        ?? 0),
-              wickets:     Number(s.wickets      ?? 0),
-              oversBowled: Number(s.oversBowled  ?? 0),
-              runsConceded:Number(s.runsConceded ?? 0),
-              catches:     Number(s.catches      ?? 0),
-              runOuts:     Number(s.runOuts      ?? 0),
-              strikeRate:  Number(s.strikeRate   ?? 0),
-              economy:     Number(s.economy      ?? 0),
-            },
-          });
-        }
-      }
+      await writeMatchPlayerStats({
+        matchId,
+        tournamentId: matchRecord.tournamentId,
+        sport: tournamentRecord.sport,
+        playerStats,
+      });
     }
 
     res.json({ message: 'Match result updated', matchId: req.params.matchId });
