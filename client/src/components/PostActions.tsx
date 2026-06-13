@@ -50,7 +50,7 @@ function CommentItem({
   };
 
   return (
-    <div className={depth > 0 ? 'ml-6 border-l border-white/5 pl-3' : ''}>
+    <div className={depth > 0 ? 'ml-6 border-l border-ink/5 pl-3' : ''}>
       <div className="flex items-start gap-2 group">
         <Link to={`/profile/${c.user.id}`} className="shrink-0">
           {c.user.avatar ? (
@@ -62,28 +62,28 @@ function CommentItem({
           )}
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="bg-white/5 rounded-lg px-2.5 py-1.5">
+          <div className="bg-ink/5 rounded-lg px-2.5 py-1.5">
             <Link
               to={`/profile/${c.user.id}`}
-              className="text-xs font-semibold text-white hover:text-primary-light transition-colors"
+              className="text-xs font-semibold text-foreground hover:text-primary-light transition-colors"
             >
               {c.user.name}
             </Link>
-            <p className="text-xs text-white/70 mt-0.5 leading-relaxed">{c.content}</p>
+            <p className="text-xs text-foreground/70 mt-0.5 leading-relaxed">{c.content}</p>
           </div>
           <div className="flex items-center gap-3 mt-1 px-1">
             <button
               onClick={toggleLike}
-              className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${liked ? 'text-red-400' : 'text-white/60 hover:text-red-400'}`}
+              className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${liked ? 'text-red-400' : 'text-foreground/60 hover:text-red-400'}`}
             >
               <Heart size={12} fill={liked ? 'currentColor' : 'none'} />
               <span>{liked ? 'Liked' : 'Like'}</span>
-              {likeCount > 0 && <span className="text-white/50">· {likeCount}</span>}
+              {likeCount > 0 && <span className="text-foreground/50">· {likeCount}</span>}
             </button>
             {depth === 0 && (
               <button
                 onClick={() => onReply(c.id, c.user.name)}
-                className="text-[11px] font-medium text-white/60 hover:text-primary-light transition-colors"
+                className="text-[11px] font-medium text-foreground/60 hover:text-primary-light transition-colors"
               >
                 Reply
               </button>
@@ -91,7 +91,7 @@ function CommentItem({
             {(c.user.id === user?.id || postOwnerId === user?.id) && (
               <button
                 onClick={() => onDelete(c.id)}
-                className="text-[11px] text-white/40 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                className="text-[11px] text-foreground/40 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
               >
                 <Trash2 size={10} />
               </button>
@@ -281,10 +281,10 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
       <div>
         {/* Action bar */}
         <div className="flex items-center gap-5 px-4 pb-3 pt-1">
-          <div className={`flex items-center gap-1.5 text-sm ${liked ? 'text-red-400' : 'text-white/40'}`}>
+          <div className={`flex items-center gap-1.5 text-sm ${liked ? 'text-red-400' : 'text-foreground/40'}`}>
             <button
               onClick={() => likeMutation.mutate()}
-              className={`transition-colors ${liked ? '' : 'hover:text-white/70'}`}
+              className={`transition-colors ${liked ? '' : 'hover:text-foreground/70'}`}
               aria-label={liked ? 'Unlike post' : 'Like post'}
             >
               <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
@@ -302,20 +302,20 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
           {!commentsDisabled && (
             <button
               onClick={toggleComments}
-              className="flex items-center gap-1.5 text-sm text-white/40 hover:text-white/70 transition-colors"
+              className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-foreground/70 transition-colors"
             >
               <MessageCircle size={16} />
               {commentCount > 0 && <span>{commentCount}</span>}
             </button>
           )}
           {commentsDisabled && (
-            <span className="flex items-center gap-1.5 text-sm text-white/20 cursor-default" title="Comments disabled">
+            <span className="flex items-center gap-1.5 text-sm text-foreground/20 cursor-default" title="Comments disabled">
               <MessageCircle size={16} />
             </span>
           )}
           <button
             onClick={() => repostMutation.mutate()}
-            className={`flex items-center gap-1.5 text-sm transition-colors ${reposted ? 'text-green-400' : 'text-white/40 hover:text-white/70'}`}
+            className={`flex items-center gap-1.5 text-sm transition-colors ${reposted ? 'text-green-400' : 'text-foreground/40 hover:text-foreground/70'}`}
           >
             <Repeat2 size={16} />
             {repostCount > 0 && <span>{repostCount}</span>}
@@ -323,14 +323,14 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
           <div className="ml-auto flex items-center gap-3">
             <button
               onClick={() => setShowShare(true)}
-              className="flex items-center gap-1.5 text-sm text-white/40 hover:text-primary transition-colors"
+              className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-primary transition-colors"
               title="Send in message"
             >
               <CornerUpRight size={16} />
             </button>
             <button
               onClick={() => saveMutation.mutate()}
-              className={`flex items-center gap-1.5 text-sm transition-colors ${saved ? 'text-yellow-400' : 'text-white/40 hover:text-white/70'}`}
+              className={`flex items-center gap-1.5 text-sm transition-colors ${saved ? 'text-yellow-400' : 'text-foreground/40 hover:text-foreground/70'}`}
             >
               <Bookmark size={16} fill={saved ? 'currentColor' : 'none'} />
             </button>
@@ -339,13 +339,13 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
 
         {/* Comments section */}
         {showComments && !commentsDisabled && (
-          <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-3">
+          <div className="px-4 pb-4 border-t border-ink/5 pt-3 space-y-3">
             {loadingComments ? (
               <div className="flex justify-center py-2">
                 <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
             ) : comments.length === 0 ? (
-              <p className="text-xs text-white/30 text-center py-1">No comments yet</p>
+              <p className="text-xs text-foreground/30 text-center py-1">No comments yet</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {comments.map((c) => (
@@ -366,7 +366,7 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
             {replyingTo && (
               <div className="flex items-center gap-2 px-1 text-xs text-primary-light">
                 <span>Replying to {replyingTo.name}</span>
-                <button onClick={() => { setReplyingTo(null); setCommentText(''); }} className="text-white/40 hover:text-white">
+                <button onClick={() => { setReplyingTo(null); setCommentText(''); }} className="text-foreground/40 hover:text-foreground">
                   ×
                 </button>
               </div>
@@ -392,12 +392,12 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
                 }}
                 placeholder={replyingTo ? `Reply to ${replyingTo.name}…` : 'Add a comment…'}
                 maxLength={500}
-                className="flex-1 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-primary"
+                className="flex-1 bg-ink/5 border border-ink/10 rounded-full px-3 py-1.5 text-xs text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
               />
               <button
                 onClick={submitComment}
                 disabled={!commentText.trim() || submitting}
-                className="text-primary disabled:text-white/20 transition-colors"
+                className="text-primary disabled:text-foreground/20 transition-colors"
               >
                 <Send size={15} />
               </button>

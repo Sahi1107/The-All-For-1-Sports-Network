@@ -139,7 +139,7 @@ export default function TeamManage() {
   }
   if (!team) {
     return (
-      <div className="bg-dark-light rounded-xl border border-dark-lighter p-12 text-center">
+      <div className="bg-card rounded-xl border border-line p-12 text-center">
         <p className="text-gray-custom">Team not found.</p>
       </div>
     )
@@ -164,13 +164,13 @@ export default function TeamManage() {
     <div className="max-w-2xl mx-auto pb-12">
       <button
         onClick={() => navigate(-1)}
-        className="flex items-center gap-1.5 text-sm text-gray-custom hover:text-white mb-4"
+        className="flex items-center gap-1.5 text-sm text-gray-custom hover:text-foreground mb-4"
       >
         <ArrowLeft size={14} /> Back
       </button>
 
       {/* Header */}
-      <div className="bg-dark-light rounded-xl border border-dark-lighter p-5 mb-5">
+      <div className="bg-card rounded-xl border border-line p-5 mb-5">
         <div className="flex items-start gap-4">
           {team.logo
             ? <img src={team.logo} alt={team.name} className="w-14 h-14 rounded-lg object-cover" />
@@ -208,7 +208,7 @@ export default function TeamManage() {
       </div>
 
       {/* Roster */}
-      <section className="bg-dark-light rounded-xl border border-dark-lighter p-5 space-y-3">
+      <section className="bg-card rounded-xl border border-line p-5 space-y-3">
         <h2 className="font-semibold flex items-center gap-2 mb-1">
           <Users size={16} className="text-primary-light" />
           Roster ({total})
@@ -218,7 +218,7 @@ export default function TeamManage() {
           const isCaptainRow = m.userId === team.captainId
           const isReplaceOpen = replaceTargetUserId === m.userId
           return (
-            <div key={m.id} className="bg-dark rounded-lg">
+            <div key={m.id} className="bg-surface rounded-lg">
               <div className="flex items-center gap-3 px-3 py-2.5">
                 <Avatar user={m.user} size={32} />
                 <div className="flex-1 min-w-0">
@@ -229,7 +229,7 @@ export default function TeamManage() {
                     {m.role.toLowerCase()}{m.user.position ? ` · ${m.user.position}` : ''}
                   </p>
                 </div>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[m.status] ?? 'bg-gray-500/20 text-gray-400'}`}>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[m.status] ?? 'bg-gray-500/20 text-gray-custom'}`}>
                   {m.status}
                 </span>
 
@@ -242,7 +242,7 @@ export default function TeamManage() {
                     }}
                     className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                       isReplaceOpen
-                        ? 'bg-primary text-dark font-semibold'
+                        ? 'bg-primary text-on-primary font-semibold'
                         : 'text-primary-light hover:bg-primary/10'
                     }`}
                     title="Replace this member"
@@ -272,7 +272,7 @@ export default function TeamManage() {
               {/* Inline replace search */}
               {isReplaceOpen && (
                 <div className="px-3 pb-3 -mt-1 space-y-2">
-                  <div className="flex items-center gap-2 px-3 py-2 bg-dark-light border border-primary/40 rounded-lg">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-card border border-primary/40 rounded-lg">
                     <Search size={13} className="text-gray-custom" />
                     <input
                       type="text"
@@ -280,14 +280,14 @@ export default function TeamManage() {
                       value={replaceSearch}
                       onChange={(e) => setReplaceSearch(e.target.value)}
                       placeholder={`Pick a replacement for ${m.user.name}…`}
-                      className="flex-1 bg-transparent text-sm text-white placeholder-gray-custom focus:outline-none"
+                      className="flex-1 bg-transparent text-sm text-foreground placeholder-gray-custom focus:outline-none"
                     />
-                    <button onClick={() => setReplaceTargetUserId(null)} className="text-gray-custom hover:text-white" title="Cancel">
+                    <button onClick={() => setReplaceTargetUserId(null)} className="text-gray-custom hover:text-foreground" title="Cancel">
                       <X size={13} />
                     </button>
                   </div>
                   {debouncedReplaceSearch.trim().length >= 2 && (
-                    <div className="border border-dark-lighter rounded-lg overflow-hidden divide-y divide-dark-lighter max-h-56 overflow-y-auto">
+                    <div className="border border-line rounded-lg overflow-hidden divide-y divide-line max-h-56 overflow-y-auto">
                       {replaceFetching ? (
                         <div className="px-3 py-2 text-xs text-gray-custom">Searching…</div>
                       ) : (replaceResults?.users ?? []).filter((u: UserLite) => !memberIds.includes(u.id)).length === 0 ? (
@@ -303,7 +303,7 @@ export default function TeamManage() {
                                 replaceMutation.mutate({ oldUserId: m.userId, newUserId: u.id })
                               }
                               disabled={replaceMutation.isPending}
-                              className="w-full flex items-center gap-3 px-3 py-2 bg-dark-light hover:bg-dark-lighter text-left transition-colors disabled:opacity-50"
+                              className="w-full flex items-center gap-3 px-3 py-2 bg-card hover:bg-elevated text-left transition-colors disabled:opacity-50"
                             >
                               <Avatar user={u} size={26} />
                               <div className="flex-1 min-w-0">
@@ -326,7 +326,7 @@ export default function TeamManage() {
 
         {/* Captain: add a new player (general invite, not a 1:1 replace) */}
         {isCaptain && (
-          <div className="pt-3 border-t border-dark-lighter">
+          <div className="pt-3 border-t border-line">
             <div className="flex items-center justify-between mb-2 gap-2">
               <p className="text-xs text-gray-custom">
                 Add a player to fill an empty slot.
@@ -334,7 +334,7 @@ export default function TeamManage() {
               {maxRoster != null && (
                 <span
                   className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                    atCap ? 'bg-amber-500/20 text-amber-300' : 'bg-dark text-gray-custom border border-dark-lighter'
+                    atCap ? 'bg-amber-500/20 text-amber-300' : 'bg-surface text-gray-custom border border-line'
                   }`}
                 >
                   {atCap && <AlertCircle size={10} />}
@@ -352,18 +352,18 @@ export default function TeamManage() {
               </div>
             ) : (
               <div className="relative">
-                <div className="flex items-center gap-2 px-3 py-2 bg-dark border border-dark-lighter rounded-lg focus-within:border-primary">
+                <div className="flex items-center gap-2 px-3 py-2 bg-surface border border-line rounded-lg focus-within:border-primary">
                   <Search size={14} className="text-gray-custom" />
                   <input
                     type="text"
                     value={playerSearch}
                     onChange={(e) => setPlayerSearch(e.target.value)}
                     placeholder="Search players by name…"
-                    className="flex-1 bg-transparent text-sm text-white placeholder-gray-custom focus:outline-none"
+                    className="flex-1 bg-transparent text-sm text-foreground placeholder-gray-custom focus:outline-none"
                   />
                 </div>
                 {debouncedSearch.trim().length >= 2 && (
-                  <div className="mt-2 border border-dark-lighter rounded-lg overflow-hidden divide-y divide-dark-lighter max-h-64 overflow-y-auto">
+                  <div className="mt-2 border border-line rounded-lg overflow-hidden divide-y divide-line max-h-64 overflow-y-auto">
                     {searchFetching ? (
                       <div className="px-3 py-3 text-xs text-gray-custom">Searching…</div>
                     ) : (searchResults?.users ?? []).filter((u: UserLite) => !memberIds.includes(u.id)).length === 0 ? (
@@ -377,7 +377,7 @@ export default function TeamManage() {
                             key={u.id}
                             onClick={() => inviteMutation.mutate(u.id)}
                             disabled={inviteMutation.isPending}
-                            className="w-full flex items-center gap-3 px-3 py-2 bg-dark hover:bg-dark-lighter text-left transition-colors disabled:opacity-50"
+                            className="w-full flex items-center gap-3 px-3 py-2 bg-surface hover:bg-elevated text-left transition-colors disabled:opacity-50"
                           >
                             <Avatar user={u} size={28} />
                             <div className="flex-1 min-w-0">

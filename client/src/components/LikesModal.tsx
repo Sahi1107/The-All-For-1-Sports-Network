@@ -26,16 +26,16 @@ export default function LikesModal({ postId, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-dark-light border border-white/10 rounded-xl w-full max-w-sm max-h-[70vh] flex flex-col"
+        className="bg-card border border-ink/10 rounded-xl w-full max-w-sm max-h-[70vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Heart size={15} className="text-red-400" fill="currentColor" />
             <span>Liked by</span>
-            {users.length > 0 && <span className="text-white/40 font-normal">· {users.length}</span>}
+            {users.length > 0 && <span className="text-foreground/40 font-normal">· {users.length}</span>}
           </div>
-          <button onClick={onClose} className="text-white/40 hover:text-white text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-foreground/40 hover:text-foreground text-xl leading-none">×</button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-2">
@@ -44,14 +44,14 @@ export default function LikesModal({ postId, onClose }: Props) {
               <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : users.length === 0 ? (
-            <p className="text-center text-white/30 text-sm py-8">No likes yet</p>
+            <p className="text-center text-foreground/30 text-sm py-8">No likes yet</p>
           ) : (
             users.map((u) => (
               <Link
                 key={u.id}
                 to={`/profile/${u.id}`}
                 onClick={onClose}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-ink/5 transition-colors"
               >
                 {u.avatar ? (
                   <img src={u.avatar} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
@@ -62,7 +62,7 @@ export default function LikesModal({ postId, onClose }: Props) {
                 )}
                 <div className="min-w-0">
                   <p className="text-sm font-medium truncate">{u.name}</p>
-                  <p className="text-xs text-white/40 capitalize">
+                  <p className="text-xs text-foreground/40 capitalize">
                     {u.role?.toLowerCase()}
                     {u.sport && u.role !== 'ADMIN' && ` · ${u.sport.toLowerCase().replace(/_/g, ' ')}`}
                     {u.position && ` · ${u.position}`}

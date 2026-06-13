@@ -88,7 +88,7 @@ export default function Highlights() {
         </div>
         <button
           onClick={() => setShowUpload(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
         >
           <Plus size={16} />
           Upload Highlight
@@ -98,10 +98,10 @@ export default function Highlights() {
       {/* Upload Modal */}
       {showUpload && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-light rounded-xl border border-dark-lighter w-full max-w-lg">
-            <div className="flex items-center justify-between p-5 border-b border-dark-lighter">
+          <div className="bg-card rounded-xl border border-line w-full max-w-lg">
+            <div className="flex items-center justify-between p-5 border-b border-line">
               <h2 className="font-semibold">Upload Highlight</h2>
-              <button onClick={() => { setShowUpload(false); setVideoFile(null); setUploadProgress(0); }} className="text-gray-custom hover:text-white">
+              <button onClick={() => { setShowUpload(false); setVideoFile(null); setUploadProgress(0); }} className="text-gray-custom hover:text-foreground">
                 <X size={18} />
               </button>
             </div>
@@ -112,11 +112,11 @@ export default function Highlights() {
               {/* Video picker */}
               <div
                 onClick={() => fileRef.current?.click()}
-                className="border-2 border-dashed border-dark-lighter rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                className="border-2 border-dashed border-line rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
               >
                 {videoFile ? (
                   <div>
-                    <p className="text-sm font-medium text-white">{videoFile.name}</p>
+                    <p className="text-sm font-medium text-foreground">{videoFile.name}</p>
                     <p className="text-xs text-gray-custom mt-1">{(videoFile.size / 1024 / 1024).toFixed(1)} MB</p>
                   </div>
                 ) : (
@@ -140,20 +140,20 @@ export default function Highlights() {
                 onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
                 required
                 placeholder="Title *"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
               <textarea
                 value={form.description}
                 onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
                 placeholder="Description (optional)"
                 rows={2}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
               />
               <input
                 value={form.tournamentLocation}
                 onChange={(e) => setForm(f => ({ ...f, tournamentLocation: e.target.value }))}
                 placeholder="Tournament / Location (optional)"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
 
               {uploadMutation.isPending && (
@@ -161,7 +161,7 @@ export default function Highlights() {
                   <div className="flex justify-between text-xs text-gray-custom mb-1">
                     <span>Uploading...</span><span>{uploadProgress}%</span>
                   </div>
-                  <div className="w-full bg-dark rounded-full h-1.5">
+                  <div className="w-full bg-surface rounded-full h-1.5">
                     <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                   </div>
                 </div>
@@ -170,10 +170,10 @@ export default function Highlights() {
               <button
                 type="submit"
                 disabled={!videoFile || !form.title || uploadMutation.isPending}
-                className="w-full py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-on-primary font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 {uploadMutation.isPending
-                  ? <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" />
+                  ? <div className="w-4 h-4 border-2 border-surface border-t-transparent rounded-full animate-spin" />
                   : <Upload size={16} />}
                 Upload
               </button>
@@ -188,14 +188,14 @@ export default function Highlights() {
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : highlights.length === 0 ? (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter p-16 text-center">
+        <div className="bg-card rounded-xl border border-line p-16 text-center">
           <Upload size={32} className="mx-auto mb-3 text-gray-custom" />
           <p className="text-gray-custom">No highlights yet. Upload your first video!</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {highlights.map((h: any) => (
-            <div key={h.id} className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden group">
+            <div key={h.id} className="bg-card rounded-xl border border-line overflow-hidden group">
               <div className="relative">
                 <video
                   src={h.videoUrl}

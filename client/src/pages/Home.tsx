@@ -529,9 +529,9 @@ export default function Home() {
       <div className="relative z-10">
         {previewSport && (
           <div className="mb-4 flex items-center justify-between gap-3 bg-purple-500/10 border border-purple-400/30 rounded-xl px-4 py-3 text-sm">
-            <span className="text-white/80">
+            <span className="text-foreground/80">
               <span className="text-purple-300 font-semibold">Admin preview</span> — viewing the feed as a{' '}
-              <span className="text-white font-medium">{previewLabel}</span> athlete.
+              <span className="text-foreground font-medium">{previewLabel}</span> athlete.
             </span>
             <button
               onClick={() => {
@@ -539,7 +539,7 @@ export default function Home() {
                 next.delete('previewSport');
                 setSearchParams(next, { replace: true });
               }}
-              className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs text-purple-200 hover:text-white border border-purple-400/30 hover:border-purple-300 rounded-lg transition-colors"
+              className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-xs text-purple-200 hover:text-foreground border border-purple-400/30 hover:border-purple-300 rounded-lg transition-colors"
             >
               <X size={13} /> Exit preview
             </button>
@@ -549,10 +549,10 @@ export default function Home() {
         {/* Prompt for users who haven't set their location yet */}
         {!isLoading && user && !user.location && (
           <div className="mb-4 flex items-center justify-between gap-3 bg-primary/10 border border-primary/30 rounded-xl px-4 py-3 text-sm">
-            <span className="text-white/80">
+            <span className="text-foreground/80">
               <span className="text-primary font-semibold">Complete your profile</span> — add your country, state, and city so others can find you.
             </span>
-            <Link to="/profile/edit" className="shrink-0 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors text-xs">
+            <Link to="/profile/edit" className="shrink-0 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors text-xs">
               Edit Profile
             </Link>
           </div>
@@ -563,12 +563,12 @@ export default function Home() {
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : feedItems.length === 0 ? (
-          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-12 text-center shadow-xl">
+          <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center shadow-xl">
             <p className="text-gray-custom text-lg">Your feed is empty</p>
             <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their posts here</p>
             <Link
               to="/explore"
-              className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors"
+              className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
             >
               Explore Athletes
             </Link>
@@ -580,7 +580,7 @@ export default function Home() {
                 key={`${item.kind}-${item.id}`}
                 className="w-full max-w-2xl"
               >
-                <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl">
+                <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl overflow-hidden shadow-xl">
                   {/* User header */}
                   <div className="p-4 flex items-center gap-3">
                     <Link to={`/profile/${item.user?.id}`}>
@@ -662,7 +662,7 @@ export default function Home() {
                   >
                     {item.title && <h3 className="font-semibold">{item.title}</h3>}
                     {(item.content || item.description) && (
-                      <p className="text-sm text-white/80 mt-1 leading-relaxed">{item.content || item.description}</p>
+                      <p className="text-sm text-foreground/80 mt-1 leading-relaxed">{item.content || item.description}</p>
                     )}
                     <div className="flex items-center gap-4 mt-3 text-xs text-gray-custom">
                       {item.kind === 'highlight' && (

@@ -22,7 +22,7 @@ const EXAMPLE_QUERIES = [
 function FilterTag({ label, value }: { label: string; value: string }) {
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-primary/10 border border-primary/20 text-primary-light">
-      <span className="text-white/40">{label}</span>
+      <span className="text-foreground/40">{label}</span>
       {value}
     </span>
   );
@@ -38,7 +38,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
   return (
     <Link
       to={`/profile/${athlete.id}`}
-      className="group flex items-start gap-4 p-4 bg-white/5 hover:bg-white/8 border border-white/10 hover:border-primary/30 rounded-xl transition-all"
+      className="group flex items-start gap-4 p-4 bg-ink/5 hover:bg-ink/8 border border-ink/10 hover:border-primary/30 rounded-xl transition-all"
     >
       {/* Avatar */}
       <div className="shrink-0">
@@ -61,15 +61,15 @@ function AthleteCard({ athlete }: { athlete: any }) {
           <p className="font-semibold truncate group-hover:text-primary-light transition-colors">
             {athlete.name}
           </p>
-          <ChevronRight size={14} className="shrink-0 text-white/30 group-hover:text-primary transition-colors" />
+          <ChevronRight size={14} className="shrink-0 text-foreground/30 group-hover:text-primary transition-colors" />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-white/50">
+        <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-foreground/50">
           <span>{SPORT_EMOJI[athlete.sport]} {athlete.sport?.toLowerCase()}</span>
           {athlete.position && (
             <>
               <span>·</span>
-              <span className="text-white/70 capitalize">{athlete.position}</span>
+              <span className="text-foreground/70 capitalize">{athlete.position}</span>
             </>
           )}
           {athlete.age && (
@@ -87,7 +87,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
         </div>
 
         {athlete.location && (
-          <p className="flex items-center gap-1 mt-1 text-xs text-white/40">
+          <p className="flex items-center gap-1 mt-1 text-xs text-foreground/40">
             <MapPin size={10} />
             {locationParts.join(', ')}
           </p>
@@ -99,7 +99,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
             {statEntries.map(([key, val]) => (
               <div key={key} className="text-center">
                 <p className="text-sm font-bold text-primary-light">{val}</p>
-                <p className="text-[10px] text-white/40 capitalize">{key}</p>
+                <p className="text-[10px] text-foreground/40 capitalize">{key}</p>
               </div>
             ))}
           </div>
@@ -107,7 +107,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
 
         {/* Bio snippet */}
         {athlete.bio && (
-          <p className="mt-1.5 text-xs text-white/40 line-clamp-1 leading-relaxed">
+          <p className="mt-1.5 text-xs text-foreground/40 line-clamp-1 leading-relaxed">
             {athlete.bio}
           </p>
         )}
@@ -178,7 +178,7 @@ export default function ScoutCopilot() {
           <Zap size={18} className="text-primary" />
           <h1 className="text-xl font-bold">Scout Copilot</h1>
         </div>
-        <p className="text-sm text-white/50">
+        <p className="text-sm text-foreground/50">
           Search athletes in plain English. Ask anything about sport, position, age, location, or stats.
         </p>
       </div>
@@ -187,7 +187,7 @@ export default function ScoutCopilot() {
       <div className="relative">
         <Search
           size={16}
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 pointer-events-none"
+          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none"
         />
         <input
           ref={inputRef}
@@ -195,14 +195,14 @@ export default function ScoutCopilot() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="e.g. left-footed strikers under 19 in Maharashtra with 10+ goals"
-          className="w-full pl-9 pr-28 py-3 bg-white/5 border border-white/10 focus:border-primary rounded-xl text-sm text-white placeholder-white/25 focus:outline-none transition-colors"
+          className="w-full pl-9 pr-28 py-3 bg-ink/5 border border-ink/10 focus:border-primary rounded-xl text-sm text-foreground placeholder-ink/25 focus:outline-none transition-colors"
           maxLength={500}
           autoFocus
         />
         <button
           onClick={() => handleSubmit(query)}
           disabled={mutation.isPending || !query.trim()}
-          className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-primary hover:bg-primary-dark disabled:bg-primary/30 text-dark font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+          className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-primary hover:bg-primary-dark disabled:bg-primary/30 text-on-primary font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
         >
           {mutation.isPending ? (
             <Loader2 size={13} className="animate-spin" />
@@ -216,7 +216,7 @@ export default function ScoutCopilot() {
       {/* Example queries — shown before first search */}
       {!mutation.data && !mutation.isPending && (
         <div className="space-y-2">
-          <p className="text-xs text-white/30 font-medium uppercase tracking-wide">Try asking</p>
+          <p className="text-xs text-foreground/30 font-medium uppercase tracking-wide">Try asking</p>
           <div className="space-y-1.5">
             {EXAMPLE_QUERIES.map((ex) => (
               <button
@@ -225,7 +225,7 @@ export default function ScoutCopilot() {
                   setQuery(ex);
                   handleSubmit(ex);
                 }}
-                className="w-full text-left text-sm text-white/50 hover:text-white px-3 py-2 rounded-lg hover:bg-white/5 transition-colors border border-transparent hover:border-white/10"
+                className="w-full text-left text-sm text-foreground/50 hover:text-foreground px-3 py-2 rounded-lg hover:bg-ink/5 transition-colors border border-transparent hover:border-ink/10"
               >
                 "{ex}"
               </button>
@@ -236,7 +236,7 @@ export default function ScoutCopilot() {
 
       {/* Loading state */}
       {mutation.isPending && (
-        <div className="flex items-center gap-3 py-8 justify-center text-white/40 text-sm">
+        <div className="flex items-center gap-3 py-8 justify-center text-foreground/40 text-sm">
           <Loader2 size={18} className="animate-spin" />
           Analysing query and searching…
         </div>
@@ -248,8 +248,8 @@ export default function ScoutCopilot() {
           {/* Filter summary + count */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-white/50">
-                <span className="text-white font-semibold">{mutation.data.total}</span> result{mutation.data.total !== 1 ? 's' : ''} found
+              <p className="text-sm text-foreground/50">
+                <span className="text-foreground font-semibold">{mutation.data.total}</span> result{mutation.data.total !== 1 ? 's' : ''} found
               </p>
               <button
                 onClick={() => {
@@ -257,7 +257,7 @@ export default function ScoutCopilot() {
                   setQuery('');
                   inputRef.current?.focus();
                 }}
-                className="text-xs text-white/30 hover:text-white/60 transition-colors"
+                className="text-xs text-foreground/30 hover:text-foreground/60 transition-colors"
               >
                 Clear
               </button>
@@ -268,9 +268,9 @@ export default function ScoutCopilot() {
           {/* Athlete list */}
           {mutation.data.results.length === 0 ? (
             <div className="py-12 text-center">
-              <User size={32} className="text-white/10 mx-auto mb-3" />
-              <p className="text-white/40 text-sm">No athletes matched your search.</p>
-              <p className="text-white/25 text-xs mt-1">Try broader criteria or a different location.</p>
+              <User size={32} className="text-foreground/10 mx-auto mb-3" />
+              <p className="text-foreground/40 text-sm">No athletes matched your search.</p>
+              <p className="text-foreground/25 text-xs mt-1">Try broader criteria or a different location.</p>
             </div>
           ) : (
             <div className="space-y-2">

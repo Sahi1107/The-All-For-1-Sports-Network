@@ -51,11 +51,11 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-[#1a1a1a] rounded-t-2xl sm:rounded-2xl border border-white/10 w-full sm:max-w-md max-h-[75vh] flex flex-col overflow-hidden">
+      <div className="bg-[#1a1a1a] rounded-t-2xl sm:rounded-2xl border border-ink/10 w-full sm:max-w-md max-h-[75vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <h2 className="font-semibold text-white text-base">Share to...</h2>
-          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
+          <h2 className="font-semibold text-foreground text-base">Share to...</h2>
+          <button onClick={onClose} className="text-foreground/40 hover:text-foreground transition-colors">
             <X size={20} />
           </button>
         </div>
@@ -63,13 +63,13 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
         {/* Search */}
         <div className="px-4 py-3">
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/30" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search..."
               autoFocus
-              className="w-full pl-9 pr-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder-white/30 focus:outline-none focus:border-primary"
+              className="w-full pl-9 pr-3 py-2.5 bg-ink/5 border border-ink/10 rounded-xl text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
             />
           </div>
         </div>
@@ -82,7 +82,7 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-10">
-              <p className="text-sm text-white/30">
+              <p className="text-sm text-foreground/30">
                 {connections.length === 0
                   ? 'Follow people to share profiles with them'
                   : 'No matches found'}
@@ -98,7 +98,7 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
                     key={u.id}
                     className="flex items-center gap-3 p-2.5 rounded-xl"
                   >
-                    <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-2 ring-white/10">
+                    <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-2 ring-ink/10">
                       {u.avatar ? (
                         <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                       ) : (
@@ -109,8 +109,8 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{u.name}</p>
-                      <p className="text-xs text-white/40 capitalize truncate">
+                      <p className="text-sm font-semibold text-foreground truncate">{u.name}</p>
+                      <p className="text-xs text-foreground/40 capitalize truncate">
                         {u.sport?.toLowerCase()}{u.position ? ` · ${u.position}` : ''}
                       </p>
                     </div>
@@ -120,12 +120,12 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
                       disabled={isSending || isSent}
                       className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all shrink-0 ${
                         isSent
-                          ? 'bg-white/10 text-white/40'
-                          : 'bg-primary hover:bg-primary-dark text-dark'
+                          ? 'bg-ink/10 text-foreground/40'
+                          : 'bg-primary hover:bg-primary-dark text-on-primary'
                       } disabled:cursor-default`}
                     >
                       {isSending ? (
-                        <div className="w-3.5 h-3.5 border-2 border-dark border-t-transparent rounded-full animate-spin mx-2" />
+                        <div className="w-3.5 h-3.5 border-2 border-surface border-t-transparent rounded-full animate-spin mx-2" />
                       ) : isSent ? (
                         'Sent'
                       ) : (

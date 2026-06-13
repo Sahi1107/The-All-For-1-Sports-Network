@@ -3,11 +3,12 @@ import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { confirmPasswordReset } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import toast from 'react-hot-toast';
-import logoUrl from '../assets/logo.svg';
+import { useLogo } from '../hooks/useLogo';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
 export default function ResetPassword() {
+  const logoUrl = useLogo();
   const [searchParams] = useSearchParams();
   const navigate       = useNavigate();
   const [password, setPassword] = useState('');
@@ -46,8 +47,8 @@ export default function ResetPassword() {
 
   if (!oobCode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-dark p-4">
-        <div className="w-full max-w-md text-center bg-dark-light rounded-2xl p-8 border border-dark-lighter">
+      <div className="min-h-screen flex items-center justify-center bg-surface p-4">
+        <div className="w-full max-w-md text-center bg-card rounded-2xl p-8 border border-line">
           <p className="text-red-400 mb-4">Invalid or missing reset link.</p>
           <Link to="/forgot-password" className="text-primary hover:text-primary-light">
             Request a new reset link
@@ -58,13 +59,13 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-dark p-4">
+    <div className="min-h-screen flex items-center justify-center bg-surface p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <img src={logoUrl} alt="All For 1" className="h-20 mx-auto mb-4" />
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-dark-light rounded-2xl p-8 border border-dark-lighter">
+        <form onSubmit={handleSubmit} className="bg-card rounded-2xl p-8 border border-line">
           <h2 className="text-xl font-semibold mb-2">Reset Password</h2>
           <p className="text-gray-custom text-sm mb-6">Enter your new password below.</p>
 
@@ -76,7 +77,7 @@ export default function ResetPassword() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground"
                 placeholder="Min 8 chars, upper + lower + number"
               />
               {password && !PASSWORD_REGEX.test(password) && (
@@ -92,7 +93,7 @@ export default function ResetPassword() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground"
                 placeholder="Repeat your password"
               />
               {confirm && password !== confirm && (
@@ -104,7 +105,7 @@ export default function ResetPassword() {
           <button
             type="submit"
             disabled={loading || !PASSWORD_REGEX.test(password) || password !== confirm}
-            className="w-full mt-6 py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50"
+            className="w-full mt-6 py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50"
           >
             {loading ? 'Resetting…' : 'Reset Password'}
           </button>

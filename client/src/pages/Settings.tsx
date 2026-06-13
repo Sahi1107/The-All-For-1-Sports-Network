@@ -7,12 +7,14 @@ import {
   PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
   updatePassword, verifyBeforeUpdateEmail,
 } from 'firebase/auth';
-import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck, Users } from 'lucide-react';
+import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck, Users, Sun, Moon, Monitor } from 'lucide-react';
+import { useTheme, type ThemePreference } from '../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 
 export default function Settings() {
   const { user, logout, unverifiedEmail, updateUser } = useAuth();
+  const { preference, setPreference } = useTheme();
   const navigate = useNavigate();
   const [sendingReset, setSendingReset] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -258,7 +260,7 @@ export default function Settings() {
 
       {/* Verification Checklist — hidden for admins */}
       {user?.role !== 'ADMIN' && (
-        <section className={`rounded-xl border p-5 ${user?.verified ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-dark-light border-dark-lighter'}`}>
+        <section className={`rounded-xl border p-5 ${user?.verified ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-card border-line'}`}>
           <h2 className="font-semibold flex items-center gap-2 mb-3">
             <BadgeCheck size={16} className={user?.verified ? 'text-emerald-400' : 'text-gray-custom'} />
             {user?.verified ? 'Verified Profile' : 'Get Verified'}
@@ -273,20 +275,20 @@ export default function Settings() {
                   {emailVerified
                     ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
                     : <Circle size={16} className="text-gray-custom shrink-0" />}
-                  <span className={`text-sm ${emailVerified ? 'text-white' : 'text-gray-custom'}`}>Email verified</span>
+                  <span className={`text-sm ${emailVerified ? 'text-foreground' : 'text-gray-custom'}`}>Email verified</span>
                 </div>
                 <div className="flex items-center gap-3">
                   {phoneVerified
                     ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
                     : <Circle size={16} className="text-gray-custom shrink-0" />}
-                  <span className={`text-sm ${phoneVerified ? 'text-white' : 'text-gray-custom'}`}>Phone number verified</span>
+                  <span className={`text-sm ${phoneVerified ? 'text-foreground' : 'text-gray-custom'}`}>Phone number verified</span>
                   {!phoneVerified && <span className="text-xs text-primary-light ml-auto">See below</span>}
                 </div>
                 <div className="flex items-center gap-3">
                   {isProfileComplete
                     ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
                     : <Circle size={16} className="text-gray-custom shrink-0" />}
-                  <span className={`text-sm ${isProfileComplete ? 'text-white' : 'text-gray-custom'}`}>Complete profile</span>
+                  <span className={`text-sm ${isProfileComplete ? 'text-foreground' : 'text-gray-custom'}`}>Complete profile</span>
                   {!isProfileComplete && (
                     <Link to="/profile/edit" className="text-xs text-primary-light ml-auto hover:underline">Edit profile</Link>
                   )}
@@ -301,7 +303,7 @@ export default function Settings() {
       )}
 
       {/* Account */}
-      <section className="bg-dark-light rounded-xl border border-dark-lighter divide-y divide-dark-lighter">
+      <section className="bg-card rounded-xl border border-line divide-y divide-line">
         <div className="p-5">
           <h2 className="font-semibold flex items-center gap-2 mb-4">
             <User size={16} className="text-primary-light" />
@@ -309,7 +311,7 @@ export default function Settings() {
           </h2>
           <div className="space-y-1 text-sm text-gray-custom">
             <p>Email</p>
-            <p className="text-white font-medium">{user?.email}</p>
+            <p className="text-foreground font-medium">{user?.email}</p>
             {guardianManaged && (
               <p className="flex items-center gap-1.5 text-xs text-primary-light mt-2">
                 <Users size={13} />
@@ -326,7 +328,7 @@ export default function Settings() {
           </div>
           <Link
             to="/profile/edit"
-            className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors"
           >
             <Edit size={14} />
             Edit
@@ -343,7 +345,7 @@ export default function Settings() {
           </div>
           <Link
             to="/saved"
-            className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors"
           >
             <Bookmark size={14} />
             View
@@ -361,16 +363,45 @@ export default function Settings() {
           <button
             onClick={handleChangePassword}
             disabled={sendingReset}
-            className="px-4 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors disabled:opacity-50"
           >
             {sendingReset ? 'Sending…' : 'Send Reset Email'}
           </button>
         </div>
       </section>
 
+      {/* Appearance */}
+      <section className="bg-card rounded-xl border border-line p-5">
+        <h2 className="font-semibold flex items-center gap-2 mb-1">
+          <Sun size={16} className="text-primary-light" />
+          Appearance
+        </h2>
+        <p className="text-xs text-gray-custom mb-4">Choose how All For 1 looks on this device</p>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { value: 'dark',   label: 'Dark',   Icon: Moon },
+            { value: 'light',  label: 'Light',  Icon: Sun },
+            { value: 'system', label: 'System', Icon: Monitor },
+          ] as { value: ThemePreference; label: string; Icon: typeof Sun }[]).map(({ value, label, Icon }) => (
+            <button
+              key={value}
+              onClick={() => setPreference(value)}
+              className={`flex flex-col items-center gap-1.5 py-3 rounded-lg border text-sm transition-colors ${
+                preference === value
+                  ? 'bg-primary/10 border-primary text-primary font-semibold'
+                  : 'bg-elevated border-line text-gray-custom hover:text-foreground'
+              }`}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
       {/* Profile Handover — only for guardian-managed (under-13) athlete accounts */}
       {guardianManaged && (
-        <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+        <section className="bg-card rounded-xl border border-line p-5">
           <h2 className="font-semibold flex items-center gap-2 mb-2">
             <Users size={16} className="text-primary-light" />
             Profile Handover
@@ -381,7 +412,7 @@ export default function Settings() {
           </p>
 
           {!handoverEligible ? (
-            <div className="flex items-start gap-3 rounded-lg bg-dark border border-dark-lighter p-3">
+            <div className="flex items-start gap-3 rounded-lg bg-surface border border-line p-3">
               <Circle size={16} className="text-gray-custom shrink-0 mt-0.5" />
               <p className="text-sm text-gray-custom">
                 Handover becomes available once the athlete turns 13.
@@ -391,7 +422,7 @@ export default function Settings() {
             <button
               onClick={requestHandover}
               disabled={handoverRequesting}
-              className="px-4 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors disabled:opacity-50"
+              className="px-4 py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors disabled:opacity-50"
             >
               {handoverRequesting ? 'Sending…' : 'Request handover'}
             </button>
@@ -420,22 +451,22 @@ export default function Settings() {
               <input
                 type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
                 placeholder="New email (the athlete's own)"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
               <input
                 type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="New password (8+ chars, upper + lower + number)"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
               <input
                 type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Current (parent/academy) password"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
               <button
                 onClick={completeHandover}
                 disabled={handoverSubmitting || !newEmail || !newPassword || !currentPassword}
-                className="px-4 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors disabled:opacity-50"
+                className="px-4 py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors disabled:opacity-50"
               >
                 {handoverSubmitting ? 'Completing…' : 'Complete handover'}
               </button>
@@ -448,7 +479,7 @@ export default function Settings() {
       )}
 
       {/* Phone Verification — hidden for admins */}
-      {user?.role !== 'ADMIN' && <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+      {user?.role !== 'ADMIN' && <section className="bg-card rounded-xl border border-line p-5">
         <h2 className="font-semibold flex items-center gap-2 mb-4">
           <Phone size={16} className="text-primary-light" />
           Phone Verification
@@ -457,7 +488,7 @@ export default function Settings() {
           <div className="flex items-center gap-3">
             <CheckCircle2 size={16} className="text-emerald-400" />
             <div>
-              <p className="text-sm text-white font-medium">Phone verified</p>
+              <p className="text-sm text-foreground font-medium">Phone verified</p>
               {currentPhone && <p className="text-xs text-gray-custom mt-0.5">{currentPhone}</p>}
             </div>
           </div>
@@ -469,43 +500,43 @@ export default function Settings() {
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder="+1234567890"
-                className="flex-1 bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="flex-1 bg-surface border border-line rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
               <button
                 onClick={sendOtp}
                 disabled={!phoneNumber.trim() || phoneSending}
-                className="px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-dark font-semibold rounded-lg transition-colors text-sm"
+                className="px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-on-primary font-semibold rounded-lg transition-colors text-sm"
               >
                 {phoneSending ? (
-                  <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-surface border-t-transparent rounded-full animate-spin" />
                 ) : 'Send OTP'}
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-gray-custom">Enter the 6-digit code sent to <span className="text-white font-medium">{phoneNumber}</span></p>
+            <p className="text-sm text-gray-custom">Enter the 6-digit code sent to <span className="text-foreground font-medium">{phoneNumber}</span></p>
             <div className="flex gap-2">
               <input
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 placeholder="000000"
                 maxLength={6}
-                className="flex-1 bg-dark border border-dark-lighter rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary text-center tracking-[0.3em] font-mono"
+                className="flex-1 bg-surface border border-line rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary text-center tracking-[0.3em] font-mono"
               />
               <button
                 onClick={verifyOtp}
                 disabled={otpCode.length < 6 || phoneVerifying}
-                className="px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-dark font-semibold rounded-lg transition-colors text-sm"
+                className="px-5 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-on-primary font-semibold rounded-lg transition-colors text-sm"
               >
                 {phoneVerifying ? (
-                  <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-surface border-t-transparent rounded-full animate-spin" />
                 ) : 'Verify'}
               </button>
             </div>
             <button
               onClick={() => { setVerificationId(null); setOtpCode(''); }}
-              className="text-xs text-gray-custom hover:text-white transition-colors"
+              className="text-xs text-gray-custom hover:text-foreground transition-colors"
             >
               Change number
             </button>
@@ -516,18 +547,18 @@ export default function Settings() {
       </section>}
 
       {/* Role & Sport */}
-      <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+      <section className="bg-card rounded-xl border border-line p-5">
         <h2 className="font-semibold flex items-center gap-2 mb-4">
           <Shield size={16} className="text-accent" />
           {user?.role === 'ADMIN' ? 'Role' : 'Role & Sport'}
         </h2>
         <div className={`grid gap-4 text-sm ${user?.role === 'ADMIN' ? 'grid-cols-1' : 'grid-cols-2'}`}>
-          <div className="bg-dark rounded-lg p-3">
+          <div className="bg-surface rounded-lg p-3">
             <p className="text-gray-custom text-xs mb-1">Role</p>
             <p className="font-medium capitalize">{user?.role?.toLowerCase()}</p>
           </div>
           {user?.role !== 'ADMIN' && (
-            <div className="bg-dark rounded-lg p-3">
+            <div className="bg-surface rounded-lg p-3">
               <p className="text-gray-custom text-xs mb-1">Sport</p>
               <p className="font-medium capitalize">{user?.sport?.toLowerCase()}</p>
             </div>
@@ -539,7 +570,7 @@ export default function Settings() {
       </section>
 
       {/* Notifications */}
-      <section className="bg-dark-light rounded-xl border border-dark-lighter divide-y divide-dark-lighter">
+      <section className="bg-card rounded-xl border border-line divide-y divide-line">
         <div className="p-5">
           <h2 className="font-semibold flex items-center gap-2 mb-1">
             <Bell size={16} className="text-secondary" />
@@ -559,7 +590,7 @@ export default function Settings() {
             onClick={() => toggleMsgNotifs(!msgNotifs)}
             disabled={msgNotifs === null}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              msgNotifs ? 'bg-primary' : 'bg-dark-lighter'
+              msgNotifs ? 'bg-primary' : 'bg-elevated'
             } disabled:opacity-50`}
             aria-pressed={!!msgNotifs}
           >
@@ -592,7 +623,7 @@ export default function Settings() {
             }}
             disabled={onlineStatus === null}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              onlineStatus ? 'bg-emerald-500' : 'bg-dark-lighter'
+              onlineStatus ? 'bg-emerald-500' : 'bg-elevated'
             } disabled:opacity-50`}
             aria-pressed={!!onlineStatus}
           >
@@ -615,7 +646,7 @@ export default function Settings() {
             Always on
           </span>
         </div>
-        <div className="p-5 flex items-center justify-between border-t border-dark-lighter">
+        <div className="p-5 flex items-center justify-between border-t border-line">
           <div>
             <p className="text-sm font-medium flex items-center gap-2">
               <MessageSquare size={14} className="text-primary-light" />
@@ -637,7 +668,7 @@ export default function Settings() {
             }}
             disabled={disableComments === null}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              disableComments ? 'bg-primary' : 'bg-dark-lighter'
+              disableComments ? 'bg-primary' : 'bg-elevated'
             } disabled:opacity-50`}
             aria-pressed={!!disableComments}
           >
@@ -651,7 +682,7 @@ export default function Settings() {
       </section>
 
       {/* Blocked accounts */}
-      <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+      <section className="bg-card rounded-xl border border-line p-5">
         <h2 className="font-semibold flex items-center gap-2 mb-3">
           <Ban size={16} className="text-red-400" />
           Blocked Accounts
@@ -661,7 +692,7 @@ export default function Settings() {
         ) : (
           <div className="space-y-2">
             {blocked.map((u) => (
-              <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-dark border border-dark-lighter">
+              <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface border border-line">
                 {u.avatar ? (
                   <img src={u.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
                 ) : (
@@ -675,7 +706,7 @@ export default function Settings() {
                 </div>
                 <button
                   onClick={() => unblock(u.id)}
-                  className="px-3 py-1.5 text-xs bg-dark-lighter hover:bg-dark border border-dark-lighter rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-xs bg-elevated hover:bg-surface border border-line rounded-lg transition-colors"
                 >
                   Unblock
                 </button>
@@ -686,14 +717,14 @@ export default function Settings() {
       </section>
 
       {/* Sign out */}
-      <section className="bg-dark-light rounded-xl border border-dark-lighter p-5 flex items-center justify-between">
+      <section className="bg-card rounded-xl border border-line p-5 flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">Sign Out</p>
           <p className="text-xs text-gray-custom mt-0.5">Sign out of your account on this device</p>
         </div>
         <button
           onClick={async () => { await logout(); navigate('/login'); }}
-          className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors"
         >
           <LogOut size={14} />
           Sign Out
@@ -701,7 +732,7 @@ export default function Settings() {
       </section>
 
       {/* Danger Zone */}
-      <section className="bg-dark-light rounded-xl border border-red-500/20 p-5">
+      <section className="bg-card rounded-xl border border-red-500/20 p-5">
         <h2 className="font-semibold text-red-400 flex items-center gap-2 mb-4">
           <Trash2 size={16} />
           Danger Zone
@@ -727,12 +758,12 @@ export default function Settings() {
               value={deletePassword}
               onChange={(e) => setDeletePassword(e.target.value)}
               placeholder="Your password"
-              className="w-full bg-dark border border-red-500/30 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-red-500"
+              className="w-full bg-surface border border-red-500/30 rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-red-500"
             />
             <div className="flex gap-2">
               <button
                 onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); }}
-                className="flex-1 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors"
+                className="flex-1 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors"
               >
                 Cancel
               </button>

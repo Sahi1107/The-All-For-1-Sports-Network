@@ -7,10 +7,11 @@ import {
   Home, Search, Trophy, BarChart3, TrendingUp,
   Bell, MessageSquare, Settings, LogOut, Megaphone, Shield, Plus, X, Menu, Zap,
 } from 'lucide-react';
-import logoUrl from '../assets/logo.svg';
+import { useLogo } from '../hooks/useLogo';
 import CreatePostModal from '../components/CreatePostModal';
 
 export default function MainLayout() {
+  const logoUrl = useLogo();
   const { user, logout } = useAuth();
   const location  = useLocation();
   const navigate  = useNavigate();
@@ -92,15 +93,15 @@ export default function MainLayout() {
     to === '/home' ? location.pathname === '/home' : location.pathname.startsWith(to);
 
   return (
-    <div className="flex min-h-screen bg-dark">
+    <div className="flex min-h-screen bg-surface">
 
       {/* ── DESKTOP SIDEBAR (hidden on mobile) ───────────────────── */}
       <aside
-        className="hidden md:flex fixed left-0 top-0 h-full w-64 border-r border-white/10 flex-col z-50"
+        className="hidden md:flex fixed left-0 top-0 h-full w-64 border-r border-ink/10 flex-col z-50"
         style={{ background: 'rgba(0,0,0,0.15)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
       >
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-white/10 flex justify-center">
+        <div className="px-5 py-5 border-b border-ink/10 flex justify-center">
           <Link to="/home"><img src={logoUrl} alt="All For 1" style={{ height: '100px', width: 'auto' }} /></Link>
         </div>
 
@@ -108,7 +109,7 @@ export default function MainLayout() {
         <div className="px-4 pt-4">
           <button
             onClick={() => setShowCreate(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
           >
             <Plus size={18} />Create Post
           </button>
@@ -122,7 +123,7 @@ export default function MainLayout() {
             return (
               <Link key={to} to={to}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  active ? 'bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
+                  active ? 'bg-primary text-on-primary font-semibold' : 'text-gray-custom hover:bg-ink/10 hover:text-foreground'
                 }`}
               >
                 <span className="relative">
@@ -144,19 +145,19 @@ export default function MainLayout() {
         </nav>
 
         {/* User */}
-        <div className="p-4 border-t border-white/10">
+        <div className="p-4 border-t border-ink/10">
           <Link to={`/profile/${user?.id}`}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-white/10 transition-colors"
+            className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-ink/10 transition-colors"
           >
             <span className="relative shrink-0">
               {user?.avatar
                 ? <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
-                : <div className="w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-sm font-bold text-primary">
+                : <div className="w-8 h-8 rounded-full bg-ink/10 border border-ink/20 flex items-center justify-center text-sm font-bold text-primary">
                     {user?.name?.charAt(0).toUpperCase()}
                   </div>
               }
               {profileIncomplete && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-dark text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-black">!</span>
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">!</span>
               )}
             </span>
             <div className="flex-1 min-w-0">
@@ -166,27 +167,27 @@ export default function MainLayout() {
           </Link>
           <div className="flex gap-2 mt-2">
             <Link to="/settings"
-              className="flex-1 flex items-center justify-center px-3 py-2 text-gray-custom hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              className="flex-1 flex items-center justify-center px-3 py-2 text-gray-custom hover:text-foreground rounded-lg hover:bg-ink/10 transition-colors"
             ><Settings size={16} /></Link>
             <button onClick={handleLogout}
-              className="flex-1 flex items-center justify-center px-3 py-2 text-gray-custom hover:text-red-400 rounded-lg hover:bg-white/10 transition-colors"
+              className="flex-1 flex items-center justify-center px-3 py-2 text-gray-custom hover:text-red-400 rounded-lg hover:bg-ink/10 transition-colors"
             ><LogOut size={16} /></button>
           </div>
         </div>
       </aside>
 
       {/* ── MOBILE TOP HEADER (hidden on desktop) ────────────────── */}
-      <header className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-4 py-3 border-b border-white/10"
+      <header className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-4 py-3 border-b border-ink/10"
         style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
       >
-        <button onClick={() => setDrawerOpen(true)} className="p-2 text-gray-custom hover:text-white transition-colors w-10">
+        <button onClick={() => setDrawerOpen(true)} className="p-2 text-gray-custom hover:text-foreground transition-colors w-10">
           <Menu size={22} />
         </button>
         <div className="flex-1 flex justify-center">
           <Link to="/home"><img src={logoUrl} alt="All For 1" className="h-9" /></Link>
         </div>
         <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-xs rounded-lg transition-colors w-10 justify-center"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-xs rounded-lg transition-colors w-10 justify-center"
         >
           <Plus size={15} />
         </button>
@@ -198,29 +199,29 @@ export default function MainLayout() {
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} />
           {/* Panel */}
-          <div className="relative w-72 h-full flex flex-col border-r border-white/10 z-10"
+          <div className="relative w-72 h-full flex flex-col border-r border-ink/10 z-10"
             style={{ background: 'rgba(10,10,10,0.97)', backdropFilter: 'blur(24px)' }}
           >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
               <img src={logoUrl} alt="All For 1" className="h-10" />
-              <button onClick={() => setDrawerOpen(false)} className="p-1.5 text-gray-custom hover:text-white">
+              <button onClick={() => setDrawerOpen(false)} className="p-1.5 text-gray-custom hover:text-foreground">
                 <X size={20} />
               </button>
             </div>
 
             {/* User info */}
             <Link to={`/profile/${user?.id}`} onClick={() => setDrawerOpen(false)}
-              className="flex items-center gap-3 px-5 py-4 border-b border-white/10 hover:bg-white/5 transition-colors"
+              className="flex items-center gap-3 px-5 py-4 border-b border-ink/10 hover:bg-ink/5 transition-colors"
             >
               <span className="relative shrink-0">
                 {user?.avatar
                   ? <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                  : <div className="w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center font-bold text-primary">
+                  : <div className="w-10 h-10 rounded-full bg-ink/10 border border-ink/20 flex items-center justify-center font-bold text-primary">
                       {user?.name?.charAt(0).toUpperCase()}
                     </div>
                 }
                 {profileIncomplete && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-dark text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-black">!</span>
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">!</span>
                 )}
               </span>
               <div className="min-w-0">
@@ -237,7 +238,7 @@ export default function MainLayout() {
                 return (
                   <Link key={to} to={to} onClick={() => setDrawerOpen(false)}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                      active ? 'bg-primary text-dark font-semibold' : 'text-gray-custom hover:bg-white/10 hover:text-white'
+                      active ? 'bg-primary text-on-primary font-semibold' : 'text-gray-custom hover:bg-ink/10 hover:text-foreground'
                     }`}
                   >
                     <span className="relative">
@@ -251,14 +252,14 @@ export default function MainLayout() {
             </nav>
 
             {/* Settings + Logout */}
-            <div className="p-3 border-t border-white/10 space-y-1">
+            <div className="p-3 border-t border-ink/10 space-y-1">
               <Link to="/settings" onClick={() => setDrawerOpen(false)}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-custom hover:bg-white/10 hover:text-white transition-colors"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-custom hover:bg-ink/10 hover:text-foreground transition-colors"
               >
                 <Settings size={20} /><span className="font-medium">Settings</span>
               </Link>
               <button onClick={() => { setDrawerOpen(false); handleLogout(); }}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-custom hover:bg-white/10 hover:text-red-400 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-custom hover:bg-ink/10 hover:text-red-400 transition-colors"
               >
                 <LogOut size={20} /><span className="font-medium">Sign Out</span>
               </button>
@@ -276,7 +277,7 @@ export default function MainLayout() {
             <Link to="/profile/edit"
               className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/15 transition-colors"
             >
-              <span className="w-8 h-8 bg-yellow-500 text-dark rounded-full flex items-center justify-center text-sm font-bold shrink-0">!</span>
+              <span className="w-8 h-8 bg-yellow-500 text-black rounded-full flex items-center justify-center text-sm font-bold shrink-0">!</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-yellow-400">Complete your profile</p>
                 <p className="text-xs text-yellow-400/60 mt-0.5">Add your bio, avatar, location, age, and position to get verified</p>
@@ -291,7 +292,7 @@ export default function MainLayout() {
       </main>
 
       {/* ── MOBILE BOTTOM NAV ─────────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2 border-t border-white/10"
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2 border-t border-ink/10"
         style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
       >
         {bottomNav.map(({ to, icon: Icon, label }) => {
@@ -300,7 +301,7 @@ export default function MainLayout() {
           return (
             <Link key={to} to={to}
               className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
-                active ? 'text-primary' : 'text-gray-custom hover:text-white'
+                active ? 'text-primary' : 'text-gray-custom hover:text-foreground'
               }`}
             >
               <span className="relative">
@@ -308,14 +309,14 @@ export default function MainLayout() {
                   ? <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
                   : (user?.avatar
                       ? <img src={user.avatar} className={`w-6 h-6 rounded-full object-cover ${active ? 'ring-2 ring-primary' : ''}`} />
-                      : <div className={`w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold ${active ? 'ring-2 ring-primary text-primary' : 'text-gray-custom'}`}>
+                      : <div className={`w-6 h-6 rounded-full bg-ink/10 flex items-center justify-center text-xs font-bold ${active ? 'ring-2 ring-primary text-primary' : 'text-gray-custom'}`}>
                           {user?.name?.charAt(0).toUpperCase()}
                         </div>
                     )
                 }
-                {hasBadge && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-black" />}
+                {hasBadge && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface" />}
                 {!Icon && profileIncomplete && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-yellow-500 text-dark text-[8px] font-bold rounded-full flex items-center justify-center ring-1 ring-black">!</span>
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-yellow-500 text-black text-[8px] font-bold rounded-full flex items-center justify-center ring-1 ring-surface">!</span>
                 )}
               </span>
               <span className="text-[10px] font-medium">{label}</span>

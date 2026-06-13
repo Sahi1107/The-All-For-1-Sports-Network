@@ -144,7 +144,7 @@ export default function Notifications() {
         <Bell size={22} />
         <h1 className="text-2xl font-bold">Notifications</h1>
         {unreadCount > 0 && (
-          <span className="px-2 py-0.5 bg-primary text-dark text-xs font-bold rounded-full">{unreadCount}</span>
+          <span className="px-2 py-0.5 bg-primary text-on-primary text-xs font-bold rounded-full">{unreadCount}</span>
         )}
       </div>
 
@@ -153,17 +153,17 @@ export default function Notifications() {
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : allNotifs.length === 0 ? (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter p-16 text-center">
+        <div className="bg-card rounded-xl border border-line p-16 text-center">
           <Bell size={32} className="mx-auto mb-3 text-gray-custom" />
           <p className="text-gray-custom">No notifications yet.</p>
         </div>
       ) : (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter divide-y divide-dark-lighter overflow-hidden">
+        <div className="bg-card rounded-xl border border-line divide-y divide-line overflow-hidden">
           {allNotifs.map((n: any) => (
             <div
               key={n.id}
               onClick={() => handleClick(n)}
-              className={`flex items-start gap-3 px-5 py-4 cursor-pointer transition-colors hover:bg-dark/40 ${
+              className={`flex items-start gap-3 px-5 py-4 cursor-pointer transition-colors hover:bg-surface/40 ${
                 !n.read ? 'bg-primary/5' : ''
               }`}
             >
@@ -180,7 +180,7 @@ export default function Notifications() {
                 </Link>
               ) : (
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                  !n.read ? 'bg-primary/20' : 'bg-dark-lighter'
+                  !n.read ? 'bg-primary/20' : 'bg-elevated'
                 }`}>
                   {TYPE_ICONS[n.type] ?? <Bell size={16} className="text-gray-custom" />}
                 </div>
@@ -188,7 +188,7 @@ export default function Notifications() {
 
               {/* Content */}
               <div className="flex-1 min-w-0">
-                <p className={`text-sm ${!n.read ? 'text-white font-medium' : 'text-gray-custom'}`}>
+                <p className={`text-sm ${!n.read ? 'text-foreground font-medium' : 'text-gray-custom'}`}>
                   {n.actor && (
                     <Link
                       to={`/profile/${n.actor.id}`}
@@ -216,7 +216,7 @@ export default function Notifications() {
                         acceptInviteMutation.mutate(n.referenceId);
                       }}
                       disabled={respondingTeamId === n.referenceId}
-                      className="px-3 py-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark text-xs font-semibold rounded-lg transition-colors"
+                      className="px-3 py-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-on-primary text-xs font-semibold rounded-lg transition-colors"
                     >
                       Accept
                     </button>
@@ -226,7 +226,7 @@ export default function Notifications() {
                         declineInviteMutation.mutate(n.referenceId);
                       }}
                       disabled={respondingTeamId === n.referenceId}
-                      className="px-3 py-1.5 bg-dark hover:bg-dark-lighter disabled:opacity-50 border border-dark-lighter text-xs text-gray-custom hover:text-white rounded-lg transition-colors"
+                      className="px-3 py-1.5 bg-surface hover:bg-elevated disabled:opacity-50 border border-line text-xs text-gray-custom hover:text-foreground rounded-lg transition-colors"
                     >
                       Decline
                     </button>
@@ -249,7 +249,7 @@ export default function Notifications() {
           <button
             onClick={loadMore}
             disabled={loadingMore}
-            className="px-6 py-2.5 bg-dark-light hover:bg-dark-lighter border border-dark-lighter text-sm text-gray-custom hover:text-white rounded-lg transition-colors disabled:opacity-50"
+            className="px-6 py-2.5 bg-card hover:bg-elevated border border-line text-sm text-gray-custom hover:text-foreground rounded-lg transition-colors disabled:opacity-50"
           >
             {loadingMore ? (
               <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mx-4" />

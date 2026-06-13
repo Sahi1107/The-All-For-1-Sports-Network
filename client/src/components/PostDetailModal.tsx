@@ -42,11 +42,11 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
       onClick={onClose}
     >
       <div
-        className="bg-dark-light border border-dark-lighter rounded-none sm:rounded-2xl w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-3xl overflow-hidden flex flex-col shadow-2xl"
+        className="bg-card border border-line rounded-none sm:rounded-2xl w-full h-full sm:h-auto sm:max-h-[92vh] sm:max-w-3xl overflow-hidden flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 p-4 border-b border-dark-lighter">
+        <div className="flex items-center gap-3 p-4 border-b border-line">
           <Link to={`/profile/${post.user?.id}`} onClick={onClose}>
             {post.user?.avatar ? (
               <img src={post.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
@@ -84,7 +84,7 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
           <button
             onClick={onClose}
             aria-label="Close"
-            className="ml-2 p-1.5 text-gray-custom hover:text-white hover:bg-dark-lighter rounded-lg transition-colors"
+            className="ml-2 p-1.5 text-gray-custom hover:text-foreground hover:bg-elevated rounded-lg transition-colors"
           >
             <X size={18} />
           </button>
@@ -117,7 +117,7 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
             <div className="p-4">
               {post.title && <h3 className="font-semibold text-lg mb-1">{post.title}</h3>}
               {post.content && (
-                <p className="text-sm text-white/80 whitespace-pre-wrap leading-relaxed">{post.content}</p>
+                <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">{post.content}</p>
               )}
             </div>
           )}

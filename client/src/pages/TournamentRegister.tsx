@@ -211,21 +211,21 @@ export default function TournamentRegister() {
   }
   if (!tournament) {
     return (
-      <div className="bg-dark-light rounded-xl border border-dark-lighter p-12 text-center">
+      <div className="bg-card rounded-xl border border-line p-12 text-center">
         <p className="text-gray-custom">Tournament not found.</p>
       </div>
     )
   }
   if (tournament.format === 'INDIVIDUAL') {
     return (
-      <div className="bg-dark-light rounded-xl border border-dark-lighter p-12 text-center">
+      <div className="bg-card rounded-xl border border-line p-12 text-center">
         <p className="text-gray-custom">This tournament uses individual entry — team registration isn't available.</p>
       </div>
     )
   }
   if (!['UPCOMING', 'REGISTRATION_OPEN'].includes(tournament.status)) {
     return (
-      <div className="bg-dark-light rounded-xl border border-dark-lighter p-12 text-center">
+      <div className="bg-card rounded-xl border border-line p-12 text-center">
         <p className="text-gray-custom">Registration is closed for this tournament.</p>
       </div>
     )
@@ -236,7 +236,7 @@ export default function TournamentRegister() {
       {/* Header */}
       <button
         onClick={() => navigate('/tournaments')}
-        className="flex items-center gap-1.5 text-sm text-gray-custom hover:text-white mb-4"
+        className="flex items-center gap-1.5 text-sm text-gray-custom hover:text-foreground mb-4"
       >
         <ArrowLeft size={14} /> Back to tournaments
       </button>
@@ -254,7 +254,7 @@ export default function TournamentRegister() {
 
       <div className="space-y-5">
         {/* ── Team identity ─────────────────────────────────────────────── */}
-        <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+        <section className="bg-card rounded-xl border border-line p-5">
           <h2 className="font-semibold mb-3 flex items-center gap-2">
             <Users size={16} className="text-primary-light" />
             Team
@@ -267,7 +267,7 @@ export default function TournamentRegister() {
               <button
                 type="button"
                 onClick={() => logoInputRef.current?.click()}
-                className="w-20 h-20 rounded-lg border-2 border-dashed border-dark-lighter hover:border-primary/60 flex items-center justify-center overflow-hidden bg-dark transition-colors"
+                className="w-20 h-20 rounded-lg border-2 border-dashed border-line hover:border-primary/60 flex items-center justify-center overflow-hidden bg-surface transition-colors"
               >
                 {logoPreview
                   ? <img src={logoPreview} alt="logo" className="w-full h-full object-cover" />
@@ -304,7 +304,7 @@ export default function TournamentRegister() {
                 onChange={(e) => setTeamName(e.target.value)}
                 maxLength={50}
                 placeholder="e.g. Mumbai Strikers"
-                className="w-full px-3 py-2 bg-dark border border-dark-lighter rounded-lg text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
               <p className="mt-1.5 text-[10px] text-gray-custom">Optional logo — JPG, PNG, or WebP up to 2 MB.</p>
             </div>
@@ -312,14 +312,14 @@ export default function TournamentRegister() {
         </section>
 
         {/* ── Coach ─────────────────────────────────────────────────────── */}
-        <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+        <section className="bg-card rounded-xl border border-line p-5">
           <h2 className="font-semibold mb-3 flex items-center gap-2">
             <Award size={16} className="text-primary-light" />
             Coach {isCoachUser ? '' : <span className="text-xs text-gray-custom font-normal">(optional)</span>}
           </h2>
 
           {isCoachUser ? (
-            <div className="flex items-center gap-3 px-3 py-2.5 bg-dark rounded-lg">
+            <div className="flex items-center gap-3 px-3 py-2.5 bg-surface rounded-lg">
               <Avatar user={user!} size={32} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user!.name} (you)</p>
@@ -327,7 +327,7 @@ export default function TournamentRegister() {
               </div>
             </div>
           ) : coachId && coachCache ? (
-            <div className="flex items-center gap-3 px-3 py-2.5 bg-dark rounded-lg">
+            <div className="flex items-center gap-3 px-3 py-2.5 bg-surface rounded-lg">
               <Avatar user={coachCache} size={32} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{coachCache.name}</p>
@@ -339,18 +339,18 @@ export default function TournamentRegister() {
             </div>
           ) : (
             <div className="relative">
-              <div className="flex items-center gap-2 px-3 py-2 bg-dark border border-dark-lighter rounded-lg focus-within:border-primary">
+              <div className="flex items-center gap-2 px-3 py-2 bg-surface border border-line rounded-lg focus-within:border-primary">
                 <Search size={14} className="text-gray-custom" />
                 <input
                   type="text"
                   value={coachSearch}
                   onChange={(e) => setCoachSearch(e.target.value)}
                   placeholder="Search by coach name…"
-                  className="flex-1 bg-transparent text-sm text-white placeholder-gray-custom focus:outline-none"
+                  className="flex-1 bg-transparent text-sm text-foreground placeholder-gray-custom focus:outline-none"
                 />
               </div>
               {debouncedCoachSearch.trim().length >= 2 && (
-                <div className="mt-2 border border-dark-lighter rounded-lg overflow-hidden divide-y divide-dark-lighter">
+                <div className="mt-2 border border-line rounded-lg overflow-hidden divide-y divide-line">
                   {coachesFetching ? (
                     <div className="px-3 py-3 text-xs text-gray-custom">Searching…</div>
                   ) : (coachResults?.users ?? []).length === 0 ? (
@@ -360,7 +360,7 @@ export default function TournamentRegister() {
                       <button
                         key={u.id}
                         onClick={() => pickCoach(u)}
-                        className="w-full flex items-center gap-3 px-3 py-2 bg-dark hover:bg-dark-lighter text-left transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2 bg-surface hover:bg-elevated text-left transition-colors"
                       >
                         <Avatar user={u} size={28} />
                         <div className="flex-1 min-w-0">
@@ -377,7 +377,7 @@ export default function TournamentRegister() {
         </section>
 
         {/* ── Roster ────────────────────────────────────────────────────── */}
-        <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+        <section className="bg-card rounded-xl border border-line p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold flex items-center gap-2">
               <UserPlus size={16} className="text-primary-light" />
@@ -404,7 +404,7 @@ export default function TournamentRegister() {
             <button
               onClick={addMeAsPlayer}
               disabled={atCap}
-              className="w-full flex items-center gap-3 px-3 py-2 mb-3 bg-dark hover:bg-dark-lighter disabled:opacity-40 disabled:cursor-not-allowed rounded-lg border border-dashed border-dark-lighter transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2 mb-3 bg-surface hover:bg-elevated disabled:opacity-40 disabled:cursor-not-allowed rounded-lg border border-dashed border-line transition-colors"
             >
               <Avatar user={user} size={28} />
               <span className="text-sm">Add me as a player</span>
@@ -413,18 +413,18 @@ export default function TournamentRegister() {
 
           {/* Search */}
           <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2 bg-dark border border-dark-lighter rounded-lg focus-within:border-primary">
+            <div className="flex items-center gap-2 px-3 py-2 bg-surface border border-line rounded-lg focus-within:border-primary">
               <Search size={14} className="text-gray-custom" />
               <input
                 type="text"
                 value={playerSearch}
                 onChange={(e) => setPlayerSearch(e.target.value)}
                 placeholder="Search players by name…"
-                className="flex-1 bg-transparent text-sm text-white placeholder-gray-custom focus:outline-none"
+                className="flex-1 bg-transparent text-sm text-foreground placeholder-gray-custom focus:outline-none"
               />
             </div>
             {debouncedPlayerSearch.trim().length >= 2 && (
-              <div className="mt-2 border border-dark-lighter rounded-lg overflow-hidden divide-y divide-dark-lighter max-h-72 overflow-y-auto">
+              <div className="mt-2 border border-line rounded-lg overflow-hidden divide-y divide-line max-h-72 overflow-y-auto">
                 {atCap ? (
                   <div className="px-3 py-3 text-xs text-amber-300 flex items-center gap-2">
                     <AlertCircle size={12} />
@@ -442,7 +442,7 @@ export default function TournamentRegister() {
                       <button
                         key={u.id}
                         onClick={() => addPlayer(u)}
-                        className="w-full flex items-center gap-3 px-3 py-2 bg-dark hover:bg-dark-lighter text-left transition-colors"
+                        className="w-full flex items-center gap-3 px-3 py-2 bg-surface hover:bg-elevated text-left transition-colors"
                       >
                         <Avatar user={u} size={28} />
                         <div className="flex-1 min-w-0">
@@ -463,7 +463,7 @@ export default function TournamentRegister() {
           {selectedPlayers.length > 0 && (
             <div className="mt-4 space-y-2">
               {selectedPlayers.map((p) => (
-                <div key={p.id} className="flex items-center gap-3 px-3 py-2 bg-dark rounded-lg">
+                <div key={p.id} className="flex items-center gap-3 px-3 py-2 bg-surface rounded-lg">
                   <Avatar user={p} size={28} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
@@ -491,7 +491,7 @@ export default function TournamentRegister() {
 
         {/* ── Captain ───────────────────────────────────────────────────── */}
         {selectedPlayers.length > 0 && (
-          <section className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+          <section className="bg-card rounded-xl border border-line p-5">
             <h2 className="font-semibold mb-3 flex items-center gap-2">
               <Crown size={16} className="text-amber-400" />
               Captain
@@ -499,7 +499,7 @@ export default function TournamentRegister() {
             <select
               value={captainId}
               onChange={(e) => setCaptainId(e.target.value)}
-              className="w-full px-3 py-2 bg-dark border border-dark-lighter rounded-lg text-sm text-white focus:outline-none focus:border-primary"
+              className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm text-foreground focus:outline-none focus:border-primary"
             >
               {selectedPlayers.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -518,7 +518,7 @@ export default function TournamentRegister() {
           <button
             onClick={() => registerMutation.mutate()}
             disabled={!canSubmit}
-            className="px-6 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed text-dark font-semibold text-sm rounded-lg transition-colors"
+            className="px-6 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed text-on-primary font-semibold text-sm rounded-lg transition-colors"
           >
             {registerMutation.isPending ? 'Submitting…' : 'Submit registration'}
           </button>

@@ -16,7 +16,7 @@ const SPORT_LABELS: Record<string, string> = Object.fromEntries(
 const STATUS_COLORS: Record<string, string> = {
   UPCOMING: 'bg-blue-500/20 text-blue-400',
   ONGOING: 'bg-accent/20 text-accent',
-  COMPLETED: 'bg-gray-500/20 text-gray-400',
+  COMPLETED: 'bg-gray-500/20 text-gray-custom',
 }
 
 function formatDate(d: string) {
@@ -66,7 +66,7 @@ export default function Tournaments() {
             key={s}
             onClick={() => setSportFilter(s)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              sportFilter === s ? 'bg-primary text-dark font-semibold' : 'bg-dark-light text-gray-custom hover:text-white border border-dark-lighter'
+              sportFilter === s ? 'bg-primary text-on-primary font-semibold' : 'bg-card text-gray-custom hover:text-foreground border border-line'
             }`}
           >
             {s ? `${SPORT_ICONS[s]} ${SPORT_LABELS[s]}` : 'All Sports'}
@@ -79,7 +79,7 @@ export default function Tournaments() {
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : tournaments.length === 0 ? (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter p-16 text-center">
+        <div className="bg-card rounded-xl border border-line p-16 text-center">
           <Trophy size={32} className="mx-auto mb-3 text-gray-custom" />
           <p className="text-gray-custom">No tournaments found.</p>
         </div>
@@ -89,7 +89,7 @@ export default function Tournaments() {
             <div
               key={t.id}
               onClick={() => setSelected(t)}
-              className="bg-dark-light rounded-xl border border-dark-lighter p-5 cursor-pointer hover:border-primary/50 transition-colors"
+              className="bg-card rounded-xl border border-line p-5 cursor-pointer hover:border-primary/50 transition-colors"
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
@@ -118,10 +118,10 @@ export default function Tournaments() {
       {/* Detail Modal */}
       {selected && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-light rounded-xl border border-dark-lighter w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-dark-lighter sticky top-0 bg-dark-light">
+          <div className="bg-card rounded-xl border border-line w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-line sticky top-0 bg-card">
               <h2 className="font-semibold text-lg">{selected.name}</h2>
-              <button onClick={() => setSelected(null)} className="text-gray-custom hover:text-white"><X size={18} /></button>
+              <button onClick={() => setSelected(null)} className="text-gray-custom hover:text-foreground"><X size={18} /></button>
             </div>
 
             <div className="p-5 space-y-5">
@@ -139,7 +139,7 @@ export default function Tournaments() {
               {(detail?.tournament?.myTeams ?? []).map((t: any) => {
                 const isCaptain = t.myRole === 'CAPTAIN'
                 return (
-                  <div key={t.id} className="bg-dark rounded-lg border border-primary/30 p-4 space-y-3">
+                  <div key={t.id} className="bg-surface rounded-lg border border-primary/30 p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         {t.logo
@@ -170,7 +170,7 @@ export default function Tournaments() {
                     {isCaptain && (
                       <button
                         onClick={() => navigate(`/teams/${t.id}`)}
-                        className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-dark-light hover:bg-dark-lighter border border-dark-lighter text-sm rounded-lg transition-colors"
+                        className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-card hover:bg-elevated border border-line text-sm rounded-lg transition-colors"
                       >
                         <Settings size={13} /> Manage team
                       </button>
@@ -183,7 +183,7 @@ export default function Tournaments() {
               {acceptsTeamRegistration && (detail?.tournament?.myTeams ?? []).length === 0 && (
                 <button
                   onClick={() => navigate(`/tournaments/${selected.id}/register`)}
-                  className="w-full px-4 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors"
+                  className="w-full px-4 py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
                 >
                   Register a team
                 </button>
@@ -195,7 +195,7 @@ export default function Tournaments() {
                   <h3 className="text-sm font-medium mb-3">Registered Teams ({detail.tournament.teams.length})</h3>
                   <div className="space-y-2">
                     {detail.tournament.teams.map((r: any) => (
-                      <div key={r.id} className="flex items-center gap-3 py-2 px-3 bg-dark rounded-lg">
+                      <div key={r.id} className="flex items-center gap-3 py-2 px-3 bg-surface rounded-lg">
                         <Users size={14} className="text-gray-custom" />
                         <span className="text-sm">{r.team?.name}</span>
                       </div>

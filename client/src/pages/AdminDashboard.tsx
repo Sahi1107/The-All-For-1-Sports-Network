@@ -54,7 +54,7 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
 
   if (isLoading) {
     return (
-      <div className="px-5 py-4 bg-dark/30 flex justify-center">
+      <div className="px-5 py-4 bg-surface/30 flex justify-center">
         <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -63,18 +63,18 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
   const registrations: any[] = data?.registrations ?? [];
   if (registrations.length === 0) {
     return (
-      <div className="px-5 py-4 bg-dark/30 text-xs text-gray-custom">
+      <div className="px-5 py-4 bg-surface/30 text-xs text-gray-custom">
         No teams have registered yet.
       </div>
     );
   }
 
   return (
-    <div className="px-5 py-4 bg-dark/30 space-y-3">
+    <div className="px-5 py-4 bg-surface/30 space-y-3">
       {registrations.map((r: any) => {
         const { team, summary } = r;
         return (
-          <div key={r.id} className="bg-dark rounded-lg border border-dark-lighter p-4">
+          <div key={r.id} className="bg-surface rounded-lg border border-line p-4">
             <div className="flex items-center justify-between mb-3 gap-2">
               <div className="min-w-0">
                 <p className="text-sm font-semibold truncate">{team.name}</p>
@@ -110,7 +110,7 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
               )}
             </div>
 
-            <div className="border-t border-dark-lighter pt-3 space-y-1.5">
+            <div className="border-t border-line pt-3 space-y-1.5">
               {team.members.map((m: any) => (
                 <div key={m.id} className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2 min-w-0">
@@ -124,7 +124,7 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
                     className={`px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 ${
                       m.status === 'ACCEPTED' ? 'bg-accent/20 text-accent'
                         : m.status === 'DECLINED' ? 'bg-red-500/20 text-red-400'
-                        : 'bg-gray-500/20 text-gray-400'
+                        : 'bg-gray-500/20 text-gray-custom'
                     }`}
                   >
                     {m.status}
@@ -343,8 +343,8 @@ export default function AdminDashboard() {
             onClick={() => setTab(t)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === t
-                ? 'bg-primary text-dark font-semibold'
-                : 'bg-dark-light text-gray-custom hover:text-white border border-dark-lighter'
+                ? 'bg-primary text-on-primary font-semibold'
+                : 'bg-card text-gray-custom hover:text-foreground border border-line'
             }`}
           >
             <Icon size={15} />
@@ -361,12 +361,12 @@ export default function AdminDashboard() {
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by name..."
-              className="flex-1 min-w-48 bg-dark-light border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              className="flex-1 min-w-48 bg-card border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
             />
             <select
               value={roleFilter}
               onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-              className="bg-dark-light border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+              className="bg-card border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
             >
               <option value="">All Roles</option>
               <option value="ATHLETE">Athlete</option>
@@ -383,9 +383,9 @@ export default function AdminDashboard() {
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (
-            <div className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden">
+            <div className="bg-card rounded-xl border border-line overflow-hidden">
               {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-dark-lighter text-xs text-gray-custom font-medium">
+              <div className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-line text-xs text-gray-custom font-medium">
                 <div className="col-span-4">User</div>
                 <div className="col-span-2">Role</div>
                 <div className="col-span-2">Sport</div>
@@ -393,14 +393,14 @@ export default function AdminDashboard() {
                 <div className="col-span-2 text-right">Actions</div>
               </div>
 
-              <div className="divide-y divide-dark-lighter">
+              <div className="divide-y divide-line">
                 {users.length === 0 ? (
                   <div className="p-10 text-center text-gray-custom text-sm">No users found</div>
                 ) : users.map((u: any) => (
-                  <div key={u.id} className="grid grid-cols-12 gap-2 px-5 py-3 items-center hover:bg-dark/20 transition-colors">
+                  <div key={u.id} className="grid grid-cols-12 gap-2 px-5 py-3 items-center hover:bg-surface/20 transition-colors">
                     {/* User */}
                     <div className="col-span-4 flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-dark-lighter flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
+                      <div className="w-8 h-8 rounded-full bg-elevated flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
                         {u.avatar
                           ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
                           : u.name?.charAt(0)}
@@ -416,7 +416,7 @@ export default function AdminDashboard() {
                       <select
                         value={u.role}
                         onChange={(e) => roleMutation.mutate({ id: u.id, role: e.target.value })}
-                        className="bg-dark border border-dark-lighter rounded px-1.5 py-1 text-xs text-white focus:outline-none focus:border-primary"
+                        className="bg-surface border border-line rounded px-1.5 py-1 text-xs text-foreground focus:outline-none focus:border-primary"
                       >
                         <option value="ATHLETE">Athlete</option>
                         <option value="COACH">Coach</option>
@@ -439,7 +439,7 @@ export default function AdminDashboard() {
                         className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-full transition-colors ${
                           u.verified
                             ? 'bg-accent/20 text-accent hover:bg-red-500/20 hover:text-red-400'
-                            : 'bg-dark text-gray-custom hover:bg-accent/20 hover:text-accent border border-dark-lighter'
+                            : 'bg-surface text-gray-custom hover:bg-accent/20 hover:text-accent border border-line'
                         }`}
                       >
                         <CheckCircle size={11} />
@@ -468,13 +468,13 @@ export default function AdminDashboard() {
 
               {/* Pagination */}
               {usersData?.total > 20 && (
-                <div className="flex items-center justify-between px-5 py-3 border-t border-dark-lighter">
+                <div className="flex items-center justify-between px-5 py-3 border-t border-line">
                   <span className="text-xs text-gray-custom">{usersData.total} total users</span>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={page === 1}
-                      className="px-3 py-1 text-sm text-gray-custom hover:text-white disabled:opacity-40 border border-dark-lighter rounded-lg"
+                      className="px-3 py-1 text-sm text-gray-custom hover:text-foreground disabled:opacity-40 border border-line rounded-lg"
                     >
                       Prev
                     </button>
@@ -482,7 +482,7 @@ export default function AdminDashboard() {
                     <button
                       onClick={() => setPage((p) => p + 1)}
                       disabled={page * 20 >= usersData.total}
-                      className="px-3 py-1 text-sm text-gray-custom hover:text-white disabled:opacity-40 border border-dark-lighter rounded-lg"
+                      className="px-3 py-1 text-sm text-gray-custom hover:text-foreground disabled:opacity-40 border border-line rounded-lg"
                     >
                       Next
                     </button>
@@ -506,13 +506,13 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
                 {[
                   { label: 'Total Users',   value: stats.totalUsers,   color: 'text-primary-light' },
-                  { label: 'Athletes',      value: stats.athletes,     color: 'text-white' },
+                  { label: 'Athletes',      value: stats.athletes,     color: 'text-foreground' },
                   { label: 'Coaches',       value: stats.coaches,      color: 'text-secondary' },
                   { label: 'Scouts',        value: stats.scouts,       color: 'text-accent' },
                   { label: 'Agents',        value: stats.agents,       color: 'text-amber-400' },
-                  { label: 'Team Accounts', value: stats.teamAccounts, color: 'text-white' },
+                  { label: 'Team Accounts', value: stats.teamAccounts, color: 'text-foreground' },
                 ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-dark-light rounded-xl border border-dark-lighter p-5 text-center">
+                  <div key={label} className="bg-card rounded-xl border border-line p-5 text-center">
                     <p className={`text-3xl font-bold ${color}`}>{value ?? 0}</p>
                     <p className="text-sm text-gray-custom mt-1">{label}</p>
                   </div>
@@ -526,15 +526,15 @@ export default function AdminDashboard() {
                   { label: 'Tournaments',     value: stats.tournaments },
                   { label: 'Verified Users',  value: stats.verifiedUsers },
                 ].map(({ label, value }) => (
-                  <div key={label} className="bg-dark-light rounded-xl border border-dark-lighter p-5 text-center">
-                    <p className="text-3xl font-bold text-white">{value ?? 0}</p>
+                  <div key={label} className="bg-card rounded-xl border border-line p-5 text-center">
+                    <p className="text-3xl font-bold text-foreground">{value ?? 0}</p>
                     <p className="text-sm text-gray-custom mt-1">{label}</p>
                   </div>
                 ))}
               </div>
 
               {stats.bySport && (
-                <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+                <div className="bg-card rounded-xl border border-line p-5">
                   <h2 className="font-semibold mb-4 flex items-center gap-2">
                     <BarChart3 size={16} className="text-primary-light" />
                     Users by Sport
@@ -548,7 +548,7 @@ export default function AdminDashboard() {
                             <span>{sport}</span>
                             <span className="text-gray-custom">{count} ({pct}%)</span>
                           </div>
-                          <div className="w-full bg-dark rounded-full h-2">
+                          <div className="w-full bg-surface rounded-full h-2">
                             <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
                           </div>
                         </div>
@@ -571,7 +571,7 @@ export default function AdminDashboard() {
             </p>
             <button
               onClick={() => setShowTournamentForm((v) => !v)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg text-sm transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm transition-colors"
             >
               <Plus size={15} />
               {showTournamentForm ? 'Cancel' : 'Add Tournament'}
@@ -581,7 +581,7 @@ export default function AdminDashboard() {
           {showTournamentForm && (
             <form
               onSubmit={handleCreateTournament}
-              className="bg-dark-light rounded-xl border border-dark-lighter p-6 space-y-5"
+              className="bg-card rounded-xl border border-line p-6 space-y-5"
             >
               <div className="flex items-center gap-2">
                 <Trophy size={18} className="text-primary" />
@@ -595,7 +595,7 @@ export default function AdminDashboard() {
                   <button
                     type="button"
                     onClick={() => thumbnailInputRef.current?.click()}
-                    className="w-24 h-24 rounded-lg border-2 border-dashed border-dark-lighter hover:border-primary/60 flex items-center justify-center overflow-hidden bg-dark transition-colors"
+                    className="w-24 h-24 rounded-lg border-2 border-dashed border-line hover:border-primary/60 flex items-center justify-center overflow-hidden bg-surface transition-colors"
                   >
                     {thumbnailPreview
                       ? <img src={thumbnailPreview} alt="thumbnail" className="w-full h-full object-cover" />
@@ -638,7 +638,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.name}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, name: e.target.value }))}
                     placeholder="e.g. Summer Hoops Classic"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                   />
                 </div>
                 <div>
@@ -647,7 +647,7 @@ export default function AdminDashboard() {
                     required
                     value={tournamentForm.sport}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, sport: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
                   >
                     {SPORTS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                   </select>
@@ -663,7 +663,7 @@ export default function AdminDashboard() {
                     required
                     value={tournamentForm.startDate}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, startDate: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
                   />
                 </div>
                 <div>
@@ -673,7 +673,7 @@ export default function AdminDashboard() {
                     required
                     value={tournamentForm.endDate}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, endDate: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
                   />
                 </div>
               </div>
@@ -687,7 +687,7 @@ export default function AdminDashboard() {
                   value={tournamentForm.description}
                   onChange={(e) => setTournamentForm((f) => ({ ...f, description: e.target.value }))}
                   placeholder="Format, rules, highlights…"
-                  className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm resize-none"
+                  className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm resize-none"
                 />
               </div>
 
@@ -701,7 +701,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.venue}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, venue: e.target.value }))}
                     placeholder="Arena / ground name"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                   />
                 </div>
                 <div>
@@ -712,7 +712,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.city}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, city: e.target.value }))}
                     placeholder="Mumbai"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                   />
                 </div>
               </div>
@@ -728,7 +728,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.entryFee}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, entryFee: e.target.value }))}
                     placeholder="0"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                   />
                 </div>
                 <div>
@@ -740,7 +740,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.prizePool}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, prizePool: e.target.value }))}
                     placeholder="0"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                   />
                 </div>
                 <div>
@@ -752,7 +752,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.maxTeams}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, maxTeams: e.target.value }))}
                     placeholder="16"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                   />
                 </div>
               </div>
@@ -764,7 +764,7 @@ export default function AdminDashboard() {
                   <select
                     value={tournamentForm.ageCategory}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, ageCategory: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
                   >
                     <option value="">— None —</option>
                     {AGE_CATEGORIES.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -775,7 +775,7 @@ export default function AdminDashboard() {
                   <select
                     value={tournamentForm.genderCategory}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, genderCategory: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
                   >
                     <option value="">— None —</option>
                     {GENDER_CATEGORIES.map((g) => <option key={g} value={g}>{g}</option>)}
@@ -790,7 +790,7 @@ export default function AdminDashboard() {
                   <select
                     value={tournamentForm.format}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, format: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white text-sm"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
                   >
                     {TOURNAMENT_FORMATS.map(({ value, label }) => (
                       <option key={value} value={value}>{label}</option>
@@ -807,7 +807,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.minRosterSize}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, minRosterSize: e.target.value }))}
                     placeholder="e.g. 11"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm disabled:opacity-50"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm disabled:opacity-50"
                   />
                 </div>
                 <div>
@@ -820,7 +820,7 @@ export default function AdminDashboard() {
                     value={tournamentForm.maxRosterSize}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, maxRosterSize: e.target.value }))}
                     placeholder="e.g. 18"
-                    className="w-full px-4 py-2.5 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm disabled:opacity-50"
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -829,14 +829,14 @@ export default function AdminDashboard() {
                 <button
                   type="button"
                   onClick={() => { setShowTournamentForm(false); setTournamentForm(emptyTournamentForm); handleThumbnailPick(null); }}
-                  className="px-5 py-2.5 border border-dark-lighter text-gray-custom hover:text-white rounded-lg text-sm transition-colors"
+                  className="px-5 py-2.5 border border-line text-gray-custom hover:text-foreground rounded-lg text-sm transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={createTournamentMutation.isPending}
-                  className="flex-1 px-5 py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg text-sm transition-colors disabled:opacity-50"
+                  className="flex-1 px-5 py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm transition-colors disabled:opacity-50"
                 >
                   {createTournamentMutation.isPending ? 'Creating…' : 'Create Tournament'}
                 </button>
@@ -850,19 +850,19 @@ export default function AdminDashboard() {
               <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             </div>
           ) : (tournamentsData?.tournaments ?? []).length === 0 ? (
-            <div className="bg-dark-light rounded-xl border border-dark-lighter p-12 text-center">
+            <div className="bg-card rounded-xl border border-line p-12 text-center">
               <Trophy size={28} className="mx-auto mb-3 text-gray-custom" />
               <p className="text-sm text-gray-custom">No tournaments yet.</p>
             </div>
           ) : (
-            <div className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden">
-              <div className="divide-y divide-dark-lighter">
+            <div className="bg-card rounded-xl border border-line overflow-hidden">
+              <div className="divide-y divide-line">
                 {(tournamentsData.tournaments).map((t: any) => {
                   const isExpanded = expandedTournamentId === t.id;
                   return (
                     <div key={t.id}>
-                      <div className="flex items-center gap-4 px-5 py-3 hover:bg-dark/20 transition-colors">
-                        <div className="w-14 h-14 rounded-lg overflow-hidden bg-dark shrink-0 flex items-center justify-center">
+                      <div className="flex items-center gap-4 px-5 py-3 hover:bg-surface/20 transition-colors">
+                        <div className="w-14 h-14 rounded-lg overflow-hidden bg-surface shrink-0 flex items-center justify-center">
                           {t.thumbnailUrl
                             ? <img src={t.thumbnailUrl} alt={t.name} className="w-full h-full object-cover" />
                             : <Trophy size={18} className="text-gray-custom" />}
@@ -878,15 +878,15 @@ export default function AdminDashboard() {
                             {new Date(t.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                           </p>
                         </div>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-dark text-gray-custom border border-dark-lighter">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-surface text-gray-custom border border-line">
                           {t._count?.teams ?? 0} registered
                         </span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-dark text-gray-custom border border-dark-lighter">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-surface text-gray-custom border border-line">
                           {t.status}
                         </span>
                         <button
                           onClick={() => setExpandedTournamentId(isExpanded ? null : t.id)}
-                          className="flex items-center gap-1 p-1.5 text-xs text-gray-custom hover:text-white transition-colors rounded"
+                          className="flex items-center gap-1 p-1.5 text-xs text-gray-custom hover:text-foreground transition-colors rounded"
                           title={isExpanded ? 'Hide registrations' : 'View registrations'}
                         >
                           {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -915,7 +915,7 @@ export default function AdminDashboard() {
 
       {/* ── Feed Preview Tab ──────────────────────────────────────── */}
       {tab === 'feed-preview' && (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+        <div className="bg-card rounded-xl border border-line p-5">
           <h2 className="font-semibold mb-1 flex items-center gap-2">
             <Eye size={16} className="text-primary-light" />
             Feed Preview by Sport
@@ -928,7 +928,7 @@ export default function AdminDashboard() {
               <Link
                 key={value}
                 to={`/home?previewSport=${value}`}
-                className="flex items-center gap-3 p-4 rounded-lg border border-dark-lighter hover:border-primary hover:bg-primary/5 transition-colors"
+                className="flex items-center gap-3 p-4 rounded-lg border border-line hover:border-primary hover:bg-primary/5 transition-colors"
               >
                 <span className="text-2xl">{emoji}</span>
                 <span className="font-medium text-sm">{label}</span>
@@ -941,7 +941,7 @@ export default function AdminDashboard() {
       {/* ── Create Admin Tab ──────────────────────────────────────── */}
       {tab === 'create-admin' && (
         <div className="max-w-md">
-          <div className="bg-dark-light rounded-xl border border-dark-lighter p-6">
+          <div className="bg-card rounded-xl border border-line p-6">
             <div className="flex items-center gap-2 mb-1">
               <UserPlus size={18} className="text-purple-400" />
               <h2 className="font-semibold text-lg">Create Admin Account</h2>
@@ -960,7 +960,7 @@ export default function AdminDashboard() {
                   required
                   maxLength={50}
                   placeholder="e.g. Tournament Director"
-                  className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                 />
               </div>
 
@@ -972,7 +972,7 @@ export default function AdminDashboard() {
                   onChange={(e) => setAdminForm((f) => ({ ...f, email: e.target.value }))}
                   required
                   placeholder="admin@example.com"
-                  className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm"
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
                 />
               </div>
 
@@ -986,12 +986,12 @@ export default function AdminDashboard() {
                     required
                     minLength={8}
                     placeholder="Min 8 chars, upper + lower + number"
-                    className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white placeholder-gray-custom text-sm pr-20"
+                    className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm pr-20"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-custom hover:text-white transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-custom hover:text-foreground transition-colors"
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
@@ -1016,7 +1016,7 @@ export default function AdminDashboard() {
             <p className="text-xs text-yellow-200/70">
               To create the very first admin account before anyone is logged in, run from the server directory:
             </p>
-            <code className="block mt-2 text-xs bg-dark/60 rounded px-3 py-2 text-yellow-100 font-mono break-all">
+            <code className="block mt-2 text-xs bg-surface/60 rounded px-3 py-2 text-yellow-100 font-mono break-all">
               npm run create-admin
             </code>
           </div>

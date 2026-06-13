@@ -4,9 +4,10 @@ import { Mail, RefreshCw } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../config/firebase';
 import toast from 'react-hot-toast';
-import logoUrl from '../assets/logo.svg';
+import { useLogo } from '../hooks/useLogo';
 
 export default function VerifyEmailPending() {
+  const logoUrl = useLogo();
   const { unverifiedEmail, logout, resendVerification } = useAuth();
   const navigate = useNavigate();
   const [resending, setResending] = useState(false);
@@ -52,11 +53,11 @@ export default function VerifyEmailPending() {
   if (!unverifiedEmail) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-dark p-4">
+    <div className="min-h-screen flex items-center justify-center bg-surface p-4">
       <div className="w-full max-w-md text-center">
         <img src={logoUrl} alt="All For 1" className="h-20 mx-auto mb-8" />
 
-        <div className="bg-dark-light rounded-2xl p-8 border border-dark-lighter space-y-5">
+        <div className="bg-card rounded-2xl p-8 border border-line space-y-5">
           <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
             <Mail size={32} className="text-primary" />
           </div>
@@ -65,7 +66,7 @@ export default function VerifyEmailPending() {
             <h2 className="text-xl font-semibold mb-2">Verify your email</h2>
             <p className="text-gray-custom text-sm">
               We sent a verification link to{' '}
-              <span className="text-white font-medium">{unverifiedEmail}</span>.
+              <span className="text-foreground font-medium">{unverifiedEmail}</span>.
               Click it to activate your account.
             </p>
           </div>
@@ -77,7 +78,7 @@ export default function VerifyEmailPending() {
           <button
             onClick={handleResend}
             disabled={resending}
-            className="w-full flex items-center justify-center gap-2 py-3 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark font-semibold rounded-lg transition-colors"
+            className="w-full flex items-center justify-center gap-2 py-3 bg-primary hover:bg-primary-dark disabled:opacity-50 text-on-primary font-semibold rounded-lg transition-colors"
           >
             <RefreshCw size={15} className={resending ? 'animate-spin' : ''} />
             {resending ? 'Sending…' : 'Resend verification email'}
@@ -85,7 +86,7 @@ export default function VerifyEmailPending() {
 
           <button
             onClick={handleSignOut}
-            className="w-full py-2 text-sm text-gray-custom hover:text-white transition-colors"
+            className="w-full py-2 text-sm text-gray-custom hover:text-foreground transition-colors"
           >
             Use a different account
           </button>

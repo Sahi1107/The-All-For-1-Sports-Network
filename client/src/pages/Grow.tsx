@@ -84,7 +84,7 @@ export default function Grow() {
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : requests.length === 0 ? (
-          <div className="bg-dark-light rounded-xl border border-dark-lighter p-8 text-center">
+          <div className="bg-card rounded-xl border border-line p-8 text-center">
             <p className="text-gray-custom text-sm">No pending requests</p>
           </div>
         ) : (
@@ -92,7 +92,7 @@ export default function Grow() {
             {requests.map((r: any) => (
               <div
                 key={r.id}
-                className="bg-dark-light rounded-xl border border-dark-lighter p-4 flex items-center gap-4"
+                className="bg-card rounded-xl border border-line p-4 flex items-center gap-4"
               >
                 <Link to={`/profile/${r.sender.id}`} className="shrink-0">
                   {r.sender.avatar ? (
@@ -116,7 +116,7 @@ export default function Grow() {
                   <button
                     onClick={() => acceptMutation.mutate(r.id)}
                     disabled={acceptMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
                   >
                     <UserCheck size={14} />
                     Accept
@@ -124,7 +124,7 @@ export default function Grow() {
                   <button
                     onClick={() => rejectMutation.mutate(r.id)}
                     disabled={rejectMutation.isPending}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-white text-sm rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2 bg-elevated hover:bg-surface border border-line text-foreground text-sm rounded-lg transition-colors"
                   >
                     <UserX size={14} />
                     Decline
@@ -148,7 +148,7 @@ export default function Grow() {
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : suggestions.length === 0 ? (
-          <div className="bg-dark-light rounded-xl border border-dark-lighter p-8 text-center">
+          <div className="bg-card rounded-xl border border-line p-8 text-center">
             <p className="text-gray-custom text-sm">No suggestions right now</p>
           </div>
         ) : (
@@ -156,7 +156,7 @@ export default function Grow() {
             {suggestions.map((u: any) => (
               <div
                 key={u.id}
-                className="bg-dark-light rounded-xl border border-dark-lighter p-4 flex items-center gap-3"
+                className="bg-card rounded-xl border border-line p-4 flex items-center gap-3"
               >
                 <Link to={`/profile/${u.id}`} className="shrink-0">
                   {u.avatar ? (
@@ -183,7 +183,7 @@ export default function Grow() {
                 <button
                   onClick={() => followMutation.mutate(u.id)}
                   disabled={followMutation.isPending}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark font-semibold text-xs rounded-lg transition-colors"
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-xs rounded-lg transition-colors"
                 >
                   <UserPlus size={13} />
                   Follow

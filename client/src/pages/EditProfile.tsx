@@ -129,7 +129,7 @@ export default function EditProfile() {
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 rounded-lg hover:bg-dark-light transition-colors text-gray-custom hover:text-white"
+          className="p-2 rounded-lg hover:bg-card transition-colors text-gray-custom hover:text-foreground"
         >
           <ArrowLeft size={18} />
         </button>
@@ -138,12 +138,12 @@ export default function EditProfile() {
 
       <form
         onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}
-        className="bg-dark-light rounded-xl border border-dark-lighter p-6 space-y-6"
+        className="bg-card rounded-xl border border-line p-6 space-y-6"
       >
         {/* Avatar */}
         <div className="flex flex-col items-center gap-3">
           <div
-            className="relative w-24 h-24 rounded-full bg-dark-lighter border-2 border-dark-lighter cursor-pointer group overflow-hidden"
+            className="relative w-24 h-24 rounded-full bg-elevated border-2 border-line cursor-pointer group overflow-hidden"
             onClick={() => fileRef.current?.click()}
           >
             {avatarPreview ? (
@@ -154,7 +154,7 @@ export default function EditProfile() {
               </div>
             )}
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <Camera size={20} className="text-white" />
+              <Camera size={20} className="text-foreground" />
             </div>
           </div>
           <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
@@ -172,7 +172,7 @@ export default function EditProfile() {
               value={form.name}
               onChange={handleChange}
               required
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               placeholder="Your full name"
             />
           </div>
@@ -184,7 +184,7 @@ export default function EditProfile() {
               value={form.bio}
               onChange={handleChange}
               rows={3}
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
+              className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
               placeholder="Tell the community about yourself..."
             />
           </div>
@@ -195,7 +195,7 @@ export default function EditProfile() {
               <select
                 value={country}
                 onChange={e => { setCountry(e.target.value); setState(''); setCity(''); }}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
               >
                 <option value="">Select country</option>
                 {COUNTRY_LIST.map(c => <option key={c} value={c}>{c}</option>)}
@@ -207,7 +207,7 @@ export default function EditProfile() {
                 value={state}
                 onChange={e => { setState(e.target.value); setCity(''); }}
                 disabled={!country}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary disabled:opacity-50"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary disabled:opacity-50"
               >
                 <option value="">Select state</option>
                 {getStates(country).map(s => <option key={s} value={s}>{s}</option>)}
@@ -221,7 +221,7 @@ export default function EditProfile() {
                 onChange={e => setCity(e.target.value)}
                 disabled={!state}
                 placeholder="Enter your city"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary disabled:opacity-50"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary disabled:opacity-50"
               />
             </div>
           </div>
@@ -233,7 +233,7 @@ export default function EditProfile() {
                 name="position"
                 value={form.position}
                 onChange={handleChange}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
               >
                 <option value="">Select position</option>
                 {(POSITIONS[user?.sport ?? ''] ?? []).map(p => (
@@ -250,7 +250,7 @@ export default function EditProfile() {
                 name="height"
                 value={form.height}
                 onChange={handleChange}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
               >
                 <option value="">Select height</option>
                 {HEIGHT_OPTIONS.map(h => <option key={h.value} value={h.value}>{h.label}</option>)}
@@ -261,7 +261,7 @@ export default function EditProfile() {
 
         {/* Contact & Socials */}
         <div>
-          <h3 className="text-sm font-semibold text-white/80 mb-3">Contact & Socials</h3>
+          <h3 className="text-sm font-semibold text-foreground/80 mb-3">Contact & Socials</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-custom mb-1">Phone (private)</label>
@@ -269,20 +269,20 @@ export default function EditProfile() {
                 <select
                   value={phoneCode}
                   onChange={(e) => setPhoneCode(e.target.value)}
-                  className="w-28 bg-dark border border-dark-lighter rounded-lg px-2 py-2 text-sm text-white focus:outline-none focus:border-primary appearance-none"
+                  className="w-28 bg-surface border border-line rounded-lg px-2 py-2 text-sm text-foreground focus:outline-none focus:border-primary appearance-none"
                 >
                   {PHONE_CODES.map(({ code, label }) => (
                     <option key={code} value={code}>{label}</option>
                   ))}
                 </select>
                 <input name="phone" value={form.phone} onChange={handleChange} placeholder="98765 43210"
-                  className="flex-1 bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary" />
+                  className="flex-1 bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary" />
               </div>
             </div>
             <div>
               <label className="block text-sm text-gray-custom mb-1">Public contact email</label>
               <input name="contactEmail" type="email" value={form.contactEmail} onChange={handleChange} placeholder="me@example.com"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary" />
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary" />
             </div>
           </div>
         </div>
@@ -292,22 +292,22 @@ export default function EditProfile() {
           {user?.role !== 'ADMIN' && (
             <div>
               <label className="block text-sm text-gray-custom mb-1">Sport</label>
-              <div className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-gray-custom">{user?.sport}</div>
+              <div className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-gray-custom">{user?.sport}</div>
             </div>
           )}
           <div>
             <label className="block text-sm text-gray-custom mb-1">Role</label>
-            <div className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-gray-custom">{user?.role}</div>
+            <div className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-gray-custom">{user?.role}</div>
           </div>
         </div>
 
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark font-semibold rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-on-primary font-semibold rounded-lg transition-colors"
         >
           {mutation.isPending
-            ? <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" />
+            ? <div className="w-4 h-4 border-2 border-surface border-t-transparent rounded-full animate-spin" />
             : <Save size={16} />}
           Save Changes
         </button>

@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import logoUrl from '../assets/logo.svg';
+import { useLogo } from '../hooks/useLogo';
 
 export default function Login() {
+  const logoUrl = useLogo();
   const { login } = useAuth();
   const navigate  = useNavigate();
   const [email, setEmail]       = useState('');
@@ -30,7 +31,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-dark p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-surface p-4 relative overflow-hidden">
       {/* Background video */}
       {/* eslint-disable-next-line */}
       <video
@@ -54,7 +55,7 @@ export default function Login() {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-dark-light rounded-2xl p-8 border border-dark-lighter">
+        <form onSubmit={handleSubmit} className="bg-card rounded-2xl p-8 border border-line">
           <h2 className="text-xl font-semibold mb-6">Sign In</h2>
 
           <div className="space-y-4">
@@ -65,7 +66,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground"
                 placeholder="you@example.com"
               />
             </div>
@@ -81,7 +82,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-dark border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+                className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground"
                 placeholder="Enter your password"
               />
             </div>
@@ -90,7 +91,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-6 py-3 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors disabled:opacity-50"
+            className="w-full mt-6 py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50"
           >
             {loading ? 'Signing in…' : 'Sign In'}
           </button>

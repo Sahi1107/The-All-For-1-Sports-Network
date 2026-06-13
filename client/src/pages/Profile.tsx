@@ -677,7 +677,7 @@ export default function Profile() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header Card */}
-      <div className="bg-dark-light rounded-xl border border-dark-lighter p-6 relative overflow-hidden">
+      <div className="bg-card rounded-xl border border-line p-6 relative overflow-hidden">
         {profile.banner ? (
           <div className="absolute inset-0 pointer-events-none">
             <img src={profile.banner} alt="" className="w-full h-full object-cover opacity-40" />
@@ -741,7 +741,7 @@ export default function Profile() {
         )}
         <div className="flex flex-col sm:flex-row gap-6 items-start relative z-10">
           {/* Avatar */}
-          <div className="w-24 h-24 rounded-full bg-dark-lighter flex items-center justify-center text-3xl font-bold shrink-0 overflow-hidden border-2 border-dark-lighter">
+          <div className="w-24 h-24 rounded-full bg-elevated flex items-center justify-center text-3xl font-bold shrink-0 overflow-hidden border-2 border-line">
             {profile.avatar ? (
               <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
             ) : (
@@ -760,16 +760,16 @@ export default function Profile() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[profile.role] || 'bg-dark-lighter text-gray-custom'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[profile.role] || 'bg-elevated text-gray-custom'}`}>
                     {profile.role}
                   </span>
                   {profile.role !== 'ADMIN' && (
-                    <span className="text-white/80 text-sm">
+                    <span className="text-foreground/80 text-sm">
                       {SPORT_ICONS[profile.sport]} {profile.sport}
                     </span>
                   )}
                   {profile.position && profile.role !== 'ADMIN' && (
-                    <span className="text-white/70 text-sm">· {profile.position}</span>
+                    <span className="text-foreground/70 text-sm">· {profile.position}</span>
                   )}
                   {profile.guardianManaged && (
                     <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary-light font-medium">
@@ -785,7 +785,7 @@ export default function Profile() {
                 <div className="relative">
                   <button
                     onClick={() => setShareMenuOpen((v) => !v)}
-                    className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark text-white text-sm font-medium rounded-lg transition-colors border border-dark-lighter"
+                    className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface text-foreground text-sm font-medium rounded-lg transition-colors border border-line"
                     title="Share profile"
                   >
                     <Share2 size={14} />
@@ -794,11 +794,11 @@ export default function Profile() {
                   {shareMenuOpen && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShareMenuOpen(false)} />
-                      <div className="absolute left-0 top-full mt-1 z-50 w-52 bg-dark-light border border-dark-lighter rounded-lg shadow-xl overflow-hidden py-1">
+                      <div className="absolute left-0 top-full mt-1 z-50 w-52 bg-card border border-line rounded-lg shadow-xl overflow-hidden py-1">
                         {!isOwnProfile && (
                           <button
                             onClick={() => { setShareMenuOpen(false); setShareDmOpen(true); }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
                           >
                             <Send size={14} /> Send in a chat
                           </button>
@@ -814,7 +814,7 @@ export default function Profile() {
                               toast.error('Could not copy link');
                             }
                           }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
                         >
                           <Link2 size={14} /> Copy link
                         </button>
@@ -825,7 +825,7 @@ export default function Profile() {
                               const url = `${window.location.origin}/profile/${profile.id}`;
                               try { await navigator.share({ title: profile.name, url }); } catch { /* cancelled */ }
                             }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
                           >
                             <Share2 size={14} /> Share to…
                           </button>
@@ -837,7 +837,7 @@ export default function Profile() {
                 {isOwnProfile ? (
                   <Link
                     to="/profile/edit"
-                    className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark text-white text-sm font-medium rounded-lg transition-colors border border-dark-lighter"
+                    className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface text-foreground text-sm font-medium rounded-lg transition-colors border border-line"
                   >
                     <Edit size={14} />
                     Edit Profile
@@ -847,7 +847,7 @@ export default function Profile() {
                     <div className="relative">
                       <button
                         onClick={() => setShowMoreMenu((v) => !v)}
-                        className="flex items-center justify-center w-9 h-9 bg-dark-lighter hover:bg-dark border border-dark-lighter rounded-lg transition-colors"
+                        className="flex items-center justify-center w-9 h-9 bg-elevated hover:bg-surface border border-line rounded-lg transition-colors"
                         aria-label="More options"
                       >
                         <MoreHorizontal size={16} />
@@ -855,10 +855,10 @@ export default function Profile() {
                       {showMoreMenu && (
                         <>
                           <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
-                          <div className="absolute right-0 top-10 z-50 w-44 bg-dark-light border border-dark-lighter rounded-lg shadow-xl overflow-hidden">
+                          <div className="absolute right-0 top-10 z-50 w-44 bg-card border border-line rounded-lg shadow-xl overflow-hidden">
                             <button
                               onClick={() => { setShowMoreMenu(false); setReportModal(true); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:bg-dark transition-colors text-left"
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
                             >
                               <Flag size={14} className="text-yellow-400" /> Report user
                             </button>
@@ -880,7 +880,7 @@ export default function Profile() {
                                   toast.error('Action failed');
                                 }
                               }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-dark transition-colors text-left"
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-surface transition-colors text-left"
                             >
                               <Ban size={14} /> {data?.isBlocked ? 'Unblock user' : 'Block user'}
                             </button>
@@ -893,15 +893,15 @@ export default function Profile() {
                       disabled={followMutation.isPending}
                       className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                         isFollowing
-                          ? 'bg-dark-lighter hover:bg-dark border border-dark-lighter text-white'
-                          : 'bg-primary hover:bg-primary-dark text-dark font-semibold'
+                          ? 'bg-elevated hover:bg-surface border border-line text-foreground'
+                          : 'bg-primary hover:bg-primary-dark text-on-primary font-semibold'
                       }`}
                     >
                       {isFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
                       {isFollowing ? 'Unfollow' : 'Follow'}
                     </button>
                     {connection?.status === 'ACCEPTED' ? null : connection?.status === 'PENDING' ? (
-                      <span className="flex items-center gap-2 px-4 py-2 text-sm text-white/60 border border-white/20 rounded-lg">
+                      <span className="flex items-center gap-2 px-4 py-2 text-sm text-foreground/60 border border-ink/20 rounded-lg">
                         <UserCheck size={14} />
                         Pending
                       </span>
@@ -909,7 +909,7 @@ export default function Profile() {
                       <button
                         onClick={() => connectMutation.mutate()}
                         disabled={connectMutation.isPending}
-                        className="flex items-center gap-2 px-4 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-white text-sm font-medium rounded-lg transition-colors"
+                        className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-foreground text-sm font-medium rounded-lg transition-colors"
                       >
                         <UserCheck size={14} />
                         Connect
@@ -921,7 +921,7 @@ export default function Profile() {
             </div>
 
             {/* Meta */}
-            <div className="flex flex-wrap gap-4 mt-3 text-sm text-white/70">
+            <div className="flex flex-wrap gap-4 mt-3 text-sm text-foreground/70">
               {profile.location && (
                 <span className="flex items-center gap-1"><MapPin size={13} />{profile.location}</span>
               )}
@@ -936,28 +936,28 @@ export default function Profile() {
             {/* Stats Row */}
             <div className="flex gap-6 mt-4 text-sm">
               <button onClick={() => setFollowModal('followers')} className="hover:text-primary-light transition-colors text-left">
-                <span className="font-bold text-white">{profile._count?.followers ?? 0}</span>
-                <span className="text-white/70 ml-1">Followers</span>
+                <span className="font-bold text-foreground">{profile._count?.followers ?? 0}</span>
+                <span className="text-foreground/70 ml-1">Followers</span>
               </button>
               <button onClick={() => setFollowModal('following')} className="hover:text-primary-light transition-colors text-left">
-                <span className="font-bold text-white">{profile._count?.following ?? 0}</span>
-                <span className="text-white/70 ml-1">Following</span>
+                <span className="font-bold text-foreground">{profile._count?.following ?? 0}</span>
+                <span className="text-foreground/70 ml-1">Following</span>
               </button>
               <div>
-                <span className="font-bold text-white">{highlights.length}</span>
-                <span className="text-white/70 ml-1">Highlights</span>
+                <span className="font-bold text-foreground">{highlights.length}</span>
+                <span className="text-foreground/70 ml-1">Highlights</span>
               </div>
             </div>
 
             {!isOwnProfile && (mutualData?.count ?? 0) > 0 && (
-              <div className="mt-3 flex items-center gap-2 text-xs text-white/70">
+              <div className="mt-3 flex items-center gap-2 text-xs text-foreground/70">
                 <div className="flex -space-x-2">
                   {mutualData!.users.slice(0, 3).map((u) => (
                     <Link key={u.id} to={`/profile/${u.id}`} title={u.name}>
                       {u.avatar ? (
-                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-dark-light" />
+                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-line" />
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-primary/20 border-2 border-dark-light flex items-center justify-center text-[10px] font-bold text-primary-light">
+                        <div className="w-6 h-6 rounded-full bg-primary/20 border-2 border-line flex items-center justify-center text-[10px] font-bold text-primary-light">
                           {u.name?.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -974,14 +974,14 @@ export default function Profile() {
             )}
 
             {!isOwnProfile && (mutualData?.followers?.count ?? 0) > 0 && (
-              <div className="mt-2 flex items-center gap-2 text-xs text-white/70">
+              <div className="mt-2 flex items-center gap-2 text-xs text-foreground/70">
                 <div className="flex -space-x-2">
                   {mutualData!.followers!.users.slice(0, 3).map((u) => (
                     <Link key={u.id} to={`/profile/${u.id}`} title={u.name}>
                       {u.avatar ? (
-                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-dark-light" />
+                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-line" />
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-secondary/20 border-2 border-dark-light flex items-center justify-center text-[10px] font-bold text-white/80">
+                        <div className="w-6 h-6 rounded-full bg-secondary/20 border-2 border-line flex items-center justify-center text-[10px] font-bold text-foreground/80">
                           {u.name?.charAt(0).toUpperCase()}
                         </div>
                       )}
@@ -997,19 +997,19 @@ export default function Profile() {
             )}
 
             {profile.bio && (
-              <p className="mt-4 text-sm text-white/75 leading-relaxed">{profile.bio}</p>
+              <p className="mt-4 text-sm text-foreground/75 leading-relaxed">{profile.bio}</p>
             )}
 
             {(profile.contactEmail || (profile.phone && isOwnProfile)) && (
               <div className="mt-4 flex flex-wrap gap-3 text-xs">
                 {profile.contactEmail && (
-                  <a href={`mailto:${profile.contactEmail}`} className="flex items-center gap-1.5 px-2.5 py-1 bg-dark-lighter rounded-full text-white/80 hover:text-white transition-colors">
+                  <a href={`mailto:${profile.contactEmail}`} className="flex items-center gap-1.5 px-2.5 py-1 bg-elevated rounded-full text-foreground/80 hover:text-foreground transition-colors">
                     ✉️ {profile.contactEmail}
                   </a>
                 )}
                 {profile.phone && isOwnProfile && (
-                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-dark-lighter rounded-full text-white/80">
-                    📞 {profile.phone} <span className="text-white/40">(private)</span>
+                  <span className="flex items-center gap-1.5 px-2.5 py-1 bg-elevated rounded-full text-foreground/80">
+                    📞 {profile.phone} <span className="text-foreground/40">(private)</span>
                   </span>
                 )}
               </div>
@@ -1022,7 +1022,7 @@ export default function Profile() {
         {/* Posts & Highlights */}
         <div className="lg:col-span-2 space-y-4">
           {/* Highlights */}
-          <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+          <div className="bg-card rounded-xl border border-line p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold flex items-center gap-2">
                 <Video size={16} className="text-primary-light" />
@@ -1041,19 +1041,19 @@ export default function Profile() {
 
             {/* Inline upload form */}
             {isOwnProfile && showUpload && (
-              <div className="mb-4 p-4 bg-dark rounded-lg border border-dark-lighter space-y-3">
+              <div className="mb-4 p-4 bg-surface rounded-lg border border-line space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-medium">Upload Highlight</p>
-                  <button onClick={() => { setShowUpload(false); setVideoFile(null); setUploadProgress(0); }} className="text-gray-custom hover:text-white">
+                  <button onClick={() => { setShowUpload(false); setVideoFile(null); setUploadProgress(0); }} className="text-gray-custom hover:text-foreground">
                     <X size={16} />
                   </button>
                 </div>
                 <div
                   onClick={() => fileRef.current?.click()}
-                  className="border-2 border-dashed border-dark-lighter rounded-lg p-5 text-center cursor-pointer hover:border-primary transition-colors"
+                  className="border-2 border-dashed border-line rounded-lg p-5 text-center cursor-pointer hover:border-primary transition-colors"
                 >
                   {videoFile ? (
-                    <p className="text-sm text-white">{videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(1)} MB)</p>
+                    <p className="text-sm text-foreground">{videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(1)} MB)</p>
                   ) : (
                     <p className="text-sm text-gray-custom">Click to select video</p>
                   )}
@@ -1063,21 +1063,21 @@ export default function Profile() {
                   value={uploadForm.title}
                   onChange={(e) => setUploadForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="Title *"
-                  className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                  className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
                 />
                 <textarea
                   value={uploadForm.description}
                   onChange={(e) => setUploadForm(f => ({ ...f, description: e.target.value }))}
                   placeholder="Description (optional)"
                   rows={2}
-                  className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
+                  className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
                 />
                 {uploadMutation.isPending && (
                   <div>
                     <div className="flex justify-between text-xs text-gray-custom mb-1">
                       <span>Uploading…</span><span>{uploadProgress}%</span>
                     </div>
-                    <div className="w-full bg-dark-lighter rounded-full h-1.5">
+                    <div className="w-full bg-elevated rounded-full h-1.5">
                       <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
                     </div>
                   </div>
@@ -1085,7 +1085,7 @@ export default function Profile() {
                 <button
                   onClick={() => uploadMutation.mutate()}
                   disabled={!videoFile || !uploadForm.title || uploadMutation.isPending}
-                  className="w-full py-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark font-semibold text-sm rounded-lg transition-colors"
+                  className="w-full py-2 bg-primary hover:bg-primary-dark disabled:opacity-50 text-on-primary font-semibold text-sm rounded-lg transition-colors"
                 >
                   {uploadMutation.isPending ? 'Uploading…' : 'Upload'}
                 </button>
@@ -1097,7 +1097,7 @@ export default function Profile() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {highlights.slice(0, 4).map((h: any) => (
-                  <div key={h.id} className="rounded-lg overflow-hidden bg-dark border border-dark-lighter relative group">
+                  <div key={h.id} className="rounded-lg overflow-hidden bg-surface border border-line relative group">
                     <video src={h.videoUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
                     <div className="p-2 flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -1121,7 +1121,7 @@ export default function Profile() {
 
           {/* Text & Image Posts */}
           {posts.length > 0 && (
-            <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+            <div className="bg-card rounded-xl border border-line p-5">
               <h2 className="font-semibold flex items-center gap-2 mb-4">
                 <Video size={16} className="text-accent" />
                 Posts
@@ -1130,7 +1130,7 @@ export default function Profile() {
                 {posts.map((p: any) => {
                   const postWithUser = { ...p, user: profile };
                   return (
-                    <div key={p.id} className="bg-dark rounded-lg border border-dark-lighter overflow-hidden">
+                    <div key={p.id} className="bg-surface rounded-lg border border-line overflow-hidden">
                       {p.type === 'IMAGE' && (
                         <div onClick={() => setOpenPost(postWithUser)} className="cursor-pointer">
                           {p.media?.length > 0 ? (
@@ -1174,14 +1174,14 @@ export default function Profile() {
 
           {/* Reposts */}
           {reposts.length > 0 && (
-            <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+            <div className="bg-card rounded-xl border border-line p-5">
               <h2 className="font-semibold flex items-center gap-2 mb-4">
                 <Repeat2 size={16} className="text-green-400" />
                 Reposts
               </h2>
               <div className="space-y-3">
                 {reposts.map((p: any) => (
-                  <div key={p.id} className="bg-dark rounded-lg border border-dark-lighter overflow-hidden">
+                  <div key={p.id} className="bg-surface rounded-lg border border-line overflow-hidden">
                     <div className="flex items-center gap-2 px-3 pt-2.5 text-xs text-green-400">
                       <Repeat2 size={12} />
                       <span>{isOwnProfile ? 'You' : profile.name} reposted</span>
@@ -1232,7 +1232,7 @@ export default function Profile() {
         <div className="space-y-4">
           {/* Rankings */}
           {rankings.length > 0 && (
-            <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+            <div className="bg-card rounded-xl border border-line p-5">
               <h2 className="font-semibold flex items-center gap-2 mb-4"><Trophy size={16} className="text-secondary" />Rankings</h2>
               <div className="space-y-3">
                 {rankings.slice(0, 3).map((r: any) => (
@@ -1250,13 +1250,13 @@ export default function Profile() {
 
           {/* Teams */}
           {teams.length > 0 && (
-            <div className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+            <div className="bg-card rounded-xl border border-line p-5">
               <h2 className="font-semibold flex items-center gap-2 mb-4"><Users size={16} className="text-accent" />Teams</h2>
               <div className="space-y-2">
                 {teams.map((t: any) => (
                   <div
                     key={t.id}
-                    className="block text-sm py-2 px-3 rounded-lg bg-dark"
+                    className="block text-sm py-2 px-3 rounded-lg bg-surface"
                   >
                     <p className="font-medium">{t.name}</p>
                     <p className="text-xs text-gray-custom">{t.sport}</p>
@@ -1276,26 +1276,26 @@ export default function Profile() {
           onClick={() => setFollowModal(null)}
         >
           <div
-            className="bg-dark-light border border-white/10 rounded-xl w-full max-w-sm max-h-[70vh] flex flex-col"
+            className="bg-card border border-ink/10 rounded-xl w-full max-w-sm max-h-[70vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
               <div className="flex gap-4 text-sm font-semibold">
                 <button
                   onClick={() => setFollowModal('followers')}
-                  className={followModal === 'followers' ? 'text-white' : 'text-white/40 hover:text-white/70'}
+                  className={followModal === 'followers' ? 'text-foreground' : 'text-foreground/40 hover:text-foreground/70'}
                 >
                   Followers
                 </button>
                 <button
                   onClick={() => setFollowModal('following')}
-                  className={followModal === 'following' ? 'text-white' : 'text-white/40 hover:text-white/70'}
+                  className={followModal === 'following' ? 'text-foreground' : 'text-foreground/40 hover:text-foreground/70'}
                 >
                   Following
                 </button>
               </div>
-              <button onClick={() => setFollowModal(null)} className="text-white/40 hover:text-white text-xl leading-none">×</button>
+              <button onClick={() => setFollowModal(null)} className="text-foreground/40 hover:text-foreground text-xl leading-none">×</button>
             </div>
 
             {/* List */}
@@ -1305,7 +1305,7 @@ export default function Profile() {
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : !followListData?.users?.length ? (
-                <p className="text-center text-white/30 text-sm py-8">
+                <p className="text-center text-foreground/30 text-sm py-8">
                   {followModal === 'followers' ? 'No followers yet' : 'Not following anyone yet'}
                 </p>
               ) : (
@@ -1314,7 +1314,7 @@ export default function Profile() {
                     key={u.id}
                     to={`/profile/${u.id}`}
                     onClick={() => setFollowModal(null)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-ink/5 transition-colors"
                   >
                     {u.avatar ? (
                       <img src={u.avatar} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
@@ -1325,7 +1325,7 @@ export default function Profile() {
                     )}
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{u.name}</p>
-                      <p className="text-xs text-white/40 capitalize">
+                      <p className="text-xs text-foreground/40 capitalize">
                         {u.role?.toLowerCase()}
                         {u.sport && u.role !== 'ADMIN' && ` · ${u.sport.toLowerCase()}`}
                         {u.position && ` · ${u.position}`}
@@ -1351,7 +1351,7 @@ export default function Profile() {
           onClick={() => !submittingReport && setReportModal(false)}
         >
           <div
-            className="w-full max-w-md bg-dark-light border border-dark-lighter rounded-xl p-5"
+            className="w-full max-w-md bg-card border border-line rounded-xl p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="font-semibold mb-1">Report {profile.name}</h3>
@@ -1360,7 +1360,7 @@ export default function Profile() {
             <select
               value={reportReason}
               onChange={(e) => setReportReason(e.target.value)}
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary mb-3"
+              className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary mb-3"
             >
               <option value="">Select a reason</option>
               <option value="spam">Spam</option>
@@ -1376,13 +1376,13 @@ export default function Profile() {
               rows={3}
               maxLength={1000}
               placeholder="Add any extra context"
-              className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
+              className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
             />
             <div className="flex gap-2 mt-4">
               <button
                 onClick={() => { setReportModal(false); setReportReason(''); setReportDetails(''); }}
                 disabled={submittingReport}
-                className="flex-1 py-2 bg-dark-lighter hover:bg-dark border border-dark-lighter text-sm rounded-lg transition-colors"
+                className="flex-1 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors"
               >
                 Cancel
               </button>

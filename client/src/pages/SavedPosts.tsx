@@ -41,16 +41,16 @@ export default function SavedPosts() {
         </div>
       ) : !data?.posts?.length ? (
         <div className="text-center py-16">
-          <Bookmark size={48} className="mx-auto text-white/20 mb-4" />
-          <p className="text-white/50">No saved posts yet</p>
-          <p className="text-sm text-white/30 mt-1">Bookmark posts from your feed to find them here</p>
+          <Bookmark size={48} className="mx-auto text-foreground/20 mb-4" />
+          <p className="text-foreground/50">No saved posts yet</p>
+          <p className="text-sm text-foreground/30 mt-1">Bookmark posts from your feed to find them here</p>
         </div>
       ) : (
         <div className="space-y-4">
           {data.posts.map((item: any) => (
             <div
               key={item.id}
-              className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden shadow-xl"
+              className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl overflow-hidden shadow-xl"
             >
               {/* User header */}
               <div className="p-4 flex items-center gap-3">
@@ -109,7 +109,7 @@ export default function SavedPosts() {
               >
                 {item.title && <h3 className="font-semibold">{item.title}</h3>}
                 {item.content && (
-                  <p className="text-sm text-white/80 mt-1 leading-relaxed">{item.content}</p>
+                  <p className="text-sm text-foreground/80 mt-1 leading-relaxed">{item.content}</p>
                 )}
               </div>
 

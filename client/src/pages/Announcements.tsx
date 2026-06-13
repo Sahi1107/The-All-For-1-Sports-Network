@@ -71,7 +71,7 @@ export default function Announcements() {
         {canPost && (
           <button
             onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
           >
             <Plus size={16} />
             Post Announcement
@@ -82,10 +82,10 @@ export default function Announcements() {
       {/* Create Modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-light rounded-xl border border-dark-lighter w-full max-w-lg">
-            <div className="flex items-center justify-between p-5 border-b border-dark-lighter">
+          <div className="bg-card rounded-xl border border-line w-full max-w-lg">
+            <div className="flex items-center justify-between p-5 border-b border-line">
               <h2 className="font-semibold">New Announcement</h2>
-              <button onClick={() => setShowCreate(false)} className="text-gray-custom hover:text-white"><X size={18} /></button>
+              <button onClick={() => setShowCreate(false)} className="text-gray-custom hover:text-foreground"><X size={18} /></button>
             </div>
             <form
               onSubmit={(e) => { e.preventDefault(); createMutation.mutate(); }}
@@ -96,7 +96,7 @@ export default function Announcements() {
                 onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
                 required
                 placeholder="Announcement title *"
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
               />
               <textarea
                 value={form.content}
@@ -104,14 +104,14 @@ export default function Announcements() {
                 required
                 placeholder="Write your announcement..."
                 rows={5}
-                className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
               />
               <div>
                 <label className="text-xs text-gray-custom mb-1 block">Sport</label>
                 <select
                   value={form.sport}
                   onChange={(e) => setForm(f => ({ ...f, sport: e.target.value }))}
-                  className="w-full bg-dark border border-dark-lighter rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary"
+                  className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
                 >
                   <option value="">All Sports</option>
                   <option value="BASKETBALL">Basketball</option>
@@ -122,7 +122,7 @@ export default function Announcements() {
               <button
                 type="submit"
                 disabled={createMutation.isPending}
-                className="w-full py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-dark font-semibold rounded-lg transition-colors"
+                className="w-full py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-on-primary font-semibold rounded-lg transition-colors"
               >
                 {createMutation.isPending ? 'Posting...' : 'Post'}
               </button>
@@ -137,18 +137,18 @@ export default function Announcements() {
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : announcements.length === 0 ? (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter p-16 text-center">
+        <div className="bg-card rounded-xl border border-line p-16 text-center">
           <Megaphone size={32} className="mx-auto mb-3 text-gray-custom" />
           <p className="text-gray-custom">No announcements yet.</p>
         </div>
       ) : (
         <div className="space-y-4">
           {announcements.map((a: any) => (
-            <div key={a.id} className="bg-dark-light rounded-xl border border-dark-lighter p-5">
+            <div key={a.id} className="bg-card rounded-xl border border-line p-5">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-3">
                   <Link to={`/profile/${a.author?.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <div className="w-9 h-9 rounded-full bg-dark-lighter flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
+                    <div className="w-9 h-9 rounded-full bg-elevated flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
                       {a.author?.avatar
                         ? <img src={a.author.avatar} alt={a.author.name} className="w-full h-full object-cover" />
                         : a.author?.name?.charAt(0)
@@ -157,7 +157,7 @@ export default function Announcements() {
                     <div>
                       <p className="text-sm font-medium">{a.author?.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${ROLE_COLORS[a.author?.role] ?? 'bg-dark text-gray-custom'}`}>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${ROLE_COLORS[a.author?.role] ?? 'bg-surface text-gray-custom'}`}>
                           {a.author?.role}
                         </span>
                         <span className="text-xs text-gray-custom">{timeAgo(a.createdAt)}</span>
@@ -168,7 +168,7 @@ export default function Announcements() {
 
                 <div className="flex items-center gap-2">
                   {a.sport && (
-                    <span className="text-xs text-gray-custom bg-dark px-2 py-0.5 rounded border border-dark-lighter">{a.sport}</span>
+                    <span className="text-xs text-gray-custom bg-surface px-2 py-0.5 rounded border border-line">{a.sport}</span>
                   )}
                   {(user?.id === a.author?.id || user?.role === 'ADMIN') && (
                     <button

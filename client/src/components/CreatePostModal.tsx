@@ -144,13 +144,13 @@ export default function CreatePostModal({ onClose }: Props) {
   if (unverifiedEmail) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl p-8 text-center">
+        <div className="bg-[#111] border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl p-8 text-center">
           <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <Mail size={28} className="text-primary" />
           </div>
-          <h2 className="font-semibold text-white text-lg mb-2">Verify your email to post</h2>
-          <p className="text-white/50 text-sm mb-1">
-            A verification link was sent to <span className="text-white/80">{unverifiedEmail}</span>.
+          <h2 className="font-semibold text-foreground text-lg mb-2">Verify your email to post</h2>
+          <p className="text-foreground/50 text-sm mb-1">
+            A verification link was sent to <span className="text-foreground/80">{unverifiedEmail}</span>.
           </p>
           <p className="text-yellow-400/70 text-xs mb-6">
             Can't find it? Check your <span className="font-semibold">spam or junk folder</span>.
@@ -158,11 +158,11 @@ export default function CreatePostModal({ onClose }: Props) {
           <Link
             to="/verify-pending"
             onClick={onClose}
-            className="block w-full py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg transition-colors text-sm mb-3"
+            className="block w-full py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors text-sm mb-3"
           >
             Resend verification email
           </Link>
-          <button onClick={onClose} className="w-full py-2 text-sm text-white/40 hover:text-white transition-colors">
+          <button onClick={onClose} className="w-full py-2 text-sm text-foreground/40 hover:text-foreground transition-colors">
             Close
           </button>
         </div>
@@ -172,17 +172,17 @@ export default function CreatePostModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-[#111] border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <h2 className="font-semibold text-white">Create Post</h2>
-          <button onClick={onClose} className="text-white/50 hover:text-white transition-colors">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
+          <h2 className="font-semibold text-foreground">Create Post</h2>
+          <button onClick={onClose} className="text-foreground/50 hover:text-foreground transition-colors">
             <X size={18} />
           </button>
         </div>
 
         {/* Type tabs */}
-        <div className="flex border-b border-white/10">
+        <div className="flex border-b border-ink/10">
           {([
             { key: 'TEXT', icon: Type, label: 'Text' },
             { key: 'IMAGE', icon: Image, label: 'Photo' },
@@ -194,7 +194,7 @@ export default function CreatePostModal({ onClose }: Props) {
               className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
                 type === key
                   ? 'text-primary border-b-2 border-primary'
-                  : 'text-white/50 hover:text-white'
+                  : 'text-foreground/50 hover:text-foreground'
               }`}
             >
               <Icon size={15} />
@@ -211,7 +211,7 @@ export default function CreatePostModal({ onClose }: Props) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Title *"
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-primary"
+              className="w-full bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
             />
           )}
 
@@ -222,7 +222,7 @@ export default function CreatePostModal({ onClose }: Props) {
               onChange={(e) => setContent(e.target.value)}
               placeholder={type === 'TEXT' ? "What's on your mind?" : 'Add a caption…'}
               rows={type === 'TEXT' ? 5 : 3}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-primary resize-none"
+              className="w-full bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary resize-none"
             />
           )}
 
@@ -233,7 +233,7 @@ export default function CreatePostModal({ onClose }: Props) {
               {type === 'IMAGE' && files.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {files.map((f, i) => (
-                    <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-white/10 group">
+                    <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-ink/10 group">
                       <img
                         src={URL.createObjectURL(f)}
                         alt={f.name}
@@ -250,9 +250,9 @@ export default function CreatePostModal({ onClose }: Props) {
                   {files.length < 10 && (
                     <button
                       onClick={() => fileRef.current?.click()}
-                      className="w-20 h-20 rounded-lg border-2 border-dashed border-white/15 flex items-center justify-center hover:border-primary/60 transition-colors"
+                      className="w-20 h-20 rounded-lg border-2 border-dashed border-ink/15 flex items-center justify-center hover:border-primary/60 transition-colors"
                     >
-                      <Plus size={20} className="text-white/40" />
+                      <Plus size={20} className="text-foreground/40" />
                     </button>
                   )}
                 </div>
@@ -262,15 +262,15 @@ export default function CreatePostModal({ onClose }: Props) {
               {(files.length === 0 || type === 'HIGHLIGHT') && !(type === 'IMAGE' && files.length > 0) && (
                 <div
                   onClick={() => fileRef.current?.click()}
-                  className="border-2 border-dashed border-white/15 rounded-xl p-6 text-center cursor-pointer hover:border-primary/60 transition-colors"
+                  className="border-2 border-dashed border-ink/15 rounded-xl p-6 text-center cursor-pointer hover:border-primary/60 transition-colors"
                 >
                   {files.length > 0 && type === 'HIGHLIGHT' ? (
                     <div>
-                      <p className="text-sm font-medium text-white truncate">{files[0].name}</p>
-                      <p className="text-xs text-white/40 mt-1">{(files[0].size / 1024 / 1024).toFixed(1)} MB</p>
+                      <p className="text-sm font-medium text-foreground truncate">{files[0].name}</p>
+                      <p className="text-xs text-foreground/40 mt-1">{(files[0].size / 1024 / 1024).toFixed(1)} MB</p>
                     </div>
                   ) : (
-                    <div className="text-white/40">
+                    <div className="text-foreground/40">
                       <Upload size={22} className="mx-auto mb-2" />
                       <p className="text-sm">Click to select {type === 'IMAGE' ? 'photos' : 'video'}</p>
                       <p className="text-xs mt-1">
@@ -295,10 +295,10 @@ export default function CreatePostModal({ onClose }: Props) {
           {/* Upload progress */}
           {mutation.isPending && (type === 'IMAGE' || type === 'HIGHLIGHT') && (
             <div>
-              <div className="flex justify-between text-xs text-white/40 mb-1">
+              <div className="flex justify-between text-xs text-foreground/40 mb-1">
                 <span>Uploading…</span><span>{progress}%</span>
               </div>
-              <div className="w-full bg-white/10 rounded-full h-1.5">
+              <div className="w-full bg-ink/10 rounded-full h-1.5">
                 <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }} />
               </div>
             </div>
@@ -306,13 +306,13 @@ export default function CreatePostModal({ onClose }: Props) {
 
           {/* Disable comments toggle */}
           <label className="flex items-center justify-between cursor-pointer">
-            <span className="text-sm text-white/60">Disable comments</span>
+            <span className="text-sm text-foreground/60">Disable comments</span>
             <button
               type="button"
               role="switch"
               aria-checked={commentsDisabled}
               onClick={() => setCommentsDisabled((v) => !v)}
-              className={`relative w-9 h-5 rounded-full transition-colors ${commentsDisabled ? 'bg-primary' : 'bg-white/15'}`}
+              className={`relative w-9 h-5 rounded-full transition-colors ${commentsDisabled ? 'bg-primary' : 'bg-ink/15'}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${commentsDisabled ? 'translate-x-4' : ''}`} />
             </button>
@@ -322,10 +322,10 @@ export default function CreatePostModal({ onClose }: Props) {
           <button
             onClick={() => mutation.mutate()}
             disabled={!canSubmit || mutation.isPending}
-            className="w-full py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-dark font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
+            className="w-full py-2.5 bg-primary hover:bg-primary-dark disabled:opacity-40 text-on-primary font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm"
           >
             {mutation.isPending
-              ? <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" />
+              ? <div className="w-4 h-4 border-2 border-surface border-t-transparent rounded-full animate-spin" />
               : 'Post'}
           </button>
         </div>

@@ -63,7 +63,7 @@ function Avatar({ user, size = 10, online }: { user: any; size?: number; online?
   return (
     <div className="relative shrink-0" style={{ width: px, height: px }}>
       <div
-        className="rounded-full bg-dark-lighter flex items-center justify-center font-bold overflow-hidden"
+        className="rounded-full bg-elevated flex items-center justify-center font-bold overflow-hidden"
         style={{ width: px, height: px }}
       >
         {user?.avatar
@@ -72,7 +72,7 @@ function Avatar({ user, size = 10, online }: { user: any; size?: number; online?
       </div>
       {online === true && (
         <span
-          className="absolute bottom-0 right-0 block rounded-full bg-emerald-400 ring-2 ring-dark-light"
+          className="absolute bottom-0 right-0 block rounded-full bg-emerald-400 ring-2 ring-line"
           style={{ width: Math.max(8, px * 0.25), height: Math.max(8, px * 0.25) }}
         />
       )}
@@ -87,7 +87,7 @@ function SharedPostCard({ post }: { post: any }) {
   return (
     <Link
       to={`/profile/${post.user?.id}`}
-      className="block mt-1.5 rounded-lg border border-white/20 bg-dark/60 overflow-hidden hover:bg-dark/80 transition-colors"
+      className="block mt-1.5 rounded-lg border border-ink/20 bg-surface/60 overflow-hidden hover:bg-surface/80 transition-colors"
       onClick={(e) => e.stopPropagation()}
     >
       {post.media?.[0]?.url && (
@@ -95,16 +95,16 @@ function SharedPostCard({ post }: { post: any }) {
       )}
       <div className="p-2.5">
         <div className="flex items-center gap-2 mb-1">
-          <div className="w-5 h-5 rounded-full bg-dark-lighter overflow-hidden shrink-0">
+          <div className="w-5 h-5 rounded-full bg-elevated overflow-hidden shrink-0">
             {post.user?.avatar
               ? <img src={post.user.avatar} alt="" className="w-full h-full object-cover" />
-              : <span className="text-[9px] font-bold flex items-center justify-center w-full h-full text-white">{post.user?.name?.charAt(0)}</span>}
+              : <span className="text-[9px] font-bold flex items-center justify-center w-full h-full text-foreground">{post.user?.name?.charAt(0)}</span>}
           </div>
-          <span className="text-xs font-medium truncate text-white">{post.user?.name}</span>
+          <span className="text-xs font-medium truncate text-foreground">{post.user?.name}</span>
         </div>
-        {post.title && <p className="text-xs font-semibold truncate text-white">{post.title}</p>}
+        {post.title && <p className="text-xs font-semibold truncate text-foreground">{post.title}</p>}
         {post.content && (
-          <p className="text-xs text-white/60 mt-0.5 line-clamp-2">{post.content}</p>
+          <p className="text-xs text-foreground/60 mt-0.5 line-clamp-2">{post.content}</p>
         )}
       </div>
     </Link>
@@ -121,19 +121,19 @@ function SharedProfileCard({ profile }: { profile: any }) {
   return (
     <Link
       to={`/profile/${profile.id}`}
-      className="block mt-1.5 rounded-lg border border-white/20 bg-dark/60 overflow-hidden hover:bg-dark/80 transition-colors"
+      className="block mt-1.5 rounded-lg border border-ink/20 bg-surface/60 overflow-hidden hover:bg-surface/80 transition-colors"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="p-2.5 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-dark-lighter overflow-hidden shrink-0">
+        <div className="w-10 h-10 rounded-full bg-elevated overflow-hidden shrink-0">
           {profile.avatar
             ? <img src={profile.avatar} alt="" className="w-full h-full object-cover" />
-            : <span className="text-sm font-bold flex items-center justify-center w-full h-full text-white">{profile.name?.charAt(0)}</span>}
+            : <span className="text-sm font-bold flex items-center justify-center w-full h-full text-foreground">{profile.name?.charAt(0)}</span>}
         </div>
         <div className="min-w-0">
-          <p className="text-xs font-semibold truncate text-white">{profile.name}</p>
-          {meta && <p className="text-[11px] text-white/60 truncate capitalize">{meta}</p>}
-          {profile.bio && <p className="text-[11px] text-white/50 mt-0.5 line-clamp-1">{profile.bio}</p>}
+          <p className="text-xs font-semibold truncate text-foreground">{profile.name}</p>
+          {meta && <p className="text-[11px] text-foreground/60 truncate capitalize">{meta}</p>}
+          {profile.bio && <p className="text-[11px] text-foreground/50 mt-0.5 line-clamp-1">{profile.bio}</p>}
         </div>
       </div>
     </Link>
@@ -165,12 +165,12 @@ function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: 
   return (
     <div
       ref={menuRef}
-      className={`absolute z-30 ${isMe ? 'right-0' : 'left-0'} top-full mt-1 bg-dark-light border border-dark-lighter rounded-xl shadow-xl py-1 min-w-[140px] animate-in fade-in zoom-in-95 duration-150`}
+      className={`absolute z-30 ${isMe ? 'right-0' : 'left-0'} top-full mt-1 bg-card border border-line rounded-xl shadow-xl py-1 min-w-[140px] animate-in fade-in zoom-in-95 duration-150`}
     >
       <button
         type="button"
         onClick={onCopy}
-        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
+        className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground/80 hover:bg-surface hover:text-foreground transition-colors"
       >
         <Copy size={14} /> Copy
       </button>
@@ -178,7 +178,7 @@ function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: 
         <button
           type="button"
           onClick={onForward}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-white/80 hover:bg-dark hover:text-white transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-foreground/80 hover:bg-surface hover:text-foreground transition-colors"
         >
           <CornerUpRight size={14} /> Forward
         </button>
@@ -187,7 +187,7 @@ function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: 
         <button
           type="button"
           onClick={onUnsend}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-dark transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-surface transition-colors"
         >
           <Trash2 size={14} /> Unsend
         </button>
@@ -233,10 +233,10 @@ function ForwardModal({
       className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-dark-light rounded-t-2xl sm:rounded-xl border border-dark-lighter w-full sm:max-w-sm max-h-[70vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-dark-lighter shrink-0">
+      <div className="bg-card rounded-t-2xl sm:rounded-xl border border-line w-full sm:max-w-sm max-h-[70vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-line shrink-0">
           <h2 className="font-semibold">Forward to…</h2>
-          <button onClick={onClose} className="text-gray-custom hover:text-white"><X size={18} /></button>
+          <button onClick={onClose} className="text-gray-custom hover:text-foreground"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-2">
           {loading ? (
@@ -253,7 +253,7 @@ function ForwardModal({
                   key={c.id}
                   onClick={() => forward(c.id)}
                   disabled={!!sending}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-dark transition-colors text-left disabled:opacity-50"
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-colors text-left disabled:opacity-50"
                 >
                   <Avatar user={other} size={9} />
                   <span className="text-sm font-medium truncate flex-1">{other?.name ?? 'Unknown'}</span>
@@ -553,10 +553,10 @@ export default function Messages() {
   // ── New Conversation Modal ────────────────────────────────────────────────
   const NewConvModal = (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-dark-light rounded-t-2xl sm:rounded-xl border border-dark-lighter w-full sm:max-w-sm">
-        <div className="flex items-center justify-between p-4 border-b border-dark-lighter">
+      <div className="bg-card rounded-t-2xl sm:rounded-xl border border-line w-full sm:max-w-sm">
+        <div className="flex items-center justify-between p-4 border-b border-line">
           <h2 className="font-semibold">New Message</h2>
-          <button onClick={() => { setShowNewConv(false); setRecipientSearch(''); }} className="text-gray-custom hover:text-white">
+          <button onClick={() => { setShowNewConv(false); setRecipientSearch(''); }} className="text-gray-custom hover:text-foreground">
             <X size={18} />
           </button>
         </div>
@@ -568,7 +568,7 @@ export default function Messages() {
               onChange={(e) => setRecipientSearch(e.target.value)}
               placeholder="Search by name..."
               autoFocus
-              className="w-full pl-8 pr-3 py-2.5 bg-dark border border-dark-lighter rounded-xl text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+              className="w-full pl-8 pr-3 py-2.5 bg-surface border border-line rounded-xl text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
             />
           </div>
           <div className="space-y-1 max-h-64 overflow-y-auto">
@@ -576,7 +576,7 @@ export default function Messages() {
               <button
                 key={u.id}
                 onClick={() => newConvMutation.mutate(u.id)}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-dark transition-colors text-left"
+                className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface transition-colors text-left"
               >
                 <Avatar user={u} size={9} />
                 <div>
@@ -598,27 +598,27 @@ export default function Messages() {
   const ConversationList = (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-dark-lighter shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0">
         <h1 className="text-xl font-bold">Messages</h1>
         <button
           onClick={() => setShowNewConv(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-primary hover:bg-primary-dark text-dark transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-primary hover:bg-primary-dark text-on-primary transition-colors"
           aria-label="New message"
         >
           <Edit size={16} />
         </button>
       </div>
 
-      <div className="flex bg-dark-lighter p-1 mx-4 my-2 rounded-lg shrink-0">
+      <div className="flex bg-elevated p-1 mx-4 my-2 rounded-lg shrink-0">
         <button
           onClick={() => { setShowArchived(false); setActiveConvId(null); }}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${!showArchived ? 'bg-dark text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${!showArchived ? 'bg-surface text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
         >
           Active
         </button>
         <button
           onClick={() => { setShowArchived(true); setActiveConvId(null); }}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${showArchived ? 'bg-dark text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${showArchived ? 'bg-surface text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
         >
           Archived
         </button>
@@ -645,10 +645,10 @@ export default function Messages() {
             <button
               key={conv.id}
               onClick={() => openConv(conv.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark/40 active:bg-dark/60 transition-colors text-left border-b border-dark-lighter/30"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface/40 active:bg-surface/60 transition-colors text-left border-b border-line/30"
             >
               {isGroup ? (
-                <div className="w-12 h-12 bg-dark-lighter rounded-full flex items-center justify-center shrink-0 border border-dark/50">
+                <div className="w-12 h-12 bg-elevated rounded-full flex items-center justify-center shrink-0 border border-surface/50">
                   <Users size={20} className="text-gray-custom" />
                 </div>
               ) : (
@@ -679,10 +679,10 @@ export default function Messages() {
     return (
       <div className="flex flex-col h-full">
         {/* Chat header */}
-        <div className="flex items-center gap-3 px-3 py-3 border-b border-dark-lighter shrink-0">
+        <div className="flex items-center gap-3 px-3 py-3 border-b border-line shrink-0">
           <button
             onClick={() => setActiveConvId(null)}
-            className="md:hidden p-1 -ml-1 text-gray-custom hover:text-white transition-colors"
+            className="md:hidden p-1 -ml-1 text-gray-custom hover:text-foreground transition-colors"
             aria-label="Back"
           >
             <ArrowLeft size={22} />
@@ -690,7 +690,7 @@ export default function Messages() {
           
           {isGroup ? (
             <div className="flex-1 min-w-0 flex items-center gap-3">
-              <div className="w-10 h-10 bg-dark rounded-full flex items-center justify-center shrink-0 border border-dark-lighter">
+              <div className="w-10 h-10 bg-surface rounded-full flex items-center justify-center shrink-0 border border-line">
                 <Users size={16} className="text-gray-custom" />
               </div>
               <div className="min-w-0">
@@ -711,7 +711,7 @@ export default function Messages() {
           <div className="relative">
             <button 
                onClick={() => setChatMenuOpen(!chatMenuOpen)} 
-               className="p-2 text-gray-custom hover:text-white hover:bg-dark rounded-full transition-colors"
+               className="p-2 text-gray-custom hover:text-foreground hover:bg-surface rounded-full transition-colors"
             >
               <MoreVertical size={20} />
             </button>
@@ -719,17 +719,17 @@ export default function Messages() {
             {chatMenuOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setChatMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-2 w-48 bg-dark border border-dark-lighter rounded-xl shadow-xl z-50 overflow-hidden py-1 transform origin-top-right">
+                <div className="absolute right-0 top-full mt-2 w-48 bg-surface border border-line rounded-xl shadow-xl z-50 overflow-hidden py-1 transform origin-top-right">
                   <button
                     onClick={handleArchive}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-dark-light transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-card transition-colors"
                   >
                     <Archive size={16} />
                     {showArchived ? 'Unarchive Chat' : 'Archive Chat'}
                   </button>
                   <button
                     onClick={handleExit}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-dark-light transition-colors"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-card transition-colors"
                   >
                     <LogOut size={16} />
                     Exit Chat
@@ -755,7 +755,7 @@ export default function Messages() {
                     <button
                       type="button"
                       onClick={() => setActiveMenu(showMenu ? null : msg.id)}
-                      className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} text-gray-custom hover:text-white p-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}
+                      className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} text-gray-custom hover:text-foreground p-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}
                       aria-label="Message actions"
                     >
                       <MoreHorizontal size={14} />
@@ -777,13 +777,13 @@ export default function Messages() {
                   {/* Message bubble */}
                   {isDeleted ? (
                     <div className={`rounded-2xl px-4 py-2.5 ${
-                      isMe ? 'bg-dark-lighter/50 rounded-br-sm' : 'bg-dark-lighter/50 rounded-bl-sm'
+                      isMe ? 'bg-elevated/50 rounded-br-sm' : 'bg-elevated/50 rounded-bl-sm'
                     }`}>
-                      <p className="text-sm text-white/30 italic">This message was deleted</p>
+                      <p className="text-sm text-foreground/30 italic">This message was deleted</p>
                     </div>
                   ) : (
                     <div className={`rounded-2xl px-4 py-2.5 ${
-                      isMe ? 'bg-primary text-dark rounded-br-sm' : 'bg-dark-lighter text-white rounded-bl-sm'
+                      isMe ? 'bg-primary text-on-primary rounded-br-sm' : 'bg-elevated text-foreground rounded-bl-sm'
                     }`}>
                       {msg.content && msg.content !== '[Shared post]' && msg.content !== '[Shared profile]' && (
                         <Linkify className="text-sm leading-snug">{msg.content}</Linkify>
@@ -795,7 +795,7 @@ export default function Messages() {
                       {/* Shared profile preview */}
                       {msg.sharedProfile && <SharedProfileCard profile={msg.sharedProfile} />}
 
-                      <div className={`flex items-center gap-1.5 mt-1 ${isMe ? 'text-dark/60' : 'text-gray-custom'}`}>
+                      <div className={`flex items-center gap-1.5 mt-1 ${isMe ? 'text-on-primary/60' : 'text-gray-custom'}`}>
                         <span className="text-xs">{timeAgo(msg.createdAt)}</span>
                       </div>
                     </div>
@@ -808,18 +808,18 @@ export default function Messages() {
         </div>
 
         {/* Input */}
-        <form onSubmit={handleSend} className="px-3 py-3 border-t border-dark-lighter flex items-center gap-2 shrink-0">
+        <form onSubmit={handleSend} className="px-3 py-3 border-t border-line flex items-center gap-2 shrink-0">
           <input
             ref={inputRef}
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
             placeholder="Message..."
-            className="flex-1 bg-dark border border-dark-lighter rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-custom focus:outline-none focus:border-primary"
+            className="flex-1 bg-surface border border-line rounded-full px-4 py-2.5 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
           />
           <button
             type="submit"
             disabled={!messageText.trim() || sendMutation.isPending}
-            className="w-10 h-10 flex items-center justify-center bg-primary hover:bg-primary-dark disabled:opacity-40 text-dark rounded-full transition-colors shrink-0"
+            className="w-10 h-10 flex items-center justify-center bg-primary hover:bg-primary-dark disabled:opacity-40 text-on-primary rounded-full transition-colors shrink-0"
           >
             <Send size={16} />
           </button>
@@ -843,7 +843,7 @@ export default function Messages() {
       )}
 
       {/* ── Mobile layout ── */}
-      <div className="md:hidden flex flex-col flex-1 min-h-0 bg-dark-light rounded-xl border border-dark-lighter overflow-hidden">
+      <div className="md:hidden flex flex-col flex-1 min-h-0 bg-card rounded-xl border border-line overflow-hidden">
         {activeConvId ? ChatView : ConversationList}
       </div>
 
@@ -854,7 +854,7 @@ export default function Messages() {
           <h1 className="text-2xl font-bold">Messages</h1>
           <button
             onClick={() => setShowNewConv(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-dark font-semibold text-sm rounded-lg transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
           >
             <Plus size={16} />
             New Message
@@ -863,17 +863,17 @@ export default function Messages() {
 
         <div className="flex flex-1 gap-4 min-h-0">
           {/* Sidebar */}
-          <div className="w-72 shrink-0 bg-dark-light rounded-xl border border-dark-lighter flex flex-col overflow-hidden">
-            <div className="flex bg-dark p-1 mx-3 mt-3 mb-1 rounded-lg shrink-0 border border-dark-lighter">
+          <div className="w-72 shrink-0 bg-card rounded-xl border border-line flex flex-col overflow-hidden">
+            <div className="flex bg-surface p-1 mx-3 mt-3 mb-1 rounded-lg shrink-0 border border-line">
               <button
                 onClick={() => { setShowArchived(false); setActiveConvId(null); }}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${!showArchived ? 'bg-dark-light text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${!showArchived ? 'bg-card text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
               >
                 Active
               </button>
               <button
                 onClick={() => { setShowArchived(true); setActiveConvId(null); }}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${showArchived ? 'bg-dark-light text-white shadow-sm' : 'text-gray-custom hover:text-white'}`}
+                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${showArchived ? 'bg-card text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
               >
                 Archived
               </button>
@@ -900,11 +900,11 @@ export default function Messages() {
                     key={conv.id}
                     onClick={() => openConv(conv.id)}
                     className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
-                      isActive ? 'bg-primary/10 border-r-2 border-primary' : 'hover:bg-dark/40'
+                      isActive ? 'bg-primary/10 border-r-2 border-primary' : 'hover:bg-surface/40'
                     }`}
                   >
                     {isGroup ? (
-                      <div className="w-10 h-10 bg-dark-lighter rounded-full flex items-center justify-center shrink-0 border border-dark/50">
+                      <div className="w-10 h-10 bg-elevated rounded-full flex items-center justify-center shrink-0 border border-surface/50">
                         <Users size={16} className="text-gray-custom" />
                       </div>
                     ) : (
@@ -926,7 +926,7 @@ export default function Messages() {
           </div>
 
           {/* Chat panel */}
-          <div className="flex-1 bg-dark-light rounded-xl border border-dark-lighter flex flex-col overflow-hidden">
+          <div className="flex-1 bg-card rounded-xl border border-line flex flex-col overflow-hidden">
             {ChatView}
           </div>
         </div>

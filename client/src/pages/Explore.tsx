@@ -45,7 +45,7 @@ export default function Explore() {
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search athletes, coaches, scouts..."
-            className="w-full pl-10 pr-4 py-3 bg-dark-light border border-dark-lighter rounded-lg focus:outline-none focus:border-primary text-white"
+            className="w-full pl-10 pr-4 py-3 bg-card border border-line rounded-lg focus:outline-none focus:border-primary text-foreground"
           />
         </div>
 
@@ -58,7 +58,7 @@ export default function Explore() {
                 key={r}
                 onClick={() => { setRole(r); setPage(1); }}
                 className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                  role === r ? 'bg-primary text-dark font-semibold' : 'bg-dark-lighter text-gray-custom hover:text-white'
+                  role === r ? 'bg-primary text-on-primary font-semibold' : 'bg-elevated text-gray-custom hover:text-foreground'
                 }`}
               >
                 {r === 'ALL' ? 'All' : r.charAt(0) + r.slice(1).toLowerCase()}
@@ -72,7 +72,7 @@ export default function Explore() {
                 key={s.value}
                 onClick={() => { setSport(s.value); setPage(1); }}
                 className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                  sport === s.value ? 'bg-secondary text-white' : 'bg-dark-lighter text-gray-custom hover:text-white'
+                  sport === s.value ? 'bg-secondary text-white' : 'bg-elevated text-gray-custom hover:text-foreground'
                 }`}
               >
                 {s.emoji ? `${s.emoji} ${s.label}` : s.label}
@@ -94,7 +94,7 @@ export default function Explore() {
               <Link
                 key={user.id}
                 to={`/profile/${user.id}`}
-                className="bg-dark-light border border-dark-lighter rounded-xl p-4 hover:border-primary/50 transition-colors"
+                className="bg-card border border-line rounded-xl p-4 hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-center gap-4">
                   {user.avatar ? (
@@ -143,7 +143,7 @@ export default function Explore() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-4 py-2 bg-dark-lighter rounded-lg text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-elevated rounded-lg text-sm disabled:opacity-50"
               >
                 Previous
               </button>
@@ -153,7 +153,7 @@ export default function Explore() {
               <button
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= data.totalPages}
-                className="px-4 py-2 bg-dark-lighter rounded-lg text-sm disabled:opacity-50"
+                className="px-4 py-2 bg-elevated rounded-lg text-sm disabled:opacity-50"
               >
                 Next
               </button>
