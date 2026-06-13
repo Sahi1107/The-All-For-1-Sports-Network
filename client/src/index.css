@@ -115,3 +115,11 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Sport feed backdrops (Home): the court/field line-art is drawn in white for
+   the dark theme. In light mode, recolor the strokes/fills to ink so the
+   outlines stay visible against the light page, and lift the group opacity a
+   touch so they read as a subtle, still-transparent watermark. */
+:root[data-theme="light"] .sport-backdrop [stroke="white"] { stroke: #0d1220; }
+:root[data-theme="light"] .sport-backdrop [fill="white"] { fill: #0d1220; }
+:root[data-theme="light"] .sport-backdrop g[opacity="0.18"] { opacity: 0.3; }

@@ -521,7 +521,7 @@ export default function Home() {
   return (
     <div className="-mx-4 -my-4 md:-mx-6 md:-my-6">
       {Backdrop && (
-        <div className="hidden md:block fixed top-0 bottom-0 right-0 pointer-events-none select-none z-[1]" style={{ left: '256px' }}>
+        <div className="sport-backdrop hidden md:block fixed top-0 bottom-0 right-0 pointer-events-none select-none z-[1]" style={{ left: '256px' }}>
           <Backdrop />
         </div>
       )}
