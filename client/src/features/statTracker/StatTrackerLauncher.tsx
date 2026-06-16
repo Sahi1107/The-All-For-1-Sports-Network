@@ -52,11 +52,11 @@ export default function StatTrackerLauncher() {
         </p>
         <div className="flex gap-2">
           <Link to="/admin/stat-tracker/demo/basketball"
-            className="flex items-center gap-2 px-3 py-2 bg-dark border border-dark-lighter hover:border-primary rounded-lg text-sm">
+            className="flex items-center gap-2 px-3 py-2 bg-elevated text-foreground border border-line hover:border-primary rounded-lg text-sm transition-colors">
             🏀 Basketball demo
           </Link>
           <Link to="/admin/stat-tracker/demo/football"
-            className="flex items-center gap-2 px-3 py-2 bg-dark border border-dark-lighter hover:border-primary rounded-lg text-sm">
+            className="flex items-center gap-2 px-3 py-2 bg-elevated text-foreground border border-line hover:border-primary rounded-lg text-sm transition-colors">
             ⚽ Football demo
           </Link>
         </div>
@@ -70,8 +70,8 @@ export default function StatTrackerLauncher() {
             onClick={() => setSport(s.value)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               sport === s.value
-                ? 'bg-primary text-dark font-semibold'
-                : 'bg-dark-light text-gray-custom hover:text-white border border-dark-lighter'
+                ? 'bg-primary text-on-primary font-semibold'
+                : 'bg-elevated text-gray-custom hover:text-foreground border border-line'
             }`}
           >
             <span className="text-lg">{s.emoji}</span>
@@ -85,21 +85,21 @@ export default function StatTrackerLauncher() {
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
         </div>
       ) : tournaments.length === 0 ? (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter p-12 text-center">
+        <div className="bg-card rounded-xl border border-line p-12 text-center">
           <Trophy size={28} className="mx-auto mb-3 text-gray-custom" />
           <p className="text-sm text-gray-custom">
             No trackable {sport.toLowerCase()} tournaments. Close registration on a tournament to track it.
           </p>
         </div>
       ) : (
-        <div className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden divide-y divide-dark-lighter">
+        <div className="bg-card rounded-xl border border-line overflow-hidden divide-y divide-line">
           {tournaments.map((t) => (
             <button
               key={t.id}
               onClick={() => nav(`/admin/stat-tracker/${t.id}`)}
-              className="w-full flex items-center gap-4 px-5 py-3 hover:bg-dark/20 transition-colors text-left"
+              className="w-full flex items-center gap-4 px-5 py-3 hover:bg-elevated transition-colors text-left"
             >
-              <div className="w-12 h-12 rounded-lg overflow-hidden bg-dark shrink-0 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-lg overflow-hidden bg-elevated shrink-0 flex items-center justify-center">
                 {t.thumbnailUrl
                   ? <img src={t.thumbnailUrl} alt={t.name} className="w-full h-full object-cover" />
                   : <Trophy size={16} className="text-gray-custom" />}
@@ -117,7 +117,7 @@ export default function StatTrackerLauncher() {
       )}
 
       <div className="mt-6">
-        <Link to="/admin" className="text-xs text-gray-custom hover:text-white">← Back to admin</Link>
+        <Link to="/admin" className="text-xs text-gray-custom hover:text-foreground">← Back to admin</Link>
       </div>
     </div>
   );

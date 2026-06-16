@@ -45,7 +45,7 @@ export default function TrackerDashboard() {
         {session && (
           <button
             onClick={() => exportTournamentExcel(session, tournament?.name ?? 'tournament')}
-            className="flex items-center gap-2 px-3 py-2 bg-dark-light border border-dark-lighter hover:border-primary rounded-lg text-xs"
+            className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-primary rounded-lg text-xs transition-colors"
           >
             <Download size={14} /> Tournament totals
           </button>
@@ -66,7 +66,7 @@ export default function TrackerDashboard() {
       )}
 
       <div className="mt-6">
-        <Link to="/admin/stat-tracker" className="text-xs text-gray-custom hover:text-white">← All tournaments</Link>
+        <Link to="/admin/stat-tracker" className="text-xs text-gray-custom hover:text-foreground">← All tournaments</Link>
       </div>
     </div>
   );
@@ -109,7 +109,7 @@ function CreateSessionForm({
   const showKnockout = format === 'KNOCKOUT' || format === 'MIXED';
 
   return (
-    <div className="bg-dark-light rounded-xl border border-dark-lighter p-6 space-y-5 max-w-2xl">
+    <div className="bg-card rounded-xl border border-line p-6 space-y-5 max-w-2xl">
       <div className="flex items-center gap-2">
         <Trophy size={18} className="text-primary" />
         <h2 className="font-semibold text-lg">Generate fixtures</h2>
@@ -127,7 +127,7 @@ function CreateSessionForm({
               key={value}
               onClick={() => setFormat(value)}
               className={`p-3 rounded-lg border text-left transition-colors ${
-                format === value ? 'border-primary bg-primary/10' : 'border-dark-lighter bg-dark hover:border-gray-600'
+                format === value ? 'border-primary bg-primary/10' : 'border-line bg-surface hover:border-gray-600'
               }`}
             >
               <div className="text-sm font-medium">{label}</div>
@@ -160,7 +160,7 @@ function CreateSessionForm({
       <button
         onClick={() => mutation.mutate()}
         disabled={mutation.isPending}
-        className="w-full py-2.5 bg-primary hover:bg-primary-dark text-dark font-semibold rounded-lg text-sm disabled:opacity-50"
+        className="w-full py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm disabled:opacity-50"
       >
         {mutation.isPending ? 'Generating…' : 'Import teams & generate fixtures'}
       </button>
@@ -177,7 +177,7 @@ function NumberField({
       <input
         type="number" min={min} max={max} value={value}
         onChange={(e) => onChange(Math.max(min, Math.min(max, Number(e.target.value) || min)))}
-        className="w-full px-3 py-2 bg-dark border border-dark-lighter rounded-lg text-sm focus:outline-none focus:border-primary"
+        className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
       />
     </div>
   );
@@ -224,7 +224,7 @@ function SessionView({
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom mb-2">
             {matches[0].round || stage}
           </h3>
-          <div className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden divide-y divide-dark-lighter">
+          <div className="bg-card rounded-xl border border-line overflow-hidden divide-y divide-line">
             {matches.map((m) => (
               <div key={m.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
@@ -238,7 +238,7 @@ function SessionView({
                 <button
                   onClick={() => onOpenMatch(m)}
                   disabled={!m.homeTeamId || !m.awayTeamId}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primary-dark text-dark text-xs font-semibold rounded-lg disabled:opacity-40"
+                  className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary text-xs font-semibold rounded-lg disabled:opacity-40"
                 >
                   {m.status === 'PUBLISHED' ? <CheckCircle2 size={13} /> : <Play size={13} />}
                   {m.status === 'SCHEDULED' ? 'Track' : m.status === 'PUBLISHED' ? 'View' : 'Resume'}
@@ -254,7 +254,7 @@ function SessionView({
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    SCHEDULED: 'bg-dark text-gray-custom border-dark-lighter',
+    SCHEDULED: 'bg-elevated text-gray-custom border-line',
     IN_PROGRESS: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     COMPLETED: 'bg-primary/20 text-primary-light border-primary/30',
     PUBLISHED: 'bg-accent/20 text-accent border-accent/30',
@@ -270,14 +270,14 @@ function StandingsTable({ title, rows }: { title: string; rows: ReturnType<typeo
   return (
     <div>
       <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom mb-2">{title}</h3>
-      <div className="bg-dark-light rounded-xl border border-dark-lighter overflow-hidden">
-        <div className="grid grid-cols-[2fr_repeat(6,1fr)] gap-1 px-4 py-2 text-[11px] text-gray-custom border-b border-dark-lighter">
+      <div className="bg-card rounded-xl border border-line overflow-hidden">
+        <div className="grid grid-cols-[2fr_repeat(6,1fr)] gap-1 px-4 py-2 text-[11px] text-gray-custom border-b border-line">
           <span>Team</span><span className="text-center">P</span><span className="text-center">W</span>
           <span className="text-center">D</span><span className="text-center">L</span>
           <span className="text-center">GD</span><span className="text-center">Pts</span>
         </div>
         {rows.map((r) => (
-          <div key={r.teamId} className="grid grid-cols-[2fr_repeat(6,1fr)] gap-1 px-4 py-2 text-sm border-b border-dark-lighter last:border-0">
+          <div key={r.teamId} className="grid grid-cols-[2fr_repeat(6,1fr)] gap-1 px-4 py-2 text-sm border-b border-line last:border-0">
             <span className="truncate">{r.teamName}</span>
             <span className="text-center">{r.played}</span><span className="text-center">{r.wins}</span>
             <span className="text-center">{r.draws}</span><span className="text-center">{r.losses}</span>
