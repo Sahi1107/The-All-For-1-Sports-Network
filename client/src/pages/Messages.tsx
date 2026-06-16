@@ -152,21 +152,15 @@ interface ActionMenuProps {
 }
 
 function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: ActionMenuProps) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
   return (
-    <div
-      ref={menuRef}
-      className={`absolute z-30 ${isMe ? 'right-0' : 'left-0'} top-full mt-1 bg-card border border-line rounded-xl shadow-xl py-1 min-w-[140px] animate-in fade-in zoom-in-95 duration-150`}
-    >
+    <>
+      {/* Full-screen click-catcher: closing on a plain click avoids the
+          mousedown race that could unmount the menu before a menu item's
+          click registered (which made actions like Unsend silently no-op). */}
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div
+        className={`absolute z-50 ${isMe ? 'right-0' : 'left-0'} top-full mt-1 bg-card border border-line rounded-xl shadow-xl py-1 min-w-[140px]`}
+      >
       <button
         type="button"
         onClick={onCopy}
@@ -192,7 +186,8 @@ function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: 
           <Trash2 size={14} /> Unsend
         </button>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -440,14 +435,15 @@ export default function Messages() {
     // Optimistically mark the message deleted so the UI reacts instantly on click,
     // independent of the round-trip. Snapshot prior state for rollback on failure.
     onMutate: (msgId: string) => {
-      let prevContent = '';
-      let prevDeletedAt: string | null = null;
-      setMessages(prev => prev.map(m => {
-        if (m.id !== msgId) return m;
-        prevContent = m.content;
-        prevDeletedAt = m.deletedAt ?? null;
-        return { ...m, content: '', deletedAt: new Date().toISOString() };
-      }));
+      // Snapshot from current state *before* mutating, so rollback restores the
+      // real content. (Reading inside the setState updater isn't safe — it runs
+      // after onMutate has already returned the context.)
+      const target = messages.find(m => m.id === msgId);
+      const prevContent = target?.content ?? '';
+      const prevDeletedAt = target?.deletedAt ?? null;
+      setMessages(prev => prev.map(m =>
+        m.id === msgId ? { ...m, content: '', deletedAt: new Date().toISOString() } : m
+      ));
       return { msgId, prevContent, prevDeletedAt };
     },
     onSuccess: () => toast.success('Message unsent'),
