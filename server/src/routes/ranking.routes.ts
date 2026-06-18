@@ -22,7 +22,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
       prisma.playerRanking.findMany({
         where,
         include: {
-          user: { select: { id: true, name: true, avatar: true, position: true, location: true } },
+          user: { select: { id: true, name: true, avatar: true, position: true, location: true, verified: true } },
           tournament: { select: { id: true, name: true } },
         },
         skip,
