@@ -121,6 +121,7 @@ export default function Register() {
     name: '', email: '', password: '',
     role:  '' as 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA' | '',
     sport: '' as Sport | '',
+    gender: '' as 'MALE' | 'FEMALE' | '',
     athleticsEvents: [] as string[],
     country: '',
     state: '',
@@ -156,6 +157,7 @@ export default function Register() {
     e.preventDefault();
     if (!form.role || !form.sport) return;
     if (!isTeam && !dob) return;
+    if (!isTeam && !form.gender) { toast.error('Please select your gender'); return; }
     setLoading(true);
     try {
       const age = !isTeam && dob ? ageFrom(dob) : undefined;
@@ -163,6 +165,7 @@ export default function Register() {
       await register({
         name: form.name, email: form.email, password: form.password,
         role: form.role, sport: form.sport,
+        ...(!isTeam && form.gender && { gender: form.gender }),
         ...(requiresAthleticsEvents && { athleticsEvents: form.athleticsEvents }),
         ...(age !== undefined && { age }),
         ...(!isTeam && dob && { dateOfBirth: dob.toISOString() }),
@@ -472,6 +475,29 @@ export default function Register() {
                 </div>
               )}
 
+              {/* Gender — required for individuals; keeps men's and women's rankings separate */}
+              {!isTeam && (
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">
+                    Gender <span className="text-primary">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(form.role === 'ATHLETE'
+                      ? [['MALE', "Men's"], ['FEMALE', "Women's"]]
+                      : [['MALE', 'Male'], ['FEMALE', 'Female']]
+                    ).map(([value, label]) => (
+                      <button key={value} type="button"
+                        onClick={() => setForm({ ...form, gender: value as 'MALE' | 'FEMALE' })}
+                        className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
+                          form.gender === value ? 'border-primary bg-primary/10 text-foreground' : 'border-line text-gray-custom hover:border-gray-custom'
+                        }`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Height — individuals only */}
               {!isTeam && (
                 <div>
@@ -487,7 +513,7 @@ export default function Register() {
                 </div>
               )}
 
-              <button type="submit" disabled={loading}
+              <button type="submit" disabled={loading || (!isTeam && !form.gender)}
                 className="w-full py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50">
                 {loading ? 'Creating account…' : 'Join All For 1'}
               </button>

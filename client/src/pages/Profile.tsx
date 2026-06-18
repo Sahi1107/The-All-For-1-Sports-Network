@@ -768,6 +768,12 @@ export default function Profile() {
                       {SPORT_ICONS[profile.sport]} {profile.sport}
                     </span>
                   )}
+                  {/* Gender category — athletes are ranked separately as Men's / Women's */}
+                  {profile.role === 'ATHLETE' && profile.gender && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary/15 text-primary-light">
+                      {profile.gender === 'FEMALE' ? "Women's" : "Men's"}
+                    </span>
+                  )}
                   {profile.position && profile.role !== 'ADMIN' && (
                     <span className="text-foreground/70 text-sm">· {profile.position}</span>
                   )}

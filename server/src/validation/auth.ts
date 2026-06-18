@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { reqStr, optStr, SportEnum, RoleEnum } from './common';
+import { reqStr, optStr, SportEnum, RoleEnum, GenderEnum } from './common';
 
 // ─── Password rules ───────────────────────────────────────────────────────────
 // Min 8 chars, at least one uppercase, one lowercase, one digit.
@@ -27,9 +27,10 @@ const email = z
 export const RegisterBody = z.object({
   email,
   password,
-  name:  reqStr(50, 'Name'),
-  role:  RoleEnum,
-  sport: SportEnum,
+  name:   reqStr(50, 'Name'),
+  role:   RoleEnum,
+  sport:  SportEnum,
+  gender: GenderEnum.optional(),
 });
 
 export const LoginBody = z.object({

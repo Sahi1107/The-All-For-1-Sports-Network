@@ -4,7 +4,7 @@ import prisma from '../config/db';
 import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum } from '../validation/common';
+import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum, GenderEnum } from '../validation/common';
 import { HandoverConsentBody, HandoverCompleteBody } from '../validation/auth';
 import { generateSecureToken, hashToken } from '../utils/crypto';
 import { sendGuardianConsentEmail } from '../services/email';
@@ -37,6 +37,7 @@ const SyncBody = z.object({
   name:             reqStr(50, 'Name'),
   role:             RoleEnum,
   sport:            SportEnum,
+  gender:           GenderEnum.optional(),
   athleticsEvents:  z.array(AthleticsEventEnum).max(21).optional(),
   age:              z.number().int().min(10).max(100).optional(),
   // ISO date string; age is derived from this server-side when present.
@@ -121,7 +122,7 @@ router.post('/sync', async (req: Request, res: Response) => {
       });
       return;
     }
-    const { name, role, sport, athleticsEvents, age, dateOfBirth, location, height } = parse.data;
+    const { name, role, sport, gender, athleticsEvents, age, dateOfBirth, location, height } = parse.data;
 
     // Derive age from the date of birth when provided (don't trust the client age).
     const dob = dateOfBirth ? new Date(dateOfBirth) : null;
@@ -139,6 +140,7 @@ router.post('/sync', async (req: Request, res: Response) => {
         name,
         role,
         sport,
+        ...(gender && { gender }),
         ...(sport === 'ATHLETICS' && athleticsEvents && athleticsEvents.length > 0 && { athleticsEvents }),
         ...(effectiveAge !== undefined && { age: effectiveAge }),
         ...(dob && { dateOfBirth: dob }),
@@ -163,6 +165,7 @@ router.post('/sync', async (req: Request, res: Response) => {
 
 const meSelect = {
   id: true, email: true, name: true, role: true, sport: true,
+  gender: true,
   athleticsEvents: true,
   avatar: true, bio: true, location: true, age: true, height: true,
   position: true, achievements: true, verified: true, phoneVerified: true,

@@ -126,6 +126,12 @@ enum HandoverStatus {
   CONSENTED // guardian accepted; athlete may set their own credentials
 }
 
+// Used to separate men's and women's rankings (and gender-specific weight classes).
+enum Gender {
+  MALE
+  FEMALE
+}
+
 // ─── User ────────────────────────────────────────────────
 
 model User {
@@ -135,6 +141,7 @@ model User {
   name                   String
   role                   Role
   sport                  Sport?
+  gender                 Gender?
   athleticsEvents        String[]  @map("athletics_events")
   avatar                 String?
   bio                    String?

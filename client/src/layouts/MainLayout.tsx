@@ -48,7 +48,10 @@ export default function MainLayout() {
   };
 
   // Profile completeness check for "!" badge
-  const profileIncomplete = !!(user && user.role !== 'ADMIN' && (!user.bio || !user.avatar || !user.location || !user.age || !user.position));
+  // Gender is required for everyone except teams (and admins) so men's/women's
+  // rankings stay separate; existing profiles are nagged until they set it.
+  const needsGender = !!(user && user.role !== 'ADMIN' && user.role !== 'TEAM' && !user.gender);
+  const profileIncomplete = !!(user && user.role !== 'ADMIN' && (!user.bio || !user.avatar || !user.location || !user.age || !user.position)) || needsGender;
 
   const navItems = [
     { to: '/home',          icon: Home,          label: 'Home' },
@@ -280,7 +283,11 @@ export default function MainLayout() {
               <span className="w-8 h-8 bg-yellow-500 text-black rounded-full flex items-center justify-center text-sm font-bold shrink-0">!</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-yellow-400">Complete your profile</p>
-                <p className="text-xs text-yellow-400/60 mt-0.5">Add your bio, avatar, location, age, and position to get verified</p>
+                <p className="text-xs text-yellow-400/60 mt-0.5">
+                  {needsGender
+                    ? 'Select your gender to be placed in the rankings, and add your bio, avatar, location, age, and position to get verified'
+                    : 'Add your bio, avatar, location, age, and position to get verified'}
+                </p>
               </div>
               <span className="text-xs text-yellow-400/80 font-medium shrink-0">Edit</span>
             </Link>

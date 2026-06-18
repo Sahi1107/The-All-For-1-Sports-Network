@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { optStr, optText, PaginationQuery, SportEnum, RoleEnum } from './common';
+import { optStr, optText, PaginationQuery, SportEnum, RoleEnum, GenderEnum } from './common';
 
 // ─── Profile update ───────────────────────────────────────────────────────────
 
@@ -9,6 +9,7 @@ export const UpdateProfileBody = z.object({
   location:     optStr(100,  'Location'),
   height:       optStr(20,   'Height'),
   position:     optStr(50,   'Position'),
+  gender:       GenderEnum.optional(),
   achievements: optText(1000, 'Achievements'),
   phone:        optStr(30,   'Phone'),
   contactEmail: optStr(100,  'Contact email'),

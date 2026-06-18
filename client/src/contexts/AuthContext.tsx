@@ -19,6 +19,7 @@ interface User {
   name: string;
   role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA' | 'ADMIN';
   sport: Sport;
+  gender?: 'MALE' | 'FEMALE';
   athleticsEvents?: string[];
   avatar?: string;
   bio?: string;
@@ -40,6 +41,7 @@ interface RegisterData {
   name: string;
   role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA';
   sport: Sport;
+  gender?: 'MALE' | 'FEMALE';
   athleticsEvents?: string[];
   age?: number;
   dateOfBirth?: string;
@@ -106,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // ── Register ─────────────────────────────────────────────────────────────
 
-  const register = async ({ email, password, name, role, sport, athleticsEvents, age, dateOfBirth, location, height }: RegisterData) => {
+  const register = async ({ email, password, name, role, sport, gender, athleticsEvents, age, dateOfBirth, location, height }: RegisterData) => {
     // 1. Create Firebase Auth user
     const cred = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -115,6 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const rawToken = await cred.user.getIdToken();
     await authedPost(rawToken, '/auth/sync', {
       name, role, sport,
+      ...(gender && { gender }),
       ...(athleticsEvents && athleticsEvents.length > 0 && { athleticsEvents }),
       ...(age !== undefined && { age }),
       ...(dateOfBirth && { dateOfBirth }),

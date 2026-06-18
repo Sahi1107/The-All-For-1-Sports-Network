@@ -9,7 +9,7 @@ const router = Router();
 // GET /api/rankings
 router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Response) => {
   try {
-    const { sport, tournamentId, category, region, page = '1', limit = '50' } = req.query;
+    const { sport, tournamentId, category, region, gender, page = '1', limit = '50' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
     const where: any = {};
@@ -17,12 +17,14 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     if (tournamentId) where.tournamentId = tournamentId;
     if (category) where.category = category;
     if (region) where.region = region;
+    // Men's and women's rankings are separate — filter on the athlete's gender.
+    if (gender === 'MALE' || gender === 'FEMALE') where.user = { gender };
 
     const [rankings, total] = await Promise.all([
       prisma.playerRanking.findMany({
         where,
         include: {
-          user: { select: { id: true, name: true, avatar: true, position: true, location: true, verified: true } },
+          user: { select: { id: true, name: true, avatar: true, position: true, location: true, verified: true, gender: true } },
           tournament: { select: { id: true, name: true } },
         },
         skip,

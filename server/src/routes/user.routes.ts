@@ -291,7 +291,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id: req.params.id as string },
       select: {
-        id: true, name: true, role: true, sport: true, avatar: true,
+        id: true, name: true, role: true, sport: true, gender: true, avatar: true,
         bio: true, location: true, age: true, height: true, position: true,
         achievements: true, verified: true, createdAt: true,
         contactEmail: true, banner: true, guardianManaged: true,
@@ -401,7 +401,7 @@ async function uploadAvatar(file: Express.Multer.File): Promise<string> {
 // PUT /api/users/profile — update own profile
 router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'), validate({ body: UpdateProfileBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, bio, location, age, height, position, achievements, phone, contactEmail } = req.body;
+    const { name, bio, location, age, height, position, gender, achievements, phone, contactEmail } = req.body;
 
     let avatarUrl: string | undefined;
     if (req.file) {
@@ -418,13 +418,14 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
         ...(age !== undefined && { age: parseInt(age) }),
         ...(height !== undefined && { height }),
         ...(position !== undefined && { position }),
+        ...(gender !== undefined && { gender }),
         ...(achievements !== undefined && { achievements }),
         ...(phone !== undefined && { phone }),
         ...(contactEmail !== undefined && { contactEmail }),
         ...(avatarUrl !== undefined && { avatar: avatarUrl }),
       },
       select: {
-        id: true, email: true, name: true, role: true, sport: true, avatar: true,
+        id: true, email: true, name: true, role: true, sport: true, gender: true, avatar: true,
         bio: true, location: true, age: true, height: true, position: true,
         achievements: true, verified: true, createdAt: true,
         phone: true, contactEmail: true, banner: true,

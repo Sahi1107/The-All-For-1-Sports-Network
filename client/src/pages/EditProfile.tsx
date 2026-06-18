@@ -65,6 +65,7 @@ export default function EditProfile() {
     name: user?.name ?? '',
     bio: user?.bio ?? '',
     position: user?.position ?? '',
+    gender: user?.gender ?? '',
     height: user?.height ?? '',
     phone: parsed.number,
     contactEmail: (user as any)?.contactEmail ?? '',
@@ -240,6 +241,23 @@ export default function EditProfile() {
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {user?.role !== 'ADMIN' && (
+            <div>
+              <label className="block text-sm text-gray-custom mb-1">Gender</label>
+              <select
+                name="gender"
+                value={form.gender}
+                onChange={handleChange}
+                className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+              >
+                <option value="">Select gender</option>
+                <option value="MALE">{user?.role === 'ATHLETE' ? "Men's" : 'Male'}</option>
+                <option value="FEMALE">{user?.role === 'ATHLETE' ? "Women's" : 'Female'}</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-custom">Used to place you in the men's or women's rankings.</p>
             </div>
           )}
 

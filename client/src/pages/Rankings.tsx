@@ -6,6 +6,8 @@ import { BadgeCheck, TrendingUp } from 'lucide-react';
 import { SPORTS, ATHLETICS_EVENTS } from '../data/sports';
 import SportBackdrop from '../components/SportBackdrop';
 
+type Gender = 'MALE' | 'FEMALE';
+
 const SPORT_ICONS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, emoji }) => [value, emoji]),
 );
@@ -13,12 +15,26 @@ const SPORT_LABELS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, label }) => [value, label]),
 );
 
-const CATEGORIES: Record<string, string[]> = {
-  BASKETBALL: ['OVERALL', 'PG', 'SG', 'SF', 'PF', 'C'],
-  FOOTBALL:   ['OVERALL', 'FORWARDS', 'MIDFIELDERS', 'DEFENDERS', 'GOALKEEPERS'],
-  CRICKET:    ['OVERALL', 'BATTING', 'BOWLING', 'ALL_ROUND'],
-  ATHLETICS:  ['OVERALL', ...ATHLETICS_EVENTS],
+// Gender-specific weight classes (kg) for the weight-class sports.
+const WEIGHT_CLASSES: Record<string, Record<Gender, string[]>> = {
+  WRESTLING: {
+    MALE:   ['57 kg', '61 kg', '65 kg', '70 kg', '74 kg', '79 kg', '86 kg', '92 kg', '97 kg', '125 kg'],
+    FEMALE: ['50 kg', '53 kg', '55 kg', '57 kg', '59 kg', '62 kg', '65 kg', '68 kg', '72 kg', '76 kg'],
+  },
+  BOXING: {
+    MALE:   ['51 kg', '57 kg', '63.5 kg', '71 kg', '80 kg', '92 kg', '+92 kg'],
+    FEMALE: ['50 kg', '54 kg', '57 kg', '60 kg', '66 kg', '75 kg'],
+  },
+  WEIGHTLIFTING: {
+    MALE:   ['61 kg', '73 kg', '89 kg', '102 kg', '+102 kg'],
+    FEMALE: ['49 kg', '59 kg', '71 kg', '81 kg', '+81 kg'],
+  },
 };
+
+const SHOOTING_EVENTS = ['10m Air Rifle', '10m Air Pistol', '25m Pistol', '50m Rifle 3P', 'Trap', 'Skeet'];
+
+// Sports whose tabs are positions we can filter client-side against athlete.position.
+const POSITION_SPORTS = new Set(['BASKETBALL', 'FOOTBALL']);
 
 // Maps a position category to substrings we match against athlete.position
 const POSITION_FILTER: Record<string, string[]> = {
@@ -32,6 +48,23 @@ const POSITION_FILTER: Record<string, string[]> = {
   DEFENDERS:   ['defend', 'back', 'cb', 'lb', 'rb', 'rwb', 'lwb'],
   GOALKEEPERS: ['keeper', 'gk', 'goalie'],
 };
+
+/** Category tabs for a sport. OVERALL is dropped for combat/weight and event
+ *  sports; weight-class sports get gender-specific divisions. */
+function getCategories(sport: string, gender: Gender): string[] {
+  switch (sport) {
+    case 'BASKETBALL': return ['OVERALL', 'PG', 'SG', 'SF', 'PF', 'C'];
+    case 'FOOTBALL':   return ['OVERALL', 'FORWARDS', 'MIDFIELDERS', 'DEFENDERS', 'GOALKEEPERS'];
+    case 'CRICKET':    return ['OVERALL', 'BATTING', 'BOWLING', 'ALL_ROUND'];
+    case 'ATHLETICS':  return [...ATHLETICS_EVENTS];
+    case 'SHOOTING':   return SHOOTING_EVENTS;
+    case 'WRESTLING':
+    case 'BOXING':
+    case 'WEIGHTLIFTING':
+      return WEIGHT_CLASSES[sport][gender];
+    default:           return ['OVERALL'];
+  }
+}
 
 /** Horizontal rating bar — width is the athlete's score relative to the leader. */
 function RatingBar({ value, max }: { value: number; max: number }) {
@@ -105,23 +138,39 @@ function PerformanceCard({ r, max }: { r: any; max: number }) {
 
 export default function Rankings() {
   const [sport, setSport] = useState('BASKETBALL');
+  const [gender, setGender] = useState<Gender>('MALE');
   const [category, setCategory] = useState('OVERALL');
 
+  const categories = getCategories(sport, gender);
+
+  // Keep the active category valid when the sport/gender (and so the tab list) changes.
+  const selectCategory = (next: string) => setCategory(next);
+  const changeSport = (value: string) => {
+    setSport(value);
+    setCategory(getCategories(value, gender)[0]);
+  };
+  const changeGender = (next: Gender) => {
+    setGender(next);
+    setCategory(getCategories(sport, next)[0]);
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ['rankings', sport],
+    queryKey: ['rankings', sport, gender],
     queryFn: async () => {
-      const { data } = await api.get(`/rankings?sport=${sport}&category=OVERALL`);
+      const { data } = await api.get(`/rankings?sport=${sport}&gender=${gender}`);
       return data;
     },
   });
 
   const allRankings = data?.rankings ?? [];
-  const rankings = category === 'OVERALL'
-    ? allRankings
-    : allRankings.filter((r: any) => {
+  // Position sports can be filtered client-side; other sports show the full list
+  // (their per-category data isn't computed yet).
+  const rankings = POSITION_SPORTS.has(sport) && category !== 'OVERALL'
+    ? allRankings.filter((r: any) => {
         const pos = (r.user?.position ?? '').toLowerCase();
         return (POSITION_FILTER[category] ?? []).some(kw => pos.includes(kw));
-      });
+      })
+    : allRankings;
 
   // The leader's score sets the full width of every rating bar.
   const maxScore = rankings.reduce((m: number, r: any) => Math.max(m, Number(r.score ?? 0)), 0);
@@ -133,7 +182,7 @@ export default function Rankings() {
         {SPORTS.map(({ value }) => (
           <button
             key={value}
-            onClick={() => { setSport(value); setCategory('OVERALL'); }}
+            onClick={() => changeSport(value)}
             className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
               sport === value
                 ? 'bg-primary font-semibold text-on-primary'
@@ -149,17 +198,32 @@ export default function Rankings() {
       <div className="mb-4">
         <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-custom">
           <span>{SPORT_ICONS[sport]}</span>
-          {SPORT_LABELS[sport]} · National · {category.replace('_', ' ')}
+          {SPORT_LABELS[sport]} · National · {gender === 'MALE' ? "Men's" : "Women's"}
         </p>
         <h1 className="text-3xl font-extrabold tracking-tight">Player Rankings</h1>
+
+        {/* Men / Women switch */}
+        <div className="mt-3 inline-flex rounded-full border border-line bg-card p-0.5">
+          {([['MALE', 'Men'], ['FEMALE', 'Women']] as const).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => changeGender(value)}
+              className={`rounded-full px-5 py-1.5 text-sm font-semibold transition-colors ${
+                gender === value ? 'bg-primary text-on-primary' : 'text-gray-custom hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Category pills */}
       <div className="mb-5 flex flex-wrap gap-2">
-        {(CATEGORIES[sport] ?? ['OVERALL']).map(c => (
+        {categories.map(c => (
           <button
             key={c}
-            onClick={() => setCategory(c)}
+            onClick={() => selectCategory(c)}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               category === c
                 ? 'bg-primary text-on-primary'
