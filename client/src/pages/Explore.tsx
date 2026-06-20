@@ -67,17 +67,19 @@ export default function Explore() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-custom">Sport:</span>
-            {SPORTS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => { setSport(s.value); setPage(1); }}
-                className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
-                  sport === s.value ? 'bg-secondary text-white' : 'bg-elevated text-gray-custom hover:text-foreground'
-                }`}
-              >
-                {s.emoji ? `${s.emoji} ${s.label}` : s.label}
-              </button>
-            ))}
+            <select
+              value={sport}
+              onChange={(e) => { setSport(e.target.value); setPage(1); }}
+              className={`px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary transition-colors cursor-pointer ${
+                sport === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'
+              }`}
+            >
+              {SPORTS.map((s) => (
+                <option key={s.value} value={s.value} className="bg-card text-foreground">
+                  {s.emoji ? `${s.emoji} ${s.label}` : s.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
