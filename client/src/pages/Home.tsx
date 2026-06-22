@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, MapPin, Clock, X } from 'lucide-react';
+import { Eye, MapPin, Clock, X, Search } from 'lucide-react';
 import api from '../api/client';
 import { useEffect, useRef, useState } from 'react';
 import ImageCarousel from '../components/ImageCarousel';
@@ -22,11 +22,42 @@ function timeAgo(date: string) {
   return `${days}d ago`;
 }
 
+const FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'highlights', label: 'Highlights' },
+  { value: 'performances', label: 'Performances' },
+  { value: 'tournaments', label: 'Tournaments' },
+] as const;
+
+type FilterValue = (typeof FILTERS)[number]['value'];
+
+function matchesFilter(item: any, filter: FilterValue) {
+  switch (filter) {
+    case 'highlights':
+      return item.kind === 'highlight' || item.type === 'HIGHLIGHT';
+    case 'performances':
+      return item.type === 'PERFORMANCE';
+    case 'tournaments':
+      return !!item.tournament;
+    default:
+      return true;
+  }
+}
+
 export default function Home() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [openPost, setOpenPost] = useState<any | null>(null);
+  const [filter, setFilter] = useState<FilterValue>('all');
+  const [searchText, setSearchText] = useState('');
+
+  const submitSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchText.trim();
+    navigate(q ? `/explore?search=${encodeURIComponent(q)}` : '/explore');
+  };
 
   const {
     data,
@@ -44,7 +75,8 @@ export default function Home() {
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
   });
 
-  const feedItems: any[] = data?.pages.flatMap((p) => p.feed ?? []) ?? [];
+  const allItems: any[] = data?.pages.flatMap((p) => p.feed ?? []) ?? [];
+  const feedItems = allItems.filter((item) => matchesFilter(item, filter));
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -76,14 +108,60 @@ export default function Home() {
   const Backdrop = SPORT_BACKDROP[effectiveSport];
 
   return (
-    <div className="-mx-4 -my-4 md:-mx-6 md:-my-6">
+    <div className="relative md:overflow-hidden">
+      {/* Decorative concentric circles — top-right ambient accent */}
+      <div aria-hidden className="hidden md:block absolute -top-24 -right-24 pointer-events-none select-none">
+        <div className="w-[420px] h-[420px] rounded-full border border-ink/[0.06]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full border border-ink/[0.05]" />
+      </div>
+
+      {/* Contained sport backdrop (clipped by the panel) */}
       {Backdrop && (
-        <div className="sport-backdrop hidden md:block fixed top-0 bottom-0 right-0 pointer-events-none select-none z-[1]" style={{ left: '256px' }}>
+        <div className="sport-backdrop hidden md:block absolute inset-y-0 right-0 w-2/3 pointer-events-none select-none opacity-70">
           <Backdrop />
         </div>
       )}
 
       <div className="relative z-10">
+        {/* ── Page header ─────────────────────────────────────── */}
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight">Home</h1>
+            <p className="text-gray-custom text-sm mt-1.5">Latest from the athletes and coaches you follow</p>
+          </div>
+          <form onSubmit={submitSearch} className="lg:w-72 shrink-0">
+            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-ink/5 border border-ink/10 focus-within:border-primary/50 transition-colors">
+              <Search size={16} className="text-gray-custom shrink-0" />
+              <input
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                placeholder="Search athletes, teams..."
+                className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder-gray-custom focus:outline-none"
+              />
+            </div>
+          </form>
+        </div>
+
+        {/* ── Filter chips ────────────────────────────────────── */}
+        <div className="flex items-center gap-2 mb-6 overflow-x-auto no-scrollbar">
+          {FILTERS.map((f) => {
+            const active = filter === f.value;
+            return (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className={`shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                  active
+                    ? 'bg-primary text-on-primary'
+                    : 'bg-ink/5 text-gray-custom hover:bg-ink/10 hover:text-foreground'
+                }`}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+
         {previewSport && (
           <div className="mb-4 flex items-center justify-between gap-3 bg-purple-500/10 border border-purple-400/30 rounded-xl px-4 py-3 text-sm">
             <span className="text-foreground/80">
@@ -120,16 +198,29 @@ export default function Home() {
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
         ) : feedItems.length === 0 ? (
-          <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center shadow-xl">
-            <p className="text-gray-custom text-lg">Your feed is empty</p>
-            <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their posts here</p>
-            <Link
-              to="/explore"
-              className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
-            >
-              Explore Athletes
-            </Link>
-          </div>
+          allItems.length > 0 ? (
+            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center">
+              <p className="text-gray-custom text-lg">Nothing here yet</p>
+              <p className="text-sm text-gray-custom mt-2">No {filter} in your feed right now.</p>
+              <button
+                onClick={() => setFilter('all')}
+                className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
+              >
+                Show all
+              </button>
+            </div>
+          ) : (
+            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center shadow-xl">
+              <p className="text-gray-custom text-lg">Your feed is empty</p>
+              <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their posts here</p>
+              <Link
+                to="/explore"
+                className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
+              >
+                Explore Athletes
+              </Link>
+            </div>
+          )
         ) : (
           <div ref={scrollRef} className="flex flex-col items-center gap-4 py-4">
             {feedItems.map((item: any) => (

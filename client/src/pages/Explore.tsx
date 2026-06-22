@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, MapPin, Filter } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,7 +14,8 @@ const SPORTS = [
 
 export default function Explore() {
   const { user: currentUser } = useAuth();
-  const [search, setSearch] = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [role, setRole] = useState<string>('ALL');
   const [sport, setSport] = useState<string>('ALL');
   const [page, setPage] = useState(1);

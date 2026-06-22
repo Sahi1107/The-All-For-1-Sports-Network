@@ -95,87 +95,75 @@ export default function MainLayout() {
   const isActive = (to: string) =>
     to === '/home' ? location.pathname === '/home' : location.pathname.startsWith(to);
 
+  // Small red dot / count badge rendered over a rail icon.
+  const Badge = ({ to }: { to: string }) =>
+    badgeMap[to] ? (
+      badgeCountMap[to] ? (
+        <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">
+          {badgeCountMap[to] > 9 ? '9+' : badgeCountMap[to]}
+        </span>
+      ) : (
+        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-surface" />
+      )
+    ) : null;
+
   return (
-    <div className="flex min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface md:bg-elevated">
 
-      {/* ── DESKTOP SIDEBAR (hidden on mobile) ───────────────────── */}
-      <aside
-        className="hidden md:flex fixed left-0 top-0 h-full w-64 border-r border-ink/10 flex-col z-50"
-        style={{ background: 'rgba(0,0,0,0.15)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }}
-      >
-        {/* Logo */}
-        <div className="px-5 py-5 border-b border-ink/10 flex justify-center">
-          <Link to="/home"><img src={logoUrl} alt="All For 1" style={{ height: '100px', width: 'auto' }} /></Link>
-        </div>
+      {/* ── DESKTOP ICON RAIL (hidden on mobile) ─────────────────── */}
+      <aside className="hidden md:flex fixed left-3 top-3 bottom-3 w-[76px] z-50 flex-col items-center rounded-[26px] bg-surface border border-ink/10 shadow-xl py-4">
+        {/* Logo mark */}
+        <Link
+          to="/home"
+          className="w-11 h-11 rounded-2xl border border-ink/10 flex items-center justify-center shrink-0 hover:border-primary/40 transition-colors"
+          title="Home"
+        >
+          <img src={logoUrl} alt="All For 1" className="h-7 w-auto" />
+        </Link>
 
-        {/* Create Post */}
-        <div className="px-4 pt-4">
-          <button
-            onClick={() => setShowCreate(true)}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
-          >
-            <Plus size={18} />Create Post
-          </button>
-        </div>
-
-        {/* Nav */}
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+        {/* Nav icons */}
+        <nav className="flex-1 w-full mt-5 flex flex-col items-center gap-1.5 overflow-y-auto no-scrollbar">
           {navItems.map(({ to, icon: Icon, label }) => {
             const active = isActive(to);
-            const hasBadge = badgeMap[to];
             return (
-              <Link key={to} to={to}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  active ? 'bg-primary text-on-primary font-semibold' : 'text-gray-custom hover:bg-ink/10 hover:text-foreground'
+              <Link key={to} to={to} title={label} aria-label={label}
+                className={`relative w-11 h-11 rounded-2xl flex items-center justify-center transition-colors ${
+                  active ? 'bg-primary text-on-primary' : 'text-gray-custom hover:bg-ink/10 hover:text-foreground'
                 }`}
               >
-                <span className="relative">
-                  <Icon size={20} />
-                  {hasBadge && (
-                    badgeCountMap[to] ? (
-                      <span className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {badgeCountMap[to] > 9 ? '9+' : badgeCountMap[to]}
-                      </span>
-                    ) : (
-                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-                    )
-                  )}
-                </span>
-                <span className="font-medium">{label}</span>
+                <Icon size={21} strokeWidth={active ? 2.4 : 1.9} />
+                <Badge to={to} />
               </Link>
             );
           })}
         </nav>
 
-        {/* User */}
-        <div className="p-4 border-t border-ink/10">
-          <Link to={`/profile/${user?.id}`}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-ink/10 transition-colors"
+        {/* Bottom utilities */}
+        <div className="w-full mt-3 pt-3 border-t border-ink/10 flex flex-col items-center gap-1.5 shrink-0">
+          <button onClick={() => setShowCreate(true)} title="Create Post" aria-label="Create Post"
+            className="w-11 h-11 rounded-2xl bg-primary text-on-primary flex items-center justify-center hover:bg-primary-dark transition-colors"
           >
-            <span className="relative shrink-0">
-              {user?.avatar
-                ? <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
-                : <div className="w-8 h-8 rounded-full bg-ink/10 border border-ink/20 flex items-center justify-center text-sm font-bold text-primary">
-                    {user?.name?.charAt(0).toUpperCase()}
-                  </div>
-              }
-              {profileIncomplete && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">!</span>
-              )}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name}</p>
-              <p className="text-xs text-gray-custom capitalize">{user?.role?.toLowerCase()}</p>
-            </div>
+            <Plus size={22} />
+          </button>
+          <Link to={`/profile/${user?.id}`} title="Profile"
+            className="relative w-11 h-11 rounded-2xl flex items-center justify-center hover:bg-ink/10 transition-colors"
+          >
+            {user?.avatar
+              ? <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+              : <div className="w-8 h-8 rounded-full bg-ink/10 border border-ink/20 flex items-center justify-center text-sm font-bold text-primary">
+                  {user?.name?.charAt(0).toUpperCase()}
+                </div>
+            }
+            {profileIncomplete && (
+              <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">!</span>
+            )}
           </Link>
-          <div className="flex gap-2 mt-2">
-            <Link to="/settings"
-              className="flex-1 flex items-center justify-center px-3 py-2 text-gray-custom hover:text-foreground rounded-lg hover:bg-ink/10 transition-colors"
-            ><Settings size={16} /></Link>
-            <button onClick={handleLogout}
-              className="flex-1 flex items-center justify-center px-3 py-2 text-gray-custom hover:text-red-400 rounded-lg hover:bg-ink/10 transition-colors"
-            ><LogOut size={16} /></button>
-          </div>
+          <Link to="/settings" title="Settings" aria-label="Settings"
+            className="w-11 h-11 rounded-2xl flex items-center justify-center text-gray-custom hover:bg-ink/10 hover:text-foreground transition-colors"
+          ><Settings size={20} /></Link>
+          <button onClick={handleLogout} title="Sign Out" aria-label="Sign Out"
+            className="w-11 h-11 rounded-2xl flex items-center justify-center text-gray-custom hover:bg-ink/10 hover:text-red-400 transition-colors"
+          ><LogOut size={20} /></button>
         </div>
       </aside>
 
@@ -272,10 +260,11 @@ export default function MainLayout() {
       )}
 
       {/* ── MAIN CONTENT ─────────────────────────────────────────── */}
-      <main className="flex-1 min-h-screen md:ml-64">
+      <main className="min-h-screen md:pl-[92px] md:pr-3 md:py-3">
         {/* Spacer for mobile top header */}
         <div className="md:hidden h-16" />
-        <div className="max-w-4xl mx-auto px-4 py-4 md:px-6 md:py-6 pb-24 md:pb-6">
+        <div className="relative md:min-h-[calc(100vh-1.5rem)] md:rounded-[26px] md:bg-surface md:border md:border-ink/10 md:shadow-xl">
+        <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-7 pb-24 md:pb-10">
           {profileIncomplete && (
             <Link to="/profile/edit"
               className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/15 transition-colors"
@@ -293,6 +282,7 @@ export default function MainLayout() {
             </Link>
           )}
           <Outlet />
+        </div>
         </div>
         {/* Spacer for mobile bottom nav */}
         <div className="md:hidden h-16" />
