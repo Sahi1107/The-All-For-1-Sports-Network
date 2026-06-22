@@ -9,6 +9,7 @@ import PostActions from '../components/PostActions';
 import PostDetailModal from '../components/PostDetailModal';
 import { SPORTS } from '../data/sports';
 import { SPORT_BACKDROP } from '../components/SportBackdrop';
+import { NameLine, PostMeta, PerformanceCard } from '../components/feed/FeedBits';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -137,38 +138,27 @@ export default function Home() {
                 className="w-full max-w-2xl"
               >
                 <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl overflow-hidden shadow-xl">
-                  {/* User header */}
+                  {/* User header — name + verification lead, one disciplined meta line */}
                   <div className="p-4 flex items-center gap-3">
                     <Link to={`/profile/${item.user?.id}`}>
                       {item.user?.avatar ? (
                         <img src={item.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light">
+                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-display font-bold text-primary-light">
                           {item.user?.name?.charAt(0).toUpperCase()}
                         </div>
                       )}
                     </Link>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <Link
                         to={`/profile/${item.user?.id}`}
-                        className="font-medium hover:text-primary-light transition-colors"
+                        className="hover:text-primary-light transition-colors block min-w-0"
                       >
-                        {item.user?.name}
+                        <NameLine name={item.user?.name} verified={item.user?.verified} />
                       </Link>
-                      <p className="text-xs text-gray-custom flex items-center gap-2">
-                        <span className="capitalize">{item.user?.role?.toLowerCase()}</span>
-                        {item.user?.role !== 'ADMIN' && (
-                          <>
-                            <span>·</span>
-                            <span className="capitalize">{item.sport?.toLowerCase()}</span>
-                          </>
-                        )}
-                        {item.user?.position && item.user?.role !== 'ADMIN' && (
-                          <><span>·</span><span>{item.user.position}</span></>
-                        )}
-                      </p>
+                      <PostMeta role={item.user?.role} sport={item.sport} position={item.user?.position} />
                     </div>
-                    <span className="text-xs text-gray-custom flex items-center gap-1">
+                    <span className="text-xs text-gray-custom flex items-center gap-1 shrink-0">
                       <Clock size={12} />
                       {timeAgo(item.createdAt)}
                     </span>
@@ -184,6 +174,12 @@ export default function Home() {
                         className="w-full h-full object-contain"
                         poster={item.thumbnailUrl}
                       />
+                      {/* Verified rating + views surfaced on the frame */}
+                      {typeof item.views === 'number' && (
+                        <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/55 backdrop-blur-sm px-2 py-1 text-[11px] text-white/90 pointer-events-none">
+                          <Eye size={12} /> {item.views.toLocaleString()} views
+                        </span>
+                      )}
                     </div>
                   )}
 
@@ -216,22 +212,21 @@ export default function Home() {
                     className={`p-4 pb-2 ${item.kind === 'post' ? 'cursor-pointer' : ''}`}
                     onClick={item.kind === 'post' ? () => setOpenPost(item) : undefined}
                   >
-                    {item.title && <h3 className="font-semibold">{item.title}</h3>}
+                    {/* Performance moment — verified result as a stat card, not plain text */}
+                    {item.kind === 'post' && item.type === 'PERFORMANCE' && item.performance && (
+                      <div className="mb-3">
+                        <PerformanceCard performance={item.performance} verified={item.user?.verified} />
+                      </div>
+                    )}
+                    {item.title && <h3 className="font-display font-bold text-[15px] leading-snug">{item.title}</h3>}
                     {(item.content || item.description) && (
                       <p className="text-sm text-foreground/80 mt-1 leading-relaxed">{item.content || item.description}</p>
                     )}
-                    <div className="flex items-center gap-4 mt-3 text-xs text-gray-custom">
-                      {item.kind === 'highlight' && (
-                        <span className="flex items-center gap-1">
-                          <Eye size={14} /> {item.views} views
-                        </span>
-                      )}
-                      {item.tournament && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={14} /> {item.tournament.name}
-                        </span>
-                      )}
-                    </div>
+                    {item.tournament && (
+                      <div className="flex items-center gap-1 mt-3 text-xs text-gray-custom">
+                        <MapPin size={14} /> {item.tournament.name}
+                      </div>
+                    )}
                   </div>
 
                   {/* Likes & comments — posts only */}

@@ -41,7 +41,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
       prisma.post.findMany({
         where: userFilter,
         include: {
-          user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
+          user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, verified: true } },
           media: { orderBy: { position: 'asc' } },
           _count: { select: { likes: true, comments: true, reposts: true } },
           likes: { where: { userId: req.user!.userId }, select: { id: true } },
@@ -56,7 +56,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
       prisma.highlight.findMany({
         where: userFilter,
         include: {
-          user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
+          user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, verified: true } },
           tournament: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -76,6 +76,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
         title: p.title,
         mediaUrl: p.mediaUrl,
         media: p.media,
+        performance: p.performance,
         sport: p.sport,
         user: p.user,
         createdAt: p.createdAt,

@@ -118,6 +118,7 @@ enum PostType {
   TEXT
   IMAGE
   HIGHLIGHT
+  PERFORMANCE
 }
 
 enum HandoverStatus {
@@ -275,6 +276,9 @@ model Post {
   content          String?
   mediaUrl         String?
   title            String?
+  // Structured stat payload for PERFORMANCE posts (statValue, statLabel,
+  // ratingDelta, rating, eyebrow, context). Null for every other post type.
+  performance      Json?
   sport            Sport
   commentsDisabled Boolean  @default(false) @map("comments_disabled")
   createdAt        DateTime @default(now())

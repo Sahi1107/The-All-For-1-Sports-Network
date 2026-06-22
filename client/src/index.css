@@ -1,6 +1,12 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Saira+Semi+Condensed:wght@500;600;700&display=swap');
 
 @theme {
+  /* Type roles — Archivo for display/labels, Saira for tabular numerals, Inter for body */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-numeric: 'Saira Semi Condensed', 'Inter', sans-serif;
+
   --color-primary: #dbff5a;
   --color-primary-light: #e8ff8a;
   --color-primary-dark: #b8d940;

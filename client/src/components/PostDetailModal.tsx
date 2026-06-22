@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { X, Clock } from 'lucide-react';
 import ImageCarousel from './ImageCarousel';
 import PostActions from './PostActions';
+import { NameLine, PostMeta, PerformanceCard } from './feed/FeedBits';
 
 interface Props {
   post: any;
@@ -60,22 +61,11 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
             <Link
               to={`/profile/${post.user?.id}`}
               onClick={onClose}
-              className="font-medium hover:text-primary-light transition-colors truncate block"
+              className="hover:text-primary-light transition-colors block min-w-0"
             >
-              {post.user?.name}
+              <NameLine name={post.user?.name} verified={post.user?.verified} />
             </Link>
-            <p className="text-xs text-gray-custom flex items-center gap-2">
-              <span className="capitalize">{post.user?.role?.toLowerCase()}</span>
-              {post.user?.role !== 'ADMIN' && post.sport && (
-                <>
-                  <span>·</span>
-                  <span className="capitalize">{post.sport?.toLowerCase()}</span>
-                </>
-              )}
-              {post.user?.position && post.user?.role !== 'ADMIN' && (
-                <><span>·</span><span>{post.user.position}</span></>
-              )}
-            </p>
+            <PostMeta role={post.user?.role} sport={post.sport} position={post.user?.position} />
           </div>
           <span className="text-xs text-gray-custom flex items-center gap-1 shrink-0">
             <Clock size={12} />
@@ -112,10 +102,17 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
                 : null
           )}
 
+          {/* Performance moment — verified result as a stat card */}
+          {post.type === 'PERFORMANCE' && post.performance && (
+            <div className="p-4 pb-0">
+              <PerformanceCard performance={post.performance} verified={post.user?.verified} />
+            </div>
+          )}
+
           {/* Caption */}
           {(post.title || post.content) && (
             <div className="p-4">
-              {post.title && <h3 className="font-semibold text-lg mb-1">{post.title}</h3>}
+              {post.title && <h3 className="font-display font-bold text-lg mb-1">{post.title}</h3>}
               {post.content && (
                 <p className="text-sm text-foreground/80 whitespace-pre-wrap leading-relaxed">{post.content}</p>
               )}

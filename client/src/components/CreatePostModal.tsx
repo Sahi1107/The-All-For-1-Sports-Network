@@ -1,21 +1,31 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Type, Image, Video, Upload, Plus, Trash2, Mail } from 'lucide-react';
+import { X, Type, Image, Video, Upload, Plus, Trash2, Mail, Trophy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import ImageCropModal from './ImageCropModal';
 import { useAuth } from '../contexts/AuthContext';
+import { PerformanceCard } from './feed/FeedBits';
 
-type PostType = 'TEXT' | 'IMAGE' | 'HIGHLIGHT';
+type PostType = 'TEXT' | 'IMAGE' | 'HIGHLIGHT' | 'PERFORMANCE';
+
+const EMPTY_PERF = {
+  statValue: '',
+  statLabel: '',
+  ratingDelta: '',
+  eyebrow: '',
+  context: '',
+};
 
 interface Props {
   onClose: () => void;
 }
 
 export default function CreatePostModal({ onClose }: Props) {
-  const { unverifiedEmail } = useAuth();
+  const { unverifiedEmail, user } = useAuth();
+  const verified = user?.verified ?? false;
   const qc = useQueryClient();
   const [type, setType] = useState<PostType>('TEXT');
   const [content, setContent] = useState('');
@@ -23,7 +33,11 @@ export default function CreatePostModal({ onClose }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
   const [commentsDisabled, setCommentsDisabled] = useState(false);
+  const [perf, setPerf] = useState({ ...EMPTY_PERF });
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const setPerfField = (k: keyof typeof EMPTY_PERF, v: string) =>
+    setPerf((p) => ({ ...p, [k]: v }));
 
   // Crop state: queue of raw files waiting to be cropped
   const [cropQueue, setCropQueue] = useState<string[]>([]);
@@ -74,6 +88,13 @@ export default function CreatePostModal({ onClose }: Props) {
       if (content) formData.append('content', content);
       if (title) formData.append('title', title);
       if (commentsDisabled) formData.append('commentsDisabled', 'true');
+      if (type === 'PERFORMANCE') {
+        // Drop empty optional fields so the server gets a clean payload.
+        const payload = Object.fromEntries(
+          Object.entries(perf).filter(([, v]) => v.trim() !== ''),
+        );
+        formData.append('performance', JSON.stringify(payload));
+      }
       for (const file of files) {
         formData.append('media', file);
       }
@@ -99,7 +120,8 @@ export default function CreatePostModal({ onClose }: Props) {
   const canSubmit =
     (type === 'TEXT' && content.trim()) ||
     (type === 'IMAGE' && files.length > 0) ||
-    (type === 'HIGHLIGHT' && files.length > 0 && title.trim());
+    (type === 'HIGHLIGHT' && files.length > 0 && title.trim()) ||
+    (type === 'PERFORMANCE' && perf.statValue.trim() && perf.statLabel.trim());
 
   const acceptType = type === 'HIGHLIGHT' ? 'video/*' : 'image/*';
 
@@ -187,11 +209,12 @@ export default function CreatePostModal({ onClose }: Props) {
             { key: 'TEXT', icon: Type, label: 'Text' },
             { key: 'IMAGE', icon: Image, label: 'Photo' },
             { key: 'HIGHLIGHT', icon: Video, label: 'Highlight' },
+            { key: 'PERFORMANCE', icon: Trophy, label: 'Stat' },
           ] as const).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              onClick={() => { setType(key); setFiles([]); setContent(''); setTitle(''); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+              onClick={() => { setType(key); setFiles([]); setContent(''); setTitle(''); setPerf({ ...EMPTY_PERF }); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
                 type === key
                   ? 'text-primary border-b-2 border-primary'
                   : 'text-foreground/50 hover:text-foreground'
@@ -215,8 +238,68 @@ export default function CreatePostModal({ onClose }: Props) {
             />
           )}
 
+          {/* Performance moment — verified result entered as a stat card */}
+          {type === 'PERFORMANCE' && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  value={perf.statValue}
+                  onChange={(e) => setPerfField('statValue', e.target.value)}
+                  placeholder="32"
+                  maxLength={12}
+                  inputMode="numeric"
+                  className="w-24 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm font-numeric tabular-nums text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
+                />
+                <input
+                  value={perf.statLabel}
+                  onChange={(e) => setPerfField('statLabel', e.target.value.toUpperCase())}
+                  placeholder="PTS"
+                  maxLength={16}
+                  className="flex-1 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={perf.eyebrow}
+                  onChange={(e) => setPerfField('eyebrow', e.target.value)}
+                  placeholder="Season high"
+                  maxLength={40}
+                  className="flex-1 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
+                />
+                <input
+                  value={perf.ratingDelta}
+                  onChange={(e) => setPerfField('ratingDelta', e.target.value)}
+                  placeholder="+2.1 rating"
+                  maxLength={16}
+                  className="w-32 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
+                />
+              </div>
+              <input
+                value={perf.context}
+                onChange={(e) => setPerfField('context', e.target.value)}
+                placeholder="vs Bengaluru Hoops · Chennai Open · Apr 14"
+                maxLength={120}
+                className="w-full bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
+              />
+
+              {/* Live preview of the stat card */}
+              {(perf.statValue.trim() || perf.statLabel.trim()) && (
+                <PerformanceCard
+                  performance={{
+                    statValue: perf.statValue.trim() || '0',
+                    statLabel: perf.statLabel.trim() || 'STAT',
+                    ratingDelta: perf.ratingDelta.trim() || undefined,
+                    eyebrow: perf.eyebrow.trim() || undefined,
+                    context: perf.context.trim() || undefined,
+                  }}
+                  verified={verified}
+                />
+              )}
+            </div>
+          )}
+
           {/* Content / caption */}
-          {(type === 'TEXT' || type === 'IMAGE') && (
+          {(type === 'TEXT' || type === 'IMAGE' || type === 'PERFORMANCE') && (
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}

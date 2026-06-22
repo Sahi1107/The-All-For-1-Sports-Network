@@ -65,7 +65,7 @@ router.post('/upload-url', authenticate, writeLimiter, validate({ body: UploadUr
 // POST /api/posts
 router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validate({ body: CreatePostBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { type, content, title, commentsDisabled, videoKey } = req.body;
+    const { type, content, title, commentsDisabled, videoKey, performance } = req.body;
     const files = (req.files as Express.Multer.File[]) || [];
 
     // Magic-byte validation for uploaded media
@@ -123,6 +123,10 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
       res.status(400).json({ error: 'Video file is required' });
       return;
     }
+    if (type === 'PERFORMANCE' && !performance) {
+      res.status(400).json({ error: 'Performance stats are required for a performance moment' });
+      return;
+    }
 
     const post = await prisma.post.create({
       data: {
@@ -131,6 +135,7 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
         content: content || null,
         title: title || null,
         mediaUrl: mediaUrls[0] || null,
+        performance: type === 'PERFORMANCE' ? performance : undefined,
         sport: uploader?.sport as any,
         commentsDisabled: commentsDisabled === true,
         media: mediaUrls.length > 0 ? {
@@ -138,7 +143,7 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
         } : undefined,
       },
       include: {
-        user: { select: { id: true, name: true, avatar: true, role: true, sport: true } },
+        user: { select: { id: true, name: true, avatar: true, role: true, sport: true, verified: true } },
         media: { orderBy: { position: 'asc' } },
       },
     });
@@ -161,7 +166,7 @@ router.get('/saved', authenticate, async (req: AuthRequest, res: Response) => {
       include: {
         post: {
           include: {
-            user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
+            user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, verified: true } },
             media: { orderBy: { position: 'asc' } },
             _count: { select: { likes: true, comments: true, reposts: true } },
             likes: { where: { userId }, select: { id: true } },
@@ -198,7 +203,7 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
     const posts = await prisma.post.findMany({
       where: { userId: req.params.userId as string },
       include: {
-        user: { select: { id: true, name: true, avatar: true } },
+        user: { select: { id: true, name: true, avatar: true, verified: true } },
         media: { orderBy: { position: 'asc' } },
         _count: { select: { likes: true, comments: true, reposts: true } },
         likes: { where: { userId }, select: { id: true } },
@@ -233,7 +238,7 @@ router.get('/user/:userId/reposts', authenticate, async (req: AuthRequest, res: 
       include: {
         post: {
           include: {
-            user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },
+            user: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, verified: true } },
             media: { orderBy: { position: 'asc' } },
             _count: { select: { likes: true, comments: true, reposts: true } },
             likes: { where: { userId }, select: { id: true } },
@@ -272,7 +277,7 @@ router.get('/:id/likes', authenticate, async (req: AuthRequest, res: Response) =
       where: { postId },
       select: {
         user: {
-          select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
+          select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, verified: true },
         },
       },
       orderBy: { createdAt: 'desc' },
