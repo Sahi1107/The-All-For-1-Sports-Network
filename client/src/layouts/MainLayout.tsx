@@ -110,19 +110,19 @@ export default function MainLayout() {
   return (
     <div className="min-h-screen bg-surface md:bg-elevated">
 
-      {/* ── DESKTOP ICON RAIL (hidden on mobile) ─────────────────── */}
-      <aside className="hidden md:flex fixed left-3 top-3 bottom-3 w-[76px] z-50 flex-col items-center rounded-[26px] bg-surface border border-ink/10 shadow-xl py-4">
-        {/* Logo mark */}
-        <Link
-          to="/home"
-          className="w-14 h-14 rounded-2xl border border-ink/10 flex items-center justify-center shrink-0 hover:border-primary/40 transition-colors"
-          title="Home"
-        >
-          <img src={logoUrl} alt="All For 1" className="h-10 w-auto" />
-        </Link>
+      {/* ── DESKTOP LOGO (top corner, outside the rail) ──────────── */}
+      <Link
+        to="/home"
+        title="Home"
+        className="hidden md:flex fixed left-3 top-3 w-[76px] h-[72px] z-50 items-center justify-center"
+      >
+        <img src={logoUrl} alt="All For 1" className="h-12 w-auto" />
+      </Link>
 
+      {/* ── DESKTOP ICON RAIL (hidden on mobile) ─────────────────── */}
+      <aside className="hidden md:flex fixed left-3 top-[92px] bottom-3 w-[76px] z-50 flex-col items-center rounded-[26px] bg-surface border border-ink/10 shadow-xl py-4">
         {/* Nav icons */}
-        <nav className="flex-1 w-full mt-5 flex flex-col items-center gap-1.5 overflow-y-auto no-scrollbar">
+        <nav className="flex-1 w-full flex flex-col items-center gap-1.5 overflow-y-auto no-scrollbar">
           {navItems.map(({ to, icon: Icon, label }) => {
             const active = isActive(to);
             return (
