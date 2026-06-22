@@ -115,10 +115,10 @@ export default function MainLayout() {
         {/* Logo mark */}
         <Link
           to="/home"
-          className="w-11 h-11 rounded-2xl border border-ink/10 flex items-center justify-center shrink-0 hover:border-primary/40 transition-colors"
+          className="w-14 h-14 rounded-2xl border border-ink/10 flex items-center justify-center shrink-0 hover:border-primary/40 transition-colors"
           title="Home"
         >
-          <img src={logoUrl} alt="All For 1" className="h-7 w-auto" />
+          <img src={logoUrl} alt="All For 1" className="h-10 w-auto" />
         </Link>
 
         {/* Nav icons */}

@@ -109,16 +109,17 @@ export default function Home() {
 
   return (
     <div className="relative md:overflow-hidden">
-      {/* Decorative concentric circles — top-right ambient accent */}
-      <div aria-hidden className="hidden md:block absolute -top-24 -right-24 pointer-events-none select-none">
-        <div className="w-[420px] h-[420px] rounded-full border border-ink/[0.06]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full border border-ink/[0.05]" />
-      </div>
-
-      {/* Contained sport backdrop (clipped by the panel) */}
-      {Backdrop && (
-        <div className="sport-backdrop hidden md:block absolute inset-y-0 right-0 w-2/3 pointer-events-none select-none opacity-70">
+      {/* Sport line-art watermark — fixed inside the content panel so it stays
+         behind the feed for the user's sport as the page scrolls. Falls back to
+         ambient concentric circles when the sport has no device. */}
+      {Backdrop ? (
+        <div className="sport-backdrop hidden md:block fixed top-3 bottom-3 right-3 left-[92px] rounded-[26px] overflow-hidden pointer-events-none select-none z-0">
           <Backdrop />
+        </div>
+      ) : (
+        <div aria-hidden className="hidden md:block absolute -top-24 -right-24 pointer-events-none select-none">
+          <div className="w-[420px] h-[420px] rounded-full border border-ink/[0.06]" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] h-[260px] rounded-full border border-ink/[0.05]" />
         </div>
       )}
 
