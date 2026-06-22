@@ -114,13 +114,13 @@ export default function MainLayout() {
       <Link
         to="/home"
         title="Home"
-        className="hidden md:flex fixed left-3 top-3 w-[76px] h-[72px] z-50 items-center justify-center"
+        className="hidden md:flex fixed left-3 top-3 w-[76px] h-[92px] z-50 items-center justify-center"
       >
-        <img src={logoUrl} alt="All For 1" className="h-12 w-auto" />
+        <img src={logoUrl} alt="All For 1" className="h-[76px] w-auto" />
       </Link>
 
       {/* ── DESKTOP ICON RAIL (hidden on mobile) ─────────────────── */}
-      <aside className="hidden md:flex fixed left-3 top-[92px] bottom-3 w-[76px] z-50 flex-col items-center rounded-[26px] bg-surface border border-ink/10 shadow-xl py-4">
+      <aside className="hidden md:flex fixed left-3 top-[108px] bottom-3 w-[76px] z-50 flex-col items-center rounded-[26px] bg-surface border border-ink/10 shadow-xl py-4">
         {/* Nav icons */}
         <nav className="flex-1 w-full flex flex-col items-center gap-1.5 overflow-y-auto no-scrollbar">
           {navItems.map(({ to, icon: Icon, label }) => {
