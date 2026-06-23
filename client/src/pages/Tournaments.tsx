@@ -5,10 +5,8 @@ import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
 import { Trophy, MapPin, Calendar, Users, ChevronRight, X, Crown, Award, Settings } from 'lucide-react'
 import { SPORTS } from '../data/sports'
+import { SportIcon } from '../components/SportIcon'
 
-const SPORT_ICONS: Record<string, string> = Object.fromEntries(
-  SPORTS.map(({ value, emoji }) => [value, emoji]),
-)
 const SPORT_LABELS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, label }) => [value, label]),
 )
@@ -65,11 +63,21 @@ export default function Tournaments() {
           <button
             key={s}
             onClick={() => setSportFilter(s)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               sportFilter === s ? 'bg-primary text-on-primary font-semibold' : 'bg-card text-gray-custom hover:text-foreground border border-line'
             }`}
           >
-            {s ? `${SPORT_ICONS[s]} ${SPORT_LABELS[s]}` : 'All Sports'}
+            {s ? (
+              <>
+                <SportIcon sport={s} className="text-base" />
+                {SPORT_LABELS[s]}
+              </>
+            ) : (
+              <>
+                <i className="mdi mdi-trophy text-base leading-none" aria-hidden="true" />
+                All Sports
+              </>
+            )}
           </button>
         ))}
       </div>

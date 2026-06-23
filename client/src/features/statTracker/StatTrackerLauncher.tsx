@@ -5,10 +5,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api/client';
 import { Activity, ChevronRight, Trophy, FlaskConical } from 'lucide-react';
 import type { TrackerSport } from './types';
+import { SportIcon } from '../../components/SportIcon';
 
-const SPORTS: { value: TrackerSport; label: string; emoji: string }[] = [
-  { value: 'BASKETBALL', label: 'Basketball', emoji: '🏀' },
-  { value: 'FOOTBALL', label: 'Football', emoji: '⚽' },
+const SPORTS: { value: TrackerSport; label: string }[] = [
+  { value: 'BASKETBALL', label: 'Basketball' },
+  { value: 'FOOTBALL', label: 'Football' },
 ];
 
 // Tournaments worth tracking are those that have closed registration or are live.
@@ -53,11 +54,11 @@ export default function StatTrackerLauncher() {
         <div className="flex gap-2">
           <Link to="/admin/stat-tracker/demo/basketball"
             className="flex items-center gap-2 px-3 py-2 bg-elevated text-foreground border border-line hover:border-primary rounded-lg text-sm transition-colors">
-            🏀 Basketball demo
+            <SportIcon sport="BASKETBALL" className="text-base" /> Basketball demo
           </Link>
           <Link to="/admin/stat-tracker/demo/football"
             className="flex items-center gap-2 px-3 py-2 bg-elevated text-foreground border border-line hover:border-primary rounded-lg text-sm transition-colors">
-            ⚽ Football demo
+            <SportIcon sport="FOOTBALL" className="text-base" /> Football demo
           </Link>
         </div>
       </div>
@@ -74,7 +75,7 @@ export default function StatTrackerLauncher() {
                 : 'bg-elevated text-gray-custom hover:text-foreground border border-line'
             }`}
           >
-            <span className="text-lg">{s.emoji}</span>
+            <SportIcon sport={s.value} className="text-lg" />
             {s.label}
           </button>
         ))}

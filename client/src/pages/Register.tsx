@@ -6,6 +6,7 @@ import { useLogo } from '../hooks/useLogo';
 import { Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
 import { SPORTS, ATHLETICS_EVENT_GROUPS, type Sport } from '../data/sports';
+import { SportIcon } from '../components/SportIcon';
 
 const ROLES = [
   { value: 'ATHLETE', label: 'Athlete',                 desc: 'Showcase your skills & compete' },
@@ -356,7 +357,7 @@ export default function Register() {
             <div>
               <h2 className="text-xl font-semibold mb-4">{isTeam ? 'Primary sport' : 'My sport'}</h2>
               <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                {SPORTS.map(({ value, label, emoji }) => (
+                {SPORTS.map(({ value, label }) => (
                   <button key={value} type="button"
                     onClick={() => {
                       const next = { ...form, sport: value, athleticsEvents: [] as string[] };
@@ -370,7 +371,7 @@ export default function Register() {
                     className={`w-full p-4 rounded-lg border text-left transition-colors flex items-center gap-3 ${
                       form.sport === value ? 'border-primary bg-primary/10' : 'border-line hover:border-gray-custom'
                     }`}>
-                    <span className="text-2xl">{emoji}</span>
+                    <SportIcon sport={value} className="text-2xl" />
                     <span className="font-medium">{label}</span>
                   </button>
                 ))}
