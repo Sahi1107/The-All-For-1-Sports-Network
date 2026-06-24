@@ -33,6 +33,7 @@ interface User {
   dateOfBirth?: string;
   guardianManaged?: boolean;
   handoverStatus?: 'NONE' | 'PENDING' | 'CONSENTED';
+  mustResetPassword?: boolean;
 }
 
 interface RegisterData {

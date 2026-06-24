@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -25,6 +25,8 @@ const Messages       = lazy(() => import('./pages/Messages'));
 const Notifications  = lazy(() => import('./pages/Notifications'));
 const Announcements  = lazy(() => import('./pages/Announcements'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const BulkProvision  = lazy(() => import('./pages/BulkProvision'));
+const ForcePasswordReset = lazy(() => import('./pages/ForcePasswordReset'));
 const StatTrackerLauncher = lazy(() => import('./features/statTracker/StatTrackerLauncher'));
 const TrackerDashboard     = lazy(() => import('./features/statTracker/TrackerDashboard'));
 const TrackerMatchRoute    = lazy(() => import('./features/statTracker/MatchRoute'));
@@ -55,8 +57,13 @@ function PageSpinner() {
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <PageSpinner />;
   if (!user) return <Navigate to="/" replace />;
+  // Bulk-provisioned users must set a real password before reaching the app.
+  if (user.mustResetPassword && location.pathname !== '/force-password-reset') {
+    return <Navigate to="/force-password-reset" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -117,12 +124,16 @@ function AppRoutes() {
           <Route path="profile/:id"         element={<Profile />} />
           <Route path="profile/edit"        element={<EditProfile />} />
           <Route path="admin"               element={<AdminDashboard />} />
+          <Route path="admin/tournaments/:tournamentId/provision" element={<BulkProvision />} />
           <Route path="admin/stat-tracker"                              element={<StatTrackerLauncher />} />
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />
           <Route path="settings"            element={<Settings />} />
           <Route path="saved"               element={<SavedPosts />} />
           <Route path="scout-copilot"       element={<ScoutCopilot />} />
         </Route>
+
+        {/* Forced first-login password change (bulk-provisioned accounts) */}
+        <Route path="/force-password-reset" element={<ProtectedRoute><ForcePasswordReset /></ProtectedRoute>} />
 
         {/* Full-screen live trackers (no app sidebar) */}
         <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>

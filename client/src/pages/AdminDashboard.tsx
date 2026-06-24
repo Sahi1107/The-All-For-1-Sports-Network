@@ -6,7 +6,6 @@ import api from '../api/client';
 import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
-import { SportIcon } from '../components/SportIcon';
 
 type Tab = 'users' | 'stats' | 'create-admin' | 'tournaments' | 'feed-preview';
 
@@ -885,6 +884,13 @@ export default function AdminDashboard() {
                         <span className="text-xs px-2 py-0.5 rounded-full bg-surface text-gray-custom border border-line">
                           {t.status}
                         </span>
+                        <Link
+                          to={`/admin/tournaments/${t.id}/provision`}
+                          className="flex items-center gap-1 p-1.5 text-xs text-gray-custom hover:text-primary-light transition-colors rounded"
+                          title="Bulk provision roster from CSV"
+                        >
+                          <Upload size={14} />
+                        </Link>
                         <button
                           onClick={() => setExpandedTournamentId(isExpanded ? null : t.id)}
                           className="flex items-center gap-1 p-1.5 text-xs text-gray-custom hover:text-foreground transition-colors rounded"
@@ -925,13 +931,13 @@ export default function AdminDashboard() {
             Pick a sport to view the home feed with its sport-specific backdrop. Returns to your normal feed when you exit preview.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {SPORTS.map(({ value, label }) => (
+            {SPORTS.map(({ value, label, emoji }) => (
               <Link
                 key={value}
                 to={`/home?previewSport=${value}`}
                 className="flex items-center gap-3 p-4 rounded-lg border border-line hover:border-primary hover:bg-primary/5 transition-colors"
               >
-                <SportIcon sport={value} className="text-2xl" />
+                <span className="text-2xl">{emoji}</span>
                 <span className="font-medium text-sm">{label}</span>
               </Link>
             ))}

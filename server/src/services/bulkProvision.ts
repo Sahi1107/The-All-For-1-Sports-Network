@@ -1,0 +1,628 @@
+/**
+ * Admin bulk-provisioning service — tournament roster import.
+ *
+ * Takes a list of normalized "long-format" CSV rows (one record per member) and
+ * either previews or commits them against a tournament. Committing creates any
+ * missing Firebase + Prisma accounts (with a temp password the user must change
+ * on first login), links rows whose email already exists, builds the teams, and
+ * adds every member with `status = ACCEPTED` — bypassing the invite/accept
+ * handshake entirely. The self-serve invite flow is untouched.
+ *
+ * The pure functions here (reshape/validate/classify) carry no DB or Firebase
+ * dependency so they can be unit-tested directly; `commitBulkProvision` performs
+ * the side-effecting writes.
+ */
+
+import crypto from 'crypto';
+import { Role, TeamMemberRole, Gender, Sport } from '@prisma/client';
+
+// NOTE: prisma / firebaseAdmin / email / logger are imported lazily inside
+// `commitBulkProvision` (via dynamic import) so that importing this module for
+// its pure validation functions — e.g. in unit tests — does not initialize the
+// database client or the Firebase Admin SDK as a side effect.
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+/** Age below which an athlete account must be managed by a parent/academy. */
+export const GUARDIAN_AGE_THRESHOLD = 13;
+/** Anyone under this is a minor — surfaces a guardian/consent warning. */
+export const MINOR_AGE_THRESHOLD = 18;
+/** Default roster bounds when the tournament leaves them unset. */
+export const DEFAULT_MIN_ROSTER = 5;
+export const DEFAULT_MAX_ROSTER = 12;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/** A raw long-format row as parsed/reshaped by the client. All fields optional. */
+export interface RawRow {
+  team_name?: string;
+  member_role?: string;
+  name?: string;
+  email?: string;
+  dob?: string;
+  gender?: string;
+  position?: string;
+  phone?: string;
+  guardian_email?: string;
+  [extra: string]: unknown;
+}
+
+export type Classification = 'NEW' | 'EXISTING' | 'ERROR';
+
+export interface RowReport {
+  index: number;
+  teamName: string;
+  name: string;
+  email: string;
+  memberRole: TeamMemberRole | null;
+  classification: Classification;
+  reasons: string[];
+  warnings: string[];
+}
+
+export interface TeamReport {
+  teamName: string;
+  memberCount: number;
+  playerCount: number; // CAPTAIN + PLAYER (excludes COACH)
+  hasCaptain: boolean;
+  hasCoach: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export interface PreviewReport {
+  rows: RowReport[];
+  teams: TeamReport[];
+  counts: {
+    newAccounts: number;
+    linkedAccounts: number;
+    teams: number;
+    totalMembers: number;
+  };
+  blockingErrors: string[];
+  canCommit: boolean;
+}
+
+/** Tournament fields the validator needs. */
+export interface TournamentContext {
+  id: string;
+  name: string;
+  sport: Sport;
+  genderCategory: string | null;
+  minRosterSize: number | null;
+  maxRosterSize: number | null;
+}
+
+// ─── Pure helpers ───────────────────────────────────────────────────────────────
+
+/** Trim + lowercase. Returns '' when the input is blank/missing. */
+export function normalizeEmail(email: string | undefined | null): string {
+  return (email ?? '').trim().toLowerCase();
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidEmail(email: string): boolean {
+  return EMAIL_RE.test(email);
+}
+
+/**
+ * Parse a date of birth from common CSV formats (ISO `YYYY-MM-DD` and
+ * `DD/MM/YYYY` / `MM/DD/YYYY` are accepted; ISO is preferred). Returns null when
+ * the value is missing or not a real calendar date.
+ */
+export function parseDob(raw: string | undefined | null): Date | null {
+  const s = (raw ?? '').trim();
+  if (!s) return null;
+
+  let y: number, m: number, d: number;
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (iso) {
+    y = +iso[1]; m = +iso[2]; d = +iso[3];
+  } else if (slash) {
+    // Assume DD/MM/YYYY; fall back to MM/DD/YYYY if day > 12.
+    const a = +slash[1], b = +slash[2];
+    if (a > 12 && b <= 12) { d = a; m = b; } else { d = a; m = b; }
+    y = +slash[3];
+  } else {
+    return null;
+  }
+
+  if (m < 1 || m > 12 || d < 1 || d > 31 || y < 1900 || y > new Date().getFullYear()) {
+    return null;
+  }
+  const date = new Date(Date.UTC(y, m - 1, d));
+  // Reject overflow (e.g. 2010-02-31 → March).
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) {
+    return null;
+  }
+  return date;
+}
+
+/** Whole years between a date of birth and now. */
+export function ageFromDob(dob: Date): number {
+  const today = new Date();
+  let age = today.getFullYear() - dob.getUTCFullYear();
+  const m = today.getMonth() - dob.getUTCMonth();
+  if (m < 0 || (m === 0 && today.getDate() < dob.getUTCDate())) age--;
+  return age;
+}
+
+/** Map a CSV member-role string to a TeamMemberRole, or null when unrecognized. */
+export function mapMemberRole(raw: string | undefined | null): TeamMemberRole | null {
+  switch ((raw ?? '').trim().toLowerCase()) {
+    case 'captain': return TeamMemberRole.CAPTAIN;
+    case 'player':  return TeamMemberRole.PLAYER;
+    case 'coach':   return TeamMemberRole.COACH;
+    default:        return null;
+  }
+}
+
+/** A coach gets the COACH user role; everyone else is an ATHLETE. */
+export function userRoleForMember(memberRole: TeamMemberRole): Role {
+  return memberRole === TeamMemberRole.COACH ? Role.COACH : Role.ATHLETE;
+}
+
+/**
+ * Gender implied by the tournament's genderCategory, if any. MEN→MALE,
+ * WOMEN→FEMALE; MIXED/OPEN leave it unset so a row's own gender can apply.
+ */
+export function genderFromCategory(genderCategory: string | null): Gender | null {
+  switch ((genderCategory ?? '').trim().toUpperCase()) {
+    case 'MEN':
+    case 'MALE':   return Gender.MALE;
+    case 'WOMEN':
+    case 'FEMALE': return Gender.FEMALE;
+    default:       return null;
+  }
+}
+
+/** Parse a free-text gender cell to the enum, or null. */
+export function parseGender(raw: string | undefined | null): Gender | null {
+  switch ((raw ?? '').trim().toUpperCase()) {
+    case 'MALE':
+    case 'M':   return Gender.MALE;
+    case 'FEMALE':
+    case 'F':   return Gender.FEMALE;
+    default:    return null;
+  }
+}
+
+// ─── Resolved per-row shape (after validation) ──────────────────────────────────
+
+export interface ResolvedRow {
+  report: RowReport;
+  // Present only for non-ERROR rows; used by commit.
+  email: string;
+  name: string;
+  memberRole: TeamMemberRole;
+  gender: Gender | null;
+  dob: Date | null;
+  position: string | null;
+  phone: string | null;
+  guardianEmail: string | null;
+  age: number | null;
+}
+
+// ─── Core validation + classification (pure) ────────────────────────────────────
+
+/**
+ * Validate and classify every row, group by team, and produce a structured
+ * preview report. `existingEmails` is the set of normalized emails that already
+ * map to a Prisma user (caller supplies it from the DB) — those rows are
+ * classified EXISTING (linked) rather than NEW.
+ */
+export function buildReport(
+  rows: RawRow[],
+  tournament: TournamentContext,
+  existingEmails: Set<string>,
+): { report: PreviewReport; resolved: ResolvedRow[] } {
+  const minRoster = tournament.minRosterSize ?? DEFAULT_MIN_ROSTER;
+  const maxRoster = tournament.maxRosterSize ?? DEFAULT_MAX_ROSTER;
+  const tournamentGender = genderFromCategory(tournament.genderCategory);
+
+  const resolved: ResolvedRow[] = [];
+  // Track emails seen per team to flag duplicates within a single team.
+  const seenPerTeam = new Map<string, Set<string>>();
+
+  rows.forEach((raw, index) => {
+    const reasons: string[] = [];
+    const warnings: string[] = [];
+
+    const teamName = (raw.team_name ?? '').trim();
+    const name = (raw.name ?? '').trim();
+    const email = normalizeEmail(raw.email);
+    const memberRole = mapMemberRole(raw.member_role);
+
+    if (!teamName) reasons.push('Missing team name');
+    if (!name) reasons.push('Missing name');
+    if (!email) reasons.push('Missing email');
+    else if (!isValidEmail(email)) reasons.push(`Invalid email "${email}"`);
+    if (!memberRole) reasons.push(`Unrecognized role "${raw.member_role ?? ''}" (expected captain, player, or coach)`);
+
+    // Duplicate email within the same team.
+    if (teamName && email) {
+      const key = teamName.toLowerCase();
+      const seen = seenPerTeam.get(key) ?? new Set<string>();
+      if (seen.has(email)) reasons.push(`Duplicate email "${email}" within team "${teamName}"`);
+      seen.add(email);
+      seenPerTeam.set(key, seen);
+    }
+
+    // DOB (required for players/captains so we can flag minors; optional for coach).
+    const dob = parseDob(raw.dob);
+    let age: number | null = null;
+    if (raw.dob && raw.dob.trim() && !dob) {
+      reasons.push(`Invalid date of birth "${raw.dob}"`);
+    }
+    if (dob) age = ageFromDob(dob);
+
+    // Gender: tournament-implied first, else the row's own value.
+    const rowGender = parseGender(raw.gender);
+    const gender = tournamentGender ?? rowGender;
+
+    const guardianEmail = normalizeEmail(raw.guardian_email) || null;
+
+    // Minor / guardian warnings (non-blocking — see spec).
+    if (memberRole !== TeamMemberRole.COACH && age !== null) {
+      if (age < GUARDIAN_AGE_THRESHOLD && !guardianEmail) {
+        warnings.push(`Under ${GUARDIAN_AGE_THRESHOLD}: a guardian email is recommended but was not provided`);
+      } else if (age < MINOR_AGE_THRESHOLD) {
+        warnings.push(`Minor (age ${age}): guardian consent should be collected`);
+      }
+    }
+
+    const classification: Classification =
+      reasons.length > 0 ? 'ERROR'
+        : existingEmails.has(email) ? 'EXISTING'
+        : 'NEW';
+
+    const report: RowReport = {
+      index,
+      teamName,
+      name,
+      email,
+      memberRole,
+      classification,
+      reasons,
+      warnings,
+    };
+
+    resolved.push({
+      report,
+      email,
+      name,
+      memberRole: memberRole ?? TeamMemberRole.PLAYER,
+      gender,
+      dob,
+      position: (raw.position ?? '').trim() || null,
+      phone: (raw.phone ?? '').trim() || null,
+      guardianEmail,
+      age,
+    });
+  });
+
+  // ── Per-team validation ──────────────────────────────────────────────────
+  const teamReports: TeamReport[] = [];
+  const byTeam = new Map<string, ResolvedRow[]>();
+  for (const r of resolved) {
+    if (!r.report.teamName) continue;
+    const key = r.report.teamName;
+    const list = byTeam.get(key) ?? [];
+    list.push(r);
+    byTeam.set(key, list);
+  }
+
+  for (const [teamName, members] of byTeam) {
+    const errors: string[] = [];
+    const warns: string[] = [];
+    // Only count rows that aren't already individually broken for role/size checks.
+    const valid = members.filter((m) => m.report.classification !== 'ERROR');
+
+    const captains = valid.filter((m) => m.memberRole === TeamMemberRole.CAPTAIN);
+    const coaches = valid.filter((m) => m.memberRole === TeamMemberRole.COACH);
+    const players = valid.filter((m) => m.memberRole !== TeamMemberRole.COACH); // captain + players
+
+    if (captains.length === 0) errors.push('Team has no captain (exactly one required)');
+    if (captains.length > 1) errors.push(`Team has ${captains.length} captains (exactly one allowed)`);
+    if (coaches.length > 1) errors.push(`Team has ${coaches.length} coaches (at most one allowed)`);
+
+    if (players.length < minRoster) {
+      errors.push(`Roster too small: ${players.length} players (minimum ${minRoster})`);
+    }
+    if (players.length > maxRoster) {
+      errors.push(`Roster too large: ${players.length} players (maximum ${maxRoster})`);
+    }
+
+    teamReports.push({
+      teamName,
+      memberCount: members.length,
+      playerCount: players.length,
+      hasCaptain: captains.length === 1,
+      hasCoach: coaches.length === 1,
+      errors,
+      warnings: warns,
+    });
+  }
+
+  // ── Aggregate ──────────────────────────────────────────────────────────────
+  const blockingErrors: string[] = [];
+  for (const r of resolved) {
+    if (r.report.classification === 'ERROR') {
+      blockingErrors.push(`Row ${r.report.index + 1} (${r.report.email || r.report.name || '?'}): ${r.report.reasons.join('; ')}`);
+    }
+  }
+  for (const t of teamReports) {
+    for (const e of t.errors) blockingErrors.push(`Team "${t.teamName}": ${e}`);
+  }
+
+  const nonError = resolved.filter((r) => r.report.classification !== 'ERROR');
+  const newAccounts = nonError.filter((r) => r.report.classification === 'NEW').length;
+  const linkedAccounts = nonError.filter((r) => r.report.classification === 'EXISTING').length;
+
+  const report: PreviewReport = {
+    rows: resolved.map((r) => r.report),
+    teams: teamReports,
+    counts: {
+      newAccounts,
+      linkedAccounts,
+      teams: teamReports.length,
+      totalMembers: nonError.length,
+    },
+    blockingErrors,
+    canCommit: blockingErrors.length === 0,
+  };
+
+  return { report, resolved };
+}
+
+// ─── Side-effecting helpers ─────────────────────────────────────────────────────
+
+/**
+ * Generate a strong random temp password that satisfies the app's complexity
+ * policy (upper + lower + digit + symbol, ≥ 8 chars). Never logged or returned.
+ */
+export function generateTempPassword(): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digit = '23456789';
+  const symbol = '!@#$%&*?';
+  const all = upper + lower + digit + symbol;
+  const pick = (set: string) => set[crypto.randomInt(set.length)];
+  // Guarantee one of each class, then fill to length 16.
+  const chars = [pick(upper), pick(lower), pick(digit), pick(symbol)];
+  while (chars.length < 16) chars.push(pick(all));
+  // Fisher–Yates shuffle so the guaranteed chars aren't always first.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join('');
+}
+
+export interface CommitResult {
+  accountsCreated: number;
+  accountsLinked: number;
+  teamsCreated: number;
+  membersAdded: number;
+  emailsSent: number;
+  skips: string[];
+}
+
+/**
+ * Re-validate server-side and commit. Refuses if any blocking error exists.
+ * Idempotent: re-running the same import creates no duplicates (relies on the
+ * User.email, TeamMember[teamId,userId] and TournamentTeam[tournamentId,teamId]
+ * unique constraints plus existing-team lookup by name).
+ */
+export async function commitBulkProvision(
+  rows: RawRow[],
+  tournament: TournamentContext,
+): Promise<CommitResult> {
+  // Lazily pull the side-effecting deps (see import note at top of file).
+  const { default: prisma } = await import('../config/db');
+  const { default: admin } = await import('../config/firebaseAdmin');
+  const { sendTempPasswordWelcome } = await import('./email');
+  const { default: logger } = await import('../utils/logger');
+
+  // 1. Look up which emails already map to a Prisma user.
+  const allEmails = [...new Set(rows.map((r) => normalizeEmail(r.email)).filter(Boolean))];
+  const existing = await prisma.user.findMany({
+    where: { email: { in: allEmails } },
+    select: { id: true, email: true },
+  });
+  const existingEmails = new Set(existing.map((u) => u.email));
+
+  // 2. Authoritative validation.
+  const { report, resolved } = buildReport(rows, tournament, existingEmails);
+  if (!report.canCommit) {
+    const err = new Error('Bulk provision blocked: ' + report.blockingErrors.join(' | '));
+    (err as any).blocking = report.blockingErrors;
+    (err as any).status = 422;
+    throw err;
+  }
+
+  const result: CommitResult = {
+    accountsCreated: 0,
+    accountsLinked: 0,
+    teamsCreated: 0,
+    membersAdded: 0,
+    emailsSent: 0,
+    skips: [],
+  };
+
+  // 3. Resolve every unique email to a Prisma user id, creating Firebase + Prisma
+  //    accounts for new ones. Done outside the transaction because Firebase Auth
+  //    is an external system that cannot participate in a DB transaction; the
+  //    work is idempotent (reuses existing accounts by email).
+  const emailToUserId = new Map<string, string>();
+  // Track which were freshly created so we email only them.
+  const newlyCreated: { email: string; name: string; tempPassword: string; teamName: string }[] = [];
+
+  // De-dupe rows by email — one account per person even across teams.
+  const byEmail = new Map<string, ResolvedRow>();
+  for (const r of resolved) {
+    if (!byEmail.has(r.email)) byEmail.set(r.email, r);
+  }
+
+  for (const r of byEmail.values()) {
+    const found = existing.find((u) => u.email === r.email);
+    if (found) {
+      emailToUserId.set(r.email, found.id);
+      result.accountsLinked++;
+      continue;
+    }
+
+    // New account → Firebase Auth user (reuse if Firebase already has the email).
+    const tempPassword = generateTempPassword();
+    let firebaseUid: string;
+    try {
+      const fbUser = await admin.auth().createUser({
+        email: r.email,
+        password: tempPassword,
+        displayName: r.name,
+        emailVerified: false,
+      });
+      firebaseUid = fbUser.uid;
+    } catch (err: any) {
+      if (err?.code === 'auth/email-already-exists') {
+        const fbUser = await admin.auth().getUserByEmail(r.email);
+        firebaseUid = fbUser.uid;
+        result.skips.push(`Firebase account already existed for ${r.email}; linked instead`);
+      } else {
+        throw err;
+      }
+    }
+
+    const guardianManaged =
+      r.memberRole !== TeamMemberRole.COACH &&
+      r.age !== null && r.age < GUARDIAN_AGE_THRESHOLD;
+
+    const created = await prisma.user.create({
+      data: {
+        firebaseUid,
+        email: r.email,
+        name: r.name,
+        role: userRoleForMember(r.memberRole),
+        sport: tournament.sport,
+        ...(r.gender && { gender: r.gender }),
+        ...(r.dob && { dateOfBirth: r.dob, age: r.age ?? undefined }),
+        ...(r.position && { position: r.position }),
+        ...(r.phone && { phone: r.phone }),
+        mustResetPassword: true,
+        ...(guardianManaged && r.guardianEmail && { guardianManaged: true, guardianEmail: r.guardianEmail }),
+      },
+      select: { id: true },
+    });
+
+    await admin.auth().setCustomUserClaims(firebaseUid, {
+      userId: created.id,
+      role: userRoleForMember(r.memberRole),
+    });
+
+    emailToUserId.set(r.email, created.id);
+    result.accountsCreated++;
+    newlyCreated.push({ email: r.email, name: r.name, tempPassword, teamName: r.report.teamName });
+  }
+
+  // 4. Group resolved rows by team for the team/member writes.
+  const byTeam = new Map<string, ResolvedRow[]>();
+  for (const r of resolved) {
+    const list = byTeam.get(r.report.teamName) ?? [];
+    list.push(r);
+    byTeam.set(r.report.teamName, list);
+  }
+
+  // 5. Transactional DB writes for teams, the tournament join row, and members.
+  await prisma.$transaction(async (tx) => {
+    for (const [teamName, members] of byTeam) {
+      const captainRow = members.find((m) => m.memberRole === TeamMemberRole.CAPTAIN)!;
+      const coachRow = members.find((m) => m.memberRole === TeamMemberRole.COACH);
+      const captainId = emailToUserId.get(captainRow.email)!;
+      const coachId = coachRow ? emailToUserId.get(coachRow.email)! : null;
+
+      // Reuse an existing team for this tournament+name so re-runs don't duplicate.
+      let team = await tx.team.findFirst({
+        where: { tournamentId: tournament.id, name: teamName },
+        select: { id: true },
+      });
+      if (!team) {
+        team = await tx.team.create({
+          data: {
+            name: teamName,
+            sport: tournament.sport,
+            tournamentId: tournament.id,
+            captainId,
+            ...(coachId && { coachId }),
+          },
+          select: { id: true },
+        });
+        result.teamsCreated++;
+      } else {
+        // Keep captain/coach in sync on re-run.
+        await tx.team.update({
+          where: { id: team.id },
+          data: { captainId, coachId: coachId ?? null },
+        });
+      }
+
+      // Tournament registration join row (skip if already present).
+      await tx.tournamentTeam.upsert({
+        where: { tournamentId_teamId: { tournamentId: tournament.id, teamId: team.id } },
+        create: { tournamentId: tournament.id, teamId: team.id },
+        update: {},
+      });
+
+      // Members — ACCEPTED on create. THE CORE BYPASS: no PENDING, no invite,
+      // no notification. Skip members already on the team so a second commit
+      // neither duplicates nor re-counts (idempotent).
+      const now = new Date();
+      for (const m of members) {
+        const userId = emailToUserId.get(m.email)!;
+        const already = await tx.teamMember.findUnique({
+          where: { teamId_userId: { teamId: team.id, userId } },
+          select: { id: true },
+        });
+        if (already) continue;
+        await tx.teamMember.create({
+          data: {
+            teamId: team.id,
+            userId,
+            role: m.memberRole,
+            status: 'ACCEPTED',
+            respondedAt: now,
+          },
+        });
+        result.membersAdded++;
+      }
+    }
+  });
+
+  // 6. Welcome emails — only to newly created accounts, never linked ones.
+  for (const u of newlyCreated) {
+    try {
+      await sendTempPasswordWelcome(
+        { email: u.email, name: u.name },
+        u.tempPassword,
+        tournament.name,
+        u.teamName,
+      );
+      result.emailsSent++;
+    } catch (err) {
+      logger.warn('bulkProvision.welcome_email_failed', { email: u.email, error: String(err) });
+      result.skips.push(`Welcome email failed for ${u.email}`);
+    }
+  }
+
+  logger.info('bulkProvision.commit', {
+    tournamentId: tournament.id,
+    created: result.accountsCreated,
+    linked: result.accountsLinked,
+    teams: result.teamsCreated,
+    members: result.membersAdded,
+    emails: result.emailsSent,
+  });
+
+  return result;
+}

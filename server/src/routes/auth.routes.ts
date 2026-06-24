@@ -171,6 +171,7 @@ const meSelect = {
   position: true, achievements: true, verified: true, phoneVerified: true,
   phone: true, createdAt: true,
   dateOfBirth: true, guardianManaged: true, handoverStatus: true,
+  mustResetPassword: true,
 };
 
 /** A profile is "complete" when these essential fields are all filled in. */
@@ -216,6 +217,27 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     res.json({ user });
   } catch (error) {
     logger.error('Me error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/password-changed ─────────────────────────────────────────
+//
+// Called by the client after a bulk-provisioned user changes their temp password
+// (via Firebase) on first login. Clears the `mustResetPassword` flag so the
+// forced-reset gate lets them through. Idempotent.
+
+router.post('/password-changed', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data:  { mustResetPassword: false },
+      select: { id: true, mustResetPassword: true },
+    });
+    logger.info('auth.password_changed', { userId: user.id });
+    res.json({ mustResetPassword: user.mustResetPassword });
+  } catch (error) {
+    logger.error('Password changed error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

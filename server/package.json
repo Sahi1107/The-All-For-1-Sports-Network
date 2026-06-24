@@ -11,7 +11,9 @@
     "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "create-admin": "ts-node --project tsconfig.json scripts/create-admin.ts"
+    "test": "node --require ts-node/register --test 'src/**/*.test.ts'",
+    "create-admin": "ts-node --project tsconfig.json scripts/create-admin.ts",
+    "seed:mock": "ts-node --project tsconfig.json scripts/seed-mock-profiles.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",

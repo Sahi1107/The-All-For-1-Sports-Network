@@ -157,6 +157,9 @@ model User {
   dateOfBirth            DateTime? @map("date_of_birth")
   verified               Boolean   @default(false)
   phoneVerified          Boolean   @default(false) @map("phone_verified")
+  // Set on accounts created via admin bulk-provisioning with a temp password;
+  // the client forces a password change on first login. Cleared once changed.
+  mustResetPassword      Boolean   @default(false) @map("must_reset_password")
   messageNotifications   Boolean   @default(true) @map("message_notifications")
   showOnlineStatus       Boolean   @default(true) @map("show_online_status")
   messagingFollowersOnly Boolean   @default(false) @map("messaging_followers_only")

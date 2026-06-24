@@ -32,3 +32,39 @@ export const AdminUpdateRoleBody = z.object({
 export const AdminVerifyBody = z.object({
   verified: z.boolean({ error: 'verified (boolean) is required' }),
 });
+
+// ─── Bulk provisioning (tournament roster import) ─────────────────────────────
+//
+// The client parses the CSV and POSTs an array of normalized "long-format" rows
+// (one record per member). Wide Google-Form rows are unpivoted client-side into
+// this shape first. The schema only validates the *envelope* — that each row is
+// an object of short strings. Authoritative per-row validation (DOB parsing,
+// email/role mapping, roster sizing, NEW/EXISTING classification) happens in the
+// bulkProvision service so we can return a structured per-row report instead of
+// a blunt 400. Never trust the client's own classification.
+
+const BulkProvisionRow = z
+  .object({
+    team_name:      z.string().max(120).optional(),
+    member_role:    z.string().max(20).optional(),
+    name:           z.string().max(120).optional(),
+    email:          z.string().max(254).optional(),
+    dob:            z.string().max(40).optional(),
+    gender:         z.string().max(20).optional(),
+    position:       z.string().max(60).optional(),
+    phone:          z.string().max(40).optional(),
+    guardian_email: z.string().max(254).optional(),
+  })
+  // Tolerate extra columns the form may carry; the service ignores them.
+  .passthrough();
+
+export const BulkProvisionBody = z.object({
+  rows: z
+    .array(BulkProvisionRow, { error: 'rows must be an array of CSV records' })
+    .min(1, 'At least one row is required')
+    .max(2000, 'Too many rows in a single import (max 2000)'),
+});
+
+export const BulkProvisionParams = z.object({
+  tournamentId: z.string().uuid('Invalid tournament ID'),
+});

@@ -1,0 +1,9 @@
+team_name,member_role,name,email,dob,gender,position,phone,guardian_email
+Mumbai Strikers,captain,Arjun Mehta,arjun.mehta@example.com,2009-04-12,male,Guard,9876543210,
+Mumbai Strikers,coach,Coach Mehta,coach.mehta@example.com,1985-08-01,male,,9876500011,
+Mumbai Strikers,player,Rohan Desai,rohan.desai@example.com,2010-11-23,male,Forward,9876543211,priya.desai@example.com
+Mumbai Strikers,player,Karan Shah,karan.shah@example.com,2009-02-17,male,Center,9876543212,
+Mumbai Strikers,player,Vikram Patel,vikram.patel@example.com,2010-06-30,male,Guard,9876543213,
+Andheri Hoops,captain,Neha Iyer,neha.iyer@example.com,2009-09-05,female,Guard,9876543220,
+Andheri Hoops,player,Sara Khan,sara.khan@example.com,2011-12-14,female,Forward,9876543221,fatima.khan@example.com
+Andheri Hoops,player,Aditi Rao,aditi.rao@example.com,2010-03-28,female,Center,9876543222,

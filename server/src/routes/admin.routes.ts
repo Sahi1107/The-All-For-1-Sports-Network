@@ -6,8 +6,15 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { AdminUserListQuery, AdminUpdateRoleBody, AdminVerifyBody, CreateAdminBody } from '../validation/admin';
+import {
+  AdminUserListQuery, AdminUpdateRoleBody, AdminVerifyBody, CreateAdminBody,
+  BulkProvisionBody, BulkProvisionParams,
+} from '../validation/admin';
 import { deleteUserCompletely } from '../services/userDeletion';
+import {
+  buildReport, commitBulkProvision, normalizeEmail,
+  type TournamentContext,
+} from '../services/bulkProvision';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -201,5 +208,83 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ─── Bulk provisioning (tournament roster import) ────────────────────────────
+//
+// Admin-only path to provision a whole tournament's rosters from a CSV without
+// the self-serve invite/accept handshake. Preview validates and classifies;
+// commit creates missing accounts, links existing ones, builds teams, and adds
+// every member as ACCEPTED. The existing invite flow is untouched.
+
+/** Load the tournament fields the provisioner needs, or null if not found. */
+async function loadTournamentContext(tournamentId: string): Promise<TournamentContext | null> {
+  const t = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { id: true, name: true, sport: true, genderCategory: true, minRosterSize: true, maxRosterSize: true },
+  });
+  return t;
+}
+
+// POST /api/admin/tournaments/:tournamentId/bulk-provision/preview
+router.post(
+  '/tournaments/:tournamentId/bulk-provision/preview',
+  writeLimiter,
+  validate({ params: BulkProvisionParams, body: BulkProvisionBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournament = await loadTournamentContext(req.params.tournamentId as string);
+      if (!tournament) {
+        res.status(404).json({ error: 'Tournament not found' });
+        return;
+      }
+
+      const rows = req.body.rows as any[];
+      const emails = [...new Set(rows.map((r) => normalizeEmail(r.email)).filter(Boolean))];
+      const existing = await prisma.user.findMany({
+        where: { email: { in: emails } },
+        select: { email: true },
+      });
+      const existingEmails = new Set(existing.map((u) => u.email));
+
+      const { report } = buildReport(rows, tournament, existingEmails);
+      res.json({ report });
+    } catch (error) {
+      logger.error('Bulk provision preview error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// POST /api/admin/tournaments/:tournamentId/bulk-provision/commit
+router.post(
+  '/tournaments/:tournamentId/bulk-provision/commit',
+  writeLimiter,
+  validate({ params: BulkProvisionParams, body: BulkProvisionBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournament = await loadTournamentContext(req.params.tournamentId as string);
+      if (!tournament) {
+        res.status(404).json({ error: 'Tournament not found' });
+        return;
+      }
+
+      const result = await commitBulkProvision(req.body.rows as any[], tournament);
+      logger.info('admin.bulk_provision', {
+        actorId: req.user!.userId,
+        tournamentId: tournament.id,
+        created: result.accountsCreated,
+        linked: result.accountsLinked,
+      });
+      res.json({ result });
+    } catch (error: any) {
+      if (error?.status === 422 && error?.blocking) {
+        res.status(422).json({ error: 'Bulk provision blocked by validation errors', blockingErrors: error.blocking });
+        return;
+      }
+      logger.error('Bulk provision commit error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
 
 export default router;
