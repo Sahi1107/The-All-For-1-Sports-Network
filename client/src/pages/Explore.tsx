@@ -7,11 +7,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { SPORTS as ALL_SPORTS } from '../data/sports';
 
 const ROLES = ['ALL', 'ATHLETE', 'COACH', 'SCOUT', 'AGENT'] as const;
-// Native <option> elements can't render icon fonts, so this control is
-// label-only — sport icons appear on the chip-based filters elsewhere.
 const SPORTS = [
-  { value: 'ALL', label: 'All' },
-  ...ALL_SPORTS.map((s) => ({ value: s.value, label: s.label })),
+  { value: 'ALL', label: 'All', emoji: '' },
+  ...ALL_SPORTS.map((s) => ({ value: s.value, label: s.label, emoji: s.emoji })),
 ] as const;
 
 export default function Explore() {
@@ -79,7 +77,7 @@ export default function Explore() {
             >
               {SPORTS.map((s) => (
                 <option key={s.value} value={s.value} className="bg-card text-foreground">
-                  {s.label}
+                  {s.emoji ? `${s.emoji} ${s.label}` : s.label}
                 </option>
               ))}
             </select>

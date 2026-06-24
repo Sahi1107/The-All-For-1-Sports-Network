@@ -1,23 +1,20 @@
-// `icon` is a Pictogrammers Material Design Icon name, rendered via the MDI
-// webfont (loaded from a CDN in index.html) as `mdi mdi-{icon}`. MDI has no
-// dedicated wrestling glyph, so WRESTLING uses the closest grappling icon.
 export const SPORTS = [
-  { value: 'BASKETBALL',    label: 'Basketball',    icon: 'basketball' },
-  { value: 'FOOTBALL',      label: 'Football',      icon: 'soccer' },
-  { value: 'CRICKET',       label: 'Cricket',       icon: 'cricket' },
-  { value: 'FIELD_HOCKEY',  label: 'Field Hockey',  icon: 'hockey-sticks' },
-  { value: 'BADMINTON',     label: 'Badminton',     icon: 'badminton' },
-  { value: 'ATHLETICS',     label: 'Athletics',     icon: 'run-fast' },
-  { value: 'WRESTLING',     label: 'Wrestling',     icon: 'mixed-martial-arts' },
-  { value: 'BOXING',        label: 'Boxing',        icon: 'boxing-glove' },
-  { value: 'SHOOTING',      label: 'Shooting',      icon: 'target' },
-  { value: 'WEIGHTLIFTING', label: 'Weightlifting', icon: 'weight-lifter' },
-  { value: 'ARCHERY',       label: 'Archery',       icon: 'bow-arrow' },
-  { value: 'TENNIS',        label: 'Tennis',        icon: 'tennis' },
-  { value: 'TABLE_TENNIS',  label: 'Table Tennis',  icon: 'table-tennis' },
-  { value: 'RUGBY',         label: 'Rugby',         icon: 'rugby' },
-  { value: 'SWIMMING',      label: 'Swimming',      icon: 'swim' },
-  { value: 'VOLLEYBALL',    label: 'Volleyball',    icon: 'volleyball' },
+  { value: 'BASKETBALL',    label: 'Basketball',    emoji: '\u{1F3C0}' },
+  { value: 'FOOTBALL',      label: 'Football',      emoji: '\u{26BD}' },
+  { value: 'CRICKET',       label: 'Cricket',       emoji: '\u{1F3CF}' },
+  { value: 'FIELD_HOCKEY',  label: 'Field Hockey',  emoji: '\u{1F3D1}' },
+  { value: 'BADMINTON',     label: 'Badminton',     emoji: '\u{1F3F8}' },
+  { value: 'ATHLETICS',     label: 'Athletics',     emoji: '\u{1F3C3}' },
+  { value: 'WRESTLING',     label: 'Wrestling',     emoji: '\u{1F93C}' },
+  { value: 'BOXING',        label: 'Boxing',        emoji: '\u{1F94A}' },
+  { value: 'SHOOTING',      label: 'Shooting',      emoji: '\u{1F3AF}' },
+  { value: 'WEIGHTLIFTING', label: 'Weightlifting', emoji: '\u{1F3CB}' },
+  { value: 'ARCHERY',       label: 'Archery',       emoji: '\u{1F3F9}' },
+  { value: 'TENNIS',        label: 'Tennis',        emoji: '\u{1F3BE}' },
+  { value: 'TABLE_TENNIS',  label: 'Table Tennis',  emoji: '\u{1F3D3}' },
+  { value: 'RUGBY',         label: 'Rugby',         emoji: '\u{1F3C9}' },
+  { value: 'SWIMMING',      label: 'Swimming',      emoji: '\u{1F3CA}' },
+  { value: 'VOLLEYBALL',    label: 'Volleyball',    emoji: '\u{1F3D0}' },
 ] as const;
 
 export type Sport = (typeof SPORTS)[number]['value'];

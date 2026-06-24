@@ -5,10 +5,12 @@ import api from '../api/client';
 import { BadgeCheck, TrendingUp } from 'lucide-react';
 import { SPORTS, ATHLETICS_EVENTS } from '../data/sports';
 import SportBackdrop from '../components/SportBackdrop';
-import { SportIcon } from '../components/SportIcon';
 
 type Gender = 'MALE' | 'FEMALE';
 
+const SPORT_ICONS: Record<string, string> = Object.fromEntries(
+  SPORTS.map(({ value, emoji }) => [value, emoji]),
+);
 const SPORT_LABELS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, label }) => [value, label]),
 );
@@ -181,13 +183,13 @@ export default function Rankings() {
           <button
             key={value}
             onClick={() => changeSport(value)}
-            className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
               sport === value
                 ? 'bg-primary font-semibold text-on-primary'
                 : 'border border-line bg-card text-gray-custom hover:text-foreground'
             }`}
           >
-            <SportIcon sport={value} className="text-base" /> {SPORT_LABELS[value]}
+            {SPORT_ICONS[value]} {SPORT_LABELS[value]}
           </button>
         ))}
       </div>
