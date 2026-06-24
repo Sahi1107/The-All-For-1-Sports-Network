@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -6,9 +6,9 @@ import api from '../api/client';
 import { io, type Socket } from 'socket.io-client';
 import { auth } from '../config/firebase';
 import {
-  Send, MessageCircle, Plus, X, Search, ArrowLeft, Edit,
+  Send, MessageCircle, Plus, X, Search, ArrowLeft,
   Copy, Trash2, CornerUpRight, MoreHorizontal,
-  Archive, MoreVertical, LogOut, Users,
+  Archive, MoreVertical, LogOut, Users, BadgeCheck, Pin,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -48,6 +48,42 @@ function timeAgo(date: string) {
   if (hours < 24) return `${hours}h`;
   const days = Math.floor(hours / 24);
   return `${days}d`;
+}
+
+/** "Today" / "Yesterday" / "Mar 4" divider label for a message date. */
+function dayLabel(date: string): string {
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOf(new Date()) - startOf(new Date(date))) / 86_400_000);
+  if (diff <= 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  return new Date(date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+const ROLE_FILTERS = [
+  { key: 'ALL',     label: 'All' },
+  { key: 'ATHLETE', label: 'Athletes' },
+  { key: 'COACH',   label: 'Coaches' },
+  { key: 'SCOUT',   label: 'Scouts' },
+  { key: 'TEAM',    label: 'Teams' },
+  { key: 'UNREAD',  label: 'Unread' },
+] as const;
+type RoleFilter = (typeof ROLE_FILTERS)[number]['key'];
+
+const PINNED_STORAGE_KEY = 'af1.pinnedConversations';
+
+/** Small verified check, shown beside a name. */
+function Verified({ className = '' }: { className?: string }) {
+  return <BadgeCheck size={15} className={`shrink-0 text-accent ${className}`} aria-label="Verified" />;
+}
+
+/** Subtle uppercase role pill (e.g. SCOUT) for non-athlete participants. */
+function RoleTag({ role }: { role?: string | null }) {
+  if (!role) return null;
+  return (
+    <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-custom border border-line">
+      {role}
+    </span>
+  );
 }
 
 function presenceLabel(online: boolean | null, lastActiveAt: string | null): string | null {
@@ -282,6 +318,21 @@ export default function Messages() {
   const [otherPresence, setOtherPresence] = useState<{ online: boolean | null; lastActiveAt: string | null } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [chatMenuOpen, setChatMenuOpen] = useState(false);
+  const [convSearch, setConvSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL');
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem(PINNED_STORAGE_KEY) || '[]')); }
+    catch { return new Set(); }
+  });
+
+  const togglePin = (id: string) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  };
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -333,6 +384,7 @@ export default function Messages() {
     });
     api.patch(`/messages/conversations/${activeConvId}/read`).then(() => {
       qc.invalidateQueries({ queryKey: ['messages-unread'] });
+      qc.invalidateQueries({ queryKey: ['conversations'] });
     }).catch(() => {});
     setChatMenuOpen(false);
   }, [activeConvId, qc]);
@@ -546,6 +598,38 @@ export default function Messages() {
     return Date.now() - new Date(other.lastActiveAt).getTime() < 2 * 60 * 1000;
   };
 
+  // ── Inbox search + role filtering, split into pinned / recent ─
+  const { pinnedConvs, recentConvs } = useMemo(() => {
+    const q = convSearch.trim().toLowerCase();
+
+    const matches = (conv: any) => {
+      const other = conv.members?.find((m: any) => m.userId !== user?.id)?.user;
+      // Role filter
+      if (roleFilter === 'UNREAD') {
+        if (!((conv.unreadCount ?? 0) > 0)) return false;
+      } else if (roleFilter === 'TEAM') {
+        if (!conv.isGroup && other?.role !== 'TEAM') return false;
+      } else if (roleFilter !== 'ALL') {
+        if (conv.isGroup || other?.role !== roleFilter) return false;
+      }
+      // Search filter
+      if (q) {
+        const name = (conv.isGroup ? conv.name : other?.name) ?? '';
+        const last = conv.messages?.[0]?.content ?? '';
+        if (!name.toLowerCase().includes(q) && !last.toLowerCase().includes(q)) return false;
+      }
+      return true;
+    };
+
+    const visible = conversations.filter(matches);
+    return {
+      pinnedConvs: visible.filter((c: any) => pinnedIds.has(c.id)),
+      recentConvs: visible.filter((c: any) => !pinnedIds.has(c.id)),
+    };
+  }, [conversations, convSearch, roleFilter, pinnedIds, user?.id]);
+
+  const hasAnyVisible = pinnedConvs.length + recentConvs.length > 0;
+
   // ── New Conversation Modal ────────────────────────────────────────────────
   const NewConvModal = (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -590,79 +674,174 @@ export default function Messages() {
     </div>
   );
 
-  // ── Conversation List ─────────────────────────────────────────────────────
-  const ConversationList = (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-line shrink-0">
-        <h1 className="text-xl font-bold">Messages</h1>
-        <button
-          onClick={() => setShowNewConv(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-primary hover:bg-primary-dark text-on-primary transition-colors"
-          aria-label="New message"
-        >
-          <Edit size={16} />
-        </button>
-      </div>
+  // ── Conversation row (wide for the rest state, compact when a thread is open) ─
+  const renderRow = (conv: any, compact: boolean) => {
+    const isGroup = conv.isGroup;
+    const other = getOther(conv);
+    const lastMsg = conv.messages?.[0];
+    const online = !isGroup && getOnlineStatus(conv);
+    const isActive = conv.id === activeConvId;
+    const isPinned = pinnedIds.has(conv.id);
+    const unread = conv.unreadCount ?? 0;
+    const title = isGroup ? conv.name : (other?.name ?? 'Unknown');
+    const isAthlete = !other?.role || other.role === 'ATHLETE';
+    const meta = !isGroup && isAthlete
+      ? [other?.sport?.toLowerCase().replace(/_/g, ' '), other?.position].filter(Boolean).join(' · ')
+      : null;
 
-      <div className="flex bg-elevated p-1 mx-4 my-2 rounded-lg shrink-0">
-        <button
-          onClick={() => { setShowArchived(false); setActiveConvId(null); }}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${!showArchived ? 'bg-surface text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
-        >
-          Active
-        </button>
-        <button
-          onClick={() => { setShowArchived(true); setActiveConvId(null); }}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${showArchived ? 'bg-surface text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
-        >
-          Archived
-        </button>
-      </div>
+    const preview = lastMsg?.deletedAt
+      ? 'This message was deleted'
+      : lastMsg?.content || 'No messages yet';
+    let prefix = '';
+    if (lastMsg && !lastMsg.deletedAt) {
+      if (lastMsg.sender?.id === user?.id) prefix = 'You: ';
+      else if (isGroup && lastMsg.sender?.name) prefix = `${lastMsg.sender.name}: `;
+    }
 
-      {/* List */}
-      <div className="flex-1 overflow-y-auto">
-        {conversations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8">
-            <MessageCircle size={36} className="text-gray-custom" />
-            <p className="text-gray-custom text-sm">No {showArchived ? 'archived ' : ''}conversations.</p>
-          </div>
-        ) : conversations.map((conv: any) => {
-          const isGroup = conv.isGroup;
-          const other = getOther(conv);
-          const lastMsg = conv.messages?.[0];
-          const online = !isGroup && getOnlineStatus(conv);
-          const lastPreview = lastMsg?.deletedAt
-            ? 'This message was deleted'
-            : lastMsg?.content ?? 'No messages yet';
-          
-          const title = isGroup ? conv.name : (other?.name ?? 'Unknown');
-          return (
-            <button
-              key={conv.id}
-              onClick={() => openConv(conv.id)}
-              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-surface/40 active:bg-surface/60 transition-colors text-left border-b border-line/30"
-            >
-              {isGroup ? (
-                <div className="w-12 h-12 bg-elevated rounded-full flex items-center justify-center shrink-0 border border-surface/50">
-                  <Users size={20} className="text-gray-custom" />
-                </div>
-              ) : (
-                <Avatar user={other} size={12} online={online} />
+    return (
+      <div key={conv.id} className="relative group">
+        <button
+          onClick={() => openConv(conv.id)}
+          className={`w-full flex items-start gap-3 text-left rounded-xl transition-colors ${compact ? 'px-2.5 py-2.5' : 'px-3 py-3'} ${
+            isActive ? 'bg-elevated ring-1 ring-line' : 'hover:bg-surface/60'
+          }`}
+        >
+          {isGroup ? (
+            <div className={`${compact ? 'w-10 h-10' : 'w-12 h-12'} bg-elevated rounded-full flex items-center justify-center shrink-0 border border-line`}>
+              <Users size={compact ? 16 : 20} className="text-gray-custom" />
+            </div>
+          ) : (
+            <Avatar user={other} size={compact ? 10 : 12} online={online} />
+          )}
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className={`truncate ${unread ? 'font-bold text-foreground' : 'font-semibold'}`}>{title}</span>
+              {!isGroup && other?.verified && <Verified />}
+              {!compact && !isGroup && !isAthlete && <RoleTag role={other?.role} />}
+              {!compact && meta && <span className="truncate text-xs text-gray-custom capitalize">{meta}</span>}
+              {lastMsg && <span className="ml-auto shrink-0 text-xs text-gray-custom">{timeAgo(lastMsg.createdAt)}</span>}
+            </div>
+            <div className="mt-0.5 flex items-center gap-2">
+              <p className={`flex-1 truncate text-sm ${lastMsg?.deletedAt ? 'italic text-gray-custom' : unread ? 'text-foreground' : 'text-gray-custom'}`}>
+                {prefix}{preview}
+              </p>
+              {unread > 0 && (
+                <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-on-primary text-[11px] font-bold flex items-center justify-center">
+                  {unread > 99 ? '99+' : unread}
+                </span>
               )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <p className="text-sm font-semibold truncate">{title}</p>
-                  {lastMsg && <span className="text-xs text-gray-custom shrink-0">{timeAgo(lastMsg.createdAt)}</span>}
-                </div>
-                <p className={`text-sm truncate ${lastMsg?.deletedAt ? 'text-gray-custom italic' : 'text-gray-custom'}`}>
-                  {lastPreview}
-                </p>
-              </div>
-            </button>
-          );
-        })}
+            </div>
+          </div>
+        </button>
+
+        {/* Pin toggle — persistent when pinned, on hover otherwise (desktop) */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); togglePin(conv.id); }}
+          className={`absolute right-2 top-2 p-1 rounded-md bg-card/80 backdrop-blur-sm transition-opacity ${
+            isPinned
+              ? 'text-primary opacity-100'
+              : 'text-gray-custom opacity-0 group-hover:opacity-100 hover:text-foreground'
+          }`}
+          aria-label={isPinned ? 'Unpin conversation' : 'Pin conversation'}
+          title={isPinned ? 'Unpin' : 'Pin'}
+        >
+          <Pin size={13} className={isPinned ? 'fill-current' : ''} />
+        </button>
       </div>
+    );
+  };
+
+  // ── Top bar: title, search, role filters (stays pinned above list + thread) ─
+  const TopBar = (
+    <div className={`shrink-0 ${activeConvId ? 'hidden md:block' : 'block'}`}>
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+        <h1 className="text-2xl font-extrabold tracking-tight">Messages</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { setShowArchived((s) => !s); setActiveConvId(null); }}
+            className={`h-9 px-3 inline-flex items-center gap-1.5 rounded-full text-sm font-medium border transition-colors ${
+              showArchived ? 'bg-elevated text-foreground border-line' : 'text-gray-custom border-line hover:text-foreground'
+            }`}
+            title={showArchived ? 'Show active chats' : 'Show archived chats'}
+          >
+            <Archive size={15} />
+            <span className="hidden sm:inline">{showArchived ? 'Archived' : 'Archive'}</span>
+          </button>
+          <button
+            onClick={() => setShowNewConv(true)}
+            className="h-9 px-4 inline-flex items-center gap-1.5 rounded-full bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm transition-colors"
+          >
+            <Plus size={16} /> New
+          </button>
+        </div>
+      </div>
+
+      <div className="px-4">
+        <div className="relative">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-custom" />
+          <input
+            value={convSearch}
+            onChange={(e) => setConvSearch(e.target.value)}
+            placeholder="Search people and messages"
+            className="w-full pl-10 pr-4 py-2.5 bg-surface border border-line rounded-xl text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
+          />
+        </div>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 py-3">
+        {ROLE_FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setRoleFilter(f.key)}
+            className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              roleFilter === f.key
+                ? 'bg-primary text-on-primary border-transparent font-semibold'
+                : 'bg-card text-gray-custom border-line hover:text-foreground'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ── Inbox list (sectioned in the rest state, flat & compact when open) ──────
+  const InboxList = (
+    <div className="flex-1 overflow-y-auto px-2 pb-4">
+      {!hasAnyVisible ? (
+        <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8 py-16">
+          <MessageCircle size={32} className="text-gray-custom" />
+          <p className="text-sm text-gray-custom">
+            {convSearch || roleFilter !== 'ALL'
+              ? 'No conversations match your filters.'
+              : `No ${showArchived ? 'archived ' : ''}conversations yet.`}
+          </p>
+        </div>
+      ) : activeConvId ? (
+        <div className="space-y-0.5 pt-2">
+          {[...pinnedConvs, ...recentConvs].map((c: any) => renderRow(c, true))}
+        </div>
+      ) : (
+        <>
+          {pinnedConvs.length > 0 && (
+            <>
+              <div className="flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-custom">
+                <Pin size={11} /> Pinned
+              </div>
+              <div className="space-y-0.5">{pinnedConvs.map((c: any) => renderRow(c, false))}</div>
+            </>
+          )}
+          {recentConvs.length > 0 && (
+            <>
+              <div className="px-2 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-gray-custom">Recent</div>
+              <div className="space-y-0.5">{recentConvs.map((c: any) => renderRow(c, false))}</div>
+            </>
+          )}
+        </>
+      )}
     </div>
   );
 
@@ -670,12 +849,33 @@ export default function Messages() {
   const ChatView = activeConv ? (() => {
     const isGroup = activeConv.isGroup;
     const other = getOther(activeConv);
-    const pLabel = isGroup ? `${activeConv.members.length} members` : presenceLabel(otherPresence?.online ?? null, otherPresence?.lastActiveAt ?? null);
+    const otherMember = activeConv.members?.find((m: any) => m.userId !== user?.id);
+    const presence = isGroup ? null : presenceLabel(otherPresence?.online ?? null, otherPresence?.lastActiveAt ?? null);
+    const isAthlete = !other?.role || other.role === 'ATHLETE';
+    const headerMeta = isGroup
+      ? `${activeConv.members.length} members`
+      : [
+          presence,
+          isAthlete ? other?.sport?.toLowerCase().replace(/_/g, ' ') : other?.role?.toLowerCase(),
+          other?.position,
+        ].filter(Boolean).join(' · ');
+    const firstName = (isGroup ? activeConv.name : other?.name)?.split(' ')[0] ?? '';
+
+    // Truthful "Seen / Sent" status for my most recent message, using the other
+    // member's lastReadAt timestamp.
+    const lastMsg = messages[messages.length - 1];
+    let sentStatus: string | null = null;
+    if (!isGroup && lastMsg && lastMsg.senderId === user?.id && !lastMsg.deletedAt) {
+      const seen = otherMember?.lastReadAt && new Date(otherMember.lastReadAt) >= new Date(lastMsg.createdAt);
+      sentStatus = `${seen ? 'Seen' : 'Sent'} · ${timeAgo(lastMsg.createdAt)}`;
+    }
+
+    let lastDay = '';
 
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full min-h-0">
         {/* Chat header */}
-        <div className="flex items-center gap-3 px-3 py-3 border-b border-line shrink-0">
+        <div className="flex items-center gap-3 px-3 sm:px-4 py-3 border-b border-line shrink-0">
           <button
             onClick={() => setActiveConvId(null)}
             className="md:hidden p-1 -ml-1 text-gray-custom hover:text-foreground transition-colors"
@@ -683,31 +883,48 @@ export default function Messages() {
           >
             <ArrowLeft size={22} />
           </button>
-          
+
           {isGroup ? (
             <div className="flex-1 min-w-0 flex items-center gap-3">
-              <div className="w-10 h-10 bg-surface rounded-full flex items-center justify-center shrink-0 border border-line">
+              <div className="w-10 h-10 bg-elevated rounded-full flex items-center justify-center shrink-0 border border-line">
                 <Users size={16} className="text-gray-custom" />
               </div>
               <div className="min-w-0">
                 <h2 className="font-semibold truncate">{activeConv.name}</h2>
-                <div className="text-xs text-emerald-400 mt-0.5">{pLabel}</div>
+                {headerMeta && <p className="text-xs text-gray-custom truncate mt-0.5">{headerMeta}</p>}
               </div>
             </div>
           ) : (
-            <Link to={`/profile/${other?.id}`} className="flex-1 min-w-0 flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <div className="flex-1 min-w-0 flex items-center gap-3">
               <Avatar user={other} size={10} online={otherPresence?.online ?? false} />
               <div className="min-w-0">
-                <h2 className="font-semibold truncate">{other?.name ?? 'Unknown'}</h2>
-                <div className="text-xs text-emerald-400 mt-0.5">{pLabel}</div>
+                <h2 className="font-semibold truncate flex items-center gap-1.5">
+                  <span className="truncate">{other?.name ?? 'Unknown'}</span>
+                  {other?.verified && <Verified />}
+                </h2>
+                {headerMeta && (
+                  <p className={`text-xs truncate mt-0.5 capitalize ${otherPresence?.online ? 'text-accent' : 'text-gray-custom'}`}>
+                    {headerMeta}
+                  </p>
+                )}
               </div>
+            </div>
+          )}
+
+          {!isGroup && other?.id && (
+            <Link
+              to={`/profile/${other.id}`}
+              className="hidden sm:inline-flex items-center h-8 px-3 rounded-full border border-line text-sm text-foreground hover:bg-surface transition-colors"
+            >
+              Profile
             </Link>
           )}
 
           <div className="relative">
-            <button 
-               onClick={() => setChatMenuOpen(!chatMenuOpen)} 
-               className="p-2 text-gray-custom hover:text-foreground hover:bg-surface rounded-full transition-colors"
+            <button
+              onClick={() => setChatMenuOpen(!chatMenuOpen)}
+              className="p-2 text-gray-custom hover:text-foreground hover:bg-surface rounded-full transition-colors"
+              aria-label="Conversation options"
             >
               <MoreVertical size={20} />
             </button>
@@ -737,79 +954,99 @@ export default function Messages() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-1.5">
+          {messages.length === 0 && (
+            <div className="h-full flex items-center justify-center text-center px-6">
+              <p className="text-sm text-gray-custom">
+                No messages yet. Say hello{firstName ? ` to ${firstName}` : ''}.
+              </p>
+            </div>
+          )}
           {messages.map((msg: any, i: number) => {
             const isMe = msg.senderId === user?.id;
             const isDeleted = !!msg.deletedAt;
             const showMenu = activeMenu === msg.id;
+            const thisDay = dayLabel(msg.createdAt);
+            const showDay = thisDay !== lastDay;
+            lastDay = thisDay;
 
             return (
-              <div key={msg.id ?? i} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
-                <div className="relative max-w-[75%]">
-                  {/* Action trigger */}
-                  {!isDeleted && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveMenu(showMenu ? null : msg.id)}
-                      className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} text-gray-custom hover:text-foreground p-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}
-                      aria-label="Message actions"
-                    >
-                      <MoreHorizontal size={14} />
-                    </button>
-                  )}
+              <Fragment key={msg.id ?? i}>
+                {showDay && (
+                  <div className="flex justify-center py-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-custom">{thisDay}</span>
+                  </div>
+                )}
+                <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                  <div className="relative max-w-[78%]">
+                    {/* Action trigger */}
+                    {!isDeleted && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveMenu(showMenu ? null : msg.id)}
+                        className={`absolute top-1 ${isMe ? '-left-8' : '-right-8'} text-gray-custom hover:text-foreground p-1 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity`}
+                        aria-label="Message actions"
+                      >
+                        <MoreHorizontal size={14} />
+                      </button>
+                    )}
 
-                  {/* Action menu */}
-                  {showMenu && (
-                    <MessageActionMenu
-                      msg={msg}
-                      isMe={isMe}
-                      onCopy={() => handleCopy(msg.content)}
-                      onUnsend={() => handleUnsend(msg.id)}
-                      onForward={() => handleForward(msg.id)}
-                      onClose={() => setActiveMenu(null)}
-                    />
-                  )}
+                    {/* Action menu */}
+                    {showMenu && (
+                      <MessageActionMenu
+                        msg={msg}
+                        isMe={isMe}
+                        onCopy={() => handleCopy(msg.content)}
+                        onUnsend={() => handleUnsend(msg.id)}
+                        onForward={() => handleForward(msg.id)}
+                        onClose={() => setActiveMenu(null)}
+                      />
+                    )}
 
-                  {/* Message bubble */}
-                  {isDeleted ? (
-                    <div className={`rounded-2xl px-4 py-2.5 ${
-                      isMe ? 'bg-elevated/50 rounded-br-sm' : 'bg-elevated/50 rounded-bl-sm'
-                    }`}>
-                      <p className="text-sm text-foreground/30 italic">This message was deleted</p>
-                    </div>
-                  ) : (
-                    <div className={`rounded-2xl px-4 py-2.5 ${
-                      isMe ? 'bg-primary text-on-primary rounded-br-sm' : 'bg-elevated text-foreground rounded-bl-sm'
-                    }`}>
-                      {msg.content && msg.content !== '[Shared post]' && msg.content !== '[Shared profile]' && (
-                        <Linkify className="text-sm leading-snug">{msg.content}</Linkify>
-                      )}
-
-                      {/* Shared post preview */}
-                      {msg.sharedPost && <SharedPostCard post={msg.sharedPost} />}
-
-                      {/* Shared profile preview */}
-                      {msg.sharedProfile && <SharedProfileCard profile={msg.sharedProfile} />}
-
-                      <div className={`flex items-center gap-1.5 mt-1 ${isMe ? 'text-on-primary/60' : 'text-gray-custom'}`}>
-                        <span className="text-xs">{timeAgo(msg.createdAt)}</span>
+                    {/* Message bubble */}
+                    {isDeleted ? (
+                      <div className={`rounded-2xl px-4 py-2.5 bg-elevated/50 ${isMe ? 'rounded-br-md' : 'rounded-bl-md'}`}>
+                        <p className="text-sm text-foreground/40 italic">This message was deleted</p>
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className={`rounded-2xl px-4 py-2.5 ${
+                        isMe ? 'bg-primary text-on-primary rounded-br-md' : 'bg-elevated text-foreground rounded-bl-md'
+                      }`}>
+                        {msg.content && msg.content !== '[Shared post]' && msg.content !== '[Shared profile]' && (
+                          <Linkify className="text-sm leading-snug whitespace-pre-wrap break-words">{msg.content}</Linkify>
+                        )}
+                        {msg.sharedPost && <SharedPostCard post={msg.sharedPost} />}
+                        {msg.sharedProfile && <SharedProfileCard profile={msg.sharedProfile} />}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              </Fragment>
             );
           })}
+          {sentStatus && (
+            <div className="flex justify-end pt-0.5">
+              <span className="text-[11px] text-gray-custom">{sentStatus}</span>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <form onSubmit={handleSend} className="px-3 py-3 border-t border-line flex items-center gap-2 shrink-0">
+        {/* Composer */}
+        <form onSubmit={handleSend} className="px-3 sm:px-4 py-3 border-t border-line flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.focus()}
+            className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full text-gray-custom hover:text-foreground hover:bg-surface transition-colors"
+            aria-label="Add to message"
+          >
+            <Plus size={20} />
+          </button>
           <input
             ref={inputRef}
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
-            placeholder="Message..."
+            placeholder={firstName ? `Message ${firstName}...` : 'Message...'}
             className="flex-1 bg-surface border border-line rounded-full px-4 py-2.5 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
           />
           <button
@@ -832,99 +1069,30 @@ export default function Messages() {
   );
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col">
+    <div className="h-[calc(100vh-8rem)]">
       {showNewConv && NewConvModal}
       {forwardingId && (
         <ForwardModal messageId={forwardingId} onClose={() => setForwardingId(null)} />
       )}
 
-      {/* ── Mobile layout ── */}
-      <div className="md:hidden flex flex-col flex-1 min-h-0 bg-card rounded-xl border border-line overflow-hidden">
-        {activeConvId ? ChatView : ConversationList}
-      </div>
-
-      {/* ── Desktop layout ── */}
-      <div className="hidden md:flex flex-col flex-1 min-h-0 gap-0">
-        {/* Desktop header */}
-        <div className="flex items-center justify-between mb-4 shrink-0">
-          <h1 className="text-2xl font-bold">Messages</h1>
-          <button
-            onClick={() => setShowNewConv(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-sm rounded-lg transition-colors"
+      <div className="h-full flex flex-col bg-card rounded-2xl border border-line overflow-hidden">
+        {TopBar}
+        <div className="flex-1 flex min-h-0 border-t border-line">
+          {/* List column — full width at rest, compact rail once a thread is open */}
+          <div
+            className={`flex flex-col min-h-0 ${
+              activeConvId ? 'hidden md:flex md:w-80 lg:w-96 md:border-r md:border-line' : 'flex w-full'
+            }`}
           >
-            <Plus size={16} />
-            New Message
-          </button>
-        </div>
-
-        <div className="flex flex-1 gap-4 min-h-0">
-          {/* Sidebar */}
-          <div className="w-72 shrink-0 bg-card rounded-xl border border-line flex flex-col overflow-hidden">
-            <div className="flex bg-surface p-1 mx-3 mt-3 mb-1 rounded-lg shrink-0 border border-line">
-              <button
-                onClick={() => { setShowArchived(false); setActiveConvId(null); }}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${!showArchived ? 'bg-card text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => { setShowArchived(true); setActiveConvId(null); }}
-                className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-colors ${showArchived ? 'bg-card text-foreground shadow-sm' : 'text-gray-custom hover:text-foreground'}`}
-              >
-                Archived
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto mt-2">
-              {conversations.length === 0 ? (
-                <div className="p-6 text-center">
-                  <MessageCircle size={24} className="mx-auto mb-2 text-gray-custom" />
-                  <p className="text-xs text-gray-custom">No {showArchived ? 'archived ' : ''}conversations.</p>
-                </div>
-              ) : conversations.map((conv: any) => {
-                const isGroup = conv.isGroup;
-                const other = getOther(conv);
-                const isActive = conv.id === activeConvId;
-                const online = !isGroup && getOnlineStatus(conv);
-                const lastMsg = conv.messages?.[0];
-                const lastPreview = lastMsg?.deletedAt
-                  ? 'This message was deleted'
-                  : lastMsg?.content ?? 'No messages yet';
-                
-                const title = isGroup ? conv.name : (other?.name ?? 'Unknown');
-                return (
-                  <button
-                    key={conv.id}
-                    onClick={() => openConv(conv.id)}
-                    className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
-                      isActive ? 'bg-primary/10 border-r-2 border-primary' : 'hover:bg-surface/40'
-                    }`}
-                  >
-                    {isGroup ? (
-                      <div className="w-10 h-10 bg-elevated rounded-full flex items-center justify-center shrink-0 border border-surface/50">
-                        <Users size={16} className="text-gray-custom" />
-                      </div>
-                    ) : (
-                      <Avatar user={other} size={9} online={online} />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{title}</p>
-                      <p className={`text-xs truncate ${lastMsg?.deletedAt ? 'text-gray-custom italic' : 'text-gray-custom'}`}>
-                        {lastPreview}
-                      </p>
-                    </div>
-                    {lastMsg && (
-                      <span className="text-xs text-gray-custom shrink-0">{timeAgo(lastMsg.createdAt)}</span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            {InboxList}
           </div>
 
-          {/* Chat panel */}
-          <div className="flex-1 bg-card rounded-xl border border-line flex flex-col overflow-hidden">
-            {ChatView}
-          </div>
+          {/* Thread — slides in beside the list (full screen on mobile) */}
+          {activeConvId && (
+            <div className="flex flex-col min-h-0 flex-1 w-full">
+              {ChatView}
+            </div>
+          )}
         </div>
       </div>
     </div>

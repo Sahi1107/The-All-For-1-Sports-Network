@@ -122,6 +122,7 @@ router.get('/conversations', authenticate, async (req: AuthRequest, res: Respons
             user: {
               select: {
                 id: true, name: true, avatar: true,
+                role: true, sport: true, position: true, verified: true,
                 showOnlineStatus: true, lastActiveAt: true,
               },
             },
@@ -136,11 +137,26 @@ router.get('/conversations', authenticate, async (req: AuthRequest, res: Respons
       orderBy: { updatedAt: 'desc' },
     });
 
-    // Sanitize the last message preview for soft-deleted messages
-    const sanitized = conversations.map((c) => ({
-      ...c,
-      messages: c.messages.map(sanitizeDeleted),
-    }));
+    // Per-conversation unread count for the requesting user: incoming messages
+    // newer than their lastReadAt (or all incoming messages if never opened).
+    const sanitized = await Promise.all(
+      conversations.map(async (c) => {
+        const myMembership = c.members.find((m) => m.userId === req.user!.userId);
+        const unreadCount = await prisma.message.count({
+          where: {
+            conversationId: c.id,
+            senderId: { not: req.user!.userId },
+            deletedAt: null,
+            ...(myMembership?.lastReadAt ? { createdAt: { gt: myMembership.lastReadAt } } : {}),
+          },
+        });
+        return {
+          ...c,
+          unreadCount,
+          messages: c.messages.map(sanitizeDeleted),
+        };
+      }),
+    );
 
     res.json({ conversations: sanitized });
   } catch (error) {
