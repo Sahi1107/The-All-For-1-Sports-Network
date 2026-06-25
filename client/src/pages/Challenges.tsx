@@ -7,7 +7,7 @@ import './landing.css';
 // Map a human-readable sport label to its Sport enum value on the server.
 const sportToEnum = (sport: string) => sport.trim().toUpperCase().replace(/\s+/g, '_');
 
-type ChallengeStatus = 'LIVE' | 'UPCOMING' | 'ENDING SOON';
+type ChallengeStatus = 'LIVE' | 'UPCOMING' | 'ENDING SOON' | 'CLOSED';
 
 type Challenge = {
   id: string;
@@ -15,6 +15,9 @@ type Challenge = {
   sport: string;
   sportEmoji: string;
   status: ChallengeStatus;
+  /** ISO timestamp the challenge closes. The displayed badge flips to CLOSED
+   *  automatically once this passes — `status` above is only the pre-close state. */
+  closesAt: string;
   prize: string;
   duration: string;
   participants: number;
@@ -39,6 +42,7 @@ const CHALLENGES: Challenge[] = [
     sport: 'Football',
     sportEmoji: '⚽',
     status: 'LIVE',
+    closesAt: '2026-06-20T23:59:00',
     prize: 'Adidas F50 Football Boots',
     duration: 'Closes 20 June 2026, 11:59 PM',
     participants: 0,
@@ -78,7 +82,13 @@ const STATUS_TONE: Record<ChallengeStatus, string> = {
   LIVE: 'status-live',
   UPCOMING: 'status-upcoming',
   'ENDING SOON': 'status-ending',
+  CLOSED: 'status-closed',
 };
+
+// The badge a challenge should actually show right now: once the close date has
+// passed it reads CLOSED regardless of the authored `status`.
+const effectiveStatus = (c: Challenge): ChallengeStatus =>
+  Date.now() > new Date(c.closesAt).getTime() ? 'CLOSED' : c.status;
 
 export default function Challenges() {
   const navigate = useNavigate();
@@ -230,8 +240,8 @@ export default function Challenges() {
               aria-label={`Open details for ${c.title}`}
             >
               <div className="challenge-banner" style={{ background: c.banner }}>
-                <span className={`challenge-status ${STATUS_TONE[c.status]}`}>
-                  {c.status}
+                <span className={`challenge-status ${STATUS_TONE[effectiveStatus(c)]}`}>
+                  {effectiveStatus(c)}
                 </span>
                 <span className="challenge-sport-pill">
                   {c.sportEmoji} {c.sport}
@@ -288,8 +298,8 @@ export default function Challenges() {
               className="challenge-modal-banner"
               style={{ background: selected.banner }}
             >
-              <span className={`challenge-status ${STATUS_TONE[selected.status]}`}>
-                {selected.status}
+              <span className={`challenge-status ${STATUS_TONE[effectiveStatus(selected)]}`}>
+                {effectiveStatus(selected)}
               </span>
               <span className="challenge-sport-pill">
                 {selected.sportEmoji} {selected.sport}

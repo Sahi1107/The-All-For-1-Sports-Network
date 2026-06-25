@@ -1616,6 +1616,12 @@ body.modal-open {
   border: 1px solid rgba(255, 176, 136, 0.4);
 }
 
+.challenge-status.status-closed {
+  background: rgba(160, 160, 170, 0.16);
+  color: #c4c4cc;
+  border: 1px solid rgba(196, 196, 204, 0.32);
+}
+
 @keyframes pulse-live {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
