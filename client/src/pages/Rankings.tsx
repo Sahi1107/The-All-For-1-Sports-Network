@@ -38,11 +38,9 @@ const POSITION_SPORTS = new Set(['BASKETBALL', 'FOOTBALL']);
 
 // Maps a position category to substrings we match against athlete.position
 const POSITION_FILTER: Record<string, string[]> = {
-  PG:          ['pg', 'point guard'],
-  SG:          ['sg', 'shooting guard'],
-  SF:          ['sf', 'small forward'],
-  PF:          ['pf', 'power forward'],
-  C:           ['c', 'center', 'centre'],
+  GUARD:       ['guard', 'pg', 'sg'],
+  FORWARD:     ['forward', 'sf', 'pf'],
+  CENTER:      ['center', 'centre'],
   FORWARDS:    ['forward', 'striker', 'winger', 'st', 'cf', 'lw', 'rw'],
   MIDFIELDERS: ['mid', 'cm', 'cdm', 'cam', 'lm', 'rm'],
   DEFENDERS:   ['defend', 'back', 'cb', 'lb', 'rb', 'rwb', 'lwb'],
@@ -53,7 +51,7 @@ const POSITION_FILTER: Record<string, string[]> = {
  *  sports; weight-class sports get gender-specific divisions. */
 function getCategories(sport: string, gender: Gender): string[] {
   switch (sport) {
-    case 'BASKETBALL': return ['OVERALL', 'PG', 'SG', 'SF', 'PF', 'C'];
+    case 'BASKETBALL': return ['OVERALL', 'GUARD', 'FORWARD', 'CENTER'];
     case 'FOOTBALL':   return ['OVERALL', 'FORWARDS', 'MIDFIELDERS', 'DEFENDERS', 'GOALKEEPERS'];
     case 'CRICKET':    return ['OVERALL', 'BATTING', 'BOWLING', 'ALL_ROUND'];
     case 'ATHLETICS':  return [...ATHLETICS_EVENTS];

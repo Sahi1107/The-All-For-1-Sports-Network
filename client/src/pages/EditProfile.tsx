@@ -35,7 +35,7 @@ const PHONE_CODES = [
 ];
 
 const POSITIONS: Record<string, string[]> = {
-  BASKETBALL: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
+  BASKETBALL: ['Guard', 'Forward', 'Center'],
   FOOTBALL: ['Goalkeeper', 'Defender', 'Midfielder', 'Winger', 'Striker'],
   CRICKET: ['Batsman', 'Bowler', 'All-Rounder', 'Wicket-Keeper'],
 };
