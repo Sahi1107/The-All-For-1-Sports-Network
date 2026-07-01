@@ -112,6 +112,7 @@ enum NotificationType {
   COMMENT
   REPOST
   MESSAGE
+  ENDORSEMENT
 }
 
 enum PostType {
@@ -207,6 +208,8 @@ model User {
   blocksReceived          Block[]              @relation("Blocked")
   reportsFiled            Report[]             @relation("Reporter")
   reportsAgainst          Report[]             @relation("Reported")
+  endorsementsGiven       Endorsement[]        @relation("EndorsementCoach")
+  endorsementsReceived    Endorsement[]        @relation("EndorsementAthlete")
 
   @@index([role])
   @@index([sport])
@@ -244,6 +247,26 @@ model Connection {
   @@index([senderId])
   @@index([receiverId])
   @@index([status])
+}
+
+// ─── Endorsements ────────────────────────────────────────
+// A coach vouching for an athlete. Shown on the athlete's profile to
+// strengthen it. One endorsement per coach → athlete pair.
+
+model Endorsement {
+  id        String   @id @default(uuid())
+  coachId   String   @map("coach_id")
+  athleteId String   @map("athlete_id")
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  coach   User @relation("EndorsementCoach", fields: [coachId], references: [id], onDelete: Cascade)
+  athlete User @relation("EndorsementAthlete", fields: [athleteId], references: [id], onDelete: Cascade)
+
+  @@unique([coachId, athleteId])
+  @@index([athleteId])
+  @@index([coachId])
 }
 
 // ─── Highlights ──────────────────────────────────────────

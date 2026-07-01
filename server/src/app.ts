@@ -22,6 +22,7 @@ import postRoutes         from './routes/post.routes';
 import scoutCopilotRoutes from './routes/scoutCopilot.routes';
 import statsRoutes        from './routes/stats.routes';
 import trackerRoutes      from './routes/tracker.routes';
+import endorsementRoutes  from './routes/endorsement.routes';
 
 const app = express();
 
@@ -84,6 +85,7 @@ app.use('/api/admin',         adminRoutes);
 app.use('/api/scout-copilot', scoutCopilotRoutes);
 app.use('/api/stats',         statsRoutes);
 app.use('/api/tracker',       trackerRoutes);
+app.use('/api/endorsements',  endorsementRoutes);
 
 // ─── 404 handler ─────────────────────────────────────────────
 app.use((_req, res) => {

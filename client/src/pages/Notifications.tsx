@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../api/client';
-import { Bell, Check, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2, MessageSquare as CommentIcon, Users } from 'lucide-react';
+import { Bell, Check, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2, MessageSquare as CommentIcon, Users, Award } from 'lucide-react';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -27,12 +27,13 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   COMMENT: <CommentIcon size={16} className="text-primary-light" />,
   REPOST: <Repeat2 size={16} className="text-green-400" />,
   TEAM_INVITE: <Users size={16} className="text-primary-light" />,
+  ENDORSEMENT: <Award size={16} className="text-secondary" />,
 };
 
 // Where to navigate when a notification is clicked
 function getNotifLink(n: any): string | null {
   if (n.type === 'CONNECTION_REQUEST' || n.type === 'CONNECTION_ACCEPTED') return '/grow';
-  if (n.type === 'FOLLOW' && n.actor?.id) return `/profile/${n.actor.id}`;
+  if ((n.type === 'FOLLOW' || n.type === 'ENDORSEMENT') && n.actor?.id) return `/profile/${n.actor.id}`;
   if (n.type === 'MESSAGE') return '/messages';
   return null;
 }

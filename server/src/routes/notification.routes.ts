@@ -36,7 +36,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     // Resolve referenceId → actor user for FOLLOW / CONNECTION_* notifications
     const actorIds = [...new Set(
       rawNotifications
-        .filter((n: any) => n.referenceId && ['FOLLOW', 'CONNECTION_REQUEST', 'CONNECTION_ACCEPTED'].includes(n.type))
+        .filter((n: any) => n.referenceId && ['FOLLOW', 'CONNECTION_REQUEST', 'CONNECTION_ACCEPTED', 'ENDORSEMENT'].includes(n.type))
         .map((n: any) => n.referenceId),
     )] as string[];
 

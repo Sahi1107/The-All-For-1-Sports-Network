@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2 } from 'lucide-react';
+import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2, Award } from 'lucide-react';
 import ShareProfileModal from '../components/ShareProfileModal';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
@@ -585,6 +585,8 @@ export default function Profile() {
   const [uploadForm, setUploadForm] = useState({ title: '', description: '' });
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [showEndorse, setShowEndorse] = useState(false);
+  const [endorseText, setEndorseText] = useState('');
 
   const { data: postsData } = useQuery({
     queryKey: ['user-posts', id],
@@ -602,6 +604,37 @@ export default function Profile() {
       return data;
     },
     enabled: !!id,
+  });
+
+  const { data: endorseData } = useQuery({
+    queryKey: ['endorsements', id],
+    queryFn: async () => {
+      const { data } = await api.get(`/endorsements/user/${id}`);
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const endorseMutation = useMutation({
+    mutationFn: async () => {
+      await api.post(`/endorsements/${id}`, { message: endorseText.trim() });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['endorsements', id] });
+      toast.success('Endorsement added');
+      setShowEndorse(false);
+      setEndorseText('');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.error ?? 'Could not add endorsement'),
+  });
+
+  const deleteEndorseMutation = useMutation({
+    mutationFn: (eid: string) => api.delete(`/endorsements/${eid}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['endorsements', id] });
+      toast.success('Endorsement removed');
+    },
+    onError: () => toast.error('Could not remove endorsement'),
   });
 
   const uploadMutation = useMutation({
@@ -673,6 +706,18 @@ export default function Profile() {
   const rankings = profile.playerRankings ?? [];
   const posts = postsData?.posts ?? [];
   const reposts = repostsData?.posts ?? [];
+  const endorsements = endorseData?.endorsements ?? [];
+  const myEndorsement = endorseData?.myEndorsement ?? null;
+  // Coaches may endorse any athlete in their own sport (never themselves), once each.
+  const canEndorse =
+    !isOwnProfile &&
+    me?.role === 'COACH' &&
+    profile.role === 'ATHLETE' &&
+    !!me?.sport &&
+    me.sport === profile.sport &&
+    !myEndorsement;
+  // Show the section on any athlete profile, or wherever endorsements already exist.
+  const showEndorsements = profile.role === 'ATHLETE' || endorsements.length > 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -1230,6 +1275,103 @@ export default function Profile() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Endorsements */}
+          {showEndorsements && (
+            <div className="bg-card rounded-xl border border-line p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-semibold flex items-center gap-2">
+                  <Award size={16} className="text-secondary" />
+                  Endorsements
+                  {endorsements.length > 0 && (
+                    <span className="text-xs font-normal text-gray-custom">({endorsements.length})</span>
+                  )}
+                </h2>
+                {canEndorse && (
+                  <button
+                    onClick={() => setShowEndorse(true)}
+                    className="flex items-center gap-1 text-xs text-secondary hover:opacity-80 transition-opacity"
+                  >
+                    <Plus size={14} />
+                    Endorse
+                  </button>
+                )}
+              </div>
+
+              {/* Inline add-endorsement form (coaches only) */}
+              {canEndorse && showEndorse && (
+                <div className="mb-4 p-4 bg-surface rounded-lg border border-line space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">Endorse {profile.name}</p>
+                    <button onClick={() => { setShowEndorse(false); setEndorseText(''); }} className="text-gray-custom hover:text-foreground">
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <textarea
+                    value={endorseText}
+                    onChange={(e) => setEndorseText(e.target.value)}
+                    placeholder="Share why you're endorsing this athlete — their work ethic, skills, potential…"
+                    rows={3}
+                    maxLength={500}
+                    className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary resize-none"
+                  />
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-custom">{endorseText.length}/500</span>
+                    <button
+                      onClick={() => endorseMutation.mutate()}
+                      disabled={!endorseText.trim() || endorseMutation.isPending}
+                      className="px-4 py-2 bg-secondary hover:opacity-90 disabled:opacity-50 text-on-primary font-semibold text-sm rounded-lg transition-opacity"
+                    >
+                      {endorseMutation.isPending ? 'Submitting…' : 'Submit'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {endorsements.length === 0 ? (
+                <p className="text-gray-custom text-sm text-center py-6">
+                  {profile.role === 'ATHLETE' ? 'No endorsements yet' : ''}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {endorsements.map((e: any) => (
+                    <div key={e.id} className="flex gap-3 p-3 bg-surface rounded-lg border border-line">
+                      <Link to={`/profile/${e.coach.id}`} className="shrink-0">
+                        {e.coach.avatar ? (
+                          <img src={e.coach.avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-secondary/20 flex items-center justify-center text-sm font-bold text-secondary">
+                            {e.coach.name?.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </Link>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <Link to={`/profile/${e.coach.id}`} className="text-sm font-medium hover:underline">
+                              {e.coach.name}
+                            </Link>
+                            <p className="text-xs text-gray-custom">
+                              Coach{e.coach.sport ? ` · ${e.coach.sport.toLowerCase()}` : ''} · {timeAgo(e.createdAt)}
+                            </p>
+                          </div>
+                          {e.coach.id === me?.id && (
+                            <button
+                              onClick={() => { if (confirm('Remove your endorsement?')) deleteEndorseMutation.mutate(e.id); }}
+                              className="text-gray-custom hover:text-red-400 transition-colors shrink-0 mt-0.5"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-sm text-foreground/90 mt-1 leading-relaxed whitespace-pre-wrap break-words">{e.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
