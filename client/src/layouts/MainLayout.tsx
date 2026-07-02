@@ -168,8 +168,17 @@ export default function MainLayout() {
       </aside>
 
       {/* ── MOBILE TOP HEADER (hidden on desktop) ────────────────── */}
+      {/* Safe-area: pad the top by the notch/Dynamic Island inset, and the
+          sides by the landscape insets (max() keeps portrait unchanged).
+          Base values (0.75rem top = py-3, 1rem sides = px-4) stay visible
+          here so they're easy to adjust after simulator testing. */}
       <header className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center px-4 py-3 border-b border-ink/10"
-        style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+        style={{
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+          paddingTop: 'calc(0.75rem + env(safe-area-inset-top))',
+          paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+          paddingRight: 'max(1rem, env(safe-area-inset-right))',
+        }}
       >
         <button onClick={() => setDrawerOpen(true)} className="p-2 text-gray-custom hover:text-foreground transition-colors w-10">
           <Menu size={22} />
@@ -191,7 +200,12 @@ export default function MainLayout() {
           <div className="absolute inset-0 bg-black/60" onClick={() => setDrawerOpen(false)} />
           {/* Panel */}
           <div className="relative w-72 h-full flex flex-col border-r border-ink/10 z-10"
-            style={{ background: 'rgba(10,10,10,0.97)', backdropFilter: 'blur(24px)' }}
+            style={{
+              background: 'rgba(10,10,10,0.97)', backdropFilter: 'blur(24px)',
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              paddingLeft: 'env(safe-area-inset-left)',
+            }}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
               <img src={logoUrl} alt="All For 1" className="h-10" />
@@ -261,8 +275,8 @@ export default function MainLayout() {
 
       {/* ── MAIN CONTENT ─────────────────────────────────────────── */}
       <main className="min-h-screen md:pl-[92px] md:pr-3 md:py-3">
-        {/* Spacer for mobile top header */}
-        <div className="md:hidden h-16" />
+        {/* Spacer for mobile top header (h-16 base + top safe-area inset) */}
+        <div className="md:hidden" style={{ height: 'calc(4rem + env(safe-area-inset-top))' }} />
         <div className="relative md:min-h-[calc(100vh-1.5rem)] md:rounded-[26px] md:bg-surface md:border md:border-ink/10 md:shadow-xl">
         <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-7 pb-24 md:pb-10">
           {profileIncomplete && (
@@ -284,13 +298,20 @@ export default function MainLayout() {
           <Outlet />
         </div>
         </div>
-        {/* Spacer for mobile bottom nav */}
-        <div className="md:hidden h-16" />
+        {/* Spacer for mobile bottom nav (h-16 base + bottom safe-area inset) */}
+        <div className="md:hidden" style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }} />
       </main>
 
       {/* ── MOBILE BOTTOM NAV ─────────────────────────────────────── */}
+      {/* Safe-area: pad the bottom by the home-indicator inset so the tab row
+          sits above it. Base value 0.5rem = py-2. */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2 py-2 border-t border-ink/10"
-        style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
+        style={{
+          background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+          paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))',
+          paddingLeft: 'max(0.5rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.5rem, env(safe-area-inset-right))',
+        }}
       >
         {bottomNav.map(({ to, icon: Icon, label }) => {
           const active = isActive(to);
