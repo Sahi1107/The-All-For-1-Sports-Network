@@ -128,6 +128,12 @@ enum HandoverStatus {
   CONSENTED // guardian accepted; athlete may set their own credentials
 }
 
+// Guardian consent for an admin/bulk-created under-13 account.
+enum GuardianConsentStatus {
+  PENDING // consent email sent; no credentials issued yet
+  CONSENTED // guardian approved; welcome + login credentials delivered
+}
+
 // Used to separate men's and women's rankings (and gender-specific weight classes).
 enum Gender {
   MALE
@@ -188,6 +194,16 @@ model User {
   handoverTokenExpiresAt DateTime?      @map("handover_token_expires_at")
   handoverRequestedAt    DateTime?      @map("handover_requested_at")
   handoverConsentAt      DateTime?      @map("handover_consent_at")
+
+  // ── Guardian consent for admin/bulk-created under-13 accounts ──
+  // When an admin creates an under-13 profile, the guardian must consent via an
+  // emailed link before login credentials are issued (the account stays PENDING
+  // and no temp password is delivered until then). Null for accounts that never
+  // needed it (adults, 13+, or self-serve signup).
+  guardianConsentStatus        GuardianConsentStatus? @map("guardian_consent_status")
+  guardianConsentTokenHash     String?                @map("guardian_consent_token_hash")
+  guardianConsentTokenExpiresAt DateTime?             @map("guardian_consent_token_expires_at")
+  guardianConsentAt            DateTime?              @map("guardian_consent_at")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

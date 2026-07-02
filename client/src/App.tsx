@@ -40,6 +40,7 @@ const VerifyEmailPending = lazy(() => import('./pages/VerifyEmailPending'));
 const ForgotPassword     = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword      = lazy(() => import('./pages/ResetPassword'));
 const HandoverConsent    = lazy(() => import('./pages/HandoverConsent'));
+const GuardianConsent    = lazy(() => import('./pages/GuardianConsent'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -108,6 +109,7 @@ function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/handover/consent" element={<HandoverConsent />} />
+        <Route path="/guardian-consent" element={<GuardianConsent />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>

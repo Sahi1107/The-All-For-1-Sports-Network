@@ -162,15 +162,35 @@ test('flags a duplicate email within the same team', () => {
   assert.ok(report.rows[3].reasons.some((r) => /Duplicate email/.test(r)));
 });
 
-// ─── Minor / guardian warnings (non-blocking) ────────────────────────────────
+// ─── Minor safety — ENFORCED (blocking) ──────────────────────────────────────
 
-test('surfaces a guardian warning for an under-13 with no guardian email, without blocking', () => {
+test('BLOCKS an under-13 with no guardian email (minor safety is enforced, not a warning)', () => {
   const rows = makeTeam('Youngsters', 5);
   const thisYear = new Date().getFullYear();
-  rows[4].dob = `${thisYear - 10}-01-01`; // age ~10
+  rows[4].dob = `${thisYear - 10}-01-01`; // age ~10, no guardian email
   const { report } = buildReport(rows, tournament, new Set());
-  assert.equal(report.canCommit, true); // warning, not error
-  assert.ok(report.rows[4].warnings.some((w) => /guardian/i.test(w)));
+  assert.equal(report.rows[4].classification, 'ERROR');
+  assert.ok(report.rows[4].reasons.some((r) => /guardian email is required/i.test(r)));
+  assert.equal(report.canCommit, false);
+});
+
+test('ALLOWS an under-13 when a guardian email is provided', () => {
+  const rows = makeTeam('Youngsters', 5);
+  const thisYear = new Date().getFullYear();
+  rows[4].dob = `${thisYear - 10}-01-01`;
+  rows[4].guardian_email = 'parent@example.com';
+  const { report } = buildReport(rows, tournament, new Set());
+  assert.equal(report.rows[4].classification, 'NEW');
+  assert.ok(!report.rows[4].reasons.some((r) => /guardian/i.test(r)));
+  assert.equal(report.canCommit, true);
+});
+
+test('requires DOB for athletes (missing DOB is a blocking row error)', () => {
+  const rows = makeTeam('NoDob', 5);
+  rows[3].dob = ''; // a player with no DOB
+  const { report } = buildReport(rows, tournament, new Set());
+  assert.equal(report.rows[3].classification, 'ERROR');
+  assert.ok(report.rows[3].reasons.some((r) => /date of birth is required/i.test(r)));
 });
 
 // ─── ACCEPTED-on-create bypass (preview reflects committable members) ────────

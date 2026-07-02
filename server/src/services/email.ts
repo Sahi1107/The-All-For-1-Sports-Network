@@ -119,3 +119,125 @@ export async function sendTempPasswordWelcome(
     </div>`;
   await sendMail({ to: user.email, subject, html, text });
 }
+
+// ─── Admin-created athlete: age-aware welcome ────────────────────────────────
+
+/** Public app URL shown in onboarding copy. */
+const APP_URL = 'https://allfor1.pro';
+
+/**
+ * Welcome an athlete account created by an admin (single or bulk). Age-aware:
+ * for an under-13 account the recipient is the GUARDIAN (who controls it), so the
+ * copy addresses the guardian and frames the steps as managing the child's
+ * account; otherwise it addresses the athlete directly. Always includes the
+ * login email, temp password, the get-started steps, and the app URL.
+ */
+export async function sendAthleteWelcome({
+  to,
+  athleteName,
+  loginEmail,
+  tempPassword,
+  forGuardian,
+}: {
+  to: string;
+  athleteName: string;
+  loginEmail: string;
+  tempPassword: string;
+  forGuardian: boolean;
+}): Promise<void> {
+  const who = forGuardian ? `${athleteName}'s` : 'your';
+  const greeting = forGuardian
+    ? `You're set up to manage ${athleteName}'s account on All For 1.`
+    : `Welcome to All For 1, ${athleteName}!`;
+  const subject = forGuardian
+    ? `${athleteName}'s All For 1 account — get started`
+    : `Welcome to All For 1 — get started`;
+
+  const steps = [
+    `Log in at ${clientOrigin}/login`,
+    `Reset the temporary password`,
+    `Complete ${who} profile`,
+    `View ${who} Performance Card`,
+  ];
+
+  const text =
+    `${greeting}\n\n` +
+    `All For 1 is the network where athletes build a profile, share highlights, ` +
+    `join teams, and get discovered.\n\n` +
+    `Log in with:\n` +
+    `  Email: ${loginEmail}\n` +
+    `  Temporary password: ${tempPassword}\n\n` +
+    `Getting started:\n` +
+    steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n') +
+    `\n\nThe app: ${APP_URL}\n\n` +
+    `For security, you'll be asked to set a new password on first login.`;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
+      <h2 style="margin:0 0 16px">${greeting}</h2>
+      <p>All For 1 is the network where athletes build a profile, share highlights,
+         join teams, and get discovered.</p>
+      <p style="margin:20px 0;padding:16px;background:#f4f4f8;border-radius:8px">
+        <strong>Email:</strong> ${loginEmail}<br/>
+        <strong>Temporary password:</strong> <code style="font-size:15px">${tempPassword}</code>
+      </p>
+      <p style="margin:0 0 8px"><strong>Getting started</strong></p>
+      <ol style="margin:0 0 20px;padding-left:20px;line-height:1.7">
+        ${steps.map((s) => `<li>${s}</li>`).join('')}
+      </ol>
+      <p style="margin:24px 0">
+        <a href="${clientOrigin}/login"
+           style="background:#2929db;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;display:inline-block">
+          Log in
+        </a>
+      </p>
+      <p style="color:#666;font-size:13px">The app: <a href="${APP_URL}">${APP_URL}</a><br/>
+         For security, you'll be asked to set a new password on first login.</p>
+    </div>`;
+
+  await sendMail({ to, subject, html, text });
+}
+
+// ─── Admin-created under-13: guardian consent before activation ───────────────
+
+/**
+ * Ask the guardian to consent to an under-13 account an admin created. No login
+ * credentials are issued until the guardian accepts via `consentUrl`; on consent
+ * the guardian receives the welcome email with the temp password.
+ */
+export async function sendGuardianConsentInvite({
+  to,
+  athleteName,
+  consentUrl,
+}: {
+  to: string;
+  athleteName: string;
+  consentUrl: string;
+}): Promise<void> {
+  const subject = `Consent needed to activate ${athleteName}'s All For 1 account`;
+  const text =
+    `An organizer has created an All For 1 account for ${athleteName}, who is under 13.\n\n` +
+    `Because ${athleteName} is under 13, this account is private and cannot be used ` +
+    `until you, as the parent or guardian, consent. Nothing is visible and no login ` +
+    `is issued until you accept.\n\n` +
+    `Review and give consent here:\n${consentUrl}\n\n` +
+    `Once you consent, you'll receive the login details to manage ${athleteName}'s account.\n\n` +
+    `If you did not expect this, you can ignore this email — the account stays inactive.`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
+      <h2 style="margin:0 0 16px">Consent needed to activate an account</h2>
+      <p>An organizer has created an All For 1 account for <strong>${athleteName}</strong>, who is under 13.</p>
+      <p>Because ${athleteName} is under 13, the account is <strong>private and inactive</strong> until you,
+         as the parent or guardian, consent. Nothing is visible and no login is issued until you accept.</p>
+      <p style="margin:24px 0">
+        <a href="${consentUrl}"
+           style="background:#2929db;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;display:inline-block">
+          Review &amp; give consent
+        </a>
+      </p>
+      <p>Once you consent, you'll receive the login details to manage ${athleteName}'s account.</p>
+      <p style="color:#666;font-size:13px">If you did not expect this, you can ignore this email —
+         the account stays inactive.</p>
+    </div>`;
+  await sendMail({ to, subject, html, text });
+}

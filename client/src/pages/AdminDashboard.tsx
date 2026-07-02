@@ -259,6 +259,55 @@ export default function AdminDashboard() {
     },
   });
 
+  const createAthleteMutation = useMutation({
+    mutationFn: async (form: typeof EMPTY_ATHLETE_FORM) => {
+      const { data } = await api.post('/admin/athletes', {
+        name: form.name,
+        email: form.email,
+        sport: form.sport,
+        role: form.role,
+        dateOfBirth: form.dateOfBirth || undefined,
+        gender: form.gender || undefined,
+        position: form.position || undefined,
+        phone: form.phone || undefined,
+        guardianEmail: form.guardianEmail || undefined,
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(
+        data.guardianConsentPending
+          ? 'Under-13 profile created — a guardian consent email was sent. The account activates once the guardian consents.'
+          : 'Profile created — a welcome email with login details was sent.',
+      );
+      setAthleteForm(EMPTY_ATHLETE_FORM);
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || 'Failed to create profile');
+    },
+  });
+
+  // Derived state for the New Profile form (mirrors the server's under-13 rule).
+  const athleteAge = (() => {
+    if (!athleteForm.dateOfBirth) return null;
+    const dob = new Date(athleteForm.dateOfBirth);
+    const t = new Date();
+    let a = t.getFullYear() - dob.getFullYear();
+    const m = t.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && t.getDate() < dob.getDate())) a--;
+    return a;
+  })();
+  const athleteUnder13 = athleteForm.role === 'ATHLETE' && athleteAge !== null && athleteAge < 13;
+  const athleteDobRequired = athleteForm.role === 'ATHLETE';
+  const athleteFormValid = !!(
+    athleteForm.name.trim() &&
+    athleteForm.email.trim() &&
+    athleteForm.sport &&
+    (!athleteDobRequired || athleteForm.dateOfBirth) &&
+    (!athleteUnder13 || athleteForm.guardianEmail.trim())
+  );
+
   // ─── Tournaments ──────────────────────────────────────────────
 
   const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery({
@@ -1118,6 +1167,149 @@ export default function AdminDashboard() {
                 <span className="font-medium text-sm">{label}</span>
               </Link>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── New Profile Tab (single athlete/coach) ────────────────── */}
+      {tab === 'new-profile' && (
+        <div className="max-w-md">
+          <div className="bg-card rounded-xl border border-line p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <UserPlus size={18} className="text-primary" />
+              <h2 className="font-semibold text-lg">Create Athlete Profile</h2>
+            </div>
+            <p className="text-sm text-gray-custom mb-6">
+              Creates a claimable account. The athlete gets a welcome email with login details.
+              Under-13 athletes are private by default and require emailed guardian consent before the account activates.
+            </p>
+
+            <form
+              onSubmit={(e) => { e.preventDefault(); if (athleteFormValid) createAthleteMutation.mutate(athleteForm); }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Full Name</label>
+                <input
+                  type="text" value={athleteForm.name} required maxLength={80}
+                  onChange={(e) => setAthleteForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Athlete's full name"
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Email <span className="text-gray-custom">(login)</span></label>
+                <input
+                  type="email" value={athleteForm.email} required
+                  onChange={(e) => setAthleteForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="athlete@example.com"
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Role</label>
+                  <select
+                    value={athleteForm.role}
+                    onChange={(e) => setAthleteForm((f) => ({ ...f, role: e.target.value as 'ATHLETE' | 'COACH' }))}
+                    className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                  >
+                    <option value="ATHLETE">Athlete</option>
+                    <option value="COACH">Coach</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Sport</label>
+                  <select
+                    value={athleteForm.sport} required
+                    onChange={(e) => setAthleteForm((f) => ({ ...f, sport: e.target.value }))}
+                    className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                  >
+                    <option value="">Select sport</option>
+                    {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">
+                    Date of Birth {athleteDobRequired && <span className="text-primary">*</span>}
+                  </label>
+                  <input
+                    type="date" value={athleteForm.dateOfBirth} required={athleteDobRequired}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setAthleteForm((f) => ({ ...f, dateOfBirth: e.target.value }))}
+                    className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                  />
+                  {athleteAge !== null && (
+                    <p className="mt-1 text-xs text-gray-custom">Age {athleteAge}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Gender</label>
+                  <select
+                    value={athleteForm.gender}
+                    onChange={(e) => setAthleteForm((f) => ({ ...f, gender: e.target.value as '' | 'MALE' | 'FEMALE' }))}
+                    className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                  >
+                    <option value="">—</option>
+                    <option value="MALE">Male</option>
+                    <option value="FEMALE">Female</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Position</label>
+                  <input
+                    type="text" value={athleteForm.position} maxLength={60}
+                    onChange={(e) => setAthleteForm((f) => ({ ...f, position: e.target.value }))}
+                    placeholder="e.g. Point Guard"
+                    className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Phone</label>
+                  <input
+                    type="tel" value={athleteForm.phone} maxLength={40}
+                    onChange={(e) => setAthleteForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="Optional"
+                    className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Guardian email — required and surfaced only for under-13 athletes */}
+              {athleteUnder13 && (
+                <div className="rounded-lg border border-yellow-400/30 bg-yellow-400/5 p-4">
+                  <label className="block text-sm font-medium text-yellow-300 mb-2">
+                    Guardian Email <span className="text-primary">*</span>
+                  </label>
+                  <input
+                    type="email" value={athleteForm.guardianEmail} required
+                    onChange={(e) => setAthleteForm((f) => ({ ...f, guardianEmail: e.target.value }))}
+                    placeholder="parent@example.com"
+                    className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                  />
+                  <p className="mt-2 text-xs text-yellow-200/70">
+                    This athlete is under 13. The account stays private and inactive until the guardian
+                    consents via an emailed link — they'll then receive the login details.
+                  </p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={!athleteFormValid || createAthleteMutation.isPending}
+                className="w-full py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50 text-sm"
+              >
+                {createAthleteMutation.isPending ? 'Creating…' : 'Create Profile'}
+              </button>
+            </form>
           </div>
         </div>
       )}

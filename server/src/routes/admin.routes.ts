@@ -166,6 +166,47 @@ router.post('/create-admin', writeLimiter, validate({ body: CreateAdminBody }), 
   }
 });
 
+// POST /api/admin/athletes — create a single claimable athlete/coach profile.
+// Delegates to provisionAthleteAccount so DOB / under-13 guardian-consent /
+// private-by-default / welcome-email rules are enforced identically to bulk.
+router.post('/athletes', writeLimiter, validate({ body: AdminCreateAthleteBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const b = req.body;
+    const result = await provisionAthleteAccount({
+      name: b.name,
+      email: b.email,
+      role: b.role,
+      sport: b.sport,
+      dateOfBirth: b.dateOfBirth ? new Date(b.dateOfBirth) : null,
+      gender: b.gender,
+      position: b.position,
+      phone: b.phone,
+      guardianEmail: b.guardianEmail,
+    });
+
+    // An existing account by this email was linked, not created — for a single
+    // create that's a conflict the admin should see.
+    if (!result.created) {
+      res.status(409).json({ error: 'An account with that email already exists' });
+      return;
+    }
+
+    logger.info('admin.athlete_created', {
+      actorId: req.user!.userId,
+      userId: result.userId,
+      guardianConsentPending: result.guardianConsentPending,
+    });
+    res.status(201).json(result);
+  } catch (error: any) {
+    if (error?.name === 'ProvisionError') {
+      res.status(400).json({ error: error.message });
+      return;
+    }
+    logger.error('Admin create athlete error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/admin/stats — platform statistics
 router.get('/stats', async (_req: AuthRequest, res: Response) => {
   try {

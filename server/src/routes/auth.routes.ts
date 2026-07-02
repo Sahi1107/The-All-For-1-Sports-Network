@@ -7,7 +7,8 @@ import { validate } from '../middleware/validate';
 import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum, GenderEnum } from '../validation/common';
 import { HandoverConsentBody, HandoverCompleteBody } from '../validation/auth';
 import { generateSecureToken, hashToken } from '../utils/crypto';
-import { sendGuardianConsentEmail } from '../services/email';
+import { sendGuardianConsentEmail, sendAthleteWelcome } from '../services/email';
+import { generateTempPassword } from '../services/provisionAthlete';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { signMediaDeep } from '../services/storage';
@@ -334,6 +335,59 @@ router.post('/handover/consent', validate({ body: HandoverConsentBody }), async 
     res.json({ status: 'CONSENTED', athleteName: user.name });
   } catch (error) {
     logger.error('Handover consent error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/guardian-consent ─────────────────────────────────────────────
+// Public — the guardian clicks the emailed link for an admin-created under-13
+// account. On consent we issue login credentials for the first time (reset the
+// Firebase password to a fresh temp) and email the guardian the welcome + login.
+router.post('/guardian-consent', validate({ body: HandoverConsentBody }), async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body as { token: string };
+    const user = await prisma.user.findFirst({
+      where: { guardianConsentTokenHash: hashToken(token), guardianConsentStatus: 'PENDING' },
+      select: { id: true, name: true, email: true, firebaseUid: true, guardianEmail: true, guardianConsentTokenExpiresAt: true },
+    });
+    if (!user || !user.guardianConsentTokenExpiresAt || user.guardianConsentTokenExpiresAt < new Date()) {
+      res.status(400).json({ error: 'This consent link is invalid or has expired' });
+      return;
+    }
+
+    // First credentials are issued now: set a fresh temp password on the Firebase
+    // account and deliver it to the guardian (who operates the under-13 account).
+    const tempPassword = generateTempPassword();
+    if (user.firebaseUid) {
+      await admin.auth().updateUser(user.firebaseUid, { password: tempPassword });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        guardianConsentStatus:        'CONSENTED',
+        guardianConsentAt:            new Date(),
+        guardianConsentTokenHash:     null,
+        guardianConsentTokenExpiresAt: null,
+      },
+    });
+
+    try {
+      await sendAthleteWelcome({
+        to: user.guardianEmail ?? user.email,
+        athleteName: user.name,
+        loginEmail: user.email,
+        tempPassword,
+        forGuardian: true,
+      });
+    } catch (err) {
+      logger.warn('auth.guardian_consent.welcome_email_failed', { userId: user.id, error: String(err) });
+    }
+
+    logger.info('auth.guardian_consent.consented', { userId: user.id });
+    res.json({ status: 'CONSENTED', athleteName: user.name });
+  } catch (error) {
+    logger.error('Guardian consent error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

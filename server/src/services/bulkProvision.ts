@@ -13,18 +13,29 @@
  * the side-effecting writes.
  */
 
-import crypto from 'crypto';
 import { Role, TeamMemberRole, Gender, Sport } from '@prisma/client';
+import {
+  provisionAthleteAccount,
+  ageFromDob,
+  GUARDIAN_AGE_THRESHOLD,
+  generateTempPassword,
+} from './provisionAthlete';
 
 // NOTE: prisma / firebaseAdmin / email / logger are imported lazily inside
 // `commitBulkProvision` (via dynamic import) so that importing this module for
 // its pure validation functions — e.g. in unit tests — does not initialize the
 // database client or the Firebase Admin SDK as a side effect.
 
+// Account creation (Firebase + Prisma + emails + minor-safety enforcement) is
+// delegated to the shared provisionAthleteAccount so bulk goes through the exact
+// same enforced path as single-profile creation and self-serve signup.
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-/** Age below which an athlete account must be managed by a parent/academy. */
-export const GUARDIAN_AGE_THRESHOLD = 13;
+// GUARDIAN_AGE_THRESHOLD, ageFromDob, generateTempPassword now live in
+// provisionAthlete (single source of truth); re-exported for existing importers.
+export { ageFromDob, GUARDIAN_AGE_THRESHOLD, generateTempPassword };
+
 /** Anyone under this is a minor — surfaces a guardian/consent warning. */
 export const MINOR_AGE_THRESHOLD = 18;
 /** Default roster bounds when the tournament leaves them unset. */
@@ -141,13 +152,6 @@ export function parseDob(raw: string | undefined | null): Date | null {
 }
 
 /** Whole years between a date of birth and now. */
-export function ageFromDob(dob: Date): number {
-  const today = new Date();
-  let age = today.getFullYear() - dob.getUTCFullYear();
-  const m = today.getMonth() - dob.getUTCMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getUTCDate())) age--;
-  return age;
-}
 
 /** Map a CSV member-role string to a TeamMemberRole, or null when unrecognized. */
 export function mapMemberRole(raw: string | undefined | null): TeamMemberRole | null {
@@ -250,11 +254,15 @@ export function buildReport(
       seenPerTeam.set(key, seen);
     }
 
-    // DOB (required for players/captains so we can flag minors; optional for coach).
+    // DOB is REQUIRED for athletes (players/captains) — the same rule self-serve
+    // signup enforces. Coaches (adults) are exempt.
+    const isAthlete = memberRole !== TeamMemberRole.COACH;
     const dob = parseDob(raw.dob);
     let age: number | null = null;
     if (raw.dob && raw.dob.trim() && !dob) {
       reasons.push(`Invalid date of birth "${raw.dob}"`);
+    } else if (isAthlete && memberRole && !dob) {
+      reasons.push('Date of birth is required for athletes');
     }
     if (dob) age = ageFromDob(dob);
 
@@ -264,12 +272,14 @@ export function buildReport(
 
     const guardianEmail = normalizeEmail(raw.guardian_email) || null;
 
-    // Minor / guardian warnings (non-blocking — see spec).
-    if (memberRole !== TeamMemberRole.COACH && age !== null) {
+    // Minor safety — ENFORCED (blocking), matching provisionAthleteAccount:
+    // under-13 athletes MUST have a guardian email (they become private + are
+    // activated only after emailed guardian consent). 13–17 is an informational note.
+    if (isAthlete && age !== null) {
       if (age < GUARDIAN_AGE_THRESHOLD && !guardianEmail) {
-        warnings.push(`Under ${GUARDIAN_AGE_THRESHOLD}: a guardian email is recommended but was not provided`);
+        reasons.push(`Under ${GUARDIAN_AGE_THRESHOLD}: a guardian email is required`);
       } else if (age < MINOR_AGE_THRESHOLD) {
-        warnings.push(`Minor (age ${age}): guardian consent should be collected`);
+        warnings.push(`Minor (age ${age}): parental awareness recommended`);
       }
     }
 
@@ -383,24 +393,6 @@ export function buildReport(
  * Generate a strong random temp password that satisfies the app's complexity
  * policy (upper + lower + digit + symbol, ≥ 8 chars). Never logged or returned.
  */
-export function generateTempPassword(): string {
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const lower = 'abcdefghijkmnpqrstuvwxyz';
-  const digit = '23456789';
-  const symbol = '!@#$%&*?';
-  const all = upper + lower + digit + symbol;
-  const pick = (set: string) => set[crypto.randomInt(set.length)];
-  // Guarantee one of each class, then fill to length 16.
-  const chars = [pick(upper), pick(lower), pick(digit), pick(symbol)];
-  while (chars.length < 16) chars.push(pick(all));
-  // Fisher–Yates shuffle so the guaranteed chars aren't always first.
-  for (let i = chars.length - 1; i > 0; i--) {
-    const j = crypto.randomInt(i + 1);
-    [chars[i], chars[j]] = [chars[j], chars[i]];
-  }
-  return chars.join('');
-}
-
 export interface CommitResult {
   accountsCreated: number;
   accountsLinked: number;
@@ -421,9 +413,8 @@ export async function commitBulkProvision(
   tournament: TournamentContext,
 ): Promise<CommitResult> {
   // Lazily pull the side-effecting deps (see import note at top of file).
+  // Account creation + welcome/consent emails are handled by provisionAthleteAccount.
   const { default: prisma } = await import('../config/db');
-  const { default: admin } = await import('../config/firebaseAdmin');
-  const { sendTempPasswordWelcome } = await import('./email');
   const { default: logger } = await import('../utils/logger');
 
   // 1. Look up which emails already map to a Prisma user.
@@ -457,8 +448,6 @@ export async function commitBulkProvision(
   //    is an external system that cannot participate in a DB transaction; the
   //    work is idempotent (reuses existing accounts by email).
   const emailToUserId = new Map<string, string>();
-  // Track which were freshly created so we email only them.
-  const newlyCreated: { email: string; name: string; tempPassword: string; teamName: string }[] = [];
 
   // De-dupe rows by email — one account per person even across teams.
   const byEmail = new Map<string, ResolvedRow>();
@@ -466,64 +455,33 @@ export async function commitBulkProvision(
     if (!byEmail.has(r.email)) byEmail.set(r.email, r);
   }
 
+  // Provision each account through the shared enforced path. It creates the
+  // Firebase + Prisma account, applies minor-safety (DOB/guardian/private), and
+  // sends the welcome (13+) or guardian-consent (under-13) email itself. Existing
+  // accounts are linked, not recreated.
   for (const r of byEmail.values()) {
-    const found = existing.find((u) => u.email === r.email);
-    if (found) {
-      emailToUserId.set(r.email, found.id);
-      result.accountsLinked++;
-      continue;
-    }
-
-    // New account → Firebase Auth user (reuse if Firebase already has the email).
-    const tempPassword = generateTempPassword();
-    let firebaseUid: string;
-    try {
-      const fbUser = await admin.auth().createUser({
-        email: r.email,
-        password: tempPassword,
-        displayName: r.name,
-        emailVerified: false,
-      });
-      firebaseUid = fbUser.uid;
-    } catch (err: any) {
-      if (err?.code === 'auth/email-already-exists') {
-        const fbUser = await admin.auth().getUserByEmail(r.email);
-        firebaseUid = fbUser.uid;
-        result.skips.push(`Firebase account already existed for ${r.email}; linked instead`);
-      } else {
-        throw err;
-      }
-    }
-
-    const guardianManaged =
-      r.memberRole !== TeamMemberRole.COACH &&
-      r.age !== null && r.age < GUARDIAN_AGE_THRESHOLD;
-
-    const created = await prisma.user.create({
-      data: {
-        firebaseUid,
-        email: r.email,
-        name: r.name,
-        role: userRoleForMember(r.memberRole),
-        sport: tournament.sport,
-        ...(r.gender && { gender: r.gender }),
-        ...(r.dob && { dateOfBirth: r.dob, age: r.age ?? undefined }),
-        ...(r.position && { position: r.position }),
-        ...(r.phone && { phone: r.phone }),
-        mustResetPassword: true,
-        ...(guardianManaged && r.guardianEmail && { guardianManaged: true, guardianEmail: r.guardianEmail }),
-      },
-      select: { id: true },
-    });
-
-    await admin.auth().setCustomUserClaims(firebaseUid, {
-      userId: created.id,
+    const { userId, created, guardianConsentPending } = await provisionAthleteAccount({
+      name: r.name,
+      email: r.email,
       role: userRoleForMember(r.memberRole),
+      sport: tournament.sport,
+      dateOfBirth: r.dob,
+      gender: r.gender,
+      position: r.position,
+      phone: r.phone,
+      guardianEmail: r.guardianEmail,
     });
-
-    emailToUserId.set(r.email, created.id);
-    result.accountsCreated++;
-    newlyCreated.push({ email: r.email, name: r.name, tempPassword, teamName: r.report.teamName });
+    emailToUserId.set(r.email, userId);
+    if (created) {
+      result.accountsCreated++;
+      // One email per new account: welcome (13+) or guardian consent (under-13).
+      result.emailsSent++;
+      if (guardianConsentPending) {
+        result.skips.push(`${r.email}: under-13 — guardian consent email sent; account activates on consent`);
+      }
+    } else {
+      result.accountsLinked++;
+    }
   }
 
   // 4. Group resolved rows by team for the team/member writes.
@@ -599,21 +557,8 @@ export async function commitBulkProvision(
     }
   });
 
-  // 6. Welcome emails — only to newly created accounts, never linked ones.
-  for (const u of newlyCreated) {
-    try {
-      await sendTempPasswordWelcome(
-        { email: u.email, name: u.name },
-        u.tempPassword,
-        tournament.name,
-        u.teamName,
-      );
-      result.emailsSent++;
-    } catch (err) {
-      logger.warn('bulkProvision.welcome_email_failed', { email: u.email, error: String(err) });
-      result.skips.push(`Welcome email failed for ${u.email}`);
-    }
-  }
+  // Welcome / guardian-consent emails were already sent by provisionAthleteAccount
+  // as each account was created (age-aware: athlete for 13+, guardian for under-13).
 
   logger.info('bulkProvision.commit', {
     tournamentId: tournament.id,
