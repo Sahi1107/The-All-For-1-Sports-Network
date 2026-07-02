@@ -284,15 +284,15 @@ const SECTIONS: Section[] = [
   },
 ];
 
+export const TERMS_DOC = {
+  eyebrow: 'The AllFor1 Network · Legal',
+  title: 'Terms & Conditions',
+  effectiveDate: '30 April 2026',
+  jurisdiction: 'Republic of India',
+  intro: INTRO,
+  sections: SECTIONS,
+};
+
 export default function Terms() {
-  return (
-    <LegalDoc
-      eyebrow="The AllFor1 Network · Legal"
-      title="Terms & Conditions"
-      effectiveDate="30 April 2026"
-      jurisdiction="Republic of India"
-      intro={INTRO}
-      sections={SECTIONS}
-    />
-  );
+  return <LegalDoc {...TERMS_DOC} />;
 }

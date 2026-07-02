@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { browseLimiter } from '../middleware/rateLimiter';
 import { signMediaDeepAll } from '../services/storage';
+import { blockedUserIds } from '../services/blocks';
 
 const router = Router();
 
@@ -26,13 +27,24 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     });
     const followingIds = followingList.map((f: any) => f.followingId);
 
-    // Admin sees everything; others see own + followed + admin posts
+    // Hide anyone in a block relationship with the user, both directions.
+    const hiddenIds = await blockedUserIds(req.user!.userId);
+    const notBlocked = hiddenIds.length ? [{ userId: { notIn: hiddenIds } }] : [];
+
+    // Admin sees everything (including blocked users) so moderators keep full
+    // visibility — critical with minors on the platform. Non-admins see own +
+    // followed + admin posts, minus anyone in a block relationship (mutual).
     const userFilter = user.role === 'ADMIN'
       ? {}
       : {
-          OR: [
-            { userId: { in: [req.user!.userId, ...followingIds] } },
-            { user: { is: { role: 'ADMIN' as const } } },
+          AND: [
+            {
+              OR: [
+                { userId: { in: [req.user!.userId, ...followingIds] } },
+                { user: { is: { role: 'ADMIN' as const } } },
+              ],
+            },
+            ...notBlocked,
           ],
         };
 

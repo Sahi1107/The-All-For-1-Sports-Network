@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, MessageCircle, Repeat2, Bookmark, Send, Trash2, CornerUpRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Heart, MessageCircle, Repeat2, Bookmark, Send, Trash2, CornerUpRight, ChevronDown, ChevronUp, Flag } from 'lucide-react';
 import api from '../api/client';
 import { useAuth } from '../contexts/AuthContext';
 import SharePostModal from './SharePostModal';
 import LikesModal from './LikesModal';
+import ReportModal from './ReportModal';
 
 interface Props {
   post: any;
@@ -34,6 +35,7 @@ function CommentItem({
   const [liked, setLiked] = useState<boolean>(c.likedByMe ?? false);
   const [likeCount, setLikeCount] = useState<number>(c.likeCount ?? 0);
   const [showReplies, setShowReplies] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const replies: any[] = c.replies ?? [];
 
   const toggleLike = async () => {
@@ -96,9 +98,25 @@ function CommentItem({
                 <Trash2 size={10} />
               </button>
             )}
+            {c.user.id !== user?.id && (
+              <button
+                onClick={() => setShowReport(true)}
+                className="flex items-center gap-1 text-[11px] text-foreground/40 hover:text-red-400 transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                title="Report comment"
+              >
+                <Flag size={10} />
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      <ReportModal
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        title="Report comment"
+        endpoint={`/posts/${postId}/comments/${c.id}/report`}
+      />
 
       {/* Replies toggle */}
       {depth === 0 && replies.length > 0 && (
@@ -141,6 +159,7 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
   const [submitting, setSubmitting] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showLikes, setShowLikes] = useState(false);
+  const [showReportPost, setShowReportPost] = useState(false);
   const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
 
   // Optimistic like state seeded from feed/profile data
@@ -334,6 +353,15 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
             >
               <Bookmark size={16} fill={saved ? 'currentColor' : 'none'} />
             </button>
+            {post.user?.id !== user?.id && (
+              <button
+                onClick={() => setShowReportPost(true)}
+                className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-red-400 transition-colors"
+                title="Report post"
+              >
+                <Flag size={16} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -408,6 +436,12 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
 
       {showShare && <SharePostModal postId={post.id} onClose={() => setShowShare(false)} />}
       {showLikes && <LikesModal postId={post.id} onClose={() => setShowLikes(false)} />}
+      <ReportModal
+        open={showReportPost}
+        onClose={() => setShowReportPost(false)}
+        title="Report post"
+        endpoint={`/posts/${post.id}/report`}
+      />
     </>
   );
 }

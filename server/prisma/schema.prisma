@@ -785,20 +785,35 @@ enum ReportStatus {
   ACTIONED
 }
 
+// What a report points at. USER is the original account-level report; the
+// others flag a specific piece of content. reportedUserId always holds the
+// author of the offending content (or the reported account for USER reports)
+// so moderators can act on the person regardless of target type.
+enum ReportTargetType {
+  USER
+  POST
+  COMMENT
+  MESSAGE
+}
+
 model Report {
-  id             String       @id @default(uuid())
+  id             String           @id @default(uuid())
   reporterId     String
   reportedUserId String
+  targetType     ReportTargetType @default(USER)
+  // id of the reported post/comment/message; null for USER reports.
+  targetId       String?
   reason         String
   details        String?
-  status         ReportStatus @default(OPEN)
-  createdAt      DateTime     @default(now())
+  status         ReportStatus     @default(OPEN)
+  createdAt      DateTime         @default(now())
 
   reporter User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
   reported User @relation("Reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
 
   @@index([reportedUserId])
   @@index([status])
+  @@index([targetType, targetId])
 }
 
 // Auth tokens (refresh, email-verification, password-reset) are managed by

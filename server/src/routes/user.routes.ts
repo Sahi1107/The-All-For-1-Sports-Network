@@ -8,19 +8,11 @@ import { validate } from '../middleware/validate';
 import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { deleteUserCompletely } from '../services/userDeletion';
+import { parseReportInput, createReport } from '../services/reports';
+import { blockedUserIds } from '../services/blocks';
 import logger from '../utils/logger';
 
 const router = Router();
-
-// IDs that should be hidden from the current user: anyone they blocked OR
-// anyone who blocked them. Used to filter Explore, suggestions, etc.
-async function hiddenUserIds(userId: string): Promise<string[]> {
-  const [mine, theirs] = await Promise.all([
-    prisma.block.findMany({ where: { blockerId: userId }, select: { blockedId: true } }),
-    prisma.block.findMany({ where: { blockedId: userId }, select: { blockerId: true } }),
-  ]);
-  return [...new Set([...mine.map((b) => b.blockedId), ...theirs.map((b) => b.blockerId)])];
-}
 
 // GET /api/users — search/filter users
 router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }), async (req: AuthRequest, res: Response) => {
@@ -33,8 +25,10 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
     if (role && role !== 'ADMIN') where.role = role;
     else where.role = { not: 'ADMIN' };
     // Don't show the current user OR anyone in a block relationship with them
-    const blocked = await hiddenUserIds(req.user!.userId);
+    const blocked = await blockedUserIds(req.user!.userId);
     where.id = { notIn: [req.user!.userId, ...blocked] };
+    // Never surface non-discoverable profiles (under-13 accounts by default)
+    where.discoverable = true;
     if (sport) where.sport = sport;
     if (location) where.location = { contains: location as string, mode: 'insensitive' };
     if (search) {
@@ -169,19 +163,17 @@ router.post('/report/:id', authenticate, writeLimiter, async (req: AuthRequest, 
       res.status(400).json({ error: 'Cannot report yourself' });
       return;
     }
-    const reason = String(req.body.reason ?? '').trim();
-    const details = req.body.details ? String(req.body.details).trim().slice(0, 1000) : null;
-    if (!reason || reason.length > 100) {
-      res.status(400).json({ error: 'Reason is required (max 100 chars)' });
+    const parsed = parseReportInput(req.body);
+    if ('error' in parsed) {
+      res.status(400).json({ error: parsed.error });
       return;
     }
-    await prisma.report.create({
-      data: {
-        reporterId: req.user!.userId,
-        reportedUserId: target,
-        reason,
-        details,
-      },
+    await createReport({
+      reporterId: req.user!.userId,
+      reportedUserId: target,
+      targetType: 'USER',
+      reason: parsed.reason,
+      details: parsed.details,
     });
     res.status(201).json({ reported: true });
   } catch (error) {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -6,6 +6,10 @@ import { useLogo } from '../hooks/useLogo';
 import { Mail, ChevronLeft, ChevronRight } from 'lucide-react';
 import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
 import { SPORTS, ATHLETICS_EVENT_GROUPS, type Sport } from '../data/sports';
+
+// Lazy so the long legal text only loads when a signup link is tapped, and
+// stays a separate chunk (consistent with the app's lazy-loaded legal pages).
+const LegalModal = lazy(() => import('../components/LegalModal'));
 
 const ROLES = [
   { value: 'ATHLETE', label: 'Athlete',                 desc: 'Showcase your skills & compete' },
@@ -131,6 +135,8 @@ export default function Register() {
   const [dob, setDob]         = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [guardianConsent, setGuardianConsent] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [legalDoc, setLegalDoc] = useState<'terms' | 'privacy' | null>(null);
 
   const isTeam = form.role === 'TEAM';
   const [athleticsSubStep, setAthleticsSubStep] = useState(false);
@@ -158,6 +164,7 @@ export default function Register() {
     if (!form.role || !form.sport) return;
     if (!isTeam && !dob) return;
     if (!isTeam && !form.gender) { toast.error('Please select your gender'); return; }
+    if (!termsAccepted) { toast.error('Please accept the Terms and Privacy Policy to continue'); return; }
     setLoading(true);
     try {
       const age = !isTeam && dob ? ageFrom(dob) : undefined;
@@ -513,7 +520,27 @@ export default function Register() {
                 </div>
               )}
 
-              <button type="submit" disabled={loading || (!isTeam && !form.gender)}
+              {/* Terms / EULA acceptance — required for everyone. The zero-tolerance
+                  line is an App Store 1.2 requirement for user-generated content. */}
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 accent-primary w-4 h-4 shrink-0" />
+                <span className="text-sm text-foreground/80">
+                  I agree to the{' '}
+                  <button type="button"
+                    onClick={(e) => { e.preventDefault(); setLegalDoc('terms'); }}
+                    className="text-primary hover:text-primary-light underline">Terms &amp; Conditions</button>{' '}
+                  and{' '}
+                  <button type="button"
+                    onClick={(e) => { e.preventDefault(); setLegalDoc('privacy'); }}
+                    className="text-primary hover:text-primary-light underline">Privacy Policy</button>.
+                  I understand there is <span className="font-semibold">zero tolerance for objectionable
+                  content or abusive behavior</span>, and that such content and users may be removed.
+                </span>
+              </label>
+
+              <button type="submit" disabled={loading || !termsAccepted || (!isTeam && !form.gender)}
                 className="w-full py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50">
                 {loading ? 'Creating account…' : 'Join All For 1'}
               </button>
@@ -528,6 +555,12 @@ export default function Register() {
           </p>
         </form>
       </div>
+
+      {legalDoc && (
+        <Suspense fallback={null}>
+          <LegalModal docType={legalDoc} onClose={() => setLegalDoc(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }

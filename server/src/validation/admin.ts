@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { reqStr, PaginationQuery, SportEnum } from './common';
+import { reqStr, PaginationQuery, SportEnum, GenderEnum } from './common';
 
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
@@ -31,6 +31,46 @@ export const AdminUpdateRoleBody = z.object({
 
 export const AdminVerifyBody = z.object({
   verified: z.boolean({ error: 'verified (boolean) is required' }),
+});
+
+// ─── Moderation queue ─────────────────────────────────────────────────────────
+
+export const AdminReportListQuery = PaginationQuery.extend({
+  status:     z.enum(['OPEN', 'REVIEWED', 'DISMISSED', 'ACTIONED']).optional(),
+  targetType: z.enum(['USER', 'POST', 'COMMENT', 'MESSAGE']).optional(),
+});
+
+export const AdminReportStatusBody = z.object({
+  status: z.enum(['OPEN', 'REVIEWED', 'DISMISSED', 'ACTIONED'], {
+    error: 'status must be OPEN, REVIEWED, DISMISSED, or ACTIONED',
+  }),
+});
+
+// ─── Single athlete/coach profile creation (admin form) ───────────────────────
+// DOB + under-13 guardian rules are enforced in provisionAthleteAccount, which
+// this endpoint delegates to — the schema only validates shape.
+
+export const AdminCreateAthleteBody = z.object({
+  name:  reqStr(80, 'Name'),
+  email: z
+    .string({ error: 'Email is required' })
+    .email('Invalid email address')
+    .max(254, 'Email address too long')
+    .transform((s) => s.toLowerCase().trim()),
+  role:  z.enum(['ATHLETE', 'COACH']).default('ATHLETE'),
+  sport: SportEnum,
+  // ISO date string; age is derived server-side. Required for athletes is
+  // enforced downstream so the error message is consistent everywhere.
+  dateOfBirth:   z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date of birth').optional(),
+  gender:        GenderEnum.optional(),
+  position:      z.string().max(60).optional(),
+  phone:         z.string().max(40).optional(),
+  guardianEmail: z
+    .string()
+    .email('Invalid guardian email address')
+    .max(254)
+    .optional()
+    .transform((s) => (s ? s.toLowerCase().trim() : s)),
 });
 
 // ─── Bulk provisioning (tournament roster import) ─────────────────────────────

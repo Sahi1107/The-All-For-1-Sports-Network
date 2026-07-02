@@ -15,6 +15,8 @@ import {
   getObjectSize,
   deleteFromGCS,
 } from '../services/storage';
+import { parseReportInput, createReport } from '../services/reports';
+import { blockedUserIds } from '../services/blocks';
 
 const router = Router();
 
@@ -200,8 +202,15 @@ router.get('/saved', authenticate, async (req: AuthRequest, res: Response) => {
 router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const targetId = req.params.userId as string;
+    // If the profile owner is blocked (either direction), show none of their posts.
+    const hiddenIds = await blockedUserIds(userId);
+    if (hiddenIds.includes(targetId)) {
+      res.json({ posts: [] });
+      return;
+    }
     const posts = await prisma.post.findMany({
-      where: { userId: req.params.userId as string },
+      where: { userId: targetId },
       include: {
         user: { select: { id: true, name: true, avatar: true, verified: true } },
         media: { orderBy: { position: 'asc' } },
@@ -232,8 +241,19 @@ router.get('/user/:userId', authenticate, async (req: AuthRequest, res: Response
 router.get('/user/:userId/reposts', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    const targetId = req.params.userId as string;
+    const hiddenIds = await blockedUserIds(userId);
+    // If the profile owner is blocked (either direction), show none of their reposts.
+    if (hiddenIds.includes(targetId)) {
+      res.json({ posts: [] });
+      return;
+    }
     const reposts = await prisma.postRepost.findMany({
-      where: { userId: req.params.userId as string },
+      where: {
+        userId: targetId,
+        // Also hide reposts of content authored by a blocked user.
+        ...(hiddenIds.length ? { post: { userId: { notIn: hiddenIds } } } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         post: {
@@ -273,8 +293,10 @@ router.get('/user/:userId/reposts', authenticate, async (req: AuthRequest, res: 
 router.get('/:id/likes', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const postId = req.params.id as string;
+    // Hide likers in a block relationship with the viewer, both directions.
+    const hiddenIds = await blockedUserIds(req.user!.userId);
     const likes = await prisma.postLike.findMany({
-      where: { postId },
+      where: { postId, ...(hiddenIds.length ? { userId: { notIn: hiddenIds } } : {}) },
       select: {
         user: {
           select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, verified: true },
@@ -401,13 +423,18 @@ router.get('/:id/comments', authenticate, async (req: AuthRequest, res: Response
     const userId = req.user!.userId;
     const { cursor } = req.query;
 
+    // Hide comments/replies from anyone in a block relationship, both directions.
+    const hiddenIds = await blockedUserIds(userId);
+    const notBlocked = hiddenIds.length ? { userId: { notIn: hiddenIds } } : {};
+
     const comments = await prisma.postComment.findMany({
-      where: { postId, parentId: null },
+      where: { postId, parentId: null, ...notBlocked },
       include: {
         user: { select: { id: true, name: true, avatar: true, role: true } },
         _count: { select: { likes: true, replies: true } },
         likes: { where: { userId }, select: { id: true } },
         replies: {
+          where: notBlocked,
           include: {
             user: { select: { id: true, name: true, avatar: true, role: true } },
             _count: { select: { likes: true } },
@@ -601,6 +628,74 @@ router.delete('/:id', authenticate, writeLimiter, async (req: AuthRequest, res: 
     }
     await prisma.post.delete({ where: { id: req.params.id as string } });
     res.json({ message: 'Post deleted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/posts/:id/report — flag a post for moderation
+router.post('/:id/report', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const post = await prisma.post.findUnique({
+      where: { id: req.params.id as string },
+      select: { userId: true },
+    });
+    if (!post) {
+      res.status(404).json({ error: 'Post not found' });
+      return;
+    }
+    if (post.userId === req.user!.userId) {
+      res.status(400).json({ error: 'Cannot report your own post' });
+      return;
+    }
+    const parsed = parseReportInput(req.body);
+    if ('error' in parsed) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    await createReport({
+      reporterId: req.user!.userId,
+      reportedUserId: post.userId,
+      targetType: 'POST',
+      targetId: req.params.id as string,
+      reason: parsed.reason,
+      details: parsed.details,
+    });
+    res.status(201).json({ reported: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/posts/:id/comments/:commentId/report — flag a comment for moderation
+router.post('/:id/comments/:commentId/report', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const comment = await prisma.postComment.findUnique({
+      where: { id: req.params.commentId as string },
+      select: { userId: true },
+    });
+    if (!comment) {
+      res.status(404).json({ error: 'Comment not found' });
+      return;
+    }
+    if (comment.userId === req.user!.userId) {
+      res.status(400).json({ error: 'Cannot report your own comment' });
+      return;
+    }
+    const parsed = parseReportInput(req.body);
+    if ('error' in parsed) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    await createReport({
+      reporterId: req.user!.userId,
+      reportedUserId: comment.userId,
+      targetType: 'COMMENT',
+      targetId: req.params.commentId as string,
+      reason: parsed.reason,
+      details: parsed.details,
+    });
+    res.status(201).json({ reported: true });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }

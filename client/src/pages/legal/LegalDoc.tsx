@@ -27,7 +27,12 @@ interface LegalDocProps {
   sections: Section[];
 }
 
-export default function LegalDoc({
+/**
+ * The document body only — eyebrow, title, meta, intro, sections — with no
+ * page header/footer chrome. Shared by the full-page LegalDoc and the
+ * in-app LegalModal (used during signup) so both render identical content.
+ */
+export function LegalDocContent({
   eyebrow,
   title,
   effectiveDate,
@@ -35,6 +40,35 @@ export default function LegalDoc({
   intro,
   sections,
 }: LegalDocProps) {
+  return (
+    <>
+      <span className="l-section__eyebrow">{eyebrow}</span>
+      <h1 className="legal-title">{title}</h1>
+      <p className="legal-meta">
+        <span><strong>Effective:</strong> {effectiveDate}</span>
+        <span className="legal-meta__sep">·</span>
+        <span><strong>Jurisdiction:</strong> {jurisdiction}</span>
+      </p>
+
+      {intro.length > 0 && (
+        <section className="legal-intro">
+          {intro.map((b, i) => renderBlock(b, i))}
+        </section>
+      )}
+
+      {sections.map((s) => (
+        <section key={s.num} className="legal-section">
+          <h2 className="legal-section__title">
+            <span className="legal-section__num">{s.num}.</span> {s.title}
+          </h2>
+          {s.blocks.map((b, i) => renderBlock(b, i))}
+        </section>
+      ))}
+    </>
+  );
+}
+
+export default function LegalDoc(props: LegalDocProps) {
   return (
     <div className="landing-root legal-root">
       <header className="legal-header">
@@ -48,28 +82,7 @@ export default function LegalDoc({
       </header>
 
       <main className="legal-main">
-        <span className="l-section__eyebrow">{eyebrow}</span>
-        <h1 className="legal-title">{title}</h1>
-        <p className="legal-meta">
-          <span><strong>Effective:</strong> {effectiveDate}</span>
-          <span className="legal-meta__sep">·</span>
-          <span><strong>Jurisdiction:</strong> {jurisdiction}</span>
-        </p>
-
-        {intro.length > 0 && (
-          <section className="legal-intro">
-            {intro.map((b, i) => renderBlock(b, i))}
-          </section>
-        )}
-
-        {sections.map((s) => (
-          <section key={s.num} className="legal-section">
-            <h2 className="legal-section__title">
-              <span className="legal-section__num">{s.num}.</span> {s.title}
-            </h2>
-            {s.blocks.map((b, i) => renderBlock(b, i))}
-          </section>
-        ))}
+        <LegalDocContent {...props} />
       </main>
 
       <footer className="l-footer">

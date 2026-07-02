@@ -8,9 +8,10 @@ import { auth } from '../config/firebase';
 import {
   Send, MessageCircle, Plus, X, Search, ArrowLeft,
   Copy, Trash2, CornerUpRight, MoreHorizontal,
-  Archive, MoreVertical, LogOut, Users, BadgeCheck, Pin,
+  Archive, MoreVertical, LogOut, Users, BadgeCheck, Pin, Flag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ReportModal from '../components/ReportModal';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -184,10 +185,11 @@ interface ActionMenuProps {
   onCopy: () => void;
   onUnsend: () => void;
   onForward: () => void;
+  onReport: () => void;
   onClose: () => void;
 }
 
-function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: ActionMenuProps) {
+function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onReport, onClose }: ActionMenuProps) {
   return (
     <>
       {/* Full-screen click-catcher: closing on a plain click avoids the
@@ -220,6 +222,15 @@ function MessageActionMenu({ msg, isMe, onCopy, onUnsend, onForward, onClose }: 
           className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-surface transition-colors"
         >
           <Trash2 size={14} /> Unsend
+        </button>
+      )}
+      {!isMe && !msg.deletedAt && (
+        <button
+          type="button"
+          onClick={onReport}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-surface transition-colors"
+        >
+          <Flag size={14} /> Report
         </button>
       )}
       </div>
@@ -314,6 +325,7 @@ export default function Messages() {
   const [showNewConv, setShowNewConv] = useState(false);
   const [recipientSearch, setRecipientSearch] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [reportMsgId, setReportMsgId] = useState<string | null>(null);
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   const [otherPresence, setOtherPresence] = useState<{ online: boolean | null; lastActiveAt: string | null } | null>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -999,6 +1011,7 @@ export default function Messages() {
                         onCopy={() => handleCopy(msg.content)}
                         onUnsend={() => handleUnsend(msg.id)}
                         onForward={() => handleForward(msg.id)}
+                        onReport={() => { setActiveMenu(null); setReportMsgId(msg.id); }}
                         onClose={() => setActiveMenu(null)}
                       />
                     )}
@@ -1074,6 +1087,13 @@ export default function Messages() {
       {forwardingId && (
         <ForwardModal messageId={forwardingId} onClose={() => setForwardingId(null)} />
       )}
+
+      <ReportModal
+        open={!!reportMsgId}
+        onClose={() => setReportMsgId(null)}
+        title="Report message"
+        endpoint={`/messages/${reportMsgId}/report`}
+      />
 
       <div className="h-full flex flex-col bg-card rounded-2xl border border-line overflow-hidden">
         {TopBar}

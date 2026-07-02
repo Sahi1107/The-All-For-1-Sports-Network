@@ -3,11 +3,17 @@ import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight, Flag } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
 
-type Tab = 'users' | 'stats' | 'create-admin' | 'tournaments' | 'feed-preview';
+type Tab = 'users' | 'stats' | 'reports' | 'new-profile' | 'create-admin' | 'tournaments' | 'feed-preview';
+
+const EMPTY_ATHLETE_FORM = {
+  name: '', email: '', sport: '', role: 'ATHLETE' as 'ATHLETE' | 'COACH',
+  dateOfBirth: '', gender: '' as '' | 'MALE' | 'FEMALE',
+  position: '', phone: '', guardianEmail: '',
+};
 
 const AGE_CATEGORIES = ['U12', 'U14', 'U16', 'U18', 'U19', 'U21', 'U23', 'OPEN', 'MASTERS'];
 const GENDER_CATEGORIES = ['MEN', 'WOMEN', 'MIXED', 'OPEN'];
@@ -146,9 +152,11 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [page, setPage] = useState(1);
+  const [reportStatus, setReportStatus] = useState('OPEN');
 
   // Create-admin form state
   const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
+  const [athleteForm, setAthleteForm] = useState(EMPTY_ATHLETE_FORM);
   const [showPassword, setShowPassword] = useState(false);
 
   // Tournament form state
@@ -185,6 +193,17 @@ export default function AdminDashboard() {
     enabled: tab === 'stats',
   });
 
+  const { data: reportsData, isLoading: reportsLoading } = useQuery({
+    queryKey: ['admin-reports', reportStatus],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '50' });
+      if (reportStatus) params.set('status', reportStatus);
+      const { data } = await api.get(`/admin/reports?${params}`);
+      return data;
+    },
+    enabled: tab === 'reports',
+  });
+
   // ─── Mutations ────────────────────────────────────────────────
 
   const verifyMutation = useMutation({
@@ -203,8 +222,28 @@ export default function AdminDashboard() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/admin/users/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); toast.success('User deleted'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      qc.invalidateQueries({ queryKey: ['admin-reports'] });
+      toast.success('User deleted');
+    },
     onError: () => toast.error('Delete failed'),
+  });
+
+  const reportStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      api.patch(`/admin/reports/${id}`, { status }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-reports'] }); toast.success('Report updated'); },
+    onError: () => toast.error('Failed to update report'),
+  });
+
+  const removeContentMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/admin/reports/${id}/content`),
+    onSuccess: ({ data }) => {
+      qc.invalidateQueries({ queryKey: ['admin-reports'] });
+      toast.success(data?.message ?? 'Content removed');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? 'Failed to remove content'),
   });
 
   const createAdminMutation = useMutation({
@@ -332,11 +371,13 @@ export default function AdminDashboard() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {([
-          ['users',        'Users',         Users],
+          ['users',        'Users',          Users],
           ['stats',        'Platform Stats', BarChart3],
+          ['reports',      'Reports',        Flag],
+          ['new-profile',  'New Profile',    UserPlus],
           ['tournaments',  'Tournaments',    Trophy],
           ['feed-preview', 'Feed Preview',   Eye],
-          ['create-admin', 'Create Admin',   UserPlus],
+          ['create-admin', 'Create Admin',   Shield],
         ] as const).map(([t, label, Icon]) => (
           <button
             key={t}
@@ -557,6 +598,142 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Reports Tab (moderation queue) ────────────────────────── */}
+      {tab === 'reports' && (
+        <div>
+          {/* Status filter */}
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {([
+              ['OPEN', 'Open'],
+              ['REVIEWED', 'Reviewed'],
+              ['DISMISSED', 'Dismissed'],
+              ['ACTIONED', 'Actioned'],
+              ['', 'All'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={label}
+                onClick={() => setReportStatus(value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  reportStatus === value
+                    ? 'bg-primary text-on-primary font-semibold'
+                    : 'bg-card text-gray-custom hover:text-foreground border border-line'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {reportsLoading ? (
+            <p className="text-gray-custom text-sm">Loading reports…</p>
+          ) : !reportsData?.reports?.length ? (
+            <div className="bg-card border border-line rounded-xl p-8 text-center">
+              <Flag size={32} className="mx-auto mb-3 text-gray-custom" />
+              <p className="text-sm text-gray-custom">No reports{reportStatus ? ` with status ${reportStatus.toLowerCase()}` : ''}.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {reportsData.reports.map((r: any) => {
+                const isContent = r.targetType !== 'USER';
+                const statusColor =
+                  r.status === 'OPEN' ? 'bg-red-500/15 text-red-400'
+                  : r.status === 'REVIEWED' ? 'bg-blue-500/15 text-blue-400'
+                  : r.status === 'ACTIONED' ? 'bg-green-500/15 text-green-400'
+                  : 'bg-gray-500/15 text-gray-400';
+                return (
+                  <div key={r.id} className="bg-card border border-line rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-elevated text-foreground/80">
+                          {r.targetType}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${statusColor}`}>
+                          {r.status}
+                        </span>
+                        <span className="text-xs text-gray-custom">
+                          {new Date(r.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-sm font-medium text-foreground">
+                      Reason: <span className="font-normal">{r.reason}</span>
+                    </p>
+                    {r.details && (
+                      <p className="text-xs text-gray-custom mt-0.5">{r.details}</p>
+                    )}
+
+                    {/* Reported content preview */}
+                    {isContent && (
+                      <div className="mt-2 rounded-lg bg-surface border border-line px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-wide text-gray-custom mb-1">Reported content</p>
+                        {r.contentExists === false ? (
+                          <p className="text-xs italic text-gray-custom">[content already removed]</p>
+                        ) : (
+                          <p className="text-sm text-foreground/80 whitespace-pre-wrap break-words">
+                            {r.contentPreview || <span className="italic text-gray-custom">[no text content]</span>}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    <p className="text-xs text-gray-custom mt-2">
+                      Reported by <span className="text-foreground/70">{r.reporter?.name ?? 'Unknown'}</span>
+                      {' · '}Author:{' '}
+                      <Link to={`/profile/${r.reported?.id}`} className="text-primary hover:text-primary-light">
+                        {r.reported?.name ?? 'Unknown'}
+                      </Link>
+                    </p>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      {r.status !== 'REVIEWED' && (
+                        <button
+                          onClick={() => reportStatusMutation.mutate({ id: r.id, status: 'REVIEWED' })}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-elevated border border-line text-foreground/80 hover:text-foreground transition-colors"
+                        >
+                          Mark reviewed
+                        </button>
+                      )}
+                      {r.status !== 'DISMISSED' && (
+                        <button
+                          onClick={() => reportStatusMutation.mutate({ id: r.id, status: 'DISMISSED' })}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-elevated border border-line text-foreground/80 hover:text-foreground transition-colors"
+                        >
+                          Dismiss
+                        </button>
+                      )}
+                      {isContent && r.contentExists !== false && (
+                        <button
+                          onClick={() => {
+                            if (confirm('Remove this content? This cannot be undone and will resolve all reports for it.')) {
+                              removeContentMutation.mutate(r.id);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                        >
+                          <Trash2 size={13} /> Remove content
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete ${r.reported?.name ?? 'this user'}'s entire account? This deletes all their data and cannot be undone.`)) {
+                            deleteMutation.mutate(r.reported.id);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
+                      >
+                        <Trash2 size={13} /> Delete account
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

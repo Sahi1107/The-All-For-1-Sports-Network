@@ -277,15 +277,15 @@ const SECTIONS: Section[] = [
   },
 ];
 
+export const PRIVACY_DOC = {
+  eyebrow: 'The AllFor1 Network · Legal',
+  title: 'Privacy Policy',
+  effectiveDate: '30 April 2026',
+  jurisdiction: 'Republic of India',
+  intro: INTRO,
+  sections: SECTIONS,
+};
+
 export default function Privacy() {
-  return (
-    <LegalDoc
-      eyebrow="The AllFor1 Network · Legal"
-      title="Privacy Policy"
-      effectiveDate="30 April 2026"
-      jurisdiction="Republic of India"
-      intro={INTRO}
-      sections={SECTIONS}
-    />
-  );
+  return <LegalDoc {...PRIVACY_DOC} />;
 }

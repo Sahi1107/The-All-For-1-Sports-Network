@@ -9,8 +9,11 @@ import { validate } from '../middleware/validate';
 import {
   AdminUserListQuery, AdminUpdateRoleBody, AdminVerifyBody, CreateAdminBody,
   BulkProvisionBody, BulkProvisionParams,
+  AdminReportListQuery, AdminReportStatusBody, AdminCreateAthleteBody,
 } from '../validation/admin';
 import { deleteUserCompletely } from '../services/userDeletion';
+import { provisionAthleteAccount } from '../services/provisionAthlete';
+import { getIO } from '../config/socket';
 import {
   buildReport, commitBulkProvision, normalizeEmail,
   type TournamentContext,
@@ -205,6 +208,184 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Admin stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Moderation queue ────────────────────────────────────────────────────────
+//
+// Reports are created by users (account-level and content-level: post, comment,
+// message). Admins triage them (status) and can act directly: remove the
+// specific reported content, or delete the whole account via DELETE /users/:id.
+
+const REPORTER_SELECT = { id: true, name: true, avatar: true } as const;
+const REPORTED_SELECT = { id: true, name: true, avatar: true, role: true } as const;
+
+/**
+ * Fetch a short preview of each report's target content so moderators aren't
+ * judging blind. Batches one query per content type, then maps back by id.
+ * Returns, per report id: the preview text and whether the content still exists.
+ */
+async function resolveContentPreviews(
+  reports: { id: string; targetType: string; targetId: string | null }[],
+): Promise<Record<string, { preview: string | null; exists: boolean }>> {
+  const ids = { POST: [] as string[], COMMENT: [] as string[], MESSAGE: [] as string[] };
+  for (const r of reports) {
+    if (r.targetId && (r.targetType === 'POST' || r.targetType === 'COMMENT' || r.targetType === 'MESSAGE')) {
+      ids[r.targetType].push(r.targetId);
+    }
+  }
+
+  const [posts, comments, messages] = await Promise.all([
+    ids.POST.length
+      ? prisma.post.findMany({ where: { id: { in: ids.POST } }, select: { id: true, content: true, title: true } })
+      : [],
+    ids.COMMENT.length
+      ? prisma.postComment.findMany({ where: { id: { in: ids.COMMENT } }, select: { id: true, content: true } })
+      : [],
+    ids.MESSAGE.length
+      ? prisma.message.findMany({ where: { id: { in: ids.MESSAGE } }, select: { id: true, content: true, deletedAt: true } })
+      : [],
+  ]);
+
+  const trunc = (s: string | null | undefined) =>
+    s ? (s.length > 200 ? `${s.slice(0, 200)}…` : s) : '';
+
+  const postMap = new Map(posts.map((p) => [p.id, trunc(p.content || p.title)]));
+  const commentMap = new Map(comments.map((c) => [c.id, trunc(c.content)]));
+  const messageMap = new Map(messages.map((m) => [m.id, m.deletedAt ? '[message already removed]' : trunc(m.content)]));
+
+  const out: Record<string, { preview: string | null; exists: boolean }> = {};
+  for (const r of reports) {
+    if (!r.targetId || r.targetType === 'USER') { out[r.id] = { preview: null, exists: true }; continue; }
+    const map = r.targetType === 'POST' ? postMap : r.targetType === 'COMMENT' ? commentMap : messageMap;
+    const exists = map.has(r.targetId);
+    out[r.id] = { preview: exists ? (map.get(r.targetId) ?? '') : null, exists };
+  }
+  return out;
+}
+
+// GET /api/admin/reports — moderation queue, filterable by status + target type
+router.get('/reports', validate({ query: AdminReportListQuery }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { status, targetType, page = '1', limit = '50' } = req.query;
+    const take = parseInt(limit as string);
+    const skip = (parseInt(page as string) - 1) * take;
+
+    const where: any = {};
+    if (status) where.status = status;
+    if (targetType) where.targetType = targetType;
+
+    const [rows, total] = await Promise.all([
+      prisma.report.findMany({
+        where,
+        include: {
+          reporter: { select: REPORTER_SELECT },
+          reported: { select: REPORTED_SELECT },
+        },
+        // Open reports first, then newest.
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        skip,
+        take,
+      }),
+      prisma.report.count({ where }),
+    ]);
+
+    const previews = await resolveContentPreviews(rows);
+    const reports = rows.map((r) => ({
+      ...r,
+      contentPreview: previews[r.id]?.preview ?? null,
+      contentExists: previews[r.id]?.exists ?? true,
+    }));
+
+    res.json({ reports, total, page: parseInt(page as string), totalPages: Math.ceil(total / take) });
+  } catch (error) {
+    console.error('Admin list reports error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/admin/reports/:id — triage a report (change its status)
+router.patch('/reports/:id', validate({ body: AdminReportStatusBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { status } = req.body;
+    const report = await prisma.report.findUnique({ where: { id: req.params.id as string } });
+    if (!report) {
+      res.status(404).json({ error: 'Report not found' });
+      return;
+    }
+    const updated = await prisma.report.update({
+      where: { id: report.id },
+      data: { status },
+    });
+    logger.info('admin.report_status', { actorId: req.user!.userId, reportId: report.id, status });
+    res.json({ report: updated });
+  } catch (error) {
+    console.error('Admin update report error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/admin/reports/:id/content — remove the reported content itself.
+// Resolves the report's target, deletes it (posts/comments hard, messages soft +
+// realtime event), and marks every report for that same content ACTIONED.
+router.delete('/reports/:id/content', async (req: AuthRequest, res: Response) => {
+  try {
+    const report = await prisma.report.findUnique({ where: { id: req.params.id as string } });
+    if (!report) {
+      res.status(404).json({ error: 'Report not found' });
+      return;
+    }
+    if (report.targetType === 'USER' || !report.targetId) {
+      res.status(400).json({ error: 'This report has no removable content. Delete the account instead.' });
+      return;
+    }
+
+    const { targetType, targetId } = report;
+    let removed = false;
+
+    try {
+      if (targetType === 'POST') {
+        await prisma.post.delete({ where: { id: targetId } });
+        removed = true;
+      } else if (targetType === 'COMMENT') {
+        await prisma.postComment.delete({ where: { id: targetId } });
+        removed = true;
+      } else if (targetType === 'MESSAGE') {
+        const msg = await prisma.message.findUnique({
+          where: { id: targetId },
+          select: { conversationId: true, deletedAt: true },
+        });
+        if (msg && !msg.deletedAt) {
+          await prisma.message.update({
+            where: { id: targetId },
+            data: { deletedAt: new Date(), content: '' },
+          });
+          removed = true;
+          try {
+            getIO().to(`conversation:${msg.conversationId}`).emit('message_deleted', {
+              id: targetId, deletedAt: new Date().toISOString(),
+            });
+          } catch { /* socket not critical to the removal */ }
+        }
+      }
+    } catch (err: any) {
+      // P2025 = record already gone; treat as already-removed (idempotent).
+      if (err?.code !== 'P2025') throw err;
+    }
+
+    // Resolve every report pointing at this same content, not just this one.
+    await prisma.report.updateMany({
+      where: { targetType, targetId },
+      data: { status: 'ACTIONED' },
+    });
+
+    logger.info('admin.content_removed', {
+      actorId: req.user!.userId, reportId: report.id, targetType, targetId, removed,
+    });
+    res.json({ removed, message: removed ? 'Content removed' : 'Content was already removed' });
+  } catch (error) {
+    console.error('Admin remove content error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -10,6 +10,7 @@ import {
   ForwardMessageBody,
 } from '../validation/message';
 import { signMediaDeep } from '../services/storage';
+import { parseReportInput, createReport } from '../services/reports';
 
 const router = Router();
 
@@ -644,6 +645,43 @@ router.get('/presence/:userId', authenticate, async (req: AuthRequest, res: Resp
     });
   } catch (error) {
     console.error('Presence error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/messages/:id/report — flag a message for moderation
+router.post('/:id/report', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const message = await prisma.message.findUnique({
+      where: { id: req.params.id as string },
+      select: { senderId: true, conversationId: true },
+    });
+    if (!message) {
+      res.status(404).json({ error: 'Message not found' });
+      return;
+    }
+    // Only a member of the conversation may report a message in it.
+    if (!(await assertMember(message.conversationId, req.user!.userId, res))) return;
+    if (message.senderId === req.user!.userId) {
+      res.status(400).json({ error: 'Cannot report your own message' });
+      return;
+    }
+    const parsed = parseReportInput(req.body);
+    if ('error' in parsed) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    await createReport({
+      reporterId: req.user!.userId,
+      reportedUserId: message.senderId,
+      targetType: 'MESSAGE',
+      targetId: req.params.id as string,
+      reason: parsed.reason,
+      details: parsed.details,
+    });
+    res.status(201).json({ reported: true });
+  } catch (error) {
+    console.error('Message report error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
