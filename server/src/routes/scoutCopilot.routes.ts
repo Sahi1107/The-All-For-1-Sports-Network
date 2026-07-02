@@ -4,6 +4,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
+import { positionMatchAliases } from '../data/positions';
 import { env } from '../config/env';
 
 const router = Router();
@@ -173,12 +174,24 @@ router.post(
       // ── Step 2: Build Prisma where clause ─────────────────────────
       const where: any = {
         role: filters.role || 'ATHLETE',
+        // Never surface non-discoverable profiles (under-13 accounts by default)
+        // to scouts/agents.
+        discoverable: true,
       };
 
       if (filters.sport) where.sport = filters.sport;
 
       if (filters.position) {
-        where.position = { contains: filters.position, mode: 'insensitive' };
+        // Resolve the AI's position phrase to its canonical group and match
+        // every spelling in that group (so "point guard" finds a stored "Guard",
+        // and legacy granular rows still match). Unknown sport/position falls
+        // back to the old substring match so nothing regresses.
+        const aliases = positionMatchAliases(filters.sport, filters.position);
+        if (aliases) {
+          where.OR = aliases.map((a) => ({ position: { equals: a, mode: 'insensitive' } }));
+        } else {
+          where.position = { contains: filters.position, mode: 'insensitive' };
+        }
       }
 
       if (filters.minAge !== undefined || filters.maxAge !== undefined) {

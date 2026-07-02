@@ -148,6 +148,14 @@ model User {
   avatar                 String?
   bio                    String?
   location               String?
+  // Structured location, parsed from `location`. Powers Radar's exact-city →
+  // state → region → country widening. `region` is one of six India macro-regions
+  // (see server/src/data/locations.ts). Backfilled from `location`; indexes added
+  // with the Radar retrieval engine.
+  city                   String?
+  state                  String?
+  region                 String?
+  country                String?
   age                    Int?
   height                 String?
   position               String?
