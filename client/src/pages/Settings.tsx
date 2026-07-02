@@ -47,6 +47,10 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
 
+  // ── Minor discoverability (guardian-controlled) ──────────
+  const [discoverable, setDiscoverable] = useState<boolean>(user?.discoverable ?? false);
+  const [savingDiscoverable, setSavingDiscoverable] = useState(false);
+
   const guardianManaged = !!user?.guardianManaged;
   const athleteAge = (() => {
     if (!user?.dateOfBirth) return user?.age ?? null;
@@ -398,6 +402,57 @@ export default function Settings() {
           ))}
         </div>
       </section>
+
+      {/* Profile Visibility — guardian controls a minor's public discoverability */}
+      {guardianManaged && (
+        <section className="bg-card rounded-xl border border-line p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="font-semibold flex items-center gap-2 mb-1">
+                <Shield size={16} className="text-primary-light" />
+                Profile Visibility
+              </h2>
+              <p className="text-sm text-gray-custom">
+                {discoverable
+                  ? 'Public — this athlete can appear in search, scouting, and rankings.'
+                  : 'Private — hidden from search, scouting, and rankings. Only you can view the profile.'}
+              </p>
+              <p className="text-xs text-gray-custom mt-1">
+                As the parent, guardian, or academy you control whether this under-13 profile is publicly discoverable.
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                if (!user) return;
+                const next = !discoverable;
+                setDiscoverable(next);
+                setSavingDiscoverable(true);
+                try {
+                  await api.patch('/users/settings/visibility', { discoverable: next });
+                  updateUser({ ...user, discoverable: next });
+                  toast.success(next ? 'Profile is now discoverable' : 'Profile is now private');
+                } catch {
+                  setDiscoverable(!next);
+                  toast.error('Failed to update visibility');
+                } finally {
+                  setSavingDiscoverable(false);
+                }
+              }}
+              disabled={savingDiscoverable}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${
+                discoverable ? 'bg-primary' : 'bg-elevated'
+              } disabled:opacity-50`}
+              aria-pressed={discoverable}
+            >
+              <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                  discoverable ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Profile Handover — only for guardian-managed (under-13) athlete accounts */}
       {guardianManaged && (

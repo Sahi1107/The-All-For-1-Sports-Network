@@ -167,6 +167,11 @@ model User {
   disableAllComments     Boolean   @default(false) @map("disable_all_comments")
   lastActiveAt           DateTime? @map("last_active_at")
 
+  // Whether this profile is publicly discoverable (search, Scout Copilot,
+  // rankings) and viewable by non-self. Under-13 accounts default to false;
+  // only the guardian can turn it on. Everyone else defaults to true.
+  discoverable           Boolean   @default(true)
+
   // ── Guardian management (athletes who registered under 13) ──
   guardianManaged        Boolean        @default(false) @map("guardian_managed")
   guardianEmail          String?        @map("guardian_email") // parent/academy email; retained for audit after handover

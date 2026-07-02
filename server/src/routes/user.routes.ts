@@ -231,6 +231,36 @@ router.patch('/settings/notifications', authenticate, writeLimiter, async (req: 
   }
 });
 
+// PATCH /api/users/settings/visibility — guardian toggles a minor's discoverability.
+// Restricted to guardian-managed (under-13) accounts: only the guardian, who
+// operates the account, may make the minor publicly discoverable or private again.
+router.patch('/settings/visibility', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const { discoverable } = req.body;
+    if (typeof discoverable !== 'boolean') {
+      res.status(400).json({ error: 'discoverable (boolean) is required' });
+      return;
+    }
+    const me = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { guardianManaged: true },
+    });
+    if (!me?.guardianManaged) {
+      res.status(403).json({ error: 'Visibility is only adjustable on guardian-managed accounts' });
+      return;
+    }
+    const updated = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: { discoverable },
+      select: { discoverable: true },
+    });
+    res.json({ discoverable: updated.discoverable });
+  } catch (error) {
+    console.error('Update visibility error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/users/settings/verify-phone — confirm phone was linked in Firebase
 router.post('/settings/verify-phone', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
@@ -286,7 +316,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         id: true, name: true, role: true, sport: true, gender: true, avatar: true,
         bio: true, location: true, age: true, height: true, position: true,
         achievements: true, verified: true, createdAt: true,
-        contactEmail: true, banner: true, guardianManaged: true,
+        contactEmail: true, banner: true, guardianManaged: true, discoverable: true,
         // Email, phone, DOB, and notification settings are private
         ...(isSelf && { email: true, phone: true, phoneVerified: true, dateOfBirth: true, handoverStatus: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
@@ -297,6 +327,14 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     });
 
     if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    // A private (undiscoverable) profile — under-13 accounts by default — is only
+    // viewable by the account holder (the guardian). 404 rather than 403 so we
+    // don't confirm the account exists to outsiders.
+    if (!isSelf && user.discoverable === false) {
       res.status(404).json({ error: 'User not found' });
       return;
     }

@@ -18,7 +18,11 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     if (category) where.category = category;
     if (region) where.region = region;
     // Men's and women's rankings are separate — filter on the athlete's gender.
-    if (gender === 'MALE' || gender === 'FEMALE') where.user = { gender };
+    // Always exclude non-discoverable athletes (under-13 accounts by default).
+    where.user = {
+      discoverable: true,
+      ...(gender === 'MALE' || gender === 'FEMALE' ? { gender } : {}),
+    };
 
     const [rankings, total] = await Promise.all([
       prisma.playerRanking.findMany({

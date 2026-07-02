@@ -44,6 +44,12 @@ const SyncBody = z.object({
   dateOfBirth:      z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date').optional(),
   location:         z.string().max(200).optional(),
   height:           z.string().max(20).optional(),
+}).superRefine((data, ctx) => {
+  // DOB is mandatory for athletes so an under-13 can't omit it to dodge
+  // guardian management. Age is derived from DOB server-side, never trusted.
+  if (data.role === 'ATHLETE' && !data.dateOfBirth) {
+    ctx.addIssue({ code: 'custom', path: ['dateOfBirth'], message: 'Date of birth is required for athletes' });
+  }
 });
 
 // ─── POST /api/auth/sync ───────────────────────────────────────────────────────
@@ -146,7 +152,9 @@ router.post('/sync', async (req: Request, res: Response) => {
         ...(dob && { dateOfBirth: dob }),
         ...(location && { location }),
         ...(height   && { height }),
-        ...(guardianManaged && { guardianManaged: true, guardianEmail: email }),
+        // Under-13 accounts start private/undiscoverable; only the guardian can
+        // opt them into public discovery later.
+        ...(guardianManaged && { guardianManaged: true, guardianEmail: email, discoverable: false }),
       },
     });
 
@@ -171,6 +179,7 @@ const meSelect = {
   position: true, achievements: true, verified: true, phoneVerified: true,
   phone: true, createdAt: true,
   dateOfBirth: true, guardianManaged: true, handoverStatus: true,
+  discoverable: true,
   mustResetPassword: true,
 };
 
