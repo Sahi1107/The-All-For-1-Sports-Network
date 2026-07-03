@@ -126,6 +126,7 @@ function AppRoutes() {
           <Route path="profile/:id"         element={<Profile />} />
           <Route path="profile/edit"        element={<EditProfile />} />
           <Route path="admin"               element={<AdminDashboard />} />
+          <Route path="admin/provision"                          element={<BulkProvision />} />
           <Route path="admin/tournaments/:tournamentId/provision" element={<BulkProvision />} />
           <Route path="admin/stat-tracker"                              element={<StatTrackerLauncher />} />
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />

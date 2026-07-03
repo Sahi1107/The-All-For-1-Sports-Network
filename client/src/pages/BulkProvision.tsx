@@ -5,6 +5,7 @@ import Papa from 'papaparse';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
+import { SPORTS } from '../data/sports';
 import {
   Upload, ArrowLeft, CheckCircle, AlertTriangle, Users, Crown, Award,
   Download, FileSpreadsheet, Loader2,
@@ -158,9 +159,12 @@ function reshapeMapped(rows: Record<string, string>[], mapping: Record<string, s
 type Step = 'upload' | 'map' | 'preview' | 'done';
 
 export default function BulkProvision() {
-  const { tournamentId } = useParams<{ tournamentId: string }>();
+  const { tournamentId } = useParams<{ tournamentId?: string }>();
+  // No :tournamentId in the route ⇒ standalone import (sport chosen per batch).
+  const standalone = !tournamentId;
   const { user } = useAuth();
 
+  const [sport, setSport] = useState('');
   const [step, setStep] = useState<Step>('upload');
   const [rawRows, setRawRows] = useState<Record<string, string>[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -170,6 +174,12 @@ export default function BulkProvision() {
   const [result, setResult] = useState<CommitResult | null>(null);
 
   if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
+
+  // Standalone imports don't require a team per row, so team_name / member_role
+  // are optional there (a row with neither becomes a plain profile).
+  const isRequired = (key: keyof LongRow) =>
+    standalone ? key === 'name' || key === 'email'
+      : CANONICAL_FIELDS.some((f) => f.key === key && f.required);
 
   const { data: tournamentData } = useQuery({
     queryKey: ['tournament', tournamentId],
@@ -183,7 +193,9 @@ export default function BulkProvision() {
 
   const previewMutation = useMutation({
     mutationFn: async (rows: LongRow[]) => {
-      const { data } = await api.post(`/admin/tournaments/${tournamentId}/bulk-provision/preview`, { rows });
+      const { data } = standalone
+        ? await api.post('/admin/bulk-provision/preview', { sport, rows })
+        : await api.post(`/admin/tournaments/${tournamentId}/bulk-provision/preview`, { rows });
       return data.report as PreviewReport;
     },
     onSuccess: (rep) => { setReport(rep); setStep('preview'); },
@@ -192,7 +204,9 @@ export default function BulkProvision() {
 
   const commitMutation = useMutation({
     mutationFn: async (rows: LongRow[]) => {
-      const { data } = await api.post(`/admin/tournaments/${tournamentId}/bulk-provision/commit`, { rows });
+      const { data } = standalone
+        ? await api.post('/admin/bulk-provision/commit', { sport, rows })
+        : await api.post(`/admin/tournaments/${tournamentId}/bulk-provision/commit`, { rows });
       return data.result as CommitResult;
     },
     onSuccess: (res) => { setResult(res); setStep('done'); toast.success('Provisioning complete'); },
@@ -203,6 +217,7 @@ export default function BulkProvision() {
   });
 
   function handleFile(file: File) {
+    if (standalone && !sport) { toast.error('Choose a sport for this batch first'); return; }
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
@@ -237,7 +252,7 @@ export default function BulkProvision() {
   }
 
   function submitMapping() {
-    const missing = CANONICAL_FIELDS.filter((f) => f.required && !mapping[f.key]);
+    const missing = CANONICAL_FIELDS.filter((f) => isRequired(f.key) && !mapping[f.key]);
     if (missing.length) { toast.error(`Map required columns: ${missing.map((m) => m.label).join(', ')}`); return; }
     const rows = reshapeMapped(rawRows, mapping);
     setLongRows(rows);
@@ -258,7 +273,7 @@ export default function BulkProvision() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `provision-log-${tournamentId}.csv`;
+    a.download = `provision-log-${tournamentId ?? 'standalone'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -273,25 +288,48 @@ export default function BulkProvision() {
 
       <div className="mb-6">
         <h1 className="text-xl font-bold flex items-center gap-2">
-          <Upload size={20} className="text-primary-light" /> Bulk provision roster
+          <Upload size={20} className="text-primary-light" /> {standalone ? 'Bulk import profiles' : 'Bulk provision roster'}
         </h1>
         <p className="text-sm text-gray-custom mt-1">
-          {tournament ? <>For <span className="text-foreground font-medium">{tournament.name}</span></> : 'Loading tournament…'}
+          {standalone
+            ? 'Create claimable athlete/coach profiles — and optionally teams — from a CSV. No tournament needed.'
+            : tournament ? <>For <span className="text-foreground font-medium">{tournament.name}</span></> : 'Loading tournament…'}
         </p>
         <p className="text-xs text-amber-300/90 mt-2 flex items-center gap-1.5">
           <AlertTriangle size={13} />
-          Accounts are created and added to teams immediately — no invites are sent. New users get a temp password by email.
+          Accounts are created immediately — no invites are sent. New users get a temp password by email; under-13 accounts stay private until a guardian consents by email.
         </p>
       </div>
 
       {/* ── Upload step ─────────────────────────────────────────── */}
       {step === 'upload' && (
         <div className="bg-card rounded-xl border border-line p-8">
-          <label className="block border-2 border-dashed border-line rounded-xl p-10 text-center cursor-pointer hover:border-primary transition-colors">
+          {standalone && (
+            <div className="mb-5">
+              <label className="block text-sm font-medium mb-1.5">
+                Sport <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={sport}
+                onChange={(e) => setSport(e.target.value)}
+                className="w-full sm:w-72 px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+              >
+                <option value="">Select a sport for this batch</option>
+                {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <p className="text-xs text-gray-custom mt-1">Applied to every account and team created in this import.</p>
+            </div>
+          )}
+          <label
+            className={`block border-2 border-dashed border-line rounded-xl p-10 text-center transition-colors ${
+              standalone && !sport ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:border-primary'
+            }`}
+          >
             <input
               type="file"
               accept=".csv,text/csv"
               className="hidden"
+              disabled={standalone && !sport}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
             <FileSpreadsheet size={32} className="mx-auto mb-3 text-gray-custom" />
@@ -324,7 +362,7 @@ export default function BulkProvision() {
             {CANONICAL_FIELDS.map((f) => (
               <div key={f.key} className="flex items-center gap-3">
                 <label className="w-40 text-sm shrink-0">
-                  {f.label}{f.required && <span className="text-red-400"> *</span>}
+                  {f.label}{isRequired(f.key) && <span className="text-red-400"> *</span>}
                 </label>
                 <select
                   value={mapping[f.key] ?? ''}

@@ -1179,10 +1179,21 @@ export default function AdminDashboard() {
               <UserPlus size={18} className="text-primary" />
               <h2 className="font-semibold text-lg">Create Athlete Profile</h2>
             </div>
-            <p className="text-sm text-gray-custom mb-6">
+            <p className="text-sm text-gray-custom mb-4">
               Creates a claimable account. The athlete gets a welcome email with login details.
               Under-13 athletes are private by default and require emailed guardian consent before the account activates.
             </p>
+
+            <Link
+              to="/admin/provision"
+              className="flex items-center justify-between gap-2 mb-6 px-4 py-3 bg-surface border border-line rounded-lg hover:border-primary transition-colors group"
+            >
+              <span className="flex items-center gap-2 text-sm">
+                <Upload size={16} className="text-primary-light" />
+                Creating many at once? <span className="text-foreground font-medium">Bulk import from CSV</span>
+              </span>
+              <ChevronRight size={16} className="text-gray-custom group-hover:text-foreground" />
+            </Link>
 
             <form
               onSubmit={(e) => { e.preventDefault(); if (athleteFormValid) createAthleteMutation.mutate(athleteForm); }}

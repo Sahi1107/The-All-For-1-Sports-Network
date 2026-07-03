@@ -98,13 +98,27 @@ const BulkProvisionRow = z
   // Tolerate extra columns the form may carry; the service ignores them.
   .passthrough();
 
+const BulkRowsArray = z
+  .array(BulkProvisionRow, { error: 'rows must be an array of CSV records' })
+  .min(1, 'At least one row is required')
+  .max(2000, 'Too many rows in a single import (max 2000)');
+
 export const BulkProvisionBody = z.object({
-  rows: z
-    .array(BulkProvisionRow, { error: 'rows must be an array of CSV records' })
-    .min(1, 'At least one row is required')
-    .max(2000, 'Too many rows in a single import (max 2000)'),
+  rows: BulkRowsArray,
 });
 
 export const BulkProvisionParams = z.object({
   tournamentId: z.string().uuid('Invalid tournament ID'),
+});
+
+// ─── Standalone bulk provisioning (no tournament) ─────────────────────────────
+//
+// Same CSV envelope as the tournament import, plus a batch-level sport applied to
+// every account and team. Team-less rows are allowed (they become plain profiles);
+// DOB / guardian / minor-privacy rules are still enforced in buildReport +
+// provisionAthleteAccount, exactly as the tournament path enforces them.
+
+export const StandaloneBulkProvisionBody = z.object({
+  sport: SportEnum,
+  rows: BulkRowsArray,
 });

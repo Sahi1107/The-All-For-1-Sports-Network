@@ -8,7 +8,7 @@ import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import {
   AdminUserListQuery, AdminUpdateRoleBody, AdminVerifyBody, CreateAdminBody,
-  BulkProvisionBody, BulkProvisionParams,
+  BulkProvisionBody, BulkProvisionParams, StandaloneBulkProvisionBody,
   AdminReportListQuery, AdminReportStatusBody, AdminCreateAthleteBody,
 } from '../validation/admin';
 import { deleteUserCompletely } from '../services/userDeletion';
@@ -16,6 +16,7 @@ import { provisionAthleteAccount } from '../services/provisionAthlete';
 import { getIO } from '../config/socket';
 import {
   buildReport, commitBulkProvision, normalizeEmail,
+  tournamentToContext, standaloneContext,
   type TournamentContext,
 } from '../services/bulkProvision';
 import logger from '../utils/logger';
@@ -468,7 +469,7 @@ router.post(
       });
       const existingEmails = new Set(existing.map((u) => u.email));
 
-      const { report } = buildReport(rows, tournament, existingEmails);
+      const { report } = buildReport(rows, tournamentToContext(tournament), existingEmails);
       res.json({ report });
     } catch (error) {
       logger.error('Bulk provision preview error', { error: String(error) });
@@ -490,7 +491,7 @@ router.post(
         return;
       }
 
-      const result = await commitBulkProvision(req.body.rows as any[], tournament);
+      const result = await commitBulkProvision(req.body.rows as any[], tournamentToContext(tournament));
       logger.info('admin.bulk_provision', {
         actorId: req.user!.userId,
         tournamentId: tournament.id,
@@ -504,6 +505,65 @@ router.post(
         return;
       }
       logger.error('Bulk provision commit error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Standalone bulk provisioning (no tournament) ────────────────────────────
+//
+// The same CSV pipeline and the same provisionAthleteAccount safety path, minus
+// the tournament coupling: sport is chosen for the whole batch, team size is
+// unbounded, team-less rows become plain profiles, and no TournamentTeam join is
+// written. DOB / guardian-consent / private-by-default for minors are enforced
+// identically (in buildReport + provisionAthleteAccount) — they cannot be bypassed.
+
+// POST /api/admin/bulk-provision/preview
+router.post(
+  '/bulk-provision/preview',
+  writeLimiter,
+  validate({ body: StandaloneBulkProvisionBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const rows = req.body.rows as any[];
+      const emails = [...new Set(rows.map((r) => normalizeEmail(r.email)).filter(Boolean))];
+      const existing = await prisma.user.findMany({
+        where: { email: { in: emails } },
+        select: { email: true },
+      });
+      const existingEmails = new Set(existing.map((u) => u.email));
+
+      const { report } = buildReport(rows, standaloneContext(req.body.sport), existingEmails);
+      res.json({ report });
+    } catch (error) {
+      logger.error('Standalone bulk provision preview error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// POST /api/admin/bulk-provision/commit
+router.post(
+  '/bulk-provision/commit',
+  writeLimiter,
+  validate({ body: StandaloneBulkProvisionBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const result = await commitBulkProvision(req.body.rows as any[], standaloneContext(req.body.sport));
+      logger.info('admin.bulk_provision_standalone', {
+        actorId: req.user!.userId,
+        sport: req.body.sport,
+        created: result.accountsCreated,
+        linked: result.accountsLinked,
+        teams: result.teamsCreated,
+      });
+      res.json({ result });
+    } catch (error: any) {
+      if (error?.status === 422 && error?.blocking) {
+        res.status(422).json({ error: 'Bulk provision blocked by validation errors', blockingErrors: error.blocking });
+        return;
+      }
+      logger.error('Standalone bulk provision commit error', { error: String(error) });
       res.status(500).json({ error: 'Internal server error' });
     }
   },

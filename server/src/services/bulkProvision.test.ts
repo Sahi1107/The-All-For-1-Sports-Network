@@ -16,19 +16,21 @@ import {
   mapMemberRole,
   normalizeEmail,
   generateTempPassword,
+  standaloneContext,
   type RawRow,
-  type TournamentContext,
+  type ProvisionContext,
 } from './bulkProvision';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
-const tournament: TournamentContext = {
-  id: '00000000-0000-0000-0000-000000000000',
-  name: 'Summer Cup',
+// Tournament-style context: teams required, roster bounded 5–12, no category gender.
+const tournament: ProvisionContext = {
   sport: 'BASKETBALL' as any,
+  tournamentId: '00000000-0000-0000-0000-000000000000',
   genderCategory: null,
   minRosterSize: 5,
   maxRosterSize: 12,
+  requireTeam: true,
 };
 
 /** Build a valid team of `playerCount` members (one captain + rest players). */
@@ -205,6 +207,67 @@ test('a fully valid import reports the right member counts (all join as ACCEPTED
   assert.equal(report.counts.totalMembers, 11);
   // Every resolved row carries a concrete member role used for the ACCEPTED write.
   assert.ok(resolved.every((r) => ['CAPTAIN', 'PLAYER', 'COACH'].includes(r.memberRole)));
+});
+
+// ─── Standalone context (no tournament) ──────────────────────────────────────
+//
+// Same pipeline, decoupled from tournaments: team-less rows allowed, roster
+// unbounded, sport chosen for the batch. Crucially, the minor-safety rules are
+// identical — these tests lock that in so a standalone import can't bypass them.
+
+const standalone = standaloneContext('BASKETBALL' as any);
+
+test('standalone: a team-less profile row is allowed (no "missing team name" error)', () => {
+  const rows: RawRow[] = [{ name: 'Solo Athlete', email: 'solo@example.com', dob: '2005-01-01' }];
+  const { report } = buildReport(rows, standalone, new Set());
+  assert.equal(report.canCommit, true);
+  assert.equal(report.rows[0].classification, 'NEW');
+  assert.equal(report.counts.teams, 0);
+  assert.ok(!report.rows[0].reasons.some((r) => /team name/i.test(r)));
+});
+
+test('standalone: a captain-only team is committable — roster is unbounded (no minimum)', () => {
+  const rows = makeTeam('Solo', 1);
+  const { report } = buildReport(rows, standalone, new Set());
+  assert.equal(report.canCommit, true);
+  assert.equal(report.teams[0].playerCount, 1);
+});
+
+test('standalone: a large roster (20) is committable — no maximum', () => {
+  const rows = makeTeam('Big', 20);
+  const { report } = buildReport(rows, standalone, new Set());
+  assert.equal(report.canCommit, true);
+  assert.equal(report.teams[0].playerCount, 20);
+});
+
+test('standalone STILL enforces minor safety: team-less under-13 with no guardian is BLOCKED', () => {
+  const thisYear = new Date().getFullYear();
+  const rows: RawRow[] = [{ name: 'Kid', email: 'kid@example.com', dob: `${thisYear - 10}-01-01` }];
+  const { report } = buildReport(rows, standalone, new Set());
+  assert.equal(report.rows[0].classification, 'ERROR');
+  assert.ok(report.rows[0].reasons.some((r) => /guardian email is required/i.test(r)));
+  assert.equal(report.canCommit, false);
+});
+
+test('standalone STILL requires DOB for a team-less athlete profile', () => {
+  const rows: RawRow[] = [{ name: 'No DOB', email: 'nodob@example.com' }];
+  const { report } = buildReport(rows, standalone, new Set());
+  assert.equal(report.rows[0].classification, 'ERROR');
+  assert.ok(report.rows[0].reasons.some((r) => /date of birth is required/i.test(r)));
+});
+
+test('standalone: a team-less coach needs no DOB (adults are exempt, same as signup)', () => {
+  const rows: RawRow[] = [{ member_role: 'coach', name: 'Coach', email: 'coach@example.com' }];
+  const { report } = buildReport(rows, standalone, new Set());
+  assert.equal(report.rows[0].classification, 'NEW');
+  assert.ok(!report.rows[0].reasons.some((r) => /date of birth/i.test(r)));
+});
+
+test('standalone: a named team still requires exactly one captain (schema needs a captain)', () => {
+  const rows = makeTeam('NoCap', 3).map((r) => ({ ...r, member_role: 'player' }));
+  const { report } = buildReport(rows, standalone, new Set());
+  assert.equal(report.canCommit, false);
+  assert.ok(report.blockingErrors.some((e) => /no captain/.test(e)));
 });
 
 // ─── Helper-level tests ──────────────────────────────────────────────────────
