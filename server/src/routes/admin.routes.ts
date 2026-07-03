@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Sport } from '@prisma/client';
+import { Role, Sport } from '@prisma/client';
 import prisma from '../config/db';
 import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
@@ -10,9 +10,11 @@ import {
   AdminUserListQuery, AdminUpdateRoleBody, AdminVerifyBody, CreateAdminBody,
   BulkProvisionBody, BulkProvisionParams, StandaloneBulkProvisionBody,
   AdminReportListQuery, AdminReportStatusBody, AdminCreateAthleteBody,
+  AdminCreateTeamBody, AdminTeamParams, AdminTeamMemberParams,
+  AdminAddMemberBody, AdminTeamListQuery, AdminComposeTeamBody,
 } from '../validation/admin';
 import { deleteUserCompletely } from '../services/userDeletion';
-import { provisionAthleteAccount } from '../services/provisionAthlete';
+import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 import { getIO } from '../config/socket';
 import {
   buildReport, commitBulkProvision, normalizeEmail,
@@ -204,6 +206,274 @@ router.post('/athletes', writeLimiter, validate({ body: AdminCreateAthleteBody }
       return;
     }
     logger.error('Admin create athlete error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/teams — create a standalone team (no tournament) with an
+// existing profile as captain. Reuses the team model semantics of the tournament
+// flow: the captain is also written as an ACCEPTED CAPTAIN member (admin
+// authority — no invite/accept handshake).
+router.post('/teams', writeLimiter, validate({ body: AdminCreateTeamBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, sport, captainId } = req.body;
+
+    // The captain must be an existing user.
+    const captain = await prisma.user.findUnique({
+      where: { id: captainId },
+      select: { id: true, name: true, avatar: true, role: true },
+    });
+    if (!captain) {
+      res.status(404).json({ error: 'Captain not found' });
+      return;
+    }
+
+    // Guard against accidental exact duplicates (same name + captain, standalone).
+    const dup = await prisma.team.findFirst({
+      where: { tournamentId: null, name, captainId },
+      select: { id: true },
+    });
+    if (dup) {
+      res.status(409).json({ error: 'A standalone team with that name and captain already exists' });
+      return;
+    }
+
+    const team = await prisma.$transaction(async (tx) => {
+      const t = await tx.team.create({
+        data: { name, sport, captainId, tournamentId: null },
+        select: { id: true, name: true, sport: true, captainId: true, createdAt: true },
+      });
+      // The captain is also a member — CAPTAIN, ACCEPTED (no invite).
+      await tx.teamMember.create({
+        data: { teamId: t.id, userId: captainId, role: 'CAPTAIN', status: 'ACCEPTED', respondedAt: new Date() },
+      });
+      return t;
+    });
+
+    logger.info('admin.team_created', { actorId: req.user!.userId, teamId: team.id, captainId });
+    res.status(201).json({ team: { ...team, captain: { id: captain.id, name: captain.name, avatar: captain.avatar } } });
+  } catch (error) {
+    logger.error('Admin create team error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Admin team member management + compose ──────────────────────────────────
+
+/** A compose member: an existing profile (userId) or a new one to provision. */
+interface ComposeMemberSpec {
+  userId?: string;
+  name?: string;
+  email?: string;
+  dateOfBirth?: string;
+  gender?: any;
+  position?: string;
+  phone?: string;
+  guardianEmail?: string;
+}
+
+/**
+ * Resolve one compose member to a userId. Existing profiles are looked up by id;
+ * NEW profiles are created through provisionAthleteAccount — the single enforced
+ * path — so DOB / under-13 guardian consent / private-by-default all apply and
+ * cannot be bypassed.
+ */
+async function resolveComposeMember(
+  spec: ComposeMemberSpec,
+  sport: Sport,
+  isCoach: boolean,
+): Promise<{ userId: string; created: boolean; guardianConsentPending: boolean }> {
+  if (spec.userId) {
+    const u = await prisma.user.findUnique({ where: { id: spec.userId }, select: { id: true } });
+    if (!u) throw new ProvisionError('One of the selected profiles no longer exists');
+    return { userId: u.id, created: false, guardianConsentPending: false };
+  }
+  return provisionAthleteAccount({
+    name: spec.name!,
+    email: spec.email!,
+    role: isCoach ? Role.COACH : Role.ATHLETE,
+    sport,
+    dateOfBirth: spec.dateOfBirth ? new Date(spec.dateOfBirth) : null,
+    gender: spec.gender,
+    position: spec.position,
+    phone: spec.phone,
+    guardianEmail: spec.guardianEmail,
+  });
+}
+
+// GET /api/admin/teams — list teams (with captain + members) for member management
+router.get('/teams', validate({ query: AdminTeamListQuery }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { sport, search, page = '1', limit = '20' } = req.query as any;
+    const take = parseInt(limit as string);
+    const skip = (parseInt(page as string) - 1) * take;
+
+    const where: any = {};
+    if (sport) where.sport = sport;
+    if (search) where.name = { contains: search as string, mode: 'insensitive' };
+
+    const [teams, total] = await Promise.all([
+      prisma.team.findMany({
+        where,
+        select: {
+          id: true, name: true, sport: true, captainId: true, coachId: true, tournamentId: true,
+          tournament: { select: { id: true, name: true } },
+          members: {
+            select: {
+              role: true, status: true,
+              user: { select: { id: true, name: true, avatar: true, role: true } },
+            },
+            orderBy: { role: 'asc' },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      prisma.team.count({ where }),
+    ]);
+
+    res.json({ teams, total, page: parseInt(page as string), totalPages: Math.ceil(total / take) });
+  } catch (error) {
+    logger.error('Admin list teams error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/teams/:teamId/members — add an existing profile as an ACCEPTED
+// member (admin authority — bypasses the captain-only gate). PLAYER or COACH.
+router.post(
+  '/teams/:teamId/members',
+  writeLimiter,
+  validate({ params: AdminTeamParams, body: AdminAddMemberBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const teamId = req.params.teamId as string;
+      const { userId, role } = req.body as { userId: string; role: 'PLAYER' | 'COACH' };
+
+      const team = await prisma.team.findUnique({ where: { id: teamId }, select: { id: true, coachId: true } });
+      if (!team) { res.status(404).json({ error: 'Team not found' }); return; }
+
+      const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+      if (!user) { res.status(404).json({ error: 'Profile not found' }); return; }
+
+      // At most one coach: block a second, different coach.
+      if (role === 'COACH' && team.coachId && team.coachId !== userId) {
+        res.status(409).json({ error: 'This team already has a coach. Remove them first.' });
+        return;
+      }
+
+      const member = await prisma.$transaction(async (tx) => {
+        const m = await tx.teamMember.upsert({
+          where: { teamId_userId: { teamId, userId } },
+          create: { teamId, userId, role, status: 'ACCEPTED', respondedAt: new Date() },
+          update: { role, status: 'ACCEPTED' },
+          select: { role: true, status: true, user: { select: { id: true, name: true, avatar: true } } },
+        });
+        if (role === 'COACH') {
+          await tx.team.update({ where: { id: teamId }, data: { coachId: userId } });
+        }
+        return m;
+      });
+
+      logger.info('admin.team_member_added', { actorId: req.user!.userId, teamId, userId, role });
+      res.status(201).json({ member });
+    } catch (error) {
+      logger.error('Admin add member error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// DELETE /api/admin/teams/:teamId/members/:userId — remove a member (admin
+// authority). The captain can't be removed here (Team.captainId must stay valid).
+router.delete(
+  '/teams/:teamId/members/:userId',
+  writeLimiter,
+  validate({ params: AdminTeamMemberParams }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const teamId = req.params.teamId as string;
+      const userId = req.params.userId as string;
+
+      const team = await prisma.team.findUnique({ where: { id: teamId }, select: { id: true, captainId: true, coachId: true } });
+      if (!team) { res.status(404).json({ error: 'Team not found' }); return; }
+
+      if (team.captainId === userId) {
+        res.status(400).json({ error: 'The captain cannot be removed. Reassign the captain or delete the team.' });
+        return;
+      }
+
+      const existing = await prisma.teamMember.findUnique({
+        where: { teamId_userId: { teamId, userId } },
+        select: { id: true },
+      });
+      if (!existing) { res.status(404).json({ error: 'Member not found on this team' }); return; }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.teamMember.delete({ where: { teamId_userId: { teamId, userId } } });
+        if (team.coachId === userId) {
+          await tx.team.update({ where: { id: teamId }, data: { coachId: null } });
+        }
+      });
+
+      logger.info('admin.team_member_removed', { actorId: req.user!.userId, teamId, userId });
+      res.json({ message: 'Member removed' });
+    } catch (error) {
+      logger.error('Admin remove member error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// POST /api/admin/teams/compose — create a team + captain + players (+ optional
+// coach) in one action. Existing members are added by id; NEW members are created
+// through provisionAthleteAccount, so minor-safety cannot be bypassed.
+router.post('/teams/compose', writeLimiter, validate({ body: AdminComposeTeamBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { name, sport, captain, players, coach } = req.body as {
+      name: string; sport: Sport; captain: ComposeMemberSpec; players: ComposeMemberSpec[]; coach?: ComposeMemberSpec | null;
+    };
+
+    // 1. Resolve every member first (provisioning new accounts through the
+    //    enforced path). Done before the DB tx because Firebase Auth can't join it.
+    const captainRes = await resolveComposeMember(captain, sport, false);
+    const playerResults: Array<{ userId: string; created: boolean; guardianConsentPending: boolean }> = [];
+    for (const p of players) playerResults.push(await resolveComposeMember(p, sport, false));
+    const coachRes = coach ? await resolveComposeMember(coach, sport, true) : null;
+
+    // 2. One role per person: captain > coach > player.
+    const roleByUser = new Map<string, 'CAPTAIN' | 'COACH' | 'PLAYER'>();
+    roleByUser.set(captainRes.userId, 'CAPTAIN');
+    if (coachRes && !roleByUser.has(coachRes.userId)) roleByUser.set(coachRes.userId, 'COACH');
+    for (const pr of playerResults) if (!roleByUser.has(pr.userId)) roleByUser.set(pr.userId, 'PLAYER');
+
+    const coachId = coachRes && roleByUser.get(coachRes.userId) === 'COACH' ? coachRes.userId : null;
+
+    // 3. Create the team + all ACCEPTED members transactionally.
+    const team = await prisma.$transaction(async (tx) => {
+      const t = await tx.team.create({
+        data: { name, sport, captainId: captainRes.userId, ...(coachId && { coachId }), tournamentId: null },
+        select: { id: true, name: true, sport: true },
+      });
+      const now = new Date();
+      for (const [userId, role] of roleByUser) {
+        await tx.teamMember.create({ data: { teamId: t.id, userId, role, status: 'ACCEPTED', respondedAt: now } });
+      }
+      return t;
+    });
+
+    const all = [captainRes, ...playerResults, ...(coachRes ? [coachRes] : [])];
+    const accountsCreated = all.filter((r) => r.created).length;
+    const guardianConsentPending = all.filter((r) => r.guardianConsentPending).length;
+
+    logger.info('admin.team_composed', {
+      actorId: req.user!.userId, teamId: team.id, members: roleByUser.size, accountsCreated, guardianConsentPending,
+    });
+    res.status(201).json({ team, membersAdded: roleByUser.size, accountsCreated, guardianConsentPending });
+  } catch (error: any) {
+    if (error?.name === 'ProvisionError') { res.status(400).json({ error: error.message }); return; }
+    logger.error('Admin compose team error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

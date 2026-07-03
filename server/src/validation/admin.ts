@@ -73,6 +73,70 @@ export const AdminCreateAthleteBody = z.object({
     .transform((s) => (s ? s.toLowerCase().trim() : s)),
 });
 
+// ─── Standalone team creation (admin form) ────────────────────────────────────
+// Creates a team with an existing profile as captain. The captain is also added
+// as an ACCEPTED CAPTAIN member (admin authority — no invite handshake).
+
+export const AdminCreateTeamBody = z.object({
+  name:      reqStr(120, 'Team name'),
+  sport:     SportEnum,
+  captainId: z.string().uuid('A captain is required'),
+});
+
+// ─── Admin team member management (add / remove / list) ───────────────────────
+// Admin authority: adds an existing profile to any team as ACCEPTED, bypassing
+// the captain-only gate. CAPTAIN is intentionally NOT settable here — the captain
+// is fixed at team creation to keep Team.captainId consistent.
+
+export const AdminTeamParams = z.object({
+  teamId: z.string().uuid('Invalid team ID'),
+});
+
+export const AdminTeamMemberParams = z.object({
+  teamId: z.string().uuid('Invalid team ID'),
+  userId: z.string().uuid('Invalid user ID'),
+});
+
+export const AdminAddMemberBody = z.object({
+  userId: z.string().uuid('A valid profile is required'),
+  role:   z.enum(['PLAYER', 'COACH'], { error: 'role must be PLAYER or COACH' }).default('PLAYER'),
+});
+
+export const AdminTeamListQuery = PaginationQuery.extend({
+  sport:  SportEnum.optional(),
+  search: z.string().max(100).optional().transform((v) => (v ? v.trim() : undefined)),
+});
+
+// ─── Compose a team with players in one action ────────────────────────────────
+// Each member is either an existing profile ({ userId }) or a new profile to
+// provision ({ name, email, ... }). Every NEW member is created through
+// provisionAthleteAccount downstream, so DOB / under-13 guardian-consent /
+// private-by-default cannot be bypassed. DOB-required is enforced there (not
+// here) so the message is identical to every other creation path.
+
+const ComposeMember = z
+  .object({
+    userId:        z.string().uuid().optional(),
+    name:          z.string().max(80).optional(),
+    email:         z.string().email('Invalid email address').max(254).optional(),
+    dateOfBirth:   z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date of birth').optional(),
+    gender:        GenderEnum.optional(),
+    position:      z.string().max(60).optional(),
+    phone:         z.string().max(40).optional(),
+    guardianEmail: z.string().email('Invalid guardian email address').max(254).optional(),
+  })
+  .refine((m) => !!m.userId || !!(m.name?.trim() && m.email?.trim()), {
+    error: 'Each member needs either an existing profile or a name + email',
+  });
+
+export const AdminComposeTeamBody = z.object({
+  name:    reqStr(120, 'Team name'),
+  sport:   SportEnum,
+  captain: ComposeMember,
+  players: z.array(ComposeMember).max(50, 'Too many players (max 50)').optional().default([]),
+  coach:   ComposeMember.optional().nullable(),
+});
+
 // ─── Bulk provisioning (tournament roster import) ─────────────────────────────
 //
 // The client parses the CSV and POSTs an array of normalized "long-format" rows

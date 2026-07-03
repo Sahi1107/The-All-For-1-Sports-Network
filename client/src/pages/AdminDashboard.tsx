@@ -7,13 +7,17 @@ import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, 
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
 
-type Tab = 'users' | 'stats' | 'reports' | 'new-profile' | 'create-admin' | 'tournaments' | 'feed-preview';
+type Tab = 'users' | 'stats' | 'reports' | 'new-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
 
 const EMPTY_ATHLETE_FORM = {
   name: '', email: '', sport: '', role: 'ATHLETE' as 'ATHLETE' | 'COACH',
   dateOfBirth: '', gender: '' as '' | 'MALE' | 'FEMALE',
   position: '', phone: '', guardianEmail: '',
 };
+
+const EMPTY_TEAM_FORM = { name: '', sport: 'BASKETBALL', captainId: '' };
+
+type CaptainPick = { id: string; name: string; email: string; avatar: string | null };
 
 const AGE_CATEGORIES = ['U12', 'U14', 'U16', 'U18', 'U19', 'U21', 'U23', 'OPEN', 'MASTERS'];
 const GENDER_CATEGORIES = ['MEN', 'WOMEN', 'MIXED', 'OPEN'];
@@ -158,6 +162,13 @@ export default function AdminDashboard() {
   const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
   const [athleteForm, setAthleteForm] = useState(EMPTY_ATHLETE_FORM);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Teams tab: create-empty | create-with-players | manage members
+  const [teamMode, setTeamMode] = useState<'empty' | 'compose' | 'manage'>('empty');
+  // New Team form state (+ captain picker) — the "empty team" create mode
+  const [teamForm, setTeamForm] = useState(EMPTY_TEAM_FORM);
+  const [captainQuery, setCaptainQuery] = useState('');
+  const [selectedCaptain, setSelectedCaptain] = useState<CaptainPick | null>(null);
 
   // Tournament form state
   const [tournamentForm, setTournamentForm] = useState<TournamentForm>(emptyTournamentForm);
@@ -308,6 +319,39 @@ export default function AdminDashboard() {
     (!athleteUnder13 || athleteForm.guardianEmail.trim())
   );
 
+  // ─── New Team (captain picker + create) ───────────────────────
+
+  // Search existing profiles for a captain (excludes admins). Reuses the admin
+  // users list endpoint; disabled once a captain is chosen.
+  const captainResults = useQuery({
+    queryKey: ['admin-captain-search', captainQuery],
+    queryFn: async () => {
+      const params = new URLSearchParams({ search: captainQuery.trim(), limit: '8' });
+      const { data } = await api.get(`/admin/users?${params}`);
+      return ((data.users ?? []) as any[])
+        .filter((u) => u.role !== 'ADMIN')
+        .map((u) => ({ id: u.id, name: u.name, email: u.email, avatar: u.avatar ?? null })) as CaptainPick[];
+    },
+    enabled: captainQuery.trim().length >= 2 && !selectedCaptain,
+  });
+
+  const createTeamMutation = useMutation({
+    mutationFn: async (body: { name: string; sport: string; captainId: string }) => {
+      const { data } = await api.post('/admin/teams', body);
+      return data.team;
+    },
+    onSuccess: (team: any) => {
+      toast.success(`Team "${team.name}" created${selectedCaptain ? ` — ${selectedCaptain.name} is captain` : ''}`);
+      setTeamForm(EMPTY_TEAM_FORM);
+      setSelectedCaptain(null);
+      setCaptainQuery('');
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to create team'),
+  });
+
+  const teamFormValid = !!(teamForm.name.trim() && teamForm.sport && teamForm.captainId);
+
   // ─── Tournaments ──────────────────────────────────────────────
 
   const { data: tournamentsData, isLoading: tournamentsLoading } = useQuery({
@@ -424,6 +468,7 @@ export default function AdminDashboard() {
           ['stats',        'Platform Stats', BarChart3],
           ['reports',      'Reports',        Flag],
           ['new-profile',  'New Profile',    UserPlus],
+          ['new-team',     'Teams',          Crown],
           ['tournaments',  'Tournaments',    Trophy],
           ['feed-preview', 'Feed Preview',   Eye],
           ['create-admin', 'Create Admin',   Shield],
@@ -1325,6 +1370,140 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* ── Teams Tab (create + manage members) ────────────────────── */}
+      {tab === 'new-team' && (
+        <div>
+          <div className="flex gap-2 mb-5 flex-wrap">
+            {([
+              ['empty',   'Create team'],
+              ['compose', 'Create with players'],
+              ['manage',  'Manage members'],
+            ] as const).map(([m, label]) => (
+              <button
+                key={m}
+                onClick={() => setTeamMode(m)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  teamMode === m
+                    ? 'bg-primary text-on-primary font-semibold'
+                    : 'bg-card text-gray-custom hover:text-foreground border border-line'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {teamMode === 'compose' && <ComposeTeamForm />}
+          {teamMode === 'manage' && <ManageTeams />}
+
+          {teamMode === 'empty' && (
+          <div className="max-w-md">
+          <div className="bg-card rounded-xl border border-line p-6">
+            <div className="flex items-center gap-2 mb-1">
+              <Crown size={18} className="text-amber-400" />
+              <h2 className="font-semibold text-lg">Create Team</h2>
+            </div>
+            <p className="text-sm text-gray-custom mb-6">
+              Creates a standalone team (not tied to a tournament) with an existing profile as captain.
+              The captain is added as an accepted member — no invite is sent. You can register the team to a tournament later.
+            </p>
+
+            <form
+              onSubmit={(e) => { e.preventDefault(); if (teamFormValid) createTeamMutation.mutate(teamForm); }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Team Name</label>
+                <input
+                  type="text" value={teamForm.name} required maxLength={120}
+                  onChange={(e) => setTeamForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Downtown Warriors"
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Sport</label>
+                <select
+                  value={teamForm.sport} required
+                  onChange={(e) => setTeamForm((f) => ({ ...f, sport: e.target.value }))}
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                >
+                  {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm text-gray-custom mb-2">Captain</label>
+                {selectedCaptain ? (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5 bg-surface border border-line rounded-lg">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <CaptainAvatar name={selectedCaptain.name} avatar={selectedCaptain.avatar} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{selectedCaptain.name}</p>
+                        <p className="text-xs text-gray-custom truncate">{selectedCaptain.email}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedCaptain(null); setTeamForm((f) => ({ ...f, captainId: '' })); }}
+                      className="text-gray-custom hover:text-foreground shrink-0"
+                      aria-label="Clear captain"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="text" value={captainQuery}
+                      onChange={(e) => setCaptainQuery(e.target.value)}
+                      placeholder="Search existing profiles by name…"
+                      className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                    />
+                    {captainQuery.trim().length >= 2 && (
+                      <div className="mt-2 border border-line rounded-lg divide-y divide-line overflow-hidden">
+                        {captainResults.isLoading ? (
+                          <p className="px-3 py-2.5 text-xs text-gray-custom">Searching…</p>
+                        ) : (captainResults.data?.length ?? 0) === 0 ? (
+                          <p className="px-3 py-2.5 text-xs text-gray-custom">No matching profiles. Create one in “New Profile” first.</p>
+                        ) : (
+                          captainResults.data!.map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => { setSelectedCaptain(u); setTeamForm((f) => ({ ...f, captainId: u.id })); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-surface transition-colors"
+                            >
+                              <CaptainAvatar name={u.name} avatar={u.avatar} />
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{u.name}</p>
+                                <p className="text-xs text-gray-custom truncate">{u.email}</p>
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-custom mt-1">Every team needs a captain. Pick an existing athlete or coach.</p>
+                  </>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={!teamFormValid || createTeamMutation.isPending}
+                className="w-full py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50 text-sm"
+              >
+                {createTeamMutation.isPending ? 'Creating…' : 'Create Team'}
+              </button>
+            </form>
+          </div>
+          </div>
+          )}
+        </div>
+      )}
+
       {/* ── Create Admin Tab ──────────────────────────────────────── */}
       {tab === 'create-admin' && (
         <div className="max-w-md">
@@ -1408,6 +1587,420 @@ export default function AdminDashboard() {
             </code>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Small round avatar with an initial fallback — used in the captain picker. */
+function CaptainAvatar({ name, avatar }: { name: string; avatar: string | null }) {
+  return (
+    <div className="w-8 h-8 rounded-full bg-elevated flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
+      {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover" /> : name?.charAt(0)}
+    </div>
+  );
+}
+
+// ─── Step 4: compose + member management ─────────────────────────────────────
+
+type NewMemberDraft = { name: string; email: string; dateOfBirth: string; guardianEmail: string };
+const EMPTY_MEMBER: NewMemberDraft = { name: '', email: '', dateOfBirth: '', guardianEmail: '' };
+
+type AdminTeamMember = {
+  role: 'CAPTAIN' | 'PLAYER' | 'COACH';
+  status: string;
+  user: { id: string; name: string; avatar: string | null; role: string };
+};
+type AdminTeam = {
+  id: string; name: string; sport: string;
+  captainId: string; coachId: string | null; tournamentId: string | null;
+  tournament: { id: string; name: string } | null;
+  members: AdminTeamMember[];
+};
+
+/** Whole years between a date string (YYYY-MM-DD) and today, or null. */
+function ageFromDateString(s: string): number | null {
+  if (!s) return null;
+  const dob = new Date(s);
+  if (Number.isNaN(dob.getTime())) return null;
+  const t = new Date();
+  let a = t.getFullYear() - dob.getFullYear();
+  const m = t.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < dob.getDate())) a--;
+  return a;
+}
+
+/** A new athlete member is valid with name + email + DOB, and a guardian email if under 13. */
+function newMemberValid(m: NewMemberDraft): boolean {
+  if (!m.name.trim() || !m.email.trim() || !m.dateOfBirth) return false;
+  const age = ageFromDateString(m.dateOfBirth);
+  if (age !== null && age < 13 && !m.guardianEmail.trim()) return false;
+  return true;
+}
+
+/** Name + email + DOB fields for a new athlete, revealing a guardian-email field when under 13. */
+function NewProfileFields({ value, onChange }: { value: NewMemberDraft; onChange: (v: NewMemberDraft) => void }) {
+  const age = ageFromDateString(value.dateOfBirth);
+  const under13 = age !== null && age < 13;
+  const set = (patch: Partial<NewMemberDraft>) => onChange({ ...value, ...patch });
+  return (
+    <div className="space-y-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <input
+          type="text" value={value.name} maxLength={80} placeholder="Full name"
+          onChange={(e) => set({ name: e.target.value })}
+          className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+        />
+        <input
+          type="email" value={value.email} maxLength={254} placeholder="Email (login)"
+          onChange={(e) => set({ email: e.target.value })}
+          className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div>
+          <label className="block text-[11px] text-gray-custom mb-1">Date of birth</label>
+          <input
+            type="date" value={value.dateOfBirth}
+            onChange={(e) => set({ dateOfBirth: e.target.value })}
+            className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+          />
+        </div>
+        {under13 && (
+          <div>
+            <label className="block text-[11px] text-amber-300 mb-1">Guardian email (required · under 13)</label>
+            <input
+              type="email" value={value.guardianEmail} maxLength={254} placeholder="parent@example.com"
+              onChange={(e) => set({ guardianEmail: e.target.value })}
+              className="w-full px-3 py-2 bg-surface border border-amber-500/40 rounded-lg text-sm focus:outline-none focus:border-amber-400 placeholder-gray-custom"
+            />
+          </div>
+        )}
+      </div>
+      {under13 && (
+        <p className="text-[11px] text-amber-300/80">
+          Under-13 profile: private by default. A guardian-consent email is sent; the account activates once the guardian consents.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** "Create with players" — composes new profiles + team + assignment in one action. */
+function ComposeTeamForm() {
+  const qc = useQueryClient();
+  const [name, setName] = useState('');
+  const [sport, setSport] = useState('BASKETBALL');
+  const [captain, setCaptain] = useState<NewMemberDraft>(EMPTY_MEMBER);
+  const [players, setPlayers] = useState<NewMemberDraft[]>([]);
+  const [coach, setCoach] = useState<{ name: string; email: string }>({ name: '', email: '' });
+
+  const compose = useMutation({
+    mutationFn: async () => {
+      const clean = (m: NewMemberDraft) => ({
+        name: m.name.trim(),
+        email: m.email.trim(),
+        dateOfBirth: m.dateOfBirth,
+        ...(m.guardianEmail.trim() && { guardianEmail: m.guardianEmail.trim() }),
+      });
+      const body: any = { name: name.trim(), sport, captain: clean(captain), players: players.map(clean) };
+      if (coach.name.trim() && coach.email.trim()) body.coach = { name: coach.name.trim(), email: coach.email.trim() };
+      const { data } = await api.post('/admin/teams/compose', body);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(
+        `Team "${data.team.name}" created — ${data.membersAdded} member(s), ${data.accountsCreated} new account(s)` +
+          (data.guardianConsentPending ? `, ${data.guardianConsentPending} awaiting guardian consent` : ''),
+      );
+      setName(''); setCaptain(EMPTY_MEMBER); setPlayers([]); setCoach({ name: '', email: '' });
+      qc.invalidateQueries({ queryKey: ['admin-teams'] });
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to create team'),
+  });
+
+  const coachStarted = !!(coach.name.trim() || coach.email.trim());
+  const coachValid = !coachStarted || !!(coach.name.trim() && coach.email.trim());
+  const valid = !!(name.trim() && sport && newMemberValid(captain) && players.every(newMemberValid) && coachValid);
+
+  return (
+    <div className="max-w-2xl">
+      <div className="bg-card rounded-xl border border-line p-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Users size={18} className="text-primary" />
+          <h2 className="font-semibold text-lg">Create Team with Players</h2>
+        </div>
+        <p className="text-sm text-gray-custom mb-5">
+          Creates the team and all its profiles in one step. Every new profile is created through the same safety
+          path — DOB is required, and under-13s are private and need emailed guardian consent before activating.
+        </p>
+
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-custom mb-2">Team Name</label>
+              <input
+                type="text" value={name} maxLength={120} onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Downtown Warriors"
+                className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-custom mb-2">Sport</label>
+              <select
+                value={sport} onChange={(e) => setSport(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+              >
+                {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="border border-line rounded-lg p-4">
+            <div className="flex items-center gap-1.5 mb-3 text-sm font-medium">
+              <Crown size={14} className="text-amber-400" /> Captain
+            </div>
+            <NewProfileFields value={captain} onChange={setCaptain} />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium">Players <span className="text-gray-custom font-normal">({players.length})</span></span>
+              <button
+                type="button" onClick={() => setPlayers((p) => [...p, { ...EMPTY_MEMBER }])}
+                className="inline-flex items-center gap-1.5 text-xs text-primary-light hover:underline"
+              >
+                <Plus size={13} /> Add player
+              </button>
+            </div>
+            <div className="space-y-3">
+              {players.map((p, i) => (
+                <div key={i} className="border border-line rounded-lg p-4 relative">
+                  <button
+                    type="button" onClick={() => setPlayers((arr) => arr.filter((_, j) => j !== i))}
+                    className="absolute top-3 right-3 text-gray-custom hover:text-red-400" aria-label="Remove player"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <p className="text-xs text-gray-custom mb-2">Player {i + 1}</p>
+                  <NewProfileFields value={p} onChange={(v) => setPlayers((arr) => arr.map((x, j) => (j === i ? v : x)))} />
+                </div>
+              ))}
+              {players.length === 0 && (
+                <p className="text-xs text-gray-custom">
+                  No players yet — add players above, or create the team with just a captain and add members later.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="border border-line rounded-lg p-4">
+            <div className="flex items-center gap-1.5 mb-3 text-sm font-medium">
+              <Award size={14} className="text-primary-light" /> Coach <span className="text-gray-custom font-normal">(optional)</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <input
+                type="text" value={coach.name} maxLength={80} placeholder="Coach name"
+                onChange={(e) => setCoach((c) => ({ ...c, name: e.target.value }))}
+                className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+              />
+              <input
+                type="email" value={coach.email} maxLength={254} placeholder="Coach email"
+                onChange={(e) => setCoach((c) => ({ ...c, email: e.target.value }))}
+                className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+              />
+            </div>
+            <p className="text-[11px] text-gray-custom mt-1.5">Coaches are adults — no date of birth needed.</p>
+          </div>
+
+          <button
+            type="button" onClick={() => compose.mutate()} disabled={!valid || compose.isPending}
+            className="w-full py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50 text-sm"
+          >
+            {compose.isPending ? 'Creating…' : 'Create team & profiles'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** "Manage members" — list teams, expand one to add/remove members (admin authority). */
+function ManageTeams() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const teams = useQuery({
+    queryKey: ['admin-teams', search],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '20' });
+      if (search.trim()) params.set('search', search.trim());
+      const { data } = await api.get(`/admin/teams?${params}`);
+      return data.teams as AdminTeam[];
+    },
+  });
+
+  const removeMember = useMutation({
+    mutationFn: ({ teamId, userId }: { teamId: string; userId: string }) =>
+      api.delete(`/admin/teams/${teamId}/members/${userId}`),
+    onSuccess: () => { toast.success('Member removed'); qc.invalidateQueries({ queryKey: ['admin-teams'] }); },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to remove member'),
+  });
+
+  return (
+    <div className="max-w-2xl space-y-4">
+      <input
+        value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search teams by name…"
+        className="w-full bg-card border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+      />
+
+      {teams.isLoading ? (
+        <p className="text-sm text-gray-custom">Loading teams…</p>
+      ) : (teams.data?.length ?? 0) === 0 ? (
+        <p className="text-sm text-gray-custom">No teams found.</p>
+      ) : (
+        <div className="space-y-3">
+          {teams.data!.map((t) => (
+            <div key={t.id} className="bg-card rounded-xl border border-line overflow-hidden">
+              <button
+                onClick={() => setExpanded(expanded === t.id ? null : t.id)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-surface/40 transition-colors"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{t.name}</p>
+                  <p className="text-xs text-gray-custom">
+                    {t.sport} · {t.members.length} member(s) · {t.tournament ? t.tournament.name : 'Standalone'}
+                  </p>
+                </div>
+                {expanded === t.id
+                  ? <ChevronUp size={16} className="text-gray-custom shrink-0" />
+                  : <ChevronDown size={16} className="text-gray-custom shrink-0" />}
+              </button>
+
+              {expanded === t.id && (
+                <div className="border-t border-line p-4 space-y-3">
+                  <div className="divide-y divide-line">
+                    {t.members.map((m) => (
+                      <div key={m.user.id} className="flex items-center justify-between gap-3 py-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <CaptainAvatar name={m.user.name} avatar={m.user.avatar} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{m.user.name}</p>
+                            <p className="text-xs text-gray-custom">
+                              {m.role === 'CAPTAIN' ? 'Captain' : m.role === 'COACH' ? 'Coach' : 'Player'}
+                              {m.status !== 'ACCEPTED' && ` · ${m.status.toLowerCase()}`}
+                            </p>
+                          </div>
+                        </div>
+                        {m.user.id === t.captainId ? (
+                          <span className="text-[11px] text-amber-400 shrink-0 inline-flex items-center gap-1"><Crown size={11} /> captain</span>
+                        ) : (
+                          <button
+                            onClick={() => removeMember.mutate({ teamId: t.id, userId: m.user.id })}
+                            disabled={removeMember.isPending}
+                            className="text-gray-custom hover:text-red-400 shrink-0 disabled:opacity-50" aria-label="Remove member"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <AddMemberRow teamId={t.id} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Search an existing profile and add it to a team as PLAYER or COACH (admin authority). */
+function AddMemberRow({ teamId }: { teamId: string }) {
+  const qc = useQueryClient();
+  const [query, setQuery] = useState('');
+  const [role, setRole] = useState<'PLAYER' | 'COACH'>('PLAYER');
+  const [picked, setPicked] = useState<CaptainPick | null>(null);
+
+  const results = useQuery({
+    queryKey: ['admin-member-search', query],
+    queryFn: async () => {
+      const params = new URLSearchParams({ search: query.trim(), limit: '6' });
+      const { data } = await api.get(`/admin/users?${params}`);
+      return ((data.users ?? []) as any[])
+        .filter((u) => u.role !== 'ADMIN')
+        .map((u) => ({ id: u.id, name: u.name, email: u.email, avatar: u.avatar ?? null })) as CaptainPick[];
+    },
+    enabled: query.trim().length >= 2 && !picked,
+  });
+
+  const add = useMutation({
+    mutationFn: () => api.post(`/admin/teams/${teamId}/members`, { userId: picked!.id, role }),
+    onSuccess: () => {
+      toast.success('Member added');
+      setQuery(''); setPicked(null); setRole('PLAYER');
+      qc.invalidateQueries({ queryKey: ['admin-teams'] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to add member'),
+  });
+
+  return (
+    <div className="border-t border-line pt-3">
+      <p className="text-xs font-medium text-gray-custom mb-2">Add an existing profile</p>
+      {picked ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 bg-surface border border-line rounded-lg min-w-0">
+            <CaptainAvatar name={picked.name} avatar={picked.avatar} />
+            <span className="text-sm truncate">{picked.name}</span>
+            <button onClick={() => setPicked(null)} className="text-gray-custom hover:text-foreground" aria-label="Clear"><Trash2 size={13} /></button>
+          </div>
+          <select
+            value={role} onChange={(e) => setRole(e.target.value as 'PLAYER' | 'COACH')}
+            className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+          >
+            <option value="PLAYER">Player</option>
+            <option value="COACH">Coach</option>
+          </select>
+          <button
+            onClick={() => add.mutate()} disabled={add.isPending}
+            className="px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm disabled:opacity-50"
+          >
+            {add.isPending ? 'Adding…' : 'Add'}
+          </button>
+        </div>
+      ) : (
+        <>
+          <input
+            value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search profiles by name…"
+            className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+          />
+          {query.trim().length >= 2 && (
+            <div className="mt-2 border border-line rounded-lg divide-y divide-line overflow-hidden">
+              {results.isLoading ? (
+                <p className="px-3 py-2 text-xs text-gray-custom">Searching…</p>
+              ) : (results.data?.length ?? 0) === 0 ? (
+                <p className="px-3 py-2 text-xs text-gray-custom">No matching profiles.</p>
+              ) : (
+                results.data!.map((u) => (
+                  <button
+                    key={u.id} onClick={() => setPicked(u)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-surface transition-colors"
+                  >
+                    <CaptainAvatar name={u.name} avatar={u.avatar} />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{u.name}</p>
+                      <p className="text-xs text-gray-custom truncate">{u.email}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
