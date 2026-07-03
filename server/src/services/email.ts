@@ -146,12 +146,9 @@ export async function sendAthleteWelcome({
   forGuardian: boolean;
 }): Promise<void> {
   const who = forGuardian ? `${athleteName}'s` : 'your';
-  const greeting = forGuardian
-    ? `You're set up to manage ${athleteName}'s account on All For 1.`
-    : `Welcome to All For 1, ${athleteName}!`;
   const subject = forGuardian
     ? `${athleteName}'s All For 1 account — get started`
-    : `Welcome to All For 1 — get started`;
+    : `Welcome to All For 1 — make your sports journey visible`;
 
   const steps = [
     `Log in at ${clientOrigin}/login`,
@@ -160,19 +157,30 @@ export async function sendAthleteWelcome({
     `View ${who} Performance Card`,
   ];
 
-  const text =
-    `${greeting}\n\n` +
-    `All For 1 is the network where athletes build a profile, share highlights, ` +
-    `join teams, and get discovered.\n\n` +
+  // Shared blocks (identical wording in both paths).
+  const creds =
     `Log in with:\n` +
     `  Email: ${loginEmail}\n` +
-    `  Temporary password: ${tempPassword}\n\n` +
-    `Getting started:\n` +
-    steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n') +
-    `\n\nThe app: ${APP_URL}\n\n` +
-    `For security, you'll be asked to set a new password on first login.`;
+    `  Temporary password: ${tempPassword}`;
+  const startedText =
+    `Getting started:\n` + steps.map((s, i) => `  ${i + 1}. ${s}`).join('\n');
+  const security = `For security, you'll be asked to set a new password on first login.`;
 
-  const html = `
+  let text: string;
+  let html: string;
+
+  if (forGuardian) {
+    // ── Under-13 guardian welcome (sent after consent) — copy unchanged ──
+    const greeting = `You're set up to manage ${athleteName}'s account on All For 1.`;
+    text =
+      `${greeting}\n\n` +
+      `All For 1 is the network where athletes build a profile, share highlights, ` +
+      `join teams, and get discovered.\n\n` +
+      `${creds}\n\n` +
+      `${startedText}` +
+      `\n\nThe app: ${APP_URL}\n\n` +
+      `${security}`;
+    html = `
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
       <h2 style="margin:0 0 16px">${greeting}</h2>
       <p>All For 1 is the network where athletes build a profile, share highlights,
@@ -192,8 +200,57 @@ export async function sendAthleteWelcome({
         </a>
       </p>
       <p style="color:#666;font-size:13px">The app: <a href="${APP_URL}">${APP_URL}</a><br/>
-         For security, you'll be asked to set a new password on first login.</p>
+         ${security}</p>
     </div>`;
+  } else {
+    // ── 13+ athlete welcome — "make your sports journey visible" ──
+    text =
+      `Welcome to All For 1, ${athleteName} — this is where your game gets seen.\n\n` +
+      `All For 1 is the home for your sports journey. Build a standout athlete profile, ` +
+      `showcase your best highlights, track your stats, and put your talent in front of the ` +
+      `scouts, coaches, and academies who are looking for players like you.\n\n` +
+      `What you can do here:\n` +
+      `  • Build your Performance Card — one shareable page for your stats, highlights, and achievements\n` +
+      `  • Get discovered — scouts, coaches, and academies find athletes directly on All For 1\n` +
+      `  • Let your highlights do the talking — upload your best moments for the world to see\n` +
+      `  • Compete and climb — join tournaments, represent teams, and rise up the rankings\n\n` +
+      `${creds}\n\n` +
+      `${startedText}\n\n` +
+      `Make your sports journey visible. The app: ${APP_URL}\n\n` +
+      `${security}`;
+    html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
+      <h2 style="margin:0 0 6px">Welcome to All For 1, ${athleteName}</h2>
+      <p style="margin:0 0 16px;color:#2929db;font-weight:600;font-size:15px">This is where your game gets seen.</p>
+      <p>All For 1 is the home for your sports journey. Build a standout athlete profile,
+         showcase your best highlights, track your stats, and put your talent in front of the
+         scouts, coaches, and academies who are looking for players like you.</p>
+      <p style="margin:18px 0 8px"><strong>What you can do here</strong></p>
+      <ul style="margin:0 0 20px;padding-left:20px;line-height:1.7">
+        <li><strong>Build your Performance Card</strong> — one shareable page for your stats, highlights, and achievements</li>
+        <li><strong>Get discovered</strong> — scouts, coaches, and academies find athletes directly on All For 1</li>
+        <li><strong>Let your highlights do the talking</strong> — upload your best moments for the world to see</li>
+        <li><strong>Compete and climb</strong> — join tournaments, represent teams, and rise up the rankings</li>
+      </ul>
+      <p style="margin:20px 0;padding:16px;background:#f4f4f8;border-radius:8px">
+        <strong>Email:</strong> ${loginEmail}<br/>
+        <strong>Temporary password:</strong> <code style="font-size:15px">${tempPassword}</code>
+      </p>
+      <p style="margin:0 0 8px"><strong>Getting started</strong></p>
+      <ol style="margin:0 0 20px;padding-left:20px;line-height:1.7">
+        ${steps.map((s) => `<li>${s}</li>`).join('')}
+      </ol>
+      <p style="margin:24px 0">
+        <a href="${clientOrigin}/login"
+           style="background:#2929db;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;display:inline-block">
+          Log in &amp; get started
+        </a>
+      </p>
+      <p style="margin:0 0 4px;color:#2929db;font-weight:600">Make your sports journey visible.</p>
+      <p style="color:#666;font-size:13px">The app: <a href="${APP_URL}">${APP_URL}</a><br/>
+         ${security}</p>
+    </div>`;
+  }
 
   await sendMail({ to, subject, html, text });
 }
