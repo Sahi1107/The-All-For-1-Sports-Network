@@ -53,10 +53,11 @@ export interface RadarFilters {
 /** How closely a result matched the requested location (narrowest → widest). */
 export type LocationTier = 'city' | 'state' | 'region' | 'country';
 
-/** Columns returned for each result — matches what the Scout Copilot card reads. */
+/** Columns returned for each result — the card's fields plus ranking signals. */
 const RESULT_SELECT = {
   id: true, name: true, avatar: true, role: true, sport: true,
   position: true, age: true, location: true, height: true, bio: true, achievements: true,
+  verified: true, createdAt: true, // relevance-ranking signals (Step 7)
 } satisfies Prisma.UserSelect;
 
 /** Which career totals to surface per sport (kept identical to prior display). */
@@ -178,11 +179,85 @@ export interface SearchOutcome extends TierOutcome {
   emptyReason: 'no-athletes-in-sport' | 'no-athletes' | null;
 }
 
+// ─── Step 7: relevance ranking ───────────────────────────────────────────────
+
+/** Location proximity order — closer tiers rank first (keeps Step 5 dominant). */
+const TIER_ORDER: Record<LocationTier, number> = { city: 0, state: 1, region: 2, country: 3 };
+
 /**
- * Location-widening search (Step 5). The base where (sport + minor-safety +
- * position/age + any stat filter) is fixed; try each location tier narrowest →
- * widest, accumulating de-duplicated results until the limit. Results from a tier
- * wider than requested are flagged `approximate`. Wrapped by searchAthletes,
+ * How many candidates per tier to consider for ranking. Bounded so ranking is a
+ * real fetch-then-rank (not merely "newest N") while staying cheap; large enough
+ * to cover the pool at current scale. Widening still stops as soon as the closer
+ * tiers supply a full page.
+ */
+const RANK_BUFFER = 200;
+
+/** Headline metric to rank a stat-sport by: what the scout filtered, else the sport default. */
+export function rankingMetric(sport: string | undefined, filters: RadarFilters): string | null {
+  if (!isStatSport(sport)) return null;
+  const filtered = Object.keys(statThresholds(sport, filters));
+  if (filtered.length > 0) return filtered[0];
+  return { BASKETBALL: 'points', FOOTBALL: 'goals', CRICKET: 'runs' }[sport];
+}
+
+/** Profile completeness (0–5): a light quality signal used only for tiebreaks. */
+export function completenessScore(u: {
+  avatar: string | null; bio: string | null; height: string | null; position: string | null; achievements: string[];
+}): number {
+  let s = 0;
+  if (u.avatar) s++;
+  if (u.bio) s++;
+  if (u.height) s++;
+  if (u.position) s++;
+  if (u.achievements && u.achievements.length > 0) s++;
+  return s;
+}
+
+/** A candidate (selected user + the tier that matched it) awaiting ranking. */
+export interface RankableCandidate {
+  user: Pick<RawUser, 'id' | 'verified' | 'avatar' | 'bio' | 'height' | 'position' | 'achievements' | 'createdAt'>;
+  tier: LocationTier;
+}
+
+/**
+ * Rank candidates by RELEVANCE — a clear priority ladder that replaces the old
+ * createdAt-only ordering. Proximity stays dominant so nearest-location (Step 5)
+ * is preserved; within a proximity band a scout sees the strongest, most-credible
+ * prospects first:
+ *   1. location proximity  (closest tier first)
+ *   2. headline career stat (higher first) — the talent signal
+ *   3. verified profiles first
+ *   4. profile completeness (more complete first)
+ *   5. recency             (newer first — final tiebreak)
+ * Pure and non-destructive: it only reorders, never adds or removes anyone, so it
+ * can't surface a hidden or wrong-sport profile.
+ */
+export function rankCandidates<C extends RankableCandidate>(
+  candidates: C[],
+  sport: string | undefined,
+  filters: RadarFilters,
+  totals: Map<string, { totals: Record<string, number> }> | null,
+): C[] {
+  const metric = rankingMetric(sport, filters);
+  const statOf = (id: string) => (metric && totals ? (totals.get(id)?.totals[metric] ?? 0) : 0);
+  return [...candidates].sort((a, b) => {
+    const t = TIER_ORDER[a.tier] - TIER_ORDER[b.tier];
+    if (t !== 0) return t;                                                     // 1. proximity
+    const s = statOf(b.user.id) - statOf(a.user.id);
+    if (s !== 0) return s;                                                     // 2. stat
+    if (a.user.verified !== b.user.verified) return a.user.verified ? -1 : 1;  // 3. verified
+    const c = completenessScore(b.user) - completenessScore(a.user);
+    if (c !== 0) return c;                                                     // 4. completeness
+    return b.user.createdAt.getTime() - a.user.createdAt.getTime();           // 5. recency
+  });
+}
+
+/**
+ * Location-widening search (Step 5) with relevance ranking (Step 7). The base
+ * where (sport + minor-safety + position/age + any stat filter) is fixed; try
+ * each location tier narrowest → widest, buffering candidates until a full page's
+ * worth is available, then rank by relevance and take the page. Results from a
+ * tier wider than requested are flagged `approximate`. Wrapped by searchAthletes,
  * which adds the graceful-empty relaxation ladder (Step 6).
  */
 async function searchTiered(filters: RadarFilters): Promise<TierOutcome> {
@@ -204,33 +279,42 @@ async function searchTiered(filters: RadarFilters): Promise<TierOutcome> {
 
   const tiers = locationTiers(filters);
   const exactTier = tiers[0].tier;
-  const collected: Array<{ user: RawUser; tier: LocationTier }> = [];
+
+  // Buffer candidates from the closest tiers until a full page is available, then
+  // stop widening. RANK_BUFFER (not `limit`) is fetched per tier so ranking picks
+  // the best in a tier, not merely the newest.
+  const candidates: Array<{ user: RawUser; tier: LocationTier }> = [];
   const seen = new Set<string>();
 
   for (const { tier, where: locWhere } of tiers) {
-    if (collected.length >= limit) break;
-    const users = await prisma.user.findMany({
+    if (candidates.length >= limit) break;
+    const rows = await prisma.user.findMany({
       // AND-array so base's OR (positions) and any id filters compose cleanly and
       // no location key can shadow a base invariant.
       where: { AND: [base, locWhere, ...(seen.size ? [{ id: { notIn: [...seen] } }] : [])] },
       select: RESULT_SELECT,
-      take: limit - collected.length,
+      take: RANK_BUFFER,
       orderBy: { createdAt: 'desc' },
     });
-    for (const u of users) {
+    for (const u of rows) {
       if (seen.has(u.id)) continue;
       seen.add(u.id);
-      collected.push({ user: u, tier });
+      candidates.push({ user: u, tier });
     }
   }
 
-  // Attach display totals for just this page (one groupBy over the page's users).
+  if (candidates.length === 0) return { results: [], total: 0, widened: null };
+
+  // Career totals for ranking + display (one groupBy over all candidates).
   const statSport = isStatSport(sport);
-  const totalsByUser = statSport && collected.length
-    ? await careerTotalsForUsers(sport, collected.map((c) => c.user.id))
+  const totalsByUser = statSport
+    ? await careerTotalsForUsers(sport, candidates.map((c) => c.user.id))
     : null;
 
-  const results: RadarResult[] = collected.map(({ user, tier }) => {
+  // Rank by relevance (proximity dominant), then take the page.
+  const page = rankCandidates(candidates, sport, filters, totalsByUser).slice(0, limit);
+
+  const results: RadarResult[] = page.map(({ user, tier }) => {
     let stats: Record<string, number> | undefined;
     if (totalsByUser && statSport) {
       const t = totalsByUser.get(user.id);
@@ -243,7 +327,7 @@ async function searchTiered(filters: RadarFilters): Promise<TierOutcome> {
   });
 
   const widened = results.some((r) => r.approximate)
-    ? { widestTier: collected[collected.length - 1].tier }
+    ? { widestTier: page[page.length - 1].tier }
     : null;
 
   return { results, total: results.length, widened };

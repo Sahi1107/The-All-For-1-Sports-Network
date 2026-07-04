@@ -15,7 +15,11 @@ import {
   hasStatFilter,
   buildRelaxationSteps,
   emptyReasonFor,
+  rankCandidates,
+  rankingMetric,
+  completenessScore,
   type RadarFilters,
+  type RankableCandidate,
 } from './radarSearch';
 
 // ─── Invariant 1: minor-safety (discoverable) is ALWAYS enforced ─────────────
@@ -221,4 +225,64 @@ test('hasStatFilter detects any career-stat threshold', () => {
   assert.equal(hasStatFilter({ minPoints: 10 }), true);
   assert.equal(hasStatFilter({ minWickets: 5 }), true);
   assert.equal(hasStatFilter({ sport: 'BASKETBALL', position: 'guard' }), false);
+});
+
+// ─── Step 7: relevance ranking ───────────────────────────────────────────────
+
+function cand(id: string, tier: RankableCandidate['tier'], over: Partial<RankableCandidate['user']> = {}): RankableCandidate {
+  return {
+    tier,
+    user: { id, verified: false, avatar: null, bio: null, height: null, position: null, achievements: [], createdAt: new Date('2020-01-01'), ...over },
+  };
+}
+const ids = (arr: RankableCandidate[]) => arr.map((c) => c.user.id);
+
+test('ranking keeps proximity DOMINANT — a far superstar never outranks a nearby athlete', () => {
+  const totals = new Map([['A', { totals: { points: 0 } }], ['B', { totals: { points: 999 } }]]);
+  const ranked = rankCandidates([cand('B', 'country'), cand('A', 'city')], 'BASKETBALL', {}, totals);
+  assert.deepEqual(ids(ranked), ['A', 'B']); // city A (0 pts) ranks above country B (999 pts)
+});
+
+test('within a tier, higher headline stat ranks first', () => {
+  const totals = new Map([['A', { totals: { points: 10 } }], ['B', { totals: { points: 30 } }]]);
+  const ranked = rankCandidates([cand('A', 'city'), cand('B', 'city')], 'BASKETBALL', {}, totals);
+  assert.deepEqual(ids(ranked), ['B', 'A']);
+});
+
+test('tiebreaks: verified > completeness > recency', () => {
+  // verified beats unverified (same tier, no stats)
+  assert.deepEqual(ids(rankCandidates([cand('A', 'city'), cand('B', 'city', { verified: true })], 'TENNIS', {}, null)), ['B', 'A']);
+  // both verified → more complete first
+  assert.deepEqual(ids(rankCandidates(
+    [cand('A', 'city', { verified: true }), cand('B', 'city', { verified: true, bio: 'x', avatar: 'y' })], 'TENNIS', {}, null,
+  )), ['B', 'A']);
+  // all equal → newer first
+  assert.deepEqual(ids(rankCandidates(
+    [cand('A', 'city', { createdAt: new Date('2020-01-01') }), cand('B', 'city', { createdAt: new Date('2023-01-01') })], 'TENNIS', {}, null,
+  )), ['B', 'A']);
+});
+
+test('CRITICAL: ranking is a pure reorder — same id set in, same id set out (never adds/drops)', () => {
+  const input = [cand('A', 'country'), cand('B', 'city'), cand('C', 'state'), cand('D', 'city')];
+  const ranked = rankCandidates(input, 'BASKETBALL', {}, null);
+  assert.equal(ranked.length, input.length);
+  assert.deepEqual([...ids(ranked)].sort(), ['A', 'B', 'C', 'D']); // no one added or removed
+  // proximity order overall: city (B,D) → state (C) → country (A)
+  assert.deepEqual(ids(ranked).slice(-2), ['C', 'A']);
+  assert.ok(ids(ranked).slice(0, 2).every((x) => x === 'B' || x === 'D'));
+});
+
+test('rankingMetric: filtered metric wins, else the sport default, null for non-stat', () => {
+  assert.equal(rankingMetric('BASKETBALL', {}), 'points');
+  assert.equal(rankingMetric('BASKETBALL', { minRebounds: 5 }), 'rebounds');
+  assert.equal(rankingMetric('FOOTBALL', {}), 'goals');
+  assert.equal(rankingMetric('CRICKET', { minWickets: 10 }), 'wickets');
+  assert.equal(rankingMetric('TENNIS', {}), null);
+  assert.equal(rankingMetric(undefined, {}), null);
+});
+
+test('completenessScore counts filled key fields (0–5)', () => {
+  assert.equal(completenessScore({ avatar: null, bio: null, height: null, position: null, achievements: [] }), 0);
+  assert.equal(completenessScore({ avatar: 'a', bio: 'b', height: 'h', position: 'p', achievements: ['x'] }), 5);
+  assert.equal(completenessScore({ avatar: 'a', bio: null, height: null, position: 'p', achievements: [] }), 2);
 });
