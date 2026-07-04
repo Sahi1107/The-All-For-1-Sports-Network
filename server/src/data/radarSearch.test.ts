@@ -7,7 +7,13 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAthleteWhere, statThresholds, type RadarFilters } from './radarSearch';
+import {
+  buildAthleteWhere,
+  buildBaseWhere,
+  locationTiers,
+  statThresholds,
+  type RadarFilters,
+} from './radarSearch';
 
 // ─── Invariant 1: minor-safety (discoverable) is ALWAYS enforced ─────────────
 
@@ -90,4 +96,69 @@ test('statThresholds ignores metrics that do not belong to the sport', () => {
   // non-stat sport → no thresholds at all
   assert.deepEqual(statThresholds('TENNIS', { minPoints: 10 }), {});
   assert.deepEqual(statThresholds(undefined, { minRuns: 5 }), {});
+});
+
+// ─── Step 5: nearest-location widening ───────────────────────────────────────
+
+test('city + state widens: city(+state) → state → region → country', () => {
+  const tiers = locationTiers({ city: 'Mumbai', state: 'Maharashtra' });
+  assert.deepEqual(tiers.map((t) => t.tier), ['city', 'state', 'region', 'country']);
+  // narrowest tier constrains BOTH city and state
+  assert.deepEqual((tiers[0].where as any).city,  { equals: 'Mumbai',      mode: 'insensitive' });
+  assert.deepEqual((tiers[0].where as any).state, { equals: 'Maharashtra', mode: 'insensitive' });
+  // Maharashtra resolves to the West macro-region
+  assert.deepEqual((tiers[2].where as any).region, { equals: 'West', mode: 'insensitive' });
+  // widest tier carries no location predicate
+  assert.deepEqual(tiers[3].where, {});
+});
+
+test('state only widens: state → region → country', () => {
+  const tiers = locationTiers({ state: 'Tamil Nadu' });
+  assert.deepEqual(tiers.map((t) => t.tier), ['state', 'region', 'country']);
+  assert.deepEqual((tiers[1].where as any).region, { equals: 'South', mode: 'insensitive' });
+});
+
+test('city only widens straight to country (no state ⇒ no region tier)', () => {
+  const tiers = locationTiers({ city: 'Pune' });
+  assert.deepEqual(tiers.map((t) => t.tier), ['city', 'country']);
+});
+
+test('no location ⇒ a single country tier (no widening concept)', () => {
+  const tiers = locationTiers({ sport: 'FOOTBALL' });
+  assert.deepEqual(tiers.map((t) => t.tier), ['country']);
+  assert.deepEqual(tiers[0].where, {});
+});
+
+// ─── Invariants CANNOT leak through widening ─────────────────────────────────
+
+test('the fixed base carries the invariants (discoverable + sport), location does not', () => {
+  const base = buildBaseWhere({ sport: 'CRICKET', city: 'Chennai', state: 'Tamil Nadu', position: 'bowler', minAge: 16 });
+  assert.equal(base.discoverable, true);
+  assert.equal(base.sport, 'CRICKET');
+  // location is NOT in the base — it belongs to the (widenable) tiers
+  assert.equal((base as any).city, undefined);
+  assert.equal((base as any).state, undefined);
+  assert.equal((base as any).region, undefined);
+});
+
+test('NO location tier can relax sport or minor-safety (only touches location keys)', () => {
+  const forbidden = ['discoverable', 'sport', 'role', 'age', 'OR', 'id', 'position'];
+  const combos: RadarFilters[] = [
+    { city: 'Mumbai', state: 'Maharashtra' },
+    { state: 'Kerala' },
+    { city: 'Delhi' },
+    { sport: 'BASKETBALL', state: 'Goa', minPoints: 20 },
+  ];
+  for (const f of combos) {
+    for (const { where } of locationTiers(f)) {
+      const keys = Object.keys(where);
+      for (const k of forbidden) {
+        assert.ok(!keys.includes(k), `location tier for ${JSON.stringify(f)} must not touch "${k}" (found: ${keys.join(',')})`);
+      }
+      // every key present must be a location column
+      for (const k of keys) {
+        assert.ok(['city', 'state', 'region'].includes(k), `unexpected non-location key "${k}" in a widening tier`);
+      }
+    }
+  }
 });

@@ -11,6 +11,13 @@ const SPORT_EMOJI: Record<string, string> = {
   CRICKET: '🏏',
 };
 
+// Labels for nearest-location widening (city → state → region → country).
+const TIER_LABEL: Record<string, string> = {
+  state: 'same state',
+  region: 'same region',
+  country: 'elsewhere in India',
+};
+
 const EXAMPLE_QUERIES = [
   'Show me left-footed strikers under 19 in Maharashtra with 10+ goals',
   'Find basketball point guards in Delhi between ages 20–25',
@@ -90,6 +97,11 @@ function AthleteCard({ athlete }: { athlete: any }) {
           <p className="flex items-center gap-1 mt-1 text-xs text-foreground/40">
             <MapPin size={10} />
             {locationParts.join(', ')}
+            {athlete.approximate && (
+              <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                ≈ {TIER_LABEL[athlete.matchTier] ?? 'approximate'}
+              </span>
+            )}
           </p>
         )}
 
@@ -263,6 +275,12 @@ export default function ScoutCopilot() {
               </button>
             </div>
             {mutation.data.filters && <FilterSummary filters={mutation.data.filters} />}
+            {mutation.data.widened && (
+              <div className="text-xs text-amber-400/90 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
+                Not enough exact matches — showing the nearest available players
+                {mutation.data.widened.widestTier && <> (widened to {TIER_LABEL[mutation.data.widened.widestTier] ?? mutation.data.widened.widestTier})</>}.
+              </div>
+            )}
           </div>
 
           {/* Athlete list */}

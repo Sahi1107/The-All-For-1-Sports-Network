@@ -158,9 +158,9 @@ router.post(
       // aggregation. Sport and minor-safety (discoverable) are enforced in
       // buildAthleteWhere and never relaxed. Response shape is unchanged so
       // the live Scout Copilot UI keeps working.
-      const { results, total } = await searchAthletes(filters);
+      const { results, total, widened } = await searchAthletes(filters);
 
-      res.json({ results, filters, total });
+      res.json({ results, filters, total, widened });
     } catch (error) {
       console.error('Scout Copilot error:', error);
       res.status(500).json({ error: 'Internal server error' });
