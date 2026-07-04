@@ -163,21 +163,29 @@ export type RadarResult = RawUser & {
   approximate: boolean;
 };
 
-export interface SearchOutcome {
+/** Location-widening search output (Step 5), before graceful-empty relaxation. */
+interface TierOutcome {
   results: RadarResult[];
   total: number;
   /** Present when results were filled from wider tiers than requested. */
   widened: { widestTier: LocationTier } | null;
 }
 
+export interface SearchOutcome extends TierOutcome {
+  /** Soft filters dropped to avoid a dead-end (Step 6); null when none were needed. */
+  relaxed: string[] | null;
+  /** Set only when truly empty — no discoverable athletes even after full relaxation. */
+  emptyReason: 'no-athletes-in-sport' | 'no-athletes' | null;
+}
+
 /**
- * Run the search with nearest-location widening. The base where (sport +
- * minor-safety + position/age + any stat filter) is fixed; we try each location
- * tier narrowest → widest, accumulating de-duplicated results until we reach the
- * limit or run out of tiers. Results from a tier wider than requested are flagged
- * `approximate`. Ordering stays newest-first within a tier (relevance is Step 7).
+ * Location-widening search (Step 5). The base where (sport + minor-safety +
+ * position/age + any stat filter) is fixed; try each location tier narrowest →
+ * widest, accumulating de-duplicated results until the limit. Results from a tier
+ * wider than requested are flagged `approximate`. Wrapped by searchAthletes,
+ * which adds the graceful-empty relaxation ladder (Step 6).
  */
-export async function searchAthletes(filters: RadarFilters): Promise<SearchOutcome> {
+async function searchTiered(filters: RadarFilters): Promise<TierOutcome> {
   const { default: prisma } = await import('../config/db');
   const limit = Math.min(Math.max(filters.limit || 10, 1), 20);
 
@@ -239,4 +247,70 @@ export async function searchAthletes(filters: RadarFilters): Promise<SearchOutco
     : null;
 
   return { results, total: results.length, widened };
+}
+
+// ─── Step 6: graceful-empty "never dead-end" ─────────────────────────────────
+
+/** True when the query carries any career-stat threshold. */
+export function hasStatFilter(f: RadarFilters): boolean {
+  return (
+    f.minGoals !== undefined || f.minAssists !== undefined || f.minPoints !== undefined ||
+    f.minRebounds !== undefined || f.minRuns !== undefined || f.minWickets !== undefined
+  );
+}
+
+/**
+ * The relaxation ladder for graceful-empty. When the full query returns nothing,
+ * drop the SOFT filters progressively — stats → age → position — to surface the
+ * closest available players. Sport and minor-safety are never in this ladder, so
+ * they can't be relaxed. Only filters that were actually present produce a step,
+ * so there are no redundant re-queries.
+ */
+export function buildRelaxationSteps(filters: RadarFilters): Array<{ dropped: string[]; filters: RadarFilters }> {
+  const steps: Array<{ dropped: string[]; filters: RadarFilters }> = [];
+  const dropped: string[] = [];
+  let f: RadarFilters = { ...filters };
+
+  if (hasStatFilter(filters)) {
+    f = { ...f, minGoals: undefined, minAssists: undefined, minPoints: undefined, minRebounds: undefined, minRuns: undefined, minWickets: undefined };
+    dropped.push('stats');
+    steps.push({ dropped: [...dropped], filters: f });
+  }
+  if (filters.minAge !== undefined || filters.maxAge !== undefined) {
+    f = { ...f, minAge: undefined, maxAge: undefined };
+    dropped.push('age');
+    steps.push({ dropped: [...dropped], filters: f });
+  }
+  if (filters.position) {
+    f = { ...f, position: undefined };
+    dropped.push('position');
+    steps.push({ dropped: [...dropped], filters: f });
+  }
+  return steps;
+}
+
+/** Why a search came back truly empty — sport-specific when a sport was named. */
+export function emptyReasonFor(filters: RadarFilters): 'no-athletes-in-sport' | 'no-athletes' {
+  return filters.sport ? 'no-athletes-in-sport' : 'no-athletes';
+}
+
+/**
+ * Public entry point. Runs the location-widening search; if it finds nothing,
+ * walks the relaxation ladder (soft filters only) so Radar never dead-ends,
+ * reporting what it dropped. If even a sport-only search is empty, returns an
+ * honest empty with a reason — you can't invent players of a sport that has none.
+ *
+ * Sport + minor-safety hold throughout: searchTiered always ANDs discoverable:
+ * true and the sport, and the relaxation ladder never touches either.
+ */
+export async function searchAthletes(filters: RadarFilters): Promise<SearchOutcome> {
+  const primary = await searchTiered(filters);
+  if (primary.results.length > 0) return { ...primary, relaxed: null, emptyReason: null };
+
+  for (const step of buildRelaxationSteps(filters)) {
+    const out = await searchTiered(step.filters);
+    if (out.results.length > 0) return { ...out, relaxed: step.dropped, emptyReason: null };
+  }
+
+  return { results: [], total: 0, widened: null, relaxed: null, emptyReason: emptyReasonFor(filters) };
 }

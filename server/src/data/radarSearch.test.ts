@@ -12,6 +12,9 @@ import {
   buildBaseWhere,
   locationTiers,
   statThresholds,
+  hasStatFilter,
+  buildRelaxationSteps,
+  emptyReasonFor,
   type RadarFilters,
 } from './radarSearch';
 
@@ -161,4 +164,61 @@ test('NO location tier can relax sport or minor-safety (only touches location ke
       }
     }
   }
+});
+
+// ─── Step 6: graceful-empty relaxation ───────────────────────────────────────
+
+test('relaxation ladder drops soft filters progressively: stats → age → position', () => {
+  const steps = buildRelaxationSteps({
+    sport: 'BASKETBALL', position: 'point guard', minAge: 16, maxAge: 19, minPoints: 20, city: 'Mumbai', state: 'Maharashtra',
+  });
+  assert.deepEqual(steps.map((s) => s.dropped), [
+    ['stats'],
+    ['stats', 'age'],
+    ['stats', 'age', 'position'],
+  ]);
+  // the last step keeps sport + location, drops all soft filters
+  const last = steps[steps.length - 1].filters;
+  assert.equal(last.position, undefined);
+  assert.equal(last.minAge, undefined);
+  assert.equal(last.minPoints, undefined);
+  assert.equal(last.city, 'Mumbai');   // location is NOT a soft filter here — widening owns it
+  assert.equal(last.state, 'Maharashtra');
+});
+
+test('only filters that are present produce a relaxation step (no redundant re-queries)', () => {
+  assert.deepEqual(buildRelaxationSteps({ sport: 'FOOTBALL', minGoals: 10 }).map((s) => s.dropped), [['stats']]);
+  assert.deepEqual(buildRelaxationSteps({ sport: 'FOOTBALL', position: 'striker' }).map((s) => s.dropped), [['position']]);
+  assert.deepEqual(buildRelaxationSteps({ sport: 'FOOTBALL', maxAge: 21 }).map((s) => s.dropped), [['age']]);
+  // no soft filters → nothing to relax → straight to the truly-empty case
+  assert.deepEqual(buildRelaxationSteps({ sport: 'FOOTBALL', city: 'Delhi' }), []);
+});
+
+test('CRITICAL: no relaxation step ever drops sport or minor-safety', () => {
+  const combos: RadarFilters[] = [
+    { sport: 'BASKETBALL', position: 'point guard', minAge: 16, maxAge: 19, minPoints: 20 },
+    { sport: 'CRICKET', position: 'bowler', minWickets: 10, state: 'Tamil Nadu' },
+    { sport: 'FOOTBALL', minGoals: 10 },
+  ];
+  for (const f of combos) {
+    for (const step of buildRelaxationSteps(f)) {
+      assert.equal(step.filters.sport, f.sport, `sport must survive relaxation for ${JSON.stringify(f)}`);
+      // relaxation only strips stats/age/position keys — never introduces a discoverable/role override
+      assert.equal(step.dropped.includes('sport'), false);
+      assert.equal(step.dropped.includes('minor-safety'), false);
+      assert.equal((step.filters as any).discoverable, undefined); // discoverable is enforced server-side, not a filter
+    }
+  }
+});
+
+test('emptyReason distinguishes "no players of this sport" from a general empty', () => {
+  assert.equal(emptyReasonFor({ sport: 'SWIMMING' }), 'no-athletes-in-sport');
+  assert.equal(emptyReasonFor({ sport: 'BASKETBALL', city: 'Mumbai' }), 'no-athletes-in-sport');
+  assert.equal(emptyReasonFor({ city: 'Delhi' }), 'no-athletes'); // no sport named
+});
+
+test('hasStatFilter detects any career-stat threshold', () => {
+  assert.equal(hasStatFilter({ minPoints: 10 }), true);
+  assert.equal(hasStatFilter({ minWickets: 5 }), true);
+  assert.equal(hasStatFilter({ sport: 'BASKETBALL', position: 'guard' }), false);
 });

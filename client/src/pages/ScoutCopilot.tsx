@@ -281,14 +281,29 @@ export default function ScoutCopilot() {
                 {mutation.data.widened.widestTier && <> (widened to {TIER_LABEL[mutation.data.widened.widestTier] ?? mutation.data.widened.widestTier})</>}.
               </div>
             )}
+            {mutation.data.relaxed?.length > 0 && (
+              <div className="text-xs text-amber-400/90 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
+                No exact matches — showing the closest{' '}
+                {mutation.data.filters?.sport ? `${mutation.data.filters.sport.toLowerCase()} ` : ''}
+                players (relaxed: {mutation.data.relaxed.join(', ')}).
+              </div>
+            )}
           </div>
 
           {/* Athlete list */}
           {mutation.data.results.length === 0 ? (
             <div className="py-12 text-center">
               <User size={32} className="text-foreground/10 mx-auto mb-3" />
-              <p className="text-foreground/40 text-sm">No athletes matched your search.</p>
-              <p className="text-foreground/25 text-xs mt-1">Try broader criteria or a different location.</p>
+              <p className="text-foreground/40 text-sm">
+                {mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
+                  ? `No ${mutation.data.filters.sport.toLowerCase()} players are on the platform yet.`
+                  : 'No athletes found.'}
+              </p>
+              <p className="text-foreground/25 text-xs mt-1">
+                {mutation.data.emptyReason === 'no-athletes-in-sport'
+                  ? 'As more athletes join, they’ll appear here.'
+                  : 'Try broader criteria or a different location.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
