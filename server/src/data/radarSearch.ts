@@ -140,16 +140,19 @@ export function buildAthleteWhere(filters: RadarFilters): Prisma.UserWhereInput 
  */
 export function statThresholds(sport: string | undefined, filters: RadarFilters): Record<string, number> {
   const t: Record<string, number> = {};
+  // Only POSITIVE thresholds constrain — a stray 0 (or negative) from the parser
+  // must never trip the stat path and exclude athletes with no recorded stats.
+  const put = (key: string, val: number | undefined) => { if (val !== undefined && val > 0) t[key] = val; };
   if (sport === 'BASKETBALL') {
-    if (filters.minPoints   !== undefined) t.points   = filters.minPoints;
-    if (filters.minRebounds !== undefined) t.rebounds = filters.minRebounds;
-    if (filters.minAssists  !== undefined) t.assists  = filters.minAssists;
+    put('points', filters.minPoints);
+    put('rebounds', filters.minRebounds);
+    put('assists', filters.minAssists);
   } else if (sport === 'FOOTBALL') {
-    if (filters.minGoals   !== undefined) t.goals   = filters.minGoals;
-    if (filters.minAssists !== undefined) t.assists = filters.minAssists;
+    put('goals', filters.minGoals);
+    put('assists', filters.minAssists);
   } else if (sport === 'CRICKET') {
-    if (filters.minRuns    !== undefined) t.runs    = filters.minRuns;
-    if (filters.minWickets !== undefined) t.wickets = filters.minWickets;
+    put('runs', filters.minRuns);
+    put('wickets', filters.minWickets);
   }
   return t;
 }

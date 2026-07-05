@@ -105,6 +105,12 @@ test('statThresholds ignores metrics that do not belong to the sport', () => {
   assert.deepEqual(statThresholds(undefined, { minRuns: 5 }), {});
 });
 
+test('statThresholds ignores any threshold ≤ 0 (a stray minPoints:0 never filters anyone)', () => {
+  assert.deepEqual(statThresholds('BASKETBALL', { minPoints: 0, minAssists: 0, minRebounds: 0 }), {});
+  assert.deepEqual(statThresholds('CRICKET', { minRuns: -5, minWickets: 10 }), { wickets: 10 });
+  assert.deepEqual(statThresholds('BASKETBALL', { minPoints: 0, minRebounds: 8 }), { rebounds: 8 });
+});
+
 // ─── Step 5: nearest-location widening ───────────────────────────────────────
 
 test('city + state widens: city(+state) → state → region → country', () => {
