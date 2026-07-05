@@ -8,7 +8,7 @@ import { env } from '../config/env';
 
 const router = Router();
 
-// POST /api/scout-copilot
+// POST /api/radar
 router.post(
   '/',
   authenticate,
@@ -17,7 +17,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       if (!env.ANTHROPIC_API_KEY) {
-        res.status(503).json({ error: 'Scout Copilot is not configured — missing ANTHROPIC_API_KEY' });
+        res.status(503).json({ error: 'Radar is not configured — missing ANTHROPIC_API_KEY' });
         return;
       }
 
@@ -45,7 +45,7 @@ router.post(
 
       res.json({ results, filters, total, widened, relaxed, emptyReason });
     } catch (error) {
-      console.error('Scout Copilot error:', error);
+      console.error('Radar error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   },

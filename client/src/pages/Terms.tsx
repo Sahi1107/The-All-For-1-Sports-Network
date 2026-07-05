@@ -78,11 +78,11 @@ const SECTIONS: Section[] = [
           'Your profile data will be visible to all registered users of the Platform',
           'Your profile data — including performance metrics, highlight videos, rankings, and contact information — will be shared with scouts, coaches, agents, and recruiters affiliated with verified tournaments on the Platform',
           'Your personal data may be sold to third-party recruitment platforms, analytics firms, advertising networks, and API consumers as described in the Privacy Policy',
-          'The Scout Copilot AI feature enables coaches, scouts, and agents to discover your profile through natural-language athlete searches',
+          'The Radar AI feature enables coaches, scouts, and agents to discover your profile through natural-language athlete searches',
         ],
       },
       { kind: 'h3', text: '4.2 Coaches, Scouts, and Agents' },
-      { kind: 'p', text: 'These roles grant access to athlete discovery tools including the Explore page, Rankings, Scout Copilot, and direct messaging with athletes and teams. Users in these roles represent and warrant that they are legitimate sports professionals with genuine recruitment or talent development purposes, and agree not to use athlete data for any other purpose.' },
+      { kind: 'p', text: 'These roles grant access to athlete discovery tools including the Explore page, Rankings, Radar, and direct messaging with athletes and teams. Users in these roles represent and warrant that they are legitimate sports professionals with genuine recruitment or talent development purposes, and agree not to use athlete data for any other purpose.' },
       { kind: 'h3', text: '4.3 Teams and Academies' },
       { kind: 'p', text: 'Team/Academy accounts represent club or organisational entities. These accounts may recruit athletes and connect with coaches, scouts, and agents through the Platform. Team accounts are not required to provide date of birth.' },
     ],
@@ -133,17 +133,17 @@ const SECTIONS: Section[] = [
   },
   {
     num: '7',
-    title: 'Scout Copilot',
+    title: 'Radar',
     blocks: [
-      { kind: 'p', text: 'Scout Copilot is an AI-powered talent discovery tool available to Scout, Coach, Agent, and Team accounts. It enables users to query the Athlete database using natural-language prompts (e.g., "Show me left-arm fast bowlers under 19 in Tamil Nadu with 20+ wickets").' },
-      { kind: 'p', text: 'By using Scout Copilot:' },
+      { kind: 'p', text: 'Radar is an AI-powered talent discovery tool available to Scout, Coach, Agent, and Team accounts. It enables users to query the Athlete database using natural-language prompts (e.g., "Show me left-arm fast bowlers under 19 in Tamil Nadu with 20+ wickets").' },
+      { kind: 'p', text: 'By using Radar:' },
       {
         kind: 'ul',
         items: [
           'Users in scouting and recruiting roles represent that they are using the feature solely for legitimate talent evaluation purposes',
-          'Athletes consent that their data — name, age, location, sport, position, height, statistics, and profile content — may be returned as results of Scout Copilot queries and included in reports delivered to tournament operators and third-party partners',
-          'AllFor1 does not guarantee the accuracy, completeness, or timeliness of Scout Copilot results',
-          'Users must not use Scout Copilot output to contact athletes for commercial purposes unrelated to sports recruitment',
+          'Athletes consent that their data — name, age, location, sport, position, height, statistics, and profile content — may be returned as results of Radar queries and included in reports delivered to tournament operators and third-party partners',
+          'AllFor1 does not guarantee the accuracy, completeness, or timeliness of Radar results',
+          'Users must not use Radar output to contact athletes for commercial purposes unrelated to sports recruitment',
         ],
       },
     ],
@@ -226,7 +226,7 @@ const SECTIONS: Section[] = [
     num: '14',
     title: 'Disclaimers',
     blocks: [
-      { kind: 'caps', text: 'THE PLATFORM IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. ALLFOR1 DOES NOT WARRANT THAT THE PLATFORM WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF VIRUSES. ALLFOR1 DOES NOT WARRANT THE ACCURACY OR COMPLETENESS OF ANY DATA, INCLUDING ATHLETE PROFILES, RANKINGS, OR SCOUT COPILOT RESULTS.' },
+      { kind: 'caps', text: 'THE PLATFORM IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. ALLFOR1 DOES NOT WARRANT THAT THE PLATFORM WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF VIRUSES. ALLFOR1 DOES NOT WARRANT THE ACCURACY OR COMPLETENESS OF ANY DATA, INCLUDING ATHLETE PROFILES, RANKINGS, OR RADAR RESULTS.' },
     ],
   },
   {

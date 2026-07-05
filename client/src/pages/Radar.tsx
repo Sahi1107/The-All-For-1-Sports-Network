@@ -157,13 +157,13 @@ function FilterSummary({ filters }: { filters: Record<string, any> }) {
   );
 }
 
-export default function ScoutCopilot() {
+export default function Radar() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
     mutationFn: async (q: string) => {
-      const { data } = await api.post('/scout-copilot', { query: q });
+      const { data } = await api.post('/radar', { query: q });
       return data;
     },
     onError: (err: any) => {
@@ -188,7 +188,7 @@ export default function ScoutCopilot() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <Zap size={18} className="text-primary" />
-          <h1 className="text-xl font-bold">Scout Copilot</h1>
+          <h1 className="text-xl font-bold">Radar</h1>
         </div>
         <p className="text-sm text-foreground/50">
           Search athletes in plain English. Ask anything about sport, position, age, location, or stats.

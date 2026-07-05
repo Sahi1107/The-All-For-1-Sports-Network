@@ -31,7 +31,7 @@ const StatTrackerLauncher = lazy(() => import('./features/statTracker/StatTracke
 const TrackerDashboard     = lazy(() => import('./features/statTracker/TrackerDashboard'));
 const TrackerMatchRoute    = lazy(() => import('./features/statTracker/MatchRoute'));
 const TrackerDemoRoute     = lazy(() => import('./features/statTracker/demo/DemoMatchRoute'));
-const ScoutCopilot   = lazy(() => import('./pages/ScoutCopilot'));
+const Radar          = lazy(() => import('./pages/Radar'));
 const Grow           = lazy(() => import('./pages/Grow'));
 const Settings       = lazy(() => import('./pages/Settings'));
 const SavedPosts     = lazy(() => import('./pages/SavedPosts'));
@@ -132,7 +132,7 @@ function AppRoutes() {
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />
           <Route path="settings"            element={<Settings />} />
           <Route path="saved"               element={<SavedPosts />} />
-          <Route path="scout-copilot"       element={<ScoutCopilot />} />
+          <Route path="radar"               element={<Radar />} />
         </Route>
 
         {/* Forced first-login password change (bulk-provisioned accounts) */}

@@ -67,7 +67,7 @@ const SECTIONS: Section[] = [
           'Comments, reposts, and reactions',
           'Direct messages and chat conversations',
           'Tournament registration details and performance statistics',
-          'Queries submitted through the Scout Copilot talent-discovery feature',
+          'Queries submitted through the Radar talent-discovery feature',
         ],
       },
       { kind: 'h3', text: '2.4 Automatically Collected Technical Data' },
@@ -107,7 +107,7 @@ const SECTIONS: Section[] = [
         items: [
           'Surface athlete profiles to verified scouts, coaches, agents, and talent managers registered on the Platform',
           'Provide structured athlete data — including name, age, sport, position, location, height, performance statistics, rankings, and highlight video content — to recruiters affiliated with verified tournaments hosted on or integrated with the Platform',
-          'Power the Scout Copilot AI talent-discovery feature, which enables natural-language queries against athlete data on behalf of scouts and recruiters',
+          'Power the Radar AI talent-discovery feature, which enables natural-language queries against athlete data on behalf of scouts and recruiters',
           'Generate data exports and reports delivered to verified tournament operators and their affiliated recruitment staff',
         ],
       },

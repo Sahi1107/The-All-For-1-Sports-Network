@@ -5,7 +5,7 @@
  * per match+user) are summed into a player's CAREER totals. Radar filters and
  * ranks on these totals ("20+ career points", "10+ goals").
  *
- * The current Scout Copilot engine sums stats in JS after a `take: 200` fetch,
+ * Radar's pre-rewrite engine summed stats in JS after a `take: 200` fetch,
  * which silently drops any athlete past the 200th row on stat queries. The DB
  * helpers here aggregate with a single `groupBy` across ALL matching rows — no
  * cap, computed database-side — so the eventual engine (Step 4) can rely on
