@@ -60,7 +60,7 @@ export default function MainLayout() {
     { to: '/tournaments',   icon: Trophy,        label: 'Tournaments' },
     { to: '/rankings',      icon: BarChart3,     label: 'Rankings' },
     ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT'
-      ? [{ to: '/scout-copilot', icon: Zap, label: 'Scout Copilot' }]
+      ? [{ to: '/radar', icon: Zap, label: 'Radar' }]
       : []),
     ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT'
       ? [{ to: '/announcements', icon: Megaphone, label: 'Announcements' }]

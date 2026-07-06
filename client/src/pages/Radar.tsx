@@ -11,6 +11,13 @@ const SPORT_EMOJI: Record<string, string> = {
   CRICKET: '🏏',
 };
 
+// Labels for nearest-location widening (city → state → region → country).
+const TIER_LABEL: Record<string, string> = {
+  state: 'same state',
+  region: 'same region',
+  country: 'elsewhere in India',
+};
+
 const EXAMPLE_QUERIES = [
   'Show me left-footed strikers under 19 in Maharashtra with 10+ goals',
   'Find basketball point guards in Delhi between ages 20–25',
@@ -90,6 +97,11 @@ function AthleteCard({ athlete }: { athlete: any }) {
           <p className="flex items-center gap-1 mt-1 text-xs text-foreground/40">
             <MapPin size={10} />
             {locationParts.join(', ')}
+            {athlete.approximate && (
+              <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                ≈ {TIER_LABEL[athlete.matchTier] ?? 'approximate'}
+              </span>
+            )}
           </p>
         )}
 
@@ -145,13 +157,13 @@ function FilterSummary({ filters }: { filters: Record<string, any> }) {
   );
 }
 
-export default function ScoutCopilot() {
+export default function Radar() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
     mutationFn: async (q: string) => {
-      const { data } = await api.post('/scout-copilot', { query: q });
+      const { data } = await api.post('/radar', { query: q });
       return data;
     },
     onError: (err: any) => {
@@ -176,7 +188,7 @@ export default function ScoutCopilot() {
       <div>
         <div className="flex items-center gap-2 mb-1">
           <Zap size={18} className="text-primary" />
-          <h1 className="text-xl font-bold">Scout Copilot</h1>
+          <h1 className="text-xl font-bold">Radar</h1>
         </div>
         <p className="text-sm text-foreground/50">
           Search athletes in plain English. Ask anything about sport, position, age, location, or stats.
@@ -263,14 +275,35 @@ export default function ScoutCopilot() {
               </button>
             </div>
             {mutation.data.filters && <FilterSummary filters={mutation.data.filters} />}
+            {mutation.data.widened && (
+              <div className="text-xs text-amber-400/90 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
+                Not enough exact matches — showing the nearest available players
+                {mutation.data.widened.widestTier && <> (widened to {TIER_LABEL[mutation.data.widened.widestTier] ?? mutation.data.widened.widestTier})</>}.
+              </div>
+            )}
+            {mutation.data.relaxed?.length > 0 && (
+              <div className="text-xs text-amber-400/90 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2">
+                No exact matches — showing the closest{' '}
+                {mutation.data.filters?.sport ? `${mutation.data.filters.sport.toLowerCase()} ` : ''}
+                players (relaxed: {mutation.data.relaxed.join(', ')}).
+              </div>
+            )}
           </div>
 
           {/* Athlete list */}
           {mutation.data.results.length === 0 ? (
             <div className="py-12 text-center">
               <User size={32} className="text-foreground/10 mx-auto mb-3" />
-              <p className="text-foreground/40 text-sm">No athletes matched your search.</p>
-              <p className="text-foreground/25 text-xs mt-1">Try broader criteria or a different location.</p>
+              <p className="text-foreground/40 text-sm">
+                {mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
+                  ? `No ${mutation.data.filters.sport.toLowerCase()} players are on the platform yet.`
+                  : 'No athletes found.'}
+              </p>
+              <p className="text-foreground/25 text-xs mt-1">
+                {mutation.data.emptyReason === 'no-athletes-in-sport'
+                  ? 'As more athletes join, they’ll appear here.'
+                  : 'Try broader criteria or a different location.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
