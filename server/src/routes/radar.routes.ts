@@ -12,7 +12,7 @@ const router = Router();
 router.post(
   '/',
   authenticate,
-  requireRole('SCOUT', 'COACH', 'AGENT'),
+  requireRole('SCOUT', 'COACH', 'AGENT', 'ADMIN'),
   writeLimiter,
   async (req: AuthRequest, res: Response) => {
     try {

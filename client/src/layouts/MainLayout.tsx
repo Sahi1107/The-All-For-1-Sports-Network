@@ -59,7 +59,7 @@ export default function MainLayout() {
     { to: '/grow',          icon: TrendingUp,    label: 'Grow' },
     { to: '/tournaments',   icon: Trophy,        label: 'Tournaments' },
     { to: '/rankings',      icon: BarChart3,     label: 'Rankings' },
-    ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT'
+    ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT' || user?.role === 'ADMIN'
       ? [{ to: '/radar', icon: Zap, label: 'Radar' }]
       : []),
     ...(user?.role === 'COACH' || user?.role === 'SCOUT' || user?.role === 'AGENT'
