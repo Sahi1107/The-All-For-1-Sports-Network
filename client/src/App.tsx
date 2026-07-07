@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import MainLayout from './layouts/MainLayout';
+import BallLoader from './components/BallLoader';
 
 // Lazy-load every page so the initial bundle is tiny
 const Landing        = lazy(() => import('./pages/Landing'));
@@ -49,11 +50,7 @@ const queryClient = new QueryClient({
 });
 
 function PageSpinner() {
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-surface">
-      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  );
+  return <BallLoader fullScreen />;
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {

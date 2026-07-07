@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { applyActionCode } from 'firebase/auth';
@@ -38,7 +39,7 @@ export default function VerifyEmail() {
         <div className="bg-card rounded-2xl p-8 border border-line">
           {status === 'loading' && (
             <>
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <BallLoader />
               <p className="text-gray-custom">Verifying your email…</p>
             </>
           )}

@@ -1,3 +1,4 @@
+import BallLoader from '../../components/BallLoader';
 import { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -82,7 +83,7 @@ export default function StatTrackerLauncher() {
 
       {isLoading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <BallLoader />
         </div>
       ) : tournaments.length === 0 ? (
         <div className="bg-card rounded-xl border border-line p-12 text-center">

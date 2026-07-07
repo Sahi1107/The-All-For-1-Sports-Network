@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -151,7 +152,7 @@ export default function Notifications() {
 
       {isLoading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <BallLoader />
         </div>
       ) : allNotifs.length === 0 ? (
         <div className="bg-card rounded-xl border border-line p-16 text-center">

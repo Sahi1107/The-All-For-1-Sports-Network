@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -283,7 +284,7 @@ function ForwardModal({
         <div className="flex-1 overflow-y-auto p-2">
           {loading ? (
             <div className="flex justify-center py-8">
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <BallLoader />
             </div>
           ) : convs.length === 0 ? (
             <p className="text-sm text-gray-custom text-center py-6">No conversations</p>

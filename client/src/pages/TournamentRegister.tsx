@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -205,7 +206,7 @@ export default function TournamentRegister() {
   if (tournamentLoading) {
     return (
       <div className="flex justify-center py-16">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <BallLoader />
       </div>
     )
   }

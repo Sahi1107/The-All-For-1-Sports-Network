@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -236,7 +237,7 @@ export default function Rankings() {
       {/* Leaderboard */}
       {isLoading ? (
         <div className="flex justify-center py-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <BallLoader />
         </div>
       ) : rankings.length === 0 ? (
         <div className="rounded-2xl border border-line bg-card p-16 text-center">

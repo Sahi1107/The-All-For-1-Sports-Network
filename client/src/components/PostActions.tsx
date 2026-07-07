@@ -1,3 +1,4 @@
+import BallLoader from './BallLoader';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -370,7 +371,7 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
           <div className="px-4 pb-4 border-t border-ink/5 pt-3 space-y-3">
             {loadingComments ? (
               <div className="flex justify-center py-2">
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <BallLoader size="sm" />
               </div>
             ) : comments.length === 0 ? (
               <p className="text-xs text-foreground/30 text-center py-1">No comments yet</p>

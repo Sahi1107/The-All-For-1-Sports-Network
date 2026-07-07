@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
@@ -134,7 +135,7 @@ export default function Announcements() {
       {/* Feed */}
       {isLoading ? (
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <BallLoader />
         </div>
       ) : announcements.length === 0 ? (
         <div className="bg-card rounded-xl border border-line p-16 text-center">

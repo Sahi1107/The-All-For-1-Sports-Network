@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
@@ -686,7 +687,7 @@ export default function Profile() {
   if (isLoading) {
     return (
       <div className="flex justify-center py-20">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <BallLoader />
       </div>
     );
   }
@@ -1450,7 +1451,7 @@ export default function Profile() {
             <div className="overflow-y-auto flex-1 p-2">
               {followListLoading ? (
                 <div className="flex justify-center py-8">
-                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  <BallLoader />
                 </div>
               ) : !followListData?.users?.length ? (
                 <p className="text-center text-foreground/30 text-sm py-8">
