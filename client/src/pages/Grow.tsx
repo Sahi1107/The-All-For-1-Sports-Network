@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
@@ -81,7 +82,7 @@ export default function Grow() {
 
         {reqLoading ? (
           <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <BallLoader />
           </div>
         ) : requests.length === 0 ? (
           <div className="bg-card rounded-xl border border-line p-8 text-center">
@@ -145,7 +146,7 @@ export default function Grow() {
 
         {sugLoading ? (
           <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <BallLoader />
           </div>
         ) : suggestions.length === 0 ? (
           <div className="bg-card rounded-xl border border-line p-8 text-center">

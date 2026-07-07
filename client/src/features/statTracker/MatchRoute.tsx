@@ -1,3 +1,4 @@
+import BallLoader from '../../components/BallLoader';
 import { useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -24,7 +25,7 @@ export default function MatchRoute() {
     return (
       <FullscreenShell backTo={`/admin/stat-tracker/${tournamentId}`}>
         <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <BallLoader />
         </div>
       </FullscreenShell>
     );

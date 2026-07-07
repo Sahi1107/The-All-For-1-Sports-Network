@@ -1,3 +1,4 @@
+import BallLoader from './BallLoader';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
@@ -41,7 +42,7 @@ export default function LikesModal({ postId, onClose }: Props) {
         <div className="overflow-y-auto flex-1 p-2">
           {isLoading ? (
             <div className="flex justify-center py-8">
-              <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <BallLoader />
             </div>
           ) : users.length === 0 ? (
             <p className="text-center text-foreground/30 text-sm py-8">No likes yet</p>

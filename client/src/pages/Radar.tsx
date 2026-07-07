@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import BallLoader from '../components/BallLoader';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { Search, MapPin, User, Zap, ChevronRight, Loader2 } from 'lucide-react';
@@ -246,11 +247,10 @@ export default function Radar() {
         </div>
       )}
 
-      {/* Loading state */}
+      {/* Loading state — shared bouncing-ball loader */}
       {mutation.isPending && (
-        <div className="flex items-center gap-3 py-8 justify-center text-foreground/40 text-sm">
-          <Loader2 size={18} className="animate-spin" />
-          Analysing query and searching…
+        <div className="py-12">
+          <BallLoader size="lg" />
         </div>
       )}
 
@@ -296,7 +296,7 @@ export default function Radar() {
               <User size={32} className="text-foreground/10 mx-auto mb-3" />
               <p className="text-foreground/40 text-sm">
                 {mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
-                  ? `No ${mutation.data.filters.sport.toLowerCase()} players are on the platform yet.`
+                  ? `No ${mutation.data.filters.sport.toLowerCase()} athletes on All For 1 yet.`
                   : 'No athletes found.'}
               </p>
               <p className="text-foreground/25 text-xs mt-1">

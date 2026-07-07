@@ -1,3 +1,4 @@
+import BallLoader from './BallLoader';
 import { useState, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
 import api from '../api/client';
@@ -80,7 +81,7 @@ export default function SharePostModal({ postId, onClose }: Props) {
         <div className="flex-1 overflow-y-auto px-4 pb-4">
           {loading ? (
             <div className="flex justify-center py-10">
-              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <BallLoader />
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-10">

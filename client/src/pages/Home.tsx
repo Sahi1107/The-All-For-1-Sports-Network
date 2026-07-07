@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -196,7 +197,7 @@ export default function Home() {
 
         {isLoading ? (
           <div className="flex justify-center py-16">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <BallLoader />
           </div>
         ) : feedItems.length === 0 ? (
           allItems.length > 0 ? (
@@ -331,7 +332,7 @@ export default function Home() {
             <div ref={sentinelRef} className="h-1" />
             {isFetchingNextPage && (
               <div className="flex justify-center py-8">
-                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <BallLoader />
               </div>
             )}
           </div>

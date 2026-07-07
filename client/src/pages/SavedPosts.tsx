@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
@@ -37,7 +38,7 @@ export default function SavedPosts() {
 
       {isLoading ? (
         <div className="flex justify-center py-12">
-          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <BallLoader />
         </div>
       ) : !data?.posts?.length ? (
         <div className="text-center py-16">

@@ -1,3 +1,4 @@
+import BallLoader from '../components/BallLoader';
 import { useState, useRef } from 'react';
 import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -65,7 +66,7 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
   if (isLoading) {
     return (
       <div className="px-5 py-4 bg-surface/30 flex justify-center">
-        <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <BallLoader />
       </div>
     );
   }
@@ -515,7 +516,7 @@ export default function AdminDashboard() {
 
           {usersLoading ? (
             <div className="flex justify-center py-16">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <BallLoader />
             </div>
           ) : (
             <div className="bg-card rounded-xl border border-line overflow-hidden">
@@ -634,7 +635,7 @@ export default function AdminDashboard() {
         <div>
           {!stats ? (
             <div className="flex justify-center py-16">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <BallLoader />
             </div>
           ) : (
             <div className="space-y-6">
@@ -1118,7 +1119,7 @@ export default function AdminDashboard() {
           {/* Existing tournaments */}
           {tournamentsLoading ? (
             <div className="flex justify-center py-16">
-              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              <BallLoader />
             </div>
           ) : (tournamentsData?.tournaments ?? []).length === 0 ? (
             <div className="bg-card rounded-xl border border-line p-12 text-center">
