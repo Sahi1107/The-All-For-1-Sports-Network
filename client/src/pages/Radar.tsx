@@ -296,7 +296,7 @@ export default function Radar() {
               <User size={32} className="text-foreground/10 mx-auto mb-3" />
               <p className="text-foreground/40 text-sm">
                 {mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
-                  ? `No ${mutation.data.filters.sport.toLowerCase()} players are on the platform yet.`
+                  ? `No ${mutation.data.filters.sport.toLowerCase()} athletes on All For 1 yet.`
                   : 'No athletes found.'}
               </p>
               <p className="text-foreground/25 text-xs mt-1">
