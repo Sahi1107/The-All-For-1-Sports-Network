@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import BallLoader from '../components/BallLoader';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
@@ -158,6 +158,62 @@ function FilterSummary({ filters }: { filters: Record<string, any> }) {
   );
 }
 
+// Athlete quotes shown under the ball while a Radar search runs (Radar only —
+// the shared BallLoader stays text-free). Verified, fixed list.
+const RADAR_QUOTES: ReadonlyArray<{ text: string; author: string }> = [
+  { text: 'Talent without working hard is nothing.', author: 'Cristiano Ronaldo' },
+  { text: 'You have to fight to reach your dream. You have to sacrifice and work hard for it.', author: 'Lionel Messi' },
+  { text: 'The day you think there is no improvement to be made is a sad one.', author: 'Lionel Messi' },
+  { text: 'Self-belief and hard work will always earn you success.', author: 'Virat Kohli' },
+  { text: "If you remain humble, people will give you love and respect even after you've finished with the game.", author: 'Sachin Tendulkar' },
+  { text: "Chase your dreams, but make sure you don't find shortcuts.", author: 'Sachin Tendulkar' },
+  { text: "I don't want any shortcuts. I want my sport to become popular with my hard work and effort.", author: 'Neeraj Chopra' },
+  { text: "I've missed more than 9,000 shots in my career. I've lost almost 300 games. And that is why I succeed.", author: 'Michael Jordan' },
+  { text: 'Talent wins games, but teamwork and intelligence win championships.', author: 'Michael Jordan' },
+  { text: "In the end, it's the effort that matters. The rest is beyond your control.", author: 'Maria Sharapova' },
+  { text: 'Start where you are. Use what you have. Do what you can.', author: 'Arthur Ashe' },
+  { text: 'The ideal attitude is to be physically loose but mentally tight.', author: 'Arthur Ashe' },
+  { text: 'Skill is only developed by hours and hours of work.', author: 'Usain Bolt' },
+  { text: 'Each day I work on getting better, and even the bad days have something good that comes out of them.', author: 'Katie Ledecky' },
+  { text: 'There is something about seeing myself improve that motivates and excites me.', author: 'Jackie Joyner-Kersee' },
+  { text: "The only one who can tell you 'you can't win' is you, and you don't have to listen.", author: 'Jessica Ennis-Hill' },
+  { text: 'We can push ourselves further. We always have more to give.', author: 'Simone Biles' },
+  { text: 'Everything is possible as long as you put your mind to it.', author: 'Michael Phelps' },
+  { text: "You miss 100% of the shots you don't take.", author: 'Wayne Gretzky' },
+  { text: 'Suffer now and live the rest of your life as a champion.', author: 'Muhammad Ali' },
+  { text: "There may be people that have more talent than you, but there's no excuse for anyone to work harder than you do.", author: 'Derek Jeter' },
+  { text: 'Every legend started at the grassroots.', author: 'All For 1' },
+  { text: 'The next star is training right now.', author: 'All For 1' },
+  { text: 'Make your game impossible to ignore.', author: 'All For 1' },
+];
+
+/** Radar loading: bouncing ball + a randomly-rotating athlete quote. */
+function RadarLoadingQuote() {
+  const [idx, setIdx] = useState(() => Math.floor(Math.random() * RADAR_QUOTES.length));
+  useEffect(() => {
+    const id = setInterval(() => {
+      setIdx((cur) => {
+        if (RADAR_QUOTES.length < 2) return cur;
+        let n = cur;
+        while (n === cur) n = Math.floor(Math.random() * RADAR_QUOTES.length);
+        return n;
+      });
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  const q = RADAR_QUOTES[idx];
+  return (
+    <div className="flex flex-col items-center gap-4 py-12" role="status" aria-live="polite">
+      <BallLoader size="lg" />
+      <figure className="max-w-md px-4 text-center">
+        <blockquote className="text-sm italic leading-relaxed text-foreground/70">“{q.text}”</blockquote>
+        <figcaption className="mt-2 text-xs font-semibold text-primary-light">— {q.author}</figcaption>
+      </figure>
+    </div>
+  );
+}
+
 export default function Radar() {
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -247,12 +303,8 @@ export default function Radar() {
         </div>
       )}
 
-      {/* Loading state — shared bouncing-ball loader */}
-      {mutation.isPending && (
-        <div className="py-12">
-          <BallLoader size="lg" />
-        </div>
-      )}
+      {/* Loading state — bouncing ball + rotating athlete quote (Radar only) */}
+      {mutation.isPending && <RadarLoadingQuote />}
 
       {/* Results */}
       {mutation.data && !mutation.isPending && (
