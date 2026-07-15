@@ -210,13 +210,15 @@ router.post('/athletes', writeLimiter, validate({ body: AdminCreateAthleteBody }
   }
 });
 
-// POST /api/admin/teams — create a standalone team (no tournament) with an
-// existing profile as captain. Reuses the team model semantics of the tournament
-// flow: the captain is also written as an ACCEPTED CAPTAIN member (admin
-// authority — no invite/accept handshake).
+// POST /api/admin/teams — create a team with an existing profile as captain.
+// Standalone by default; with a tournamentId the team is created inside that
+// tournament and registered to it (TournamentTeam) in one action. Reuses the
+// team model semantics of the tournament flow: the captain is also written as
+// an ACCEPTED CAPTAIN member (admin authority — no invite/accept handshake).
 router.post('/teams', writeLimiter, validate({ body: AdminCreateTeamBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, sport, captainId } = req.body;
+    const { name, captainId, tournamentId } = req.body;
+    let { sport } = req.body;
 
     // The captain must be an existing user.
     const captain = await prisma.user.findUnique({
@@ -228,29 +230,57 @@ router.post('/teams', writeLimiter, validate({ body: AdminCreateTeamBody }), asy
       return;
     }
 
-    // Guard against accidental exact duplicates (same name + captain, standalone).
+    // A tournament team inherits the tournament's sport.
+    if (tournamentId) {
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { id: true, sport: true },
+      });
+      if (!tournament) {
+        res.status(404).json({ error: 'Tournament not found' });
+        return;
+      }
+      sport = tournament.sport;
+    }
+
+    // Guard against accidental exact duplicates: same name within the tournament,
+    // or same name + captain among standalone teams.
     const dup = await prisma.team.findFirst({
-      where: { tournamentId: null, name, captainId },
+      where: tournamentId
+        ? { tournamentId, name }
+        : { tournamentId: null, name, captainId },
       select: { id: true },
     });
     if (dup) {
-      res.status(409).json({ error: 'A standalone team with that name and captain already exists' });
+      res.status(409).json({
+        error: tournamentId
+          ? 'A team with that name already exists in this tournament'
+          : 'A standalone team with that name and captain already exists',
+      });
       return;
     }
 
     const team = await prisma.$transaction(async (tx) => {
       const t = await tx.team.create({
-        data: { name, sport, captainId, tournamentId: null },
-        select: { id: true, name: true, sport: true, captainId: true, createdAt: true },
+        data: { name, sport, captainId, tournamentId: tournamentId ?? null },
+        select: { id: true, name: true, sport: true, captainId: true, tournamentId: true, createdAt: true },
       });
       // The captain is also a member — CAPTAIN, ACCEPTED (no invite).
       await tx.teamMember.create({
         data: { teamId: t.id, userId: captainId, role: 'CAPTAIN', status: 'ACCEPTED', respondedAt: new Date() },
       });
+      // Register the team into the tournament (idempotent by unique constraint).
+      if (tournamentId) {
+        await tx.tournamentTeam.upsert({
+          where: { tournamentId_teamId: { tournamentId, teamId: t.id } },
+          create: { tournamentId, teamId: t.id },
+          update: {},
+        });
+      }
       return t;
     });
 
-    logger.info('admin.team_created', { actorId: req.user!.userId, teamId: team.id, captainId });
+    logger.info('admin.team_created', { actorId: req.user!.userId, teamId: team.id, captainId, tournamentId: tournamentId ?? null });
     res.status(201).json({ team: { ...team, captain: { id: captain.id, name: captain.name, avatar: captain.avatar } } });
   } catch (error) {
     logger.error('Admin create team error', { error: String(error) });
@@ -428,12 +458,37 @@ router.delete(
 
 // POST /api/admin/teams/compose — create a team + captain + players (+ optional
 // coach) in one action. Existing members are added by id; NEW members are created
-// through provisionAthleteAccount, so minor-safety cannot be bypassed.
+// through provisionAthleteAccount, so minor-safety cannot be bypassed. With a
+// tournamentId the team is created inside that tournament and registered to it.
 router.post('/teams/compose', writeLimiter, validate({ body: AdminComposeTeamBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, sport, captain, players, coach } = req.body as {
-      name: string; sport: Sport; captain: ComposeMemberSpec; players: ComposeMemberSpec[]; coach?: ComposeMemberSpec | null;
+    const { name, captain, players, coach, tournamentId } = req.body as {
+      name: string; captain: ComposeMemberSpec; players: ComposeMemberSpec[];
+      coach?: ComposeMemberSpec | null; tournamentId?: string;
     };
+    let { sport } = req.body as { sport: Sport };
+
+    // A tournament team inherits the tournament's sport; duplicate names within
+    // the same tournament are rejected before any accounts are provisioned.
+    if (tournamentId) {
+      const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        select: { id: true, sport: true },
+      });
+      if (!tournament) {
+        res.status(404).json({ error: 'Tournament not found' });
+        return;
+      }
+      sport = tournament.sport;
+      const dup = await prisma.team.findFirst({
+        where: { tournamentId, name },
+        select: { id: true },
+      });
+      if (dup) {
+        res.status(409).json({ error: 'A team with that name already exists in this tournament' });
+        return;
+      }
+    }
 
     // 1. Resolve every member first (provisioning new accounts through the
     //    enforced path). Done before the DB tx because Firebase Auth can't join it.
@@ -450,15 +505,23 @@ router.post('/teams/compose', writeLimiter, validate({ body: AdminComposeTeamBod
 
     const coachId = coachRes && roleByUser.get(coachRes.userId) === 'COACH' ? coachRes.userId : null;
 
-    // 3. Create the team + all ACCEPTED members transactionally.
+    // 3. Create the team + all ACCEPTED members (+ tournament registration)
+    //    transactionally.
     const team = await prisma.$transaction(async (tx) => {
       const t = await tx.team.create({
-        data: { name, sport, captainId: captainRes.userId, ...(coachId && { coachId }), tournamentId: null },
-        select: { id: true, name: true, sport: true },
+        data: { name, sport, captainId: captainRes.userId, ...(coachId && { coachId }), tournamentId: tournamentId ?? null },
+        select: { id: true, name: true, sport: true, tournamentId: true },
       });
       const now = new Date();
       for (const [userId, role] of roleByUser) {
         await tx.teamMember.create({ data: { teamId: t.id, userId, role, status: 'ACCEPTED', respondedAt: now } });
+      }
+      if (tournamentId) {
+        await tx.tournamentTeam.upsert({
+          where: { tournamentId_teamId: { tournamentId, teamId: t.id } },
+          create: { tournamentId, teamId: t.id },
+          update: {},
+        });
       }
       return t;
     });
@@ -469,6 +532,7 @@ router.post('/teams/compose', writeLimiter, validate({ body: AdminComposeTeamBod
 
     logger.info('admin.team_composed', {
       actorId: req.user!.userId, teamId: team.id, members: roleByUser.size, accountsCreated, guardianConsentPending,
+      tournamentId: tournamentId ?? null,
     });
     res.status(201).json({ team, membersAdded: roleByUser.size, accountsCreated, guardianConsentPending });
   } catch (error: any) {

@@ -79,6 +79,30 @@ const CANONICAL_FIELDS: { key: keyof LongRow; label: string; required: boolean }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, '_');
 
+/** Common header aliases → canonical field keys (applied after norm()). Lets the
+ *  standard player-list template ("Player Name, Date of Birth, Playing Position,
+ *  Email") be recognized without a manual mapping step. */
+const HEADER_ALIASES: Record<string, keyof LongRow> = {
+  player_name:      'name',
+  full_name:        'name',
+  athlete_name:     'name',
+  date_of_birth:    'dob',
+  birth_date:       'dob',
+  birthdate:        'dob',
+  playing_position: 'position',
+  player_email:     'email',
+  email_address:    'email',
+  parent_email:     'guardian_email',
+  team:             'team_name',
+  role:             'member_role',
+};
+
+/** norm() + alias resolution → a canonical field key when one matches. */
+const canon = (h: string): string => {
+  const n = norm(h);
+  return (HEADER_ALIASES as Record<string, string>)[n] ?? n;
+};
+
 /** Detect a wide Google-Form export (one row per team, repeating player blocks). */
 function isWideFormat(headers: string[]): boolean {
   const set = new Set(headers.map((h) => h.trim().toLowerCase()));
@@ -87,8 +111,16 @@ function isWideFormat(headers: string[]): boolean {
 
 /** Detect a normalized long-format CSV (one row per member). */
 function isLongFormat(headers: string[]): boolean {
-  const set = new Set(headers.map(norm));
+  const set = new Set(headers.map(canon));
   return set.has('team_name') && set.has('member_role') && set.has('email');
+}
+
+/** Detect a simple player-list CSV — one row per player, no team columns.
+ *  Matches the standard template: Player Name, Date of Birth, Playing Position,
+ *  Email. Rows are parsed team-less; a team is assigned in the next step. */
+function isPlayerListFormat(headers: string[]): boolean {
+  const set = new Set(headers.map(canon));
+  return set.has('name') && set.has('email') && !set.has('team_name') && !isWideFormat(headers);
 }
 
 /** Unpivot a wide team row into one record per member. */
@@ -129,14 +161,15 @@ function reshapeWide(rows: Record<string, string>[]): LongRow[] {
   return out;
 }
 
-/** Pass-through for a long-format CSV (header keys normalized to canonical). */
+/** Pass-through for a long-format or player-list CSV (header keys resolved to
+ *  canonical via norm() + aliases). Unmapped canonical fields stay ''. */
 function reshapeLong(rows: Record<string, string>[]): LongRow[] {
   return rows.map((r) => {
     const o: any = {};
     for (const f of CANONICAL_FIELDS) o[f.key] = '';
     for (const [k, v] of Object.entries(r)) {
-      const nk = norm(k);
-      if (CANONICAL_FIELDS.some((f) => f.key === nk)) o[nk] = (v ?? '').trim();
+      const ck = canon(k);
+      if (CANONICAL_FIELDS.some((f) => f.key === ck)) o[ck] = (v ?? '').trim();
     }
     return o as LongRow;
   });
@@ -156,7 +189,7 @@ function reshapeMapped(rows: Record<string, string>[], mapping: Record<string, s
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-type Step = 'upload' | 'map' | 'preview' | 'done';
+type Step = 'upload' | 'map' | 'team' | 'preview' | 'done';
 
 export default function BulkProvision() {
   const { tournamentId } = useParams<{ tournamentId?: string }>();
@@ -170,16 +203,20 @@ export default function BulkProvision() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [longRows, setLongRows] = useState<LongRow[]>([]);
+  // Team-assignment step (player-list CSVs have no team column).
+  const [teamName, setTeamName] = useState('');
+  const [captainIdx, setCaptainIdx] = useState(0);
   const [report, setReport] = useState<PreviewReport | null>(null);
   const [result, setResult] = useState<CommitResult | null>(null);
 
   if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
 
-  // Standalone imports don't require a team per row, so team_name / member_role
-  // are optional there (a row with neither becomes a plain profile).
+  // Name + email are always required. In a tournament import, member_role is
+  // required only when a team column is actually mapped — CSVs without a team
+  // column go through the team-assignment step, which sets team + roles itself.
   const isRequired = (key: keyof LongRow) =>
-    standalone ? key === 'name' || key === 'email'
-      : CANONICAL_FIELDS.some((f) => f.key === key && f.required);
+    key === 'name' || key === 'email' ||
+    (!standalone && !!mapping.team_name && key === 'member_role');
 
   const { data: tournamentData } = useQuery({
     queryKey: ['tournament', tournamentId],
@@ -236,11 +273,16 @@ export default function BulkProvision() {
           const rows = reshapeLong(data);
           setLongRows(rows);
           previewMutation.mutate(rows);
+        } else if (isPlayerListFormat(hdrs)) {
+          // Player-list template (no team column) → assign a team next.
+          const rows = reshapeLong(data);
+          setLongRows(rows);
+          enterTeamStep(rows);
         } else {
           // Unknown headers → guess a mapping, then let the admin confirm it.
           const guess: Record<string, string> = {};
           for (const f of CANONICAL_FIELDS) {
-            const hit = hdrs.find((h) => norm(h) === f.key);
+            const hit = hdrs.find((h) => canon(h) === f.key);
             if (hit) guess[f.key] = hit;
           }
           setMapping(guess);
@@ -255,6 +297,40 @@ export default function BulkProvision() {
     const missing = CANONICAL_FIELDS.filter((f) => isRequired(f.key) && !mapping[f.key]);
     if (missing.length) { toast.error(`Map required columns: ${missing.map((m) => m.label).join(', ')}`); return; }
     const rows = reshapeMapped(rawRows, mapping);
+    setLongRows(rows);
+    if (!mapping.team_name) {
+      // No team column in the file → assign a team (and captain) next.
+      enterTeamStep(rows);
+      return;
+    }
+    previewMutation.mutate(rows);
+  }
+
+  /** Open the team-assignment step for team-less rows. Preselects the captain
+   *  if a role column already marks one; otherwise defaults to the first row. */
+  function enterTeamStep(rows: LongRow[]) {
+    setTeamName('');
+    const marked = rows.findIndex((r) => r.member_role.trim().toLowerCase() === 'captain');
+    setCaptainIdx(marked >= 0 ? marked : 0);
+    setStep('team');
+  }
+
+  function submitTeamStep() {
+    const name = teamName.trim();
+    if (!standalone && !name) { toast.error('Enter a team name for this roster'); return; }
+    if (!name) {
+      // Standalone with no team — import every row as an individual profile.
+      previewMutation.mutate(longRows);
+      return;
+    }
+    const rows = longRows.map((r, i) => ({
+      ...r,
+      team_name: name,
+      // Keep an explicit role from the file (e.g. coach); default the rest to
+      // player, with exactly one captain — the one picked here.
+      member_role: i === captainIdx ? 'captain'
+        : (r.member_role.trim().toLowerCase() === 'captain' ? 'player' : r.member_role.trim() || 'player'),
+    }));
     setLongRows(rows);
     previewMutation.mutate(rows);
   }
@@ -335,7 +411,8 @@ export default function BulkProvision() {
             <FileSpreadsheet size={32} className="mx-auto mb-3 text-gray-custom" />
             <p className="text-sm font-medium">Click to upload a CSV</p>
             <p className="text-xs text-gray-custom mt-1">
-              Accepts the Google Form export (one row per team) or the long-format roster template.
+              Accepts a simple player list (Player Name, Date of Birth, Playing Position, Email),
+              the Google Form export, or the multi-team roster template.
             </p>
             {previewMutation.isPending && (
               <p className="text-xs text-primary-light mt-3 flex items-center justify-center gap-1.5">
@@ -343,9 +420,12 @@ export default function BulkProvision() {
               </p>
             )}
           </label>
-          <div className="mt-4 text-center">
+          <div className="mt-4 flex items-center justify-center gap-5 flex-wrap">
+            <a href="/sample_players.csv" download className="text-xs text-primary-light hover:underline inline-flex items-center gap-1.5">
+              <Download size={12} /> sample_players.csv (player list)
+            </a>
             <a href={sampleHref} download className="text-xs text-primary-light hover:underline inline-flex items-center gap-1.5">
-              <Download size={12} /> Download sample_roster.csv (long format)
+              <Download size={12} /> sample_roster.csv (multi-team)
             </a>
           </div>
         </div>
@@ -380,6 +460,63 @@ export default function BulkProvision() {
               Back
             </button>
             <button onClick={submitMapping} disabled={previewMutation.isPending} className="px-5 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm disabled:opacity-50">
+              {previewMutation.isPending ? 'Validating…' : 'Preview'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Team-assignment step (CSV had no team column) ───────── */}
+      {step === 'team' && (
+        <div className="bg-card rounded-xl border border-line p-6">
+          <h2 className="font-semibold mb-1 flex items-center gap-2">
+            <Users size={16} className="text-primary-light" />
+            {standalone ? 'Group into a team (optional)' : 'Create the team for this roster'}
+          </h2>
+          <p className="text-sm text-gray-custom mb-5">
+            {standalone
+              ? `Your file lists ${longRows.length} player(s) with no team column. Give them a team name to create a team, or leave it blank to import them as individual profiles.`
+              : `Your file lists ${longRows.length} player(s) with no team column. Name the team to create and register in this tournament, then pick its captain.`}
+          </p>
+          <div className="space-y-4 max-w-md">
+            <div>
+              <label className="block text-sm font-medium mb-1.5">
+                Team name {!standalone && <span className="text-red-400">*</span>}
+              </label>
+              <input
+                type="text" value={teamName} maxLength={120}
+                onChange={(e) => setTeamName(e.target.value)}
+                placeholder={standalone ? 'Leave blank for individual profiles' : 'e.g. Mumbai Strikers'}
+                className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+              />
+            </div>
+            {teamName.trim() !== '' && (
+              <div>
+                <label className="text-sm font-medium mb-1.5 flex items-center gap-1.5">
+                  <Crown size={13} className="text-amber-400" /> Captain <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={captainIdx}
+                  onChange={(e) => setCaptainIdx(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+                >
+                  {longRows.map((r, i) => (
+                    <option key={i} value={i}>
+                      {r.name || '(no name)'}{r.email ? ` — ${r.email}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-custom mt-1">
+                  Every team needs exactly one captain. Everyone else joins as a player.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-3 mt-6">
+            <button onClick={() => setStep('upload')} className="px-4 py-2 border border-line text-gray-custom hover:text-foreground rounded-lg text-sm">
+              Back
+            </button>
+            <button onClick={submitTeamStep} disabled={previewMutation.isPending} className="px-5 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm disabled:opacity-50">
               {previewMutation.isPending ? 'Validating…' : 'Preview'}
             </button>
           </div>

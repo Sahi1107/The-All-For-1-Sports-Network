@@ -16,7 +16,7 @@ const EMPTY_ATHLETE_FORM = {
   position: '', phone: '', guardianEmail: '',
 };
 
-const EMPTY_TEAM_FORM = { name: '', sport: 'BASKETBALL', captainId: '' };
+const EMPTY_TEAM_FORM = { name: '', sport: 'BASKETBALL', captainId: '', tournamentId: '' };
 
 type CaptainPick = { id: string; name: string; email: string; avatar: string | null };
 
@@ -337,7 +337,9 @@ export default function AdminDashboard() {
   });
 
   const createTeamMutation = useMutation({
-    mutationFn: async (body: { name: string; sport: string; captainId: string }) => {
+    mutationFn: async (form: { name: string; sport: string; captainId: string; tournamentId: string }) => {
+      const body: any = { name: form.name, sport: form.sport, captainId: form.captainId };
+      if (form.tournamentId) body.tournamentId = form.tournamentId;
       const { data } = await api.post('/admin/teams', body);
       return data.team;
     },
@@ -361,7 +363,8 @@ export default function AdminDashboard() {
       const { data } = await api.get('/tournaments?limit=50');
       return data;
     },
-    enabled: tab === 'tournaments',
+    // Also needed on the Teams tab: team create/compose can attach to a tournament.
+    enabled: tab === 'tournaments' || tab === 'new-team',
   });
 
   const createTournamentMutation = useMutation({
@@ -1405,8 +1408,9 @@ export default function AdminDashboard() {
               <h2 className="font-semibold text-lg">Create Team</h2>
             </div>
             <p className="text-sm text-gray-custom mb-6">
-              Creates a standalone team (not tied to a tournament) with an existing profile as captain.
-              The captain is added as an accepted member — no invite is sent. You can register the team to a tournament later.
+              Creates a team with an existing profile as captain. Pick a tournament to create and register
+              the team there in one step, or leave it standalone. The captain is added as an accepted
+              member — no invite is sent.
             </p>
 
             <form
@@ -1424,14 +1428,41 @@ export default function AdminDashboard() {
               </div>
 
               <div>
+                <label className="block text-sm text-gray-custom mb-2">Tournament <span className="text-gray-custom/70">(optional)</span></label>
+                <select
+                  value={teamForm.tournamentId}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    const t = (tournamentsData?.tournaments ?? []).find((x: any) => x.id === id);
+                    // A tournament team inherits the tournament's sport.
+                    setTeamForm((f) => ({ ...f, tournamentId: id, ...(t && { sport: t.sport }) }));
+                  }}
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                >
+                  <option value="">None — standalone team</option>
+                  {(tournamentsData?.tournaments ?? []).map((t: any) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-custom mt-1">
+                  {teamForm.tournamentId
+                    ? 'The team is created in this tournament and registered to it.'
+                    : 'You can register a standalone team to a tournament later.'}
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-sm text-gray-custom mb-2">Sport</label>
                 <select
-                  value={teamForm.sport} required
+                  value={teamForm.sport} required disabled={!!teamForm.tournamentId}
                   onChange={(e) => setTeamForm((f) => ({ ...f, sport: e.target.value }))}
-                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                  className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm disabled:opacity-60"
                 >
                   {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
+                {!!teamForm.tournamentId && (
+                  <p className="text-xs text-gray-custom mt-1">Inherited from the tournament.</p>
+                )}
               </div>
 
               <div>
@@ -1692,9 +1723,19 @@ function ComposeTeamForm() {
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [sport, setSport] = useState('BASKETBALL');
+  const [tournamentId, setTournamentId] = useState('');
   const [captain, setCaptain] = useState<NewMemberDraft>(EMPTY_MEMBER);
   const [players, setPlayers] = useState<NewMemberDraft[]>([]);
   const [coach, setCoach] = useState<{ name: string; email: string }>({ name: '', email: '' });
+
+  // Same key as the Tournaments tab, so the list is shared from the cache.
+  const { data: tournamentsData } = useQuery({
+    queryKey: ['admin-tournaments'],
+    queryFn: async () => {
+      const { data } = await api.get('/tournaments?limit=50');
+      return data;
+    },
+  });
 
   const compose = useMutation({
     mutationFn: async () => {
@@ -1706,6 +1747,7 @@ function ComposeTeamForm() {
       });
       const body: any = { name: name.trim(), sport, captain: clean(captain), players: players.map(clean) };
       if (coach.name.trim() && coach.email.trim()) body.coach = { name: coach.name.trim(), email: coach.email.trim() };
+      if (tournamentId) body.tournamentId = tournamentId;
       const { data } = await api.post('/admin/teams/compose', body);
       return data;
     },
@@ -1714,7 +1756,7 @@ function ComposeTeamForm() {
         `Team "${data.team.name}" created — ${data.membersAdded} member(s), ${data.accountsCreated} new account(s)` +
           (data.guardianConsentPending ? `, ${data.guardianConsentPending} awaiting guardian consent` : ''),
       );
-      setName(''); setCaptain(EMPTY_MEMBER); setPlayers([]); setCoach({ name: '', email: '' });
+      setName(''); setTournamentId(''); setCaptain(EMPTY_MEMBER); setPlayers([]); setCoach({ name: '', email: '' });
       qc.invalidateQueries({ queryKey: ['admin-teams'] });
       qc.invalidateQueries({ queryKey: ['admin-users'] });
     },
@@ -1750,12 +1792,37 @@ function ComposeTeamForm() {
             <div>
               <label className="block text-sm text-gray-custom mb-2">Sport</label>
               <select
-                value={sport} onChange={(e) => setSport(e.target.value)}
-                className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+                value={sport} disabled={!!tournamentId} onChange={(e) => setSport(e.target.value)}
+                className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary disabled:opacity-60"
               >
                 {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-custom mb-2">Tournament <span className="text-gray-custom/70">(optional)</span></label>
+            <select
+              value={tournamentId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setTournamentId(id);
+                // A tournament team inherits the tournament's sport.
+                const t = (tournamentsData?.tournaments ?? []).find((x: any) => x.id === id);
+                if (t) setSport(t.sport);
+              }}
+              className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+            >
+              <option value="">None — standalone team</option>
+              {(tournamentsData?.tournaments ?? []).map((t: any) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-custom mt-1">
+              {tournamentId
+                ? 'The team is created in this tournament and registered to it. Sport is inherited.'
+                : 'You can register a standalone team to a tournament later.'}
+            </p>
           </div>
 
           <div className="border border-line rounded-lg p-4">

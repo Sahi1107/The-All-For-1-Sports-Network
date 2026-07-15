@@ -73,14 +73,17 @@ export const AdminCreateAthleteBody = z.object({
     .transform((s) => (s ? s.toLowerCase().trim() : s)),
 });
 
-// ─── Standalone team creation (admin form) ────────────────────────────────────
+// ─── Admin team creation (standalone or tournament) ───────────────────────────
 // Creates a team with an existing profile as captain. The captain is also added
 // as an ACCEPTED CAPTAIN member (admin authority — no invite handshake).
+// With a tournamentId the team is created inside that tournament and registered
+// to it (TournamentTeam) in the same action; sport is taken from the tournament.
 
 export const AdminCreateTeamBody = z.object({
-  name:      reqStr(120, 'Team name'),
-  sport:     SportEnum,
-  captainId: z.string().uuid('A captain is required'),
+  name:         reqStr(120, 'Team name'),
+  sport:        SportEnum,
+  captainId:    z.string().uuid('A captain is required'),
+  tournamentId: z.string().uuid('Invalid tournament ID').optional(),
 });
 
 // ─── Admin team member management (add / remove / list) ───────────────────────
@@ -135,6 +138,8 @@ export const AdminComposeTeamBody = z.object({
   captain: ComposeMember,
   players: z.array(ComposeMember).max(50, 'Too many players (max 50)').optional().default([]),
   coach:   ComposeMember.optional().nullable(),
+  // Optional: create the team inside a tournament and register it there too.
+  tournamentId: z.string().uuid('Invalid tournament ID').optional(),
 });
 
 // ─── Bulk provisioning (tournament roster import) ─────────────────────────────
