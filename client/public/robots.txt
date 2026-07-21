@@ -1,0 +1,94 @@
+# All For 1 — robots policy
+# Public marketing pages are crawlable; the logged-in app, auth flows, and the
+# API are not. NOTE: robots is a courtesy signal only — private/minor data is
+# enforced at the data + render layer (see Phase 1b), never by this file.
+
+User-agent: *
+Allow: /$
+Allow: /challenges
+Allow: /terms
+Allow: /privacy
+Disallow: /home
+Disallow: /explore
+Disallow: /tournaments
+Disallow: /teams/
+Disallow: /rankings
+Disallow: /announcements
+Disallow: /messages
+Disallow: /notifications
+Disallow: /grow
+Disallow: /profile/
+Disallow: /admin
+Disallow: /radar
+Disallow: /settings
+Disallow: /saved
+Disallow: /login
+Disallow: /register
+Disallow: /verify-email
+Disallow: /verify-pending
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /handover/
+Disallow: /guardian-consent
+Disallow: /force-password-reset
+Disallow: /api/
+
+# ── AI / answer-engine crawlers: explicitly welcomed to public content (AEO),
+#    but kept out of the app/auth/API, same as everyone else. ──
+User-agent: GPTBot
+Allow: /$
+Allow: /challenges
+Allow: /terms
+Allow: /privacy
+Disallow: /home
+Disallow: /explore
+Disallow: /profile/
+Disallow: /messages
+Disallow: /admin
+Disallow: /radar
+Disallow: /settings
+Disallow: /api/
+
+User-agent: ClaudeBot
+Allow: /$
+Allow: /challenges
+Allow: /terms
+Allow: /privacy
+Disallow: /home
+Disallow: /explore
+Disallow: /profile/
+Disallow: /messages
+Disallow: /admin
+Disallow: /radar
+Disallow: /settings
+Disallow: /api/
+
+User-agent: PerplexityBot
+Allow: /$
+Allow: /challenges
+Allow: /terms
+Allow: /privacy
+Disallow: /home
+Disallow: /explore
+Disallow: /profile/
+Disallow: /messages
+Disallow: /admin
+Disallow: /radar
+Disallow: /settings
+Disallow: /api/
+
+User-agent: Google-Extended
+Allow: /$
+Allow: /challenges
+Allow: /terms
+Allow: /privacy
+Disallow: /home
+Disallow: /explore
+Disallow: /profile/
+Disallow: /messages
+Disallow: /admin
+Disallow: /radar
+Disallow: /settings
+Disallow: /api/
+
+Sitemap: https://allfor1.pro/sitemap.xml

@@ -1,6 +1,8 @@
 {
   "hosting": {
     "public": "client/dist",
+    "cleanUrls": true,
+    "trailingSlash": false,
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -29,6 +31,18 @@
             "key": "Cache-Control",
             "value": "no-cache, no-store, must-revalidate"
           }
+        ]
+      },
+      {
+        "source": "/@(home|explore|tournaments|rankings|announcements|messages|notifications|grow|admin|radar|settings|saved|profile|teams|login|register|verify-email|verify-pending|forgot-password|reset-password|handover|guardian-consent|force-password-reset)",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex" }
+        ]
+      },
+      {
+        "source": "/@(home|explore|tournaments|rankings|announcements|messages|notifications|grow|admin|radar|settings|saved|profile|teams|login|register|verify-email|verify-pending|forgot-password|reset-password|handover|guardian-consent|force-password-reset)/**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex" }
         ]
       }
     ]
