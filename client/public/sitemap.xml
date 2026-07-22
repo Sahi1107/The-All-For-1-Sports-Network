@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sitemap index. Phase 1b adds sitemap-athletes.xml (discoverable=true, 13+ only). -->
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://allfor1.pro/sitemap-marketing.xml</loc>
+  </sitemap>
+</sitemapindex>

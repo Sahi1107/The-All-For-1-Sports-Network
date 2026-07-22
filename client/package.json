@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && cp public/_redirects dist/_redirects",
+    "build": "tsc -b && vite build && cp public/_redirects dist/_redirects && npm run prerender",
+    "prerender": "tsx prerender/prerender.ts",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -47,6 +48,7 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.19.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.0.0"

@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
 import { LegalDocContent } from '../pages/legal/LegalDoc';
-import { TERMS_DOC } from '../pages/Terms';
-import { PRIVACY_DOC } from '../pages/Privacy';
+import { TERMS_DOC } from '../content/terms';
+import { PRIVACY_DOC } from '../content/privacy';
 
 interface Props {
   /** Which legal document to show. */
