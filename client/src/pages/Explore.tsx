@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, MapPin, Filter } from 'lucide-react';
 import api from '../api/client';
-import { useAuth } from '../contexts/AuthContext';
+import { VerifiedTick } from '../components/feed/FeedBits';
 import { SPORTS as ALL_SPORTS } from '../data/sports';
 
 const ROLES = ['ALL', 'ATHLETE', 'COACH', 'SCOUT', 'AGENT'] as const;
@@ -14,7 +14,6 @@ const SPORTS = [
 ] as const;
 
 export default function Explore() {
-  const { user: currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [role, setRole] = useState<string>('ALL');
@@ -111,7 +110,7 @@ export default function Explore() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold truncate">{user.name}</h3>
-                      {user.verified && currentUser?.role === 'ADMIN' && <span className="text-accent text-xs">Verified</span>}
+                      {user.verified && <VerifiedTick size={14} />}
                     </div>
                     <p className="text-sm text-gray-custom capitalize">
                       {user.role?.toLowerCase()} · {user.sport?.toLowerCase()}

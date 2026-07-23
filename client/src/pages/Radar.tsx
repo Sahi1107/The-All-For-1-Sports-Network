@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import BallLoader from '../components/BallLoader';
+import { VerifiedTick } from '../components/feed/FeedBits';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { Search, MapPin, User, Zap, ChevronRight, Loader2 } from 'lucide-react';
@@ -66,9 +67,12 @@ function AthleteCard({ athlete }: { athlete: any }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <p className="font-semibold truncate group-hover:text-primary-light transition-colors">
-            {athlete.name}
-          </p>
+          <span className="flex items-center gap-1 min-w-0">
+            <p className="font-semibold truncate group-hover:text-primary-light transition-colors">
+              {athlete.name}
+            </p>
+            {athlete.verified && <VerifiedTick size={14} />}
+          </span>
           <ChevronRight size={14} className="shrink-0 text-foreground/30 group-hover:text-primary transition-colors" />
         </div>
 

@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2, Award } from 'lucide-react';
 import ShareProfileModal from '../components/ShareProfileModal';
+import { VerifiedTick } from '../components/feed/FeedBits';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -801,9 +802,7 @@ export default function Profile() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-2xl font-bold">{profile.name}</h1>
-                  {profile.verified && me?.role === 'ADMIN' && (
-                    <span className="text-accent text-xs bg-accent/10 px-2 py-0.5 rounded-full">Verified</span>
-                  )}
+                  {profile.verified && <VerifiedTick size={18} />}
                 </div>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[profile.role] || 'bg-elevated text-gray-custom'}`}>

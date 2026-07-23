@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
-import { BadgeCheck, TrendingUp } from 'lucide-react';
+import { TrendingUp } from 'lucide-react';
+import { VerifiedTick } from '../components/feed/FeedBits';
 import { SPORTS, ATHLETICS_EVENTS } from '../data/sports';
 import SportBackdrop from '../components/SportBackdrop';
 
@@ -114,7 +115,7 @@ function PerformanceCard({ r, max }: { r: any; max: number }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="truncate font-semibold text-foreground">{u.name ?? 'Unknown'}</p>
-            {u.verified && <BadgeCheck size={15} className="shrink-0 text-primary" />}
+            {u.verified && <VerifiedTick />}
             {u.position && (
               <span className="shrink-0 rounded bg-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-custom">
                 {u.position}
