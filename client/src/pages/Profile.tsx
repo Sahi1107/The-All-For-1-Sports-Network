@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
 import PostDetailModal from '../components/PostDetailModal';
+import PerformanceCard from '../components/PerformanceCard';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -1072,6 +1073,7 @@ export default function Profile() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Posts & Highlights */}
         <div className="lg:col-span-2 space-y-4">
+          {profile.role === 'ATHLETE' && <PerformanceCard id={profile.id} />}
           {/* Highlights */}
           <div className="bg-card rounded-xl border border-line p-5">
             <div className="flex items-center justify-between mb-4">

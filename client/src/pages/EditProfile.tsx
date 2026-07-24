@@ -1,9 +1,9 @@
-import { useState, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState, useRef, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Camera, Save, ArrowLeft } from 'lucide-react';
+import { Camera, Save, ArrowLeft, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageCropModal from '../components/ImageCropModal';
 import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
@@ -78,6 +78,15 @@ export default function EditProfile() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [cropImage, setCropImage] = useState<string | null>(null);
 
+  // Achievements (String[]) — seed from the current profile, edit as a list.
+  const [achievements, setAchievements] = useState<string[]>([]);
+  const { data: achSeed } = useQuery({
+    queryKey: ['edit-achievements', user?.id],
+    queryFn: async () => (await api.get(`/users/${user!.id}`)).data.user.achievements ?? [],
+    enabled: !!user?.id,
+  });
+  useEffect(() => { if (Array.isArray(achSeed)) setAchievements(achSeed); }, [achSeed]);
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -108,6 +117,8 @@ export default function EditProfile() {
         : '';
       if (location) formData.append('location', location);
       if (avatarFile) formData.append('avatar', avatarFile);
+      // Achievements is a String[] column — send as a JSON array string.
+      formData.append('achievements', JSON.stringify(achievements.map((a) => a.trim()).filter(Boolean)));
       const { data } = await api.put('/users/profile', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -304,6 +315,44 @@ export default function EditProfile() {
             </div>
           </div>
         </div>
+
+        {/* Achievements — self-reported list, shown on the profile */}
+        {user?.role === 'ATHLETE' && (
+          <div>
+            <h3 className="text-sm font-semibold text-foreground/80 mb-1">Achievements</h3>
+            <p className="text-xs text-gray-custom mb-3">Titles, selections, and milestones. Shown on your profile as self-reported.</p>
+            <div className="space-y-2">
+              {achievements.map((a, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    value={a}
+                    maxLength={200}
+                    onChange={(e) => setAchievements((list) => list.map((x, j) => (j === i ? e.target.value : x)))}
+                    placeholder="e.g. State U-19 Champion, 2025"
+                    className="flex-1 bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAchievements((list) => list.filter((_, j) => j !== i))}
+                    aria-label="Remove achievement"
+                    className="px-3 rounded-lg border border-line text-gray-custom hover:text-red-400 hover:border-red-400/40 transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {achievements.length < 50 && (
+              <button
+                type="button"
+                onClick={() => setAchievements((list) => [...list, ''])}
+                className="mt-2 flex items-center gap-1.5 text-sm text-primary hover:text-primary-light transition-colors"
+              >
+                <Plus size={14} /> Add achievement
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Sport & Role (read-only) */}
         <div className={`grid gap-4 ${user?.role === 'ADMIN' ? 'grid-cols-1' : 'grid-cols-2'}`}>

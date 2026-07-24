@@ -10,6 +10,7 @@ import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storag
 import { deleteUserCompletely } from '../services/userDeletion';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
+import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser } from '../data/careerStats';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -306,6 +307,117 @@ router.delete('/account', authenticate, writeLimiter, async (req: AuthRequest, r
 });
 
 // GET /api/users/:id — get user profile
+// GET /:id/performance-card — Performance Card data for the profile. Same
+// discoverable/404 gate as GET /:id. Career stats + per-tournament "receipts"
+// (stat sports), PLUS an all-sports competition record (teams → tournaments →
+// match counts), rankings, endorsements, achievements — so a non-stat athlete
+// still gets a full, credible card rather than an empty one.
+router.get('/:id/performance-card', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const isSelf = req.user!.userId === id;
+
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, sport: true, discoverable: true, achievements: true, athleticsEvents: true },
+    });
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!isSelf && user.discoverable === false) { res.status(404).json({ error: 'User not found' }); return; }
+
+    const sport = user.sport;
+    const statSport = isStatSport(sport);
+
+    // ── Career totals + per-tournament receipts (stat sports only) ──
+    let career: { matches: number; totals: Record<string, number>; averages: Record<string, number> } | null = null;
+    let tournaments: Array<{ id: string; name: string; startDate: Date; matches: number; totals: Record<string, number> }> = [];
+    if (statSport && sport) {
+      const t = (await careerTotalsForUsers(sport, [id])).get(id);
+      if (t && t.matches > 0) {
+        const averages: Record<string, number> = {};
+        for (const [k, v] of Object.entries(t.totals)) averages[k] = t.matches ? Math.round((v / t.matches) * 10) / 10 : 0;
+        career = { matches: t.matches, totals: t.totals, averages };
+
+        const perTourn = await tournamentTotalsForUser(sport, id);
+        if (perTourn.length) {
+          const tourns = await prisma.tournament.findMany({
+            where: { id: { in: perTourn.map((p) => p.tournamentId) } },
+            select: { id: true, name: true, startDate: true },
+          });
+          const byId = new Map(tourns.map((tt) => [tt.id, tt]));
+          tournaments = perTourn
+            .map((p) => { const tt = byId.get(p.tournamentId); return tt ? { id: tt.id, name: tt.name, startDate: tt.startDate, matches: p.matches, totals: p.totals } : null; })
+            .filter((x): x is NonNullable<typeof x> => x !== null)
+            .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+        }
+      }
+    }
+
+    // ── Competition record (all sports): ACCEPTED teams → tournaments + matches ──
+    const memberships = await prisma.teamMember.findMany({
+      where: { userId: id, status: 'ACCEPTED' },
+      select: {
+        team: {
+          select: {
+            id: true, name: true,
+            tournament: { select: { id: true, name: true, startDate: true } },
+            tournamentRegistrations: { select: { tournament: { select: { id: true, name: true, startDate: true } } } },
+          },
+        },
+      },
+    });
+    type Tourn = { id: string; name: string; startDate: Date };
+    const pairs: Array<{ teamId: string; teamName: string; tournament: Tourn }> = [];
+    const seenPair = new Set<string>();
+    for (const m of memberships) {
+      const team = m.team;
+      if (!team) continue;
+      const tourns: Tourn[] = [];
+      if (team.tournament) tourns.push(team.tournament);
+      for (const reg of team.tournamentRegistrations) if (reg.tournament) tourns.push(reg.tournament);
+      for (const tr of tourns) {
+        const key = `${team.id}:${tr.id}`;
+        if (seenPair.has(key)) continue;
+        seenPair.add(key);
+        pairs.push({ teamId: team.id, teamName: team.name, tournament: tr });
+      }
+    }
+    const teamIds = [...new Set(pairs.map((p) => p.teamId))];
+    const tournIds = [...new Set(pairs.map((p) => p.tournament.id))];
+    let matchRows: Array<{ tournamentId: string; homeTeamId: string; awayTeamId: string }> = [];
+    if (teamIds.length && tournIds.length) {
+      matchRows = await prisma.match.findMany({
+        where: { tournamentId: { in: tournIds }, OR: [{ homeTeamId: { in: teamIds } }, { awayTeamId: { in: teamIds } }] },
+        select: { tournamentId: true, homeTeamId: true, awayTeamId: true },
+      });
+    }
+    const competition = pairs
+      .map((p) => ({
+        tournament: p.tournament,
+        team: { id: p.teamId, name: p.teamName },
+        teamMatches: matchRows.filter((r) => r.tournamentId === p.tournament.id && (r.homeTeamId === p.teamId || r.awayTeamId === p.teamId)).length,
+      }))
+      .sort((a, b) => b.tournament.startDate.getTime() - a.tournament.startDate.getTime());
+
+    // ── Rankings + endorsements ──
+    const rankings = await prisma.playerRanking.findMany({
+      where: { userId: id },
+      orderBy: { calculatedAt: 'desc' }, take: 10,
+      select: { rank: true, score: true, category: true, tournament: { select: { id: true, name: true } } },
+    });
+    const endorsementCount = await prisma.endorsement.count({ where: { athleteId: id } });
+
+    res.json({
+      sport, isStatSport: statSport,
+      career, tournaments, competition, rankings, endorsementCount,
+      achievements: user.achievements ?? [],
+      athleticsEvents: user.athleticsEvents ?? [],
+    });
+  } catch (error) {
+    console.error('Get performance card error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const isSelf = req.user!.userId === req.params.id as string;
@@ -433,6 +545,19 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
   try {
     const { name, bio, location, age, height, position, gender, achievements, phone, contactEmail } = req.body;
 
+    // achievements is a String[] column; the client sends it as a JSON array
+    // string. Parse + sanitise (trim, drop empties, cap count/length). A
+    // malformed value leaves it undefined so we never wipe existing data.
+    let achievementsArr: string[] | undefined;
+    if (typeof achievements === 'string' && achievements.trim() !== '') {
+      try {
+        const parsed = JSON.parse(achievements);
+        if (Array.isArray(parsed)) {
+          achievementsArr = parsed.map((x) => String(x).trim()).filter((x) => x.length > 0).slice(0, 50).map((x) => x.slice(0, 200));
+        }
+      } catch { /* malformed — ignore */ }
+    }
+
     let avatarUrl: string | undefined;
     if (req.file) {
       if (!validateImageBytes(req.file, res)) return;
@@ -449,7 +574,7 @@ router.put('/profile', authenticate, writeLimiter, uploadImage.single('avatar'),
         ...(height !== undefined && { height }),
         ...(position !== undefined && { position }),
         ...(gender !== undefined && { gender }),
-        ...(achievements !== undefined && { achievements }),
+        ...(achievementsArr !== undefined && { achievements: achievementsArr }),
         ...(phone !== undefined && { phone }),
         ...(contactEmail !== undefined && { contactEmail }),
         ...(avatarUrl !== undefined && { avatar: avatarUrl }),
