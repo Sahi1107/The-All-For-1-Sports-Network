@@ -4,9 +4,11 @@ import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight, Flag } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight, Flag, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
+import RosterEditorModal from '../features/tournaments/RosterEditorModal';
+import AddTeamModal from '../features/tournaments/AddTeamModal';
 
 type Tab = 'users' | 'stats' | 'reports' | 'new-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
 
@@ -142,6 +144,8 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
       return data;
     },
   });
+  const [editTeam, setEditTeam] = useState<any | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   if (isLoading) {
     return (
@@ -152,16 +156,24 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
   }
 
   const registrations: any[] = data?.registrations ?? [];
-  if (registrations.length === 0) {
-    return (
-      <div className="px-5 py-4 bg-surface/30 text-xs text-gray-custom">
-        No teams have registered yet.
-      </div>
-    );
-  }
+  const sport: string | undefined = data?.tournament?.sport;
 
   return (
     <div className="px-5 py-4 bg-surface/30 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-gray-custom">{registrations.length} team{registrations.length === 1 ? '' : 's'}</span>
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"
+        >
+          <UserPlus size={13} /> Add team
+        </button>
+      </div>
+
+      {registrations.length === 0 && (
+        <p className="text-xs text-gray-custom">No teams yet — add one, import a roster CSV, or share the registration link.</p>
+      )}
+
       {registrations.map((r: any) => {
         const { team, summary } = r;
         return (
@@ -201,6 +213,13 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
               )}
             </div>
 
+            {summary.pending > 0 && (
+              <div className="flex items-start gap-1.5 text-[11px] text-amber-300 mb-3">
+                <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                <span>{summary.pending} player{summary.pending > 1 ? 's' : ''} haven't accepted — excluded from the draw until they do (or add them directly).</span>
+              </div>
+            )}
+
             <div className="border-t border-line pt-3 space-y-1.5">
               {team.members.map((m: any) => (
                 <div key={m.id} className="flex items-center justify-between gap-2 text-xs">
@@ -223,9 +242,18 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
                 </div>
               ))}
             </div>
+
+            <div className="flex justify-end pt-3">
+              <button onClick={() => setEditTeam(team)} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors">
+                <UserPlus size={13} /> Edit roster
+              </button>
+            </div>
           </div>
         );
       })}
+
+      {editTeam && <RosterEditorModal tournamentId={tournamentId} team={editTeam} sport={sport} onClose={() => setEditTeam(null)} />}
+      {showAdd && <AddTeamModal tournamentId={tournamentId} sport={sport} onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

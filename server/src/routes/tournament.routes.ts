@@ -885,6 +885,92 @@ router.get('/:id/registrations', authenticate, requireRole('ADMIN'), async (req:
   }
 });
 
+// ─── Admin roster editing ───────────────────────────────────────────────────
+// POST /api/tournaments/:id/teams — admin: create a team with an all-ACCEPTED
+// roster (manual late entry, no CSV/self-serve accept dance).
+router.post('/:id/teams', authenticate, requireRole('ADMIN'), writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const { teamName, captainUserId, playerUserIds, coachUserId } = req.body as {
+      teamName?: string; captainUserId?: string; playerUserIds?: string[]; coachUserId?: string;
+    };
+    if (!teamName?.trim() || !captainUserId || !Array.isArray(playerUserIds) || playerUserIds.length === 0) {
+      res.status(400).json({ error: 'Team name, captain and at least one player are required' });
+      return;
+    }
+    if (!playerUserIds.includes(captainUserId)) {
+      res.status(400).json({ error: 'The captain must be one of the players' });
+      return;
+    }
+    const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { id: true, sport: true } });
+    if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
+
+    const ids = Array.from(new Set([...playerUserIds, ...(coachUserId ? [coachUserId] : [])]));
+    const found = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true } });
+    if (found.length !== ids.length) { res.status(400).json({ error: 'One or more selected users were not found' }); return; }
+
+    const now = new Date();
+    const team = await prisma.$transaction(async (tx) => {
+      const team = await tx.team.create({
+        data: { name: teamName.trim(), sport: tournament.sport, captainId: captainUserId, coachId: coachUserId ?? null, tournamentId },
+      });
+      await tx.teamMember.createMany({
+        data: playerUserIds.map((uid) => ({
+          teamId: team.id, userId: uid, role: uid === captainUserId ? 'CAPTAIN' as const : 'PLAYER' as const,
+          status: 'ACCEPTED' as const, respondedAt: now,
+        })),
+      });
+      if (coachUserId && !playerUserIds.includes(coachUserId)) {
+        await tx.teamMember.create({ data: { teamId: team.id, userId: coachUserId, role: 'COACH', status: 'ACCEPTED', respondedAt: now } });
+      }
+      await tx.tournamentTeam.create({ data: { tournamentId, teamId: team.id } });
+      return team;
+    });
+    res.status(201).json({ team });
+  } catch (error) {
+    console.error('Admin create team error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/tournaments/:id/teams/:teamId/members — admin: add a member (ACCEPTED).
+router.post('/:id/teams/:teamId/members', authenticate, requireRole('ADMIN'), writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId, role } = req.body as { userId?: string; role?: string };
+    if (!userId) { res.status(400).json({ error: 'userId is required' }); return; }
+    const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
+    if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (!user) { res.status(400).json({ error: 'User not found' }); return; }
+    await prisma.teamMember.upsert({
+      where: { teamId_userId: { teamId: team.id, userId } },
+      create: { teamId: team.id, userId, role: role === 'COACH' ? 'COACH' : 'PLAYER', status: 'ACCEPTED', respondedAt: new Date() },
+      update: { status: 'ACCEPTED', respondedAt: new Date() },
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Admin add member error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/tournaments/:id/teams/:teamId/members/:userId — admin: remove a member.
+router.delete('/:id/teams/:teamId/members/:userId', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
+    if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+    if (team.captainId === req.params.userId) {
+      res.status(400).json({ error: 'Reassign the captain before removing them' });
+      return;
+    }
+    await prisma.teamMember.deleteMany({ where: { teamId: team.id, userId: req.params.userId as string } });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Admin remove member error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/tournaments/:id/matches — create match (admin)
 router.post('/:id/matches', authenticate, requireRole('ADMIN'), validate({ body: CreateMatchBody }), async (req: AuthRequest, res: Response) => {
   try {
