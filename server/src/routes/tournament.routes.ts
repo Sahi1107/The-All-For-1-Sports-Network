@@ -465,17 +465,26 @@ const LEADER_CATS: Record<StatSport, { key: string; label: string; fields: strin
     { key: 'goals',   label: 'Top scorers',        fields: ['goals'] },
     { key: 'assists', label: 'Assists',            fields: ['assists'] },
     { key: 'ga',      label: 'Goal contributions', fields: ['goals', 'assists'] },
+    { key: 'shots',   label: 'Shots',              fields: ['shots'] },
+    { key: 'passes',  label: 'Passes',             fields: ['passes'] },
+    { key: 'tackles', label: 'Tackles',            fields: ['tackles'] },
     { key: 'saves',   label: 'Goalkeeper saves',   fields: ['saves'] },
   ],
   BASKETBALL: [
-    { key: 'points',   label: 'Points',   fields: ['points'] },
-    { key: 'rebounds', label: 'Rebounds', fields: ['rebounds'] },
-    { key: 'assists',  label: 'Assists',  fields: ['assists'] },
-    { key: 'steals',   label: 'Steals',   fields: ['steals'] },
+    { key: 'points',        label: 'Points',         fields: ['points'] },
+    { key: 'rebounds',      label: 'Rebounds',       fields: ['rebounds'] },
+    { key: 'assists',       label: 'Assists',        fields: ['assists'] },
+    { key: 'steals',        label: 'Steals',         fields: ['steals'] },
+    { key: 'blocks',        label: 'Blocks',         fields: ['blocks'] },
+    { key: 'threePointers', label: 'Three-pointers', fields: ['threePointers'] },
+    { key: 'freeThrows',    label: 'Free throws',    fields: ['freeThrows'] },
   ],
   CRICKET: [
     { key: 'runs',    label: 'Runs',    fields: ['runs'] },
     { key: 'wickets', label: 'Wickets', fields: ['wickets'] },
+    { key: 'fours',   label: 'Fours',   fields: ['fours'] },
+    { key: 'sixes',   label: 'Sixes',   fields: ['sixes'] },
+    { key: 'catches', label: 'Catches', fields: ['catches'] },
   ],
 };
 
@@ -545,7 +554,7 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
           }))
           .filter((r) => r.value > 0)
           .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
-          .slice(0, 5),
+          .slice(0, 10),
       }))
       .filter((c) => c.rows.length > 0);
 

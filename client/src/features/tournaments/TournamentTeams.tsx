@@ -1,11 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
 import { Users, Crown, ChevronDown, Shield } from 'lucide-react';
-import StatLeaders from '../statTracker/components/StatLeaders';
-import type { LeaderCategory } from '../statTracker/leaders';
 
 // ── stat presentation per sport ──────────────────────────────────────────────
 // `head` = compact stats shown on the collapsed player row; `labels` = short
@@ -47,7 +45,7 @@ function fmt(v: number) {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
-export default function TournamentTeams({ tournamentId }: { tournamentId: string }) {
+export default function TournamentTeams({ tournamentId, focusTeamId }: { tournamentId: string; focusTeamId?: string | null }) {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useQuery<TeamsResponse>({
     queryKey: ['tournament-teams', tournamentId],
@@ -55,12 +53,18 @@ export default function TournamentTeams({ tournamentId }: { tournamentId: string
   });
 
   const [openPlayer, setOpenPlayer] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState<string | null>(null);
 
-  const { data: leadersData } = useQuery<{ categories: LeaderCategory[] }>({
-    queryKey: ['tournament-leaders', tournamentId],
-    queryFn: async () => (await api.get(`/tournaments/${tournamentId}/leaders`)).data,
-  });
-  const leaderCategories = leadersData?.categories ?? [];
+  // Coming from the About tab's team list → scroll to and briefly highlight it.
+  useEffect(() => {
+    if (!focusTeamId || !data) return;
+    const el = document.getElementById(`team-${focusTeamId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setHighlight(focusTeamId);
+    const t = setTimeout(() => setHighlight(null), 2200);
+    return () => clearTimeout(t);
+  }, [focusTeamId, data]);
 
   if (isLoading) return <div className="flex justify-center py-16"><BallLoader /></div>;
   if (isError || !data) {
@@ -80,14 +84,12 @@ export default function TournamentTeams({ tournamentId }: { tournamentId: string
 
   return (
     <div className="space-y-4">
-      {leaderCategories.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-custom">Stat leaders</h3>
-          <StatLeaders categories={leaderCategories} />
-        </div>
-      )}
       {data.teams.map((team) => (
-        <div key={team.id} className="bg-card rounded-xl border border-line overflow-hidden">
+        <div
+          key={team.id}
+          id={`team-${team.id}`}
+          className={`bg-card rounded-xl border overflow-hidden scroll-mt-4 transition-colors ${highlight === team.id ? 'border-primary' : 'border-line'}`}
+        >
           {/* Team header */}
           <div className="flex items-center gap-3 p-4 border-b border-line">
             {team.logo
