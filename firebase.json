@@ -70,13 +70,13 @@
         ]
       },
       {
-        "source": "/@(home|explore|tournaments|rankings|announcements|messages|notifications|grow|admin|radar|settings|support|saved|profile|teams|login|register|onboarding|verify-email|verify-pending|forgot-password|reset-password|handover|guardian-consent|force-password-reset)",
+        "source": "/@(home|explore|tournaments|rankings|announcements|messages|notifications|grow|admin|radar|settings|support|saved|profile|teams|login|register|onboarding|verify-email|verify-pending|forgot-password|reset-password|handover|guardian-consent|force-password-reset|unsubscribe)",
         "headers": [
           { "key": "X-Robots-Tag", "value": "noindex" }
         ]
       },
       {
-        "source": "/@(home|explore|tournaments|rankings|announcements|messages|notifications|grow|admin|radar|settings|support|saved|profile|teams|login|register|onboarding|verify-email|verify-pending|forgot-password|reset-password|handover|guardian-consent|force-password-reset)/**",
+        "source": "/@(home|explore|tournaments|rankings|announcements|messages|notifications|grow|admin|radar|settings|support|saved|profile|teams|login|register|onboarding|verify-email|verify-pending|forgot-password|reset-password|handover|guardian-consent|force-password-reset|unsubscribe)/**",
         "headers": [
           { "key": "X-Robots-Tag", "value": "noindex" }
         ]

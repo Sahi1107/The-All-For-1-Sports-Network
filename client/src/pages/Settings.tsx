@@ -652,7 +652,10 @@ export default function Settings() {
             <Bell size={16} className="text-secondary" />
             Notifications
           </h2>
-          <p className="text-sm text-gray-custom">You receive notifications for follows, connections, tournament updates and messages.</p>
+          <p className="text-sm text-gray-custom">Fine-tune what reaches you — per type, in-app and by email — with digests and quiet hours.</p>
+          <Link to="/settings/notifications" className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors">
+            <Bell size={14} /> Manage notification preferences
+          </Link>
         </div>
         <div className="p-5 flex items-center justify-between">
           <div>

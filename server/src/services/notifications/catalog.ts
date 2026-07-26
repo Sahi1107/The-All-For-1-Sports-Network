@@ -274,6 +274,28 @@ export function renderCopy(type: NotificationType, ctx: NotifCtx): { title: stri
   };
 }
 
+/** Serializable per-type metadata for the settings screen (no render fns). */
+export interface PreferenceMeta {
+  type: NotificationType;
+  category: NotifCategory;
+  label: string;
+  description: string;
+  configurable: boolean;
+  collapsible: boolean;
+  default: { inApp: boolean; email: boolean; digest: DigestFrequency };
+}
+
+export function preferenceMeta(): PreferenceMeta[] {
+  return (Object.keys(CATALOG) as NotificationType[]).map((type) => {
+    const m = CATALOG[type];
+    return {
+      type, category: m.category, label: m.label, description: m.description,
+      configurable: m.configurable, collapsible: m.collapsible,
+      default: { inApp: m.defaultInApp, email: m.defaultEmail, digest: m.defaultDigest },
+    };
+  });
+}
+
 /** Categories in display order for the settings screen. */
 export const CATEGORY_ORDER: NotifCategory[] = ['profile', 'competition', 'team', 'social', 'system'];
 export const CATEGORY_LABELS: Record<NotifCategory, string> = {
