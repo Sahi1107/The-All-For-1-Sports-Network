@@ -54,5 +54,17 @@ export const ScheduleBody = z.object({
   onlyUnscheduled: z.boolean().optional(),
 });
 
+// Save group structure (rename / move / add / remove teams among registered teams).
+export const GroupsBody = z.object({
+  groups: z.array(z.object({
+    id: z.string().min(1),
+    name: z.string().trim().min(1).max(60),
+    teamIds: z.array(z.string().uuid()),
+  })).min(1).max(16),
+});
+
+// Withdraw a team from the tournament (clean removal pre-start, else walkovers).
+export const WithdrawBody = z.object({ teamId: z.string().uuid() });
+
 export const IdParam = z.object({ id: uuidParam });
 export const TournamentIdParam = z.object({ tournamentId: uuidParam });

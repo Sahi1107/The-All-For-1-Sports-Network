@@ -15,6 +15,8 @@ import FixturesList from './components/FixturesList';
 import MatchDetails from './components/MatchDetails';
 import MatchAdminModal from './components/MatchAdminModal';
 import AutoScheduleModal from './components/AutoScheduleModal';
+import GroupEditor from './components/GroupEditor';
+import { Pencil } from 'lucide-react';
 
 /** Adapt a live TrackerSession's bracket into the shared Bracket's plain props. */
 function bracketDataFromSession(session: TrackerSession): BracketData {
@@ -67,6 +69,7 @@ export default function TournamentView({
   const [detail, setDetail] = useState<TrackerMatch | null>(null);
   const [manage, setManage] = useState<TrackerMatch | null>(null);
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showGroups, setShowGroups] = useState(false);
 
   // Stat leaders: prefer live tracker state; for published/imported tournaments
   // whose matches carry no live state (state === null), fall back to the DB
@@ -144,7 +147,7 @@ export default function TournamentView({
         </div>
       )}
 
-      {activeTab === 'standings' && <StandingsSection session={session} />}
+      {activeTab === 'standings' && <StandingsSection session={session} onEditGroups={demo ? undefined : () => setShowGroups(true)} />}
 
       {activeTab === 'bracket' && (
         <Bracket
@@ -168,21 +171,34 @@ export default function TournamentView({
       {detail && <MatchDetails session={session} match={detail} onClose={() => setDetail(null)} />}
       {manage && <MatchAdminModal session={session} match={manage} onClose={() => setManage(null)} />}
       {showSchedule && <AutoScheduleModal tournamentId={session.tournamentId} sport={session.sport} onClose={() => setShowSchedule(false)} />}
+      {showGroups && <GroupEditor session={session} onClose={() => setShowGroups(false)} />}
     </div>
   );
 }
 
-function StandingsSection({ session }: { session: TrackerSession }) {
+function StandingsSection({ session, onEditGroups }: { session: TrackerSession; onEditGroups?: () => void }) {
   if (session.format === 'LEAGUE') {
     const teamIds = (session.roster ?? []).map((t) => t.teamId);
     return <StandingsTable title="League table" rows={standingsFor(session, teamIds)} />;
   }
   const advance = session.config?.advancePerGroup;
   return (
-    <div className="grid md:grid-cols-2 gap-5">
-      {(session.groups ?? []).map((g: GroupDef) => (
-        <StandingsTable key={g.id} title={g.name} rows={standingsFor(session, g.teamIds)} advanceCount={advance} />
-      ))}
+    <div className="space-y-4">
+      {onEditGroups && (
+        <div className="flex justify-end">
+          <button
+            onClick={onEditGroups}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"
+          >
+            <Pencil size={13} /> Edit groups
+          </button>
+        </div>
+      )}
+      <div className="grid md:grid-cols-2 gap-5">
+        {(session.groups ?? []).map((g: GroupDef) => (
+          <StandingsTable key={g.id} title={g.name} rows={standingsFor(session, g.teamIds)} advanceCount={advance} />
+        ))}
+      </div>
     </div>
   );
 }

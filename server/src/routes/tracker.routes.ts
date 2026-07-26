@@ -10,6 +10,7 @@ import {
   seedOrderFromGroups,
   seedFirstRound,
   bracketAdvancements,
+  groupRoundRobin,
   type BracketDef,
   type GroupDef,
 } from '../services/trackerDraw';
@@ -19,9 +20,39 @@ import {
   CreateSessionBody,
   PatchMatchBody,
   ScheduleBody,
+  GroupsBody,
+  WithdrawBody,
   IdParam,
   TournamentIdParam,
 } from '../validation/tracker';
+
+const DONE_STATUS = (s: string) => s === 'COMPLETED' || s === 'PUBLISHED';
+
+/** Snapshot roster for the session from the tournament's current registrations
+ *  (accepted members). Rebuilt on structure edits so late entries + roster
+ *  changes are reflected. */
+async function buildRosterSnapshot(tournamentId: string) {
+  const regs = await prisma.tournamentTeam.findMany({
+    where: { tournamentId },
+    include: {
+      team: {
+        include: {
+          members: {
+            where: { status: 'ACCEPTED' },
+            include: { user: { select: { id: true, name: true, position: true } } },
+          },
+        },
+      },
+    },
+  });
+  return regs.map((r) => ({
+    teamId: r.team.id,
+    name: r.team.name,
+    players: r.team.members.map((m) => ({
+      userId: m.user.id, name: m.user.name, position: m.user.position ?? null, number: null as number | null,
+    })),
+  }));
+}
 
 // Stage ordering for sequential scheduling (groups first, then knockout rounds).
 const STAGE_SCHED_RANK: Record<string, number> = {
@@ -336,6 +367,180 @@ router.post(
       res.json({ scheduled: eligible.length });
     } catch (err) {
       console.error('Auto-schedule error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Edit group structure (rename / move / add / remove teams) ───
+// Saves the whole groups layout. Groups whose composition changed are
+// regenerated (round-robin); a changed group that already has results is
+// rejected (reset the draw instead). Roster is rebuilt so late entries appear.
+router.patch(
+  '/sessions/:tournamentId/groups',
+  validate({ params: TournamentIdParam, body: GroupsBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.tournamentId as string;
+      const newGroups = req.body.groups as GroupDef[];
+
+      const session = await prisma.trackerSession.findUnique({
+        where: { tournamentId },
+        include: { matches: true },
+      });
+      if (!session) {
+        res.status(404).json({ error: 'No draw for this tournament' });
+        return;
+      }
+      if (!((session.groups as GroupDef[] | null)?.length)) {
+        res.status(400).json({ error: 'This format has no groups to edit' });
+        return;
+      }
+
+      // Validate: every team is registered, and no team is in two groups.
+      const regs = await prisma.tournamentTeam.findMany({ where: { tournamentId }, select: { teamId: true } });
+      const registered = new Set(regs.map((r) => r.teamId));
+      const seen = new Set<string>();
+      for (const g of newGroups) {
+        for (const t of g.teamIds) {
+          if (!registered.has(t)) { res.status(400).json({ error: 'A team is not registered for this tournament' }); return; }
+          if (seen.has(t)) { res.status(400).json({ error: 'A team appears in more than one group' }); return; }
+          seen.add(t);
+        }
+      }
+
+      const oldGroups = (session.groups as GroupDef[] | null) ?? [];
+      const oldById = new Map(oldGroups.map((g) => [g.id, g]));
+      const groupMatches = session.matches.filter((m) => m.stage === 'group');
+      const hasResults = (gid: string) => groupMatches.some((m) => m.groupId === gid && DONE_STATUS(m.status));
+      const sortedKey = (ids: string[]) => [...ids].sort().join(',');
+
+      const changedIds: string[] = [];
+      const renamedOnly: GroupDef[] = [];
+      for (const g of newGroups) {
+        const old = oldById.get(g.id);
+        const compChanged = !old || sortedKey(g.teamIds) !== sortedKey(old.teamIds);
+        if (compChanged) {
+          if (hasResults(g.id)) { res.status(400).json({ error: `Group "${g.name}" already has results — reset the draw to restructure it` }); return; }
+          changedIds.push(g.id);
+        } else if (old.name !== g.name) {
+          renamedOnly.push(g);
+        }
+      }
+      const removedIds = oldGroups.filter((o) => !newGroups.some((g) => g.id === o.id)).map((o) => o.id);
+      for (const rid of removedIds) {
+        if (hasResults(rid)) { res.status(400).json({ error: 'A removed group already has results — reset the draw instead' }); return; }
+      }
+
+      const roster = await buildRosterSnapshot(tournamentId);
+      let nextOrder = Math.max(0, ...session.matches.map((m) => m.orderIndex)) + 1;
+
+      await prisma.$transaction(async (tx) => {
+        const toDelete = [...changedIds, ...removedIds];
+        if (toDelete.length) {
+          await tx.trackerMatch.deleteMany({ where: { sessionId: session.id, stage: 'group', groupId: { in: toDelete } } });
+        }
+        for (const g of newGroups.filter((g) => changedIds.includes(g.id))) {
+          const fx = groupRoundRobin(g, nextOrder);
+          nextOrder += fx.length;
+          if (fx.length) {
+            await tx.trackerMatch.createMany({
+              data: fx.map((f) => ({
+                sessionId: session.id, stage: f.stage, round: f.round, groupId: f.groupId,
+                orderIndex: f.orderIndex, homeTeamId: f.homeTeamId ?? null, awayTeamId: f.awayTeamId ?? null,
+              })),
+            });
+          }
+        }
+        for (const g of renamedOnly) {
+          await tx.trackerMatch.updateMany({ where: { sessionId: session.id, stage: 'group', groupId: g.id }, data: { round: g.name } });
+        }
+        await tx.trackerSession.update({ where: { id: session.id }, data: { groups: newGroups as object, roster: roster as object } });
+      });
+
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('Edit groups error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Withdraw a team ─────────────────────────────────────────
+// Before its matches start: cleanly removed and its group regenerated. After:
+// its remaining fixtures become walkovers to opponents (bracket winners
+// propagate), so results stay consistent — no dead matches.
+router.post(
+  '/sessions/:tournamentId/withdraw',
+  validate({ params: TournamentIdParam, body: WithdrawBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.tournamentId as string;
+      const { teamId } = req.body;
+
+      const session = await prisma.trackerSession.findUnique({ where: { tournamentId }, include: { matches: true } });
+      if (!session) { res.status(404).json({ error: 'No draw for this tournament' }); return; }
+
+      const bracket = session.bracket as BracketDef | null;
+      const groups = (session.groups as GroupDef[] | null) ?? [];
+      const teamMatches = session.matches.filter((m) => m.homeTeamId === teamId || m.awayTeamId === teamId);
+      const teamGroupIds = groups.filter((g) => g.teamIds.includes(teamId)).map((g) => g.id);
+      const anyPlayed =
+        teamMatches.some((m) => DONE_STATUS(m.status)) ||
+        session.matches.some((m) => m.groupId && teamGroupIds.includes(m.groupId) && DONE_STATUS(m.status));
+
+      if (!anyPlayed) {
+        // Clean removal + regenerate affected groups.
+        const newGroups = groups.map((g) => ({ ...g, teamIds: g.teamIds.filter((t) => t !== teamId) }));
+        let nextOrder = Math.max(0, ...session.matches.map((m) => m.orderIndex)) + 1;
+        for (const g of newGroups.filter((g) => teamGroupIds.includes(g.id))) {
+          await prisma.trackerMatch.deleteMany({ where: { sessionId: session.id, stage: 'group', groupId: g.id } });
+          const fx = groupRoundRobin(g, nextOrder);
+          nextOrder += fx.length;
+          if (fx.length) {
+            await prisma.trackerMatch.createMany({
+              data: fx.map((f) => ({
+                sessionId: session.id, stage: f.stage, round: f.round, groupId: f.groupId,
+                orderIndex: f.orderIndex, homeTeamId: f.homeTeamId ?? null, awayTeamId: f.awayTeamId ?? null,
+              })),
+            });
+          }
+        }
+        // Clear the team from any (unplayed) knockout slots.
+        for (const m of teamMatches.filter((m) => m.bracketSlot && !DONE_STATUS(m.status))) {
+          await prisma.trackerMatch.update({
+            where: { id: m.id },
+            data: m.homeTeamId === teamId ? { homeTeamId: null } : { awayTeamId: null },
+          });
+        }
+        await prisma.trackerSession.update({ where: { id: session.id }, data: { groups: newGroups as object } });
+        res.json({ withdrawn: true, mode: 'removed' });
+        return;
+      }
+
+      // Forfeit path: walkover remaining fixtures to the opponent (keep the team
+      // in its group so standings stay consistent).
+      for (const m of teamMatches) {
+        if (DONE_STATUS(m.status)) continue;
+        const oppIsHome = m.awayTeamId === teamId; // opponent occupies the other side
+        const opponentId = oppIsHome ? m.homeTeamId : m.awayTeamId;
+        if (opponentId) {
+          const updated = await prisma.trackerMatch.update({
+            where: { id: m.id },
+            data: { homeScore: oppIsHome ? 1 : 0, awayScore: oppIsHome ? 0 : 1, status: 'COMPLETED' },
+          });
+          if (m.bracketSlot) await propagateBracket(session.id, bracket, updated as TrackerMatchRow);
+          if (m.stage === 'group') await maybeSeedKnockout(session);
+        } else {
+          await prisma.trackerMatch.update({
+            where: { id: m.id },
+            data: m.homeTeamId === teamId ? { homeTeamId: null } : { awayTeamId: null },
+          });
+        }
+      }
+      res.json({ withdrawn: true, mode: 'forfeit' });
+    } catch (err) {
+      console.error('Withdraw team error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   },

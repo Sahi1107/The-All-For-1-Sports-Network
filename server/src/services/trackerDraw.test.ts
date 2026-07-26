@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBracket, bracketAdvancements, seedFirstRound, generateDraw } from './trackerDraw';
+import { buildBracket, bracketAdvancements, seedFirstRound, generateDraw, groupRoundRobin } from './trackerDraw';
 
 // Regression: with a third-place playoff enabled, a semifinal feeds BOTH the
 // final (winner) and the third-place match (loser). Propagation must not drop
@@ -93,4 +93,13 @@ test('byes advance on the feed-position side (agrees with bracketAdvancements)',
   const expectedSide = parent.feedFrom?.[0] === byeSlot.slotId ? 'home' : 'away';
   const adv = byeAdvances.find((a) => a.slotId === parent.id)!;
   assert.equal(adv.side, expectedSide);
+});
+
+test('groupRoundRobin generates a full single round-robin (C(n,2), each pair once)', () => {
+  const fx = groupRoundRobin({ id: 'g', name: 'Group A', teamIds: ['A', 'B', 'C', 'D'] }, 5);
+  assert.equal(fx.length, 6); // C(4,2)
+  assert.equal(fx[0].orderIndex, 5); // continues from startOrder
+  assert.ok(fx.every((f) => f.stage === 'group' && f.groupId === 'g' && f.round === 'Group A'));
+  const pairs = new Set(fx.map((f) => [f.homeTeamId, f.awayTeamId].sort().join('-')));
+  assert.equal(pairs.size, 6); // every pair exactly once
 });

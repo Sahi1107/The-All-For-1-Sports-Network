@@ -103,6 +103,22 @@ function groupFixtures(groups: GroupDef[], startOrder: number): FixtureDescripto
   return fixtures;
 }
 
+// Round-robin fixtures for ONE group — used when regenerating a group after an
+// edit (rename / move / add / remove team).
+export function groupRoundRobin(group: GroupDef, startOrder: number): FixtureDescriptor[] {
+  const out: FixtureDescriptor[] = [];
+  let order = startOrder;
+  for (let i = 0; i < group.teamIds.length; i++) {
+    for (let j = i + 1; j < group.teamIds.length; j++) {
+      out.push({
+        stage: 'group', round: group.name, groupId: group.id,
+        homeTeamId: group.teamIds[i], awayTeamId: group.teamIds[j], orderIndex: order++,
+      });
+    }
+  }
+  return out;
+}
+
 // ─── Round-robin league ──────────────────────────────────────
 function leagueFixtures(teamIds: string[]): FixtureDescriptor[] {
   const fixtures: FixtureDescriptor[] = [];
