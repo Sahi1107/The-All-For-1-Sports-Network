@@ -8,7 +8,9 @@ import { getConsent } from './consent';
 // person profiles only for identified users, and DNT is respected.
 
 const KEY  = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
-const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://eu.i.posthog.com';
+// Region matters: a US project key is rejected by the EU ingest host (and vice
+// versa). Set VITE_POSTHOG_HOST to match your project's region.
+const HOST = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com';
 
 export const analyticsAvailable = !!KEY;
 let started = false;
@@ -23,12 +25,18 @@ export function startAnalytics(): void {
       autocapture: false,            // explicit key events only
       capture_pageview: false,       // we send $pageview manually (path only, no query)
       disable_session_recording: true,
-      respect_dnt: true,
+      // We already gate on explicit opt-in consent; honouring DNT on top of that
+      // just creates confusing dead-ends, so we rely on the consent gate.
+      respect_dnt: false,
       persistence: 'localStorage+cookie',
+      loaded: () => console.info('[analytics] PostHog ready →', HOST),
     });
+    // Expose the instance for debugging / manual verification in the console.
+    (window as unknown as { posthog?: typeof posthog }).posthog = posthog;
     started = true;
-  } catch {
-    /* analytics must never break the app */
+  } catch (e) {
+    // Don't swallow silently — a broken init should be visible in the console.
+    console.error('[analytics] PostHog init failed', e);
   }
 }
 
