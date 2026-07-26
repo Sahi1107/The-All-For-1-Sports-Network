@@ -139,6 +139,8 @@ function isPlayed(m: BMatch) { return m.status === 'COMPLETED' || m.status === '
 
 // ── group standings + fixtures ─────────────────────────────────────────────────
 function GroupCard({ group, teams, advancing }: { group: Group; teams: Record<string, TeamLite>; advancing: Set<string> }) {
+  // Only highlight qualifiers when advancement is selective (some group team doesn't advance).
+  const selective = group.teamIds.some((id) => !advancing.has(id));
   return (
     <div className="bg-card rounded-xl border border-line overflow-hidden">
       <div className="px-4 py-3 border-b border-line">
@@ -156,7 +158,7 @@ function GroupCard({ group, teams, advancing }: { group: Group; teams: Record<st
         </thead>
         <tbody className="font-numeric">
           {group.standings.map((s, i) => {
-            const qual = advancing.has(s.teamId);
+            const qual = selective && advancing.has(s.teamId);
             return (
               <tr key={s.teamId} className={`border-t border-line/60 ${qual ? 'bg-primary/5' : ''}`}>
                 <td className="py-2 pl-4 pr-2">
