@@ -321,3 +321,36 @@ export function bracketLoser(m: {
   if (m.homeScore === m.awayScore) return null;
   return m.homeScore > m.awayScore ? m.awayTeamId : m.homeTeamId;
 }
+
+export interface BracketAdvancement {
+  slotId: string;
+  side: 'home' | 'away';
+  teamId: string;
+}
+
+/** Every advancement a completed knockout match triggers: for each slot that
+ *  the completed slot feeds, which side receives which team. A semifinal feeds
+ *  two slots — the final (winner) and, when enabled, the third-place playoff
+ *  (loser) — so targets are resolved from each slot's `feedFrom`, not from a
+ *  single per-match pointer (which cannot represent feeding two slots). */
+export function bracketAdvancements(
+  bracket: BracketDef,
+  completed: {
+    bracketSlot?: string | null;
+    homeTeamId?: string | null;
+    awayTeamId?: string | null;
+    homeScore: number;
+    awayScore: number;
+  },
+): BracketAdvancement[] {
+  if (!completed.bracketSlot) return [];
+  const out: BracketAdvancement[] = [];
+  for (const slot of bracket.slots) {
+    if (!(slot.feedFrom ?? []).some((from) => from === completed.bracketSlot)) continue;
+    const teamId = slot.stage === 'third_place' ? bracketLoser(completed) : bracketWinner(completed);
+    if (!teamId) continue;
+    const side: 'home' | 'away' = completed.bracketSlot === slot.feedFrom?.[0] ? 'home' : 'away';
+    out.push({ slotId: slot.id, side, teamId });
+  }
+  return out;
+}

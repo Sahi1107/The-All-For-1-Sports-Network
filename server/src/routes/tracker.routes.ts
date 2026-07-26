@@ -8,8 +8,7 @@ import {
   generateDraw,
   computeStandings,
   seedOrderFromGroups,
-  bracketWinner,
-  bracketLoser,
+  bracketAdvancements,
   type BracketDef,
   type GroupDef,
 } from '../services/trackerDraw';
@@ -42,30 +41,27 @@ type TrackerMatchRow = {
 // ─── Bracket propagation helpers ─────────────────────────────
 
 /** After a knockout match completes, push the winner (or loser for 3rd place)
- *  into the match it feeds. */
+ *  into every slot it feeds. A semifinal feeds two slots — the final (winner)
+ *  and, when enabled, the third-place playoff (loser) — so advancements are
+ *  resolved from the bracket's `feedFrom` (see bracketAdvancements) rather than
+ *  the match's single `feedsInto` field, which cannot represent feeding two
+ *  slots at once. */
 async function propagateBracket(
   sessionId: string,
   bracket: BracketDef | null,
   completed: TrackerMatchRow,
 ) {
-  if (!bracket || !completed.bracketSlot || !completed.feedsInto) return;
-  const targetSlot = bracket.slots.find((s) => s.id === completed.feedsInto);
-  if (!targetSlot) return;
-  const targetMatch = await prisma.trackerMatch.findFirst({
-    where: { sessionId, bracketSlot: targetSlot.id },
-  });
-  if (!targetMatch) return;
-
-  const team =
-    targetSlot.stage === 'third_place' ? bracketLoser(completed) : bracketWinner(completed);
-  if (!team) return;
-
-  const feederA = targetSlot.feedFrom?.[0];
-  const side = completed.bracketSlot === feederA ? 'home' : 'away';
-  await prisma.trackerMatch.update({
-    where: { id: targetMatch.id },
-    data: side === 'home' ? { homeTeamId: team } : { awayTeamId: team },
-  });
+  if (!bracket) return;
+  for (const adv of bracketAdvancements(bracket, completed)) {
+    const targetMatch = await prisma.trackerMatch.findFirst({
+      where: { sessionId, bracketSlot: adv.slotId },
+    });
+    if (!targetMatch) continue;
+    await prisma.trackerMatch.update({
+      where: { id: targetMatch.id },
+      data: adv.side === 'home' ? { homeTeamId: adv.teamId } : { awayTeamId: adv.teamId },
+    });
+  }
 }
 
 /** For MIXED sessions: once every group match is finished, seed the first
