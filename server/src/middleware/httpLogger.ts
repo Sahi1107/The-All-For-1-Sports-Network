@@ -73,6 +73,15 @@ export function errorHandler(
 ): void {
   const isProd = process.env.NODE_ENV === 'production';
   const url = sanitizeUrl(req.originalUrl || req.url);
+
+  // Malformed JSON bodies (bots/scanners posting junk) are client errors, not
+  // server faults — respond 400 and don't page us via Sentry as noise.
+  if ((err as { type?: string })?.type === 'entity.parse.failed') {
+    logger.warn('Malformed request body', { method: req.method, url });
+    if (!res.headersSent) res.status(400).json({ error: 'Invalid request body' });
+    return;
+  }
+
   captureException(err, { method: req.method, url });
   logger.error('Unhandled error', {
     message:  err.message,
