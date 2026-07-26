@@ -1,11 +1,10 @@
 import { Award } from 'lucide-react';
-import type { TrackerSession } from '../types';
-import { tournamentLeaders } from '../leaders';
+import type { LeaderCategory } from '../leaders';
 
-/** Tournament stat leaders, one card per category (sport-aware). */
-export default function StatLeaders({ session }: { session: TrackerSession }) {
-  const categories = tournamentLeaders(session);
-
+/** Tournament stat leaders, one card per category (sport-aware). Presentational:
+ *  the caller supplies `categories` from either the live tracker state
+ *  (tournamentLeaders) or the published-stats endpoint (/tournaments/:id/leaders). */
+export default function StatLeaders({ categories }: { categories: LeaderCategory[] }) {
   if (categories.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-line p-6 text-center text-sm text-gray-custom">

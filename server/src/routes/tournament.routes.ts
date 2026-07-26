@@ -449,6 +449,105 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
   }
 });
 
+// GET /api/tournaments/:id/leaders — tournament stat leaders from PUBLISHED DB stats.
+// All-users. Sibling of /teams + /fixtures. Same LeaderCategory shape the shared
+// StatLeaders card renders, so admin (live-else-DB) and public share one component.
+const LEADER_CATS: Record<StatSport, { key: string; label: string; fields: string[] }[]> = {
+  FOOTBALL: [
+    { key: 'goals',   label: 'Top scorers',        fields: ['goals'] },
+    { key: 'assists', label: 'Assists',            fields: ['assists'] },
+    { key: 'ga',      label: 'Goal contributions', fields: ['goals', 'assists'] },
+    { key: 'saves',   label: 'Goalkeeper saves',   fields: ['saves'] },
+  ],
+  BASKETBALL: [
+    { key: 'points',   label: 'Points',   fields: ['points'] },
+    { key: 'rebounds', label: 'Rebounds', fields: ['rebounds'] },
+    { key: 'assists',  label: 'Assists',  fields: ['assists'] },
+    { key: 'steals',   label: 'Steals',   fields: ['steals'] },
+  ],
+  CRICKET: [
+    { key: 'runs',    label: 'Runs',    fields: ['runs'] },
+    { key: 'wickets', label: 'Wickets', fields: ['wickets'] },
+  ],
+};
+
+router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true, sport: true },
+    });
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+    if (!isStatSport(tournament.sport)) {
+      res.json({ sport: tournament.sport, categories: [] });
+      return;
+    }
+
+    const sport = tournament.sport as StatSport;
+    const cats = LEADER_CATS[sport];
+    const sumFields = Array.from(new Set(cats.flatMap((c) => c.fields)));
+
+    const model = (prisma as any)[STAT_MODEL[sport]];
+    const grouped = await model.groupBy({
+      by: ['userId'],
+      where: { tournamentId },
+      _sum: Object.fromEntries(sumFields.map((f) => [f, true])),
+    });
+    const sums = (grouped as Array<{ userId: string; _sum: Record<string, number | null> }>).map((g) => ({
+      userId: g.userId,
+      vals: Object.fromEntries(sumFields.map((f) => [f, Number(g._sum[f] ?? 0)])),
+    }));
+
+    // name + teamName per player, from the tournament's rosters (+ direct lookup fallback).
+    const regs = await prisma.tournamentTeam.findMany({
+      where: { tournamentId },
+      include: {
+        team: {
+          select: {
+            name: true,
+            members: { where: { status: 'ACCEPTED' }, select: { userId: true, user: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+    const meta = new Map<string, { name: string; teamName: string }>();
+    regs.forEach((r) => r.team.members.forEach((m) => {
+      if (!meta.has(m.userId)) meta.set(m.userId, { name: m.user.name, teamName: r.team.name });
+    }));
+    const missing = sums.map((s) => s.userId).filter((id) => !meta.has(id));
+    if (missing.length > 0) {
+      const users = await prisma.user.findMany({ where: { id: { in: missing } }, select: { id: true, name: true } });
+      users.forEach((u) => meta.set(u.id, { name: u.name, teamName: '' }));
+    }
+
+    const categories = cats
+      .map((c) => ({
+        key: c.key,
+        label: c.label,
+        rows: sums
+          .map((s) => ({
+            userId: s.userId,
+            name: meta.get(s.userId)?.name ?? 'Unknown',
+            teamName: meta.get(s.userId)?.teamName ?? '',
+            value: c.fields.reduce((t, f) => t + (s.vals[f] ?? 0), 0),
+          }))
+          .filter((r) => r.value > 0)
+          .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
+          .slice(0, 5),
+      }))
+      .filter((c) => c.rows.length > 0);
+
+    res.json({ sport: tournament.sport, categories });
+  } catch (error) {
+    console.error('Get tournament leaders error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // PUT /api/tournaments/:id — update (admin only)
 router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
   try {

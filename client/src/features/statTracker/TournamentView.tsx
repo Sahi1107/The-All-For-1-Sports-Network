@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { LayoutDashboard, Table2, GitFork, ListOrdered, Zap, RotateCcw } from 'lucide-react';
+import api from '../../api/client';
 import type { TrackerSession, TrackerMatch, GroupDef } from './types';
 import { standingsFor } from './stats';
+import { tournamentLeaders, type LeaderCategory } from './leaders';
 import { teamNames } from './components/helpers';
 import { STAGE_LABEL } from './engine';
 import ProgressSummary from './components/ProgressSummary';
@@ -60,6 +63,18 @@ export default function TournamentView({
   const hasBracket = !!session.bracket;
   const hasStandings = session.format === 'LEAGUE' || session.format === 'MIXED';
   const [detail, setDetail] = useState<TrackerMatch | null>(null);
+
+  // Stat leaders: prefer live tracker state; for published/imported tournaments
+  // whose matches carry no live state (state === null), fall back to the DB
+  // endpoint. The offline demo never hits the server (its matches carry state).
+  const liveLeaders = useMemo(() => tournamentLeaders(session), [session]);
+  const { data: dbLeaders } = useQuery({
+    queryKey: ['tournament-leaders', session.tournamentId],
+    queryFn: async () =>
+      (await api.get(`/tournaments/${session.tournamentId}/leaders`)).data.categories as LeaderCategory[],
+    enabled: !demo && liveLeaders.length === 0,
+  });
+  const leaderCategories = liveLeaders.length > 0 ? liveLeaders : dbLeaders ?? [];
 
   const tabs = useMemo(
     () =>
@@ -120,7 +135,7 @@ export default function TournamentView({
           <ProgressSummary session={session} />
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom mb-3">Stat leaders</h3>
-            <StatLeaders session={session} />
+            <StatLeaders categories={leaderCategories} />
           </div>
         </div>
       )}

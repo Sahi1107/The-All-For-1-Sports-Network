@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
 import { Users, Crown, ChevronDown, Shield } from 'lucide-react';
+import StatLeaders from '../statTracker/components/StatLeaders';
+import type { LeaderCategory } from '../statTracker/leaders';
 
 // ── stat presentation per sport ──────────────────────────────────────────────
 // `head` = compact stats shown on the collapsed player row; `labels` = short
@@ -54,6 +56,12 @@ export default function TournamentTeams({ tournamentId }: { tournamentId: string
 
   const [openPlayer, setOpenPlayer] = useState<string | null>(null);
 
+  const { data: leadersData } = useQuery<{ categories: LeaderCategory[] }>({
+    queryKey: ['tournament-leaders', tournamentId],
+    queryFn: async () => (await api.get(`/tournaments/${tournamentId}/leaders`)).data,
+  });
+  const leaderCategories = leadersData?.categories ?? [];
+
   if (isLoading) return <div className="flex justify-center py-16"><BallLoader /></div>;
   if (isError || !data) {
     return <div className="bg-card rounded-xl border border-line p-12 text-center text-sm text-gray-custom">Couldn't load teams.</div>;
@@ -72,6 +80,12 @@ export default function TournamentTeams({ tournamentId }: { tournamentId: string
 
   return (
     <div className="space-y-4">
+      {leaderCategories.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-custom">Stat leaders</h3>
+          <StatLeaders categories={leaderCategories} />
+        </div>
+      )}
       {data.teams.map((team) => (
         <div key={team.id} className="bg-card rounded-xl border border-line overflow-hidden">
           {/* Team header */}
