@@ -7,7 +7,7 @@ import {
   PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
   updatePassword, verifyBeforeUpdateEmail,
 } from 'firebase/auth';
-import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck, Users, Sun, Moon, Monitor } from 'lucide-react';
+import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck, Users, Sun, Moon, Monitor, Download, LifeBuoy } from 'lucide-react';
 import { useTheme, type ThemePreference } from '../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import api from '../api/client';
@@ -20,6 +20,7 @@ export default function Settings() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [msgNotifs, setMsgNotifs] = useState<boolean | null>(null);
   const [onlineStatus, setOnlineStatus] = useState<boolean | null>(null);
   const [disableComments, setDisableComments] = useState<boolean | null>(null);
@@ -160,6 +161,26 @@ export default function Settings() {
       }
     } finally {
       setHandoverSubmitting(false);
+    }
+  };
+
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get('/users/me/export', { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `allfor1-data-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Your data is downloading');
+    } catch {
+      toast.error('Could not export your data. Please try again.');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -784,6 +805,41 @@ export default function Settings() {
           <LogOut size={14} />
           Sign Out
         </button>
+      </section>
+
+      {/* Your data & privacy */}
+      <section className="bg-card rounded-xl border border-line p-5">
+        <h2 className="font-semibold flex items-center gap-2 mb-4">
+          <Shield size={16} />
+          Your Data &amp; Privacy
+        </h2>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Download my data</p>
+            <p className="text-xs text-gray-custom mt-0.5">Export a copy of your account data as a JSON file.</p>
+          </div>
+          <button
+            onClick={handleExportData}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors disabled:opacity-50 shrink-0"
+          >
+            <Download size={14} />
+            {exporting ? 'Preparing…' : 'Download'}
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-line">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">Help &amp; support</p>
+            <p className="text-xs text-gray-custom mt-0.5">Questions, problems, or an appeal? Get in touch.</p>
+          </div>
+          <Link
+            to="/support"
+            className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors shrink-0"
+          >
+            <LifeBuoy size={14} />
+            Contact
+          </Link>
+        </div>
       </section>
 
       {/* Danger Zone */}

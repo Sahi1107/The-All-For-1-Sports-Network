@@ -8,6 +8,7 @@ import { validate } from '../middleware/validate';
 import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { deleteUserCompletely } from '../services/userDeletion';
+import { buildUserExport } from '../services/dataExport';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import logger from '../utils/logger';
@@ -285,6 +286,26 @@ router.post('/settings/verify-phone', authenticate, writeLimiter, async (req: Au
     res.json({ phoneVerified: true, phone: fbUser.phoneNumber });
   } catch (error) {
     console.error('Verify phone error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/users/me/export — DPDP "download my data": the current user's own
+// data as a downloadable JSON file.
+router.get('/me/export', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const data = await buildUserExport(req.user!.userId);
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="allfor1-data-${stamp}.json"`);
+    res.send(JSON.stringify(data, null, 2));
+    logger.info('user.data_export', { userId: req.user!.userId });
+  } catch (error: any) {
+    if (error?.message === 'User not found') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    logger.error('Data export error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
