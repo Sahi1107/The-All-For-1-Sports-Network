@@ -154,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // the redirected email collides with an existing password account.
   useEffect(() => {
     getRedirectResult(auth).catch((err: any) => {
+      console.error('[google-auth] getRedirectResult failed:', { code: err?.code, message: err?.message, stack: err?.stack, error: err });
       if (err?.code === 'auth/account-exists-with-different-credential') {
         pendingGoogleCred.current = GoogleAuthProvider.credentialFromError(err);
         setLinkEmail(err?.customData?.email ?? null);
@@ -292,6 +293,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return await finishProviderSignIn(cred.user);
     } catch (err: any) {
       const code = err?.code ?? '';
+
+      // Surface the real Firebase error — a generic toast otherwise swallows it.
+      // Skip the benign "user closed the popup" cases so the console isn't noisy.
+      if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
+        console.error('[google-auth] signInWithGoogle failed:', { code, message: err?.message, stack: err?.stack, error: err });
+      }
 
       // User dismissed the chooser / a second popup superseded this one — no error UI.
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {

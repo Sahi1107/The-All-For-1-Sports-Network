@@ -3,6 +3,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   inMemoryPersistence,
+  browserPopupRedirectResolver,
   initializeAuth,
   GoogleAuthProvider,
 } from 'firebase/auth';
@@ -26,12 +27,20 @@ const app = initializeApp(firebaseConfig);
 // Providing an ordered fallback (local → session → memory) lets Firebase pick
 // whichever works; in the worst case auth just doesn't survive a reload,
 // which is fine for an embedded browser session.
+// NOTE: because we use initializeAuth (not getAuth) to control persistence, we
+// MUST supply popupRedirectResolver ourselves — getAuth would include it for
+// free. Without it, signInWithPopup / signInWithRedirect / getRedirectResult
+// throw `auth/argument-error` (a malformed-argument error, thrown before any
+// network call), which is exactly what breaks Google sign-in. It only affects
+// popup/redirect resolution, not persistence, so the in-app-WebView fallback
+// above is unchanged.
 export const auth = initializeAuth(app, {
   persistence: [
     browserLocalPersistence,
     browserSessionPersistence,
     inMemoryPersistence,
   ],
+  popupRedirectResolver: browserPopupRedirectResolver,
 });
 
 // Google federated sign-in provider. `prompt: 'select_account'` always shows the

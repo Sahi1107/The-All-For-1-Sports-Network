@@ -48,6 +48,9 @@ export default function GoogleAuthButton({
       routeAfter(res);
     } catch (err: any) {
       const code = err?.code ?? '';
+      if (code !== 'CANCELLED' && code !== 'LINK_REQUIRED') {
+        console.error('[google-auth] handleGoogle failed:', { code, message: err?.message, stack: err?.stack, error: err });
+      }
       if (code === 'CANCELLED' || code === 'LINK_REQUIRED') {
         // CANCELLED → user backed out, no error. LINK_REQUIRED → the modal below
         // opens automatically (driven by `linkEmail`); nothing to toast.
@@ -71,6 +74,7 @@ export default function GoogleAuthButton({
       routeAfter(res);
     } catch (err: any) {
       const code = err?.code ?? err?.message ?? '';
+      console.error('[google-auth] linkGoogleToPassword failed:', { code, message: err?.message, stack: err?.stack, error: err });
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
         toast.error('Incorrect password. Please try again.');
       } else if (code === 'auth/too-many-requests') {
