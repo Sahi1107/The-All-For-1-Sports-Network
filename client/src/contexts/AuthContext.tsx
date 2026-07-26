@@ -16,6 +16,7 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
+import { setSentryUser } from '../config/sentry';
 import type { Sport } from '../data/sports';
 
 const baseURL = (import.meta.env.VITE_API_URL ?? '') + '/api';
@@ -198,6 +199,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     return unsubscribe;
   }, []);
+
+  // Keep Sentry error reports tagged with the current user (cleared on logout).
+  useEffect(() => {
+    setSentryUser(user ? { id: user.id, role: user.role } : null);
+  }, [user]);
 
   // ── Register ─────────────────────────────────────────────────────────────
 

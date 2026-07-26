@@ -65,6 +65,15 @@ export const env = {
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_FROM: process.env.SMTP_FROM || 'All For 1 <no-reply@allfor1.network>',
 
+  // Inbox that receives in-app support/contact requests.
+  SUPPORT_EMAIL: process.env.SUPPORT_EMAIL || 'info@allfor1.pro',
+
+  // ─── Sentry (error monitoring — optional) ────────────────────
+  // When SENTRY_DSN is unset, Sentry stays disabled and all capture calls
+  // no-op, so local/dev startup is unaffected.
+  SENTRY_DSN: process.env.SENTRY_DSN || '',
+  SENTRY_TRACES_SAMPLE_RATE: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
+
   // ─── Logging ─────────────────────────────────────────────────
   // Accepted values: error | warn | info | http | verbose | debug
   LOG_LEVEL: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),

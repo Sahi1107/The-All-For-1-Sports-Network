@@ -1,3 +1,5 @@
+// Imported first so Sentry.init() runs before the app and its instrumentation.
+import { captureException } from './config/sentry';
 import http from 'http';
 import { Server } from 'socket.io';
 import app from './app';
@@ -12,6 +14,7 @@ import prisma from './config/db';
 // audit trail, not silently disappear.
 
 process.on('uncaughtException', (err: Error) => {
+  captureException(err, { kind: 'uncaughtException' });
   logger.error('Uncaught exception — shutting down', {
     message: err.message,
     stack:   err.stack,
@@ -21,6 +24,7 @@ process.on('uncaughtException', (err: Error) => {
 });
 
 process.on('unhandledRejection', (reason: unknown) => {
+  captureException(reason, { kind: 'unhandledRejection' });
   logger.error('Unhandled promise rejection', {
     reason: reason instanceof Error ? reason.message : String(reason),
     stack:  reason instanceof Error ? reason.stack : undefined,

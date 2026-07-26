@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger';
+import { captureException } from '../config/sentry';
 
 // Query-param keys whose values must never appear in logs
 const REDACT_PARAMS = new Set(['token', 'reset_token', 'code', 'secret', 'password']);
@@ -71,11 +72,13 @@ export function errorHandler(
   _next: NextFunction,
 ): void {
   const isProd = process.env.NODE_ENV === 'production';
+  const url = sanitizeUrl(req.originalUrl || req.url);
+  captureException(err, { method: req.method, url });
   logger.error('Unhandled error', {
     message:  err.message,
     stack:    isProd ? undefined : err.stack,
     method:   req.method,
-    url:      sanitizeUrl(req.originalUrl || req.url),
+    url,
     ip:       req.ip,
   });
 
