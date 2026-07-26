@@ -92,7 +92,7 @@ export default function TournamentManage() {
         {/* 1 · Details */}
         <Stage n={1} icon={Info} title="Details" done state="Created">
           <p className="text-sm text-gray-custom">
-            {SPORT(t.sport)} · {t.format} format
+            {SPORT(t.sport)} · {t.format.toLowerCase()} entry
             {t.startDate && <> · {new Date(t.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{t.endDate ? `–${new Date(t.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</>}
           </p>
           {t.description && <p className="text-sm text-gray-custom mt-1 line-clamp-2">{t.description}</p>}

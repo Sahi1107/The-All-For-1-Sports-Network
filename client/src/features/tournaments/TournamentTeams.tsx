@@ -107,42 +107,58 @@ export default function TournamentTeams({ tournamentId }: { tournamentId: string
               {team.players.map((p) => {
                 const isOpen = openPlayer === `${team.id}:${p.id}`;
                 const canExpand = data.isStatSport && p.perMatch.length > 0;
+                const hasStats = !!p.totals && p.totals.matches > 0;
+                const openProfile = () => navigate(`/profile/${p.id}`);
                 return (
                   <li key={p.id}>
-                    <div
-                      className={`flex items-center gap-3 px-4 py-3 ${canExpand ? 'cursor-pointer hover:bg-surface' : ''} transition-colors`}
-                      onClick={() => canExpand && setOpenPlayer(isOpen ? null : `${team.id}:${p.id}`)}
-                    >
-                      {/* Avatar → profile */}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); navigate(`/profile/${p.id}`); }}
-                        className="shrink-0"
-                        title="View profile"
+                    <div className="flex items-center gap-2 px-4 py-3">
+                      {/* Whole area taps through to the player's profile (big mobile target) */}
+                      <div
+                        role="link"
+                        tabIndex={0}
+                        onClick={openProfile}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openProfile(); } }}
+                        className="flex items-center gap-3 flex-1 min-w-0 -mx-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-surface active:bg-elevated transition-colors"
+                        title={`View ${p.name}'s profile`}
                       >
                         {p.avatar
-                          ? <img src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-line" />
-                          : <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center text-sm font-bold text-gray-custom">{p.name.charAt(0).toUpperCase()}</div>}
-                      </button>
+                          ? <img src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-line shrink-0" />
+                          : <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center text-sm font-bold text-gray-custom shrink-0">{p.name.charAt(0).toUpperCase()}</div>}
 
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate flex items-center gap-1.5">
-                          {p.name}
-                          {p.isCaptain && <Crown size={12} className="text-primary shrink-0" />}
-                        </p>
-                        <p className="text-xs text-gray-custom truncate">
-                          {[p.position, p.age ? `${p.age} yrs` : null].filter(Boolean).join(' · ') || '—'}
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                            {p.name}
+                            {p.isCaptain && <Crown size={12} className="text-primary shrink-0" />}
+                          </p>
+                          <p className="text-xs text-gray-custom truncate">
+                            {[p.position, p.age ? `${p.age} yrs` : null].filter(Boolean).join(' · ') || '—'}
+                          </p>
+                        </div>
+
+                        {/* Headline per-tournament stats — or a deliberate empty state */}
+                        {data.isStatSport && ui && (
+                          hasStats ? (
+                            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+                              {ui.head.map((f) => (
+                                <Stat key={f} label={ui.labels[f]} value={fmt(p.totals!.totals[f] ?? 0)} />
+                              ))}
+                              <Stat label="Mts" value={String(p.totals!.matches)} muted />
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-gray-custom/70 shrink-0 whitespace-nowrap">No stats yet</span>
+                          )
+                        )}
                       </div>
 
-                      {/* Headline per-tournament stats */}
-                      {data.isStatSport && ui && (
-                        <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                          {ui.head.map((f) => (
-                            <Stat key={f} label={ui.labels[f]} value={p.totals ? fmt(p.totals.totals[f] ?? 0) : '0'} />
-                          ))}
-                          <Stat label="Mts" value={p.totals ? String(p.totals.matches) : '0'} muted />
-                          {canExpand && <ChevronDown size={15} className={`text-gray-custom transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
-                        </div>
+                      {/* Separate control to expand the per-match breakdown */}
+                      {canExpand && (
+                        <button
+                          onClick={() => setOpenPlayer(isOpen ? null : `${team.id}:${p.id}`)}
+                          className="p-1.5 rounded-lg text-gray-custom hover:text-foreground hover:bg-surface transition-colors shrink-0"
+                          aria-label={isOpen ? 'Hide match stats' : 'Show match stats'}
+                        >
+                          <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
                       )}
                     </div>
 

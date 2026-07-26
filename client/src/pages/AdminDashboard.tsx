@@ -1169,16 +1169,18 @@ export default function AdminDashboard() {
               {/* Format + Roster size */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-custom mb-2">Format *</label>
+                  <label className="block text-sm text-gray-custom mb-2">Entry type *</label>
                   <select
                     value={tournamentForm.format}
                     onChange={(e) => setTournamentForm((f) => ({ ...f, format: e.target.value }))}
                     className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                    title="Who registers — teams, solo athletes, or pairs. (The competition format — league / knockout / groups — is chosen later in the Stat Tracker.)"
                   >
                     {TOURNAMENT_FORMATS.map(({ value, label }) => (
                       <option key={value} value={value}>{label}</option>
                     ))}
                   </select>
+                  <p className="text-[11px] text-gray-custom mt-1">Who registers. League/knockout format is set at the draw.</p>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-custom mb-2">Min Roster</label>
