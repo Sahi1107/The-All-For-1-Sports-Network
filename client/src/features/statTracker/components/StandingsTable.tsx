@@ -1,5 +1,8 @@
 import type { StandingRow } from '../stats';
 
+/** Signed goal-difference: +4 / 0 / −4 (uses a real minus glyph). */
+const fmtGD = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : '0');
+
 /** League / group standings table. When `advanceCount` is set, the top N rows
  *  are marked as qualifying (used for MIXED group stages). */
 export default function StandingsTable({
@@ -38,7 +41,7 @@ export default function StandingsTable({
               <span className="truncate">{r.teamName}</span>
               <span className="text-center">{r.played}</span><span className="text-center">{r.wins}</span>
               <span className="text-center">{r.draws}</span><span className="text-center">{r.losses}</span>
-              <span className="text-center">{r.goalDifference}</span>
+              <span className="text-center tabular-nums">{fmtGD(r.goalDifference)}</span>
               <span className="text-center font-semibold text-primary-light">{r.points}</span>
             </div>
           );

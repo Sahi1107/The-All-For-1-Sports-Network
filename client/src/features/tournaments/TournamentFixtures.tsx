@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
 import { GitFork, Settings, Trophy, Medal } from 'lucide-react';
+import StandingsTable from '../statTracker/components/StandingsTable';
+import type { StandingRow } from '../statTracker/stats';
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface TeamLite { id: string; name: string; logo: string | null }
@@ -139,48 +141,15 @@ function isPlayed(m: BMatch) { return m.status === 'COMPLETED' || m.status === '
 
 // ── group standings + fixtures ─────────────────────────────────────────────────
 function GroupCard({ group, teams, advancing }: { group: Group; teams: Record<string, TeamLite>; advancing: Set<string> }) {
-  // Only highlight qualifiers when advancement is selective (some group team doesn't advance).
-  const selective = group.teamIds.some((id) => !advancing.has(id));
+  // Qualifier highlight only when advancement is selective (some group team doesn't advance).
+  const advCount = group.teamIds.filter((id) => advancing.has(id)).length;
+  const selective = advCount > 0 && advCount < group.teamIds.length;
+  const rows: StandingRow[] = group.standings.map((s) => ({ ...s, teamName: teams[s.teamId]?.name ?? 'TBD' }));
   return (
-    <div className="bg-card rounded-xl border border-line overflow-hidden">
-      <div className="px-4 py-3 border-b border-line">
-        <h3 className="text-sm font-semibold">{group.name}</h3>
-      </div>
-      {/* Standings */}
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="text-gray-custom">
-            <th className="text-left font-medium py-2 pl-4 pr-2">#</th>
-            <th className="text-left font-medium py-2 pr-2">Team</th>
-            {['P', 'W', 'D', 'L', 'GD'].map((h) => <th key={h} className="font-medium py-2 px-1.5 text-center w-7">{h}</th>)}
-            <th className="font-medium py-2 px-2 text-center w-9">Pts</th>
-          </tr>
-        </thead>
-        <tbody className="font-numeric">
-          {group.standings.map((s, i) => {
-            const qual = selective && advancing.has(s.teamId);
-            return (
-              <tr key={s.teamId} className={`border-t border-line/60 ${qual ? 'bg-primary/5' : ''}`}>
-                <td className="py-2 pl-4 pr-2">
-                  <span className={`inline-flex items-center justify-center w-5 h-5 rounded text-[11px] font-semibold ${qual ? 'bg-primary text-on-primary' : 'text-gray-custom'}`}>{i + 1}</span>
-                </td>
-                <td className="py-2 pr-2 max-w-0">
-                  <div className="text-foreground"><TeamChip team={teams[s.teamId]} size={16} /></div>
-                </td>
-                <td className="py-2 px-1.5 text-center tabular-nums text-gray-custom">{s.played}</td>
-                <td className="py-2 px-1.5 text-center tabular-nums">{s.wins}</td>
-                <td className="py-2 px-1.5 text-center tabular-nums">{s.draws}</td>
-                <td className="py-2 px-1.5 text-center tabular-nums">{s.losses}</td>
-                <td className="py-2 px-1.5 text-center tabular-nums text-gray-custom">{s.goalDifference > 0 ? `+${s.goalDifference}` : s.goalDifference}</td>
-                <td className="py-2 px-2 text-center tabular-nums font-semibold">{s.points}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      {/* Fixtures */}
+    <div className="space-y-3">
+      <StandingsTable title={group.name} rows={rows} advanceCount={selective ? advCount : undefined} />
       {group.matches.length > 0 && (
-        <div className="border-t border-line divide-y divide-line/60">
+        <div className="bg-card rounded-xl border border-line overflow-hidden divide-y divide-line/60">
           {group.matches.map((m) => <FlatRow key={m.id} m={m} teams={teams} compact />)}
         </div>
       )}
