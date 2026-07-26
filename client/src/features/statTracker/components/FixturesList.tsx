@@ -26,6 +26,7 @@ export default function FixturesList({
   onShowDetails,
   onQuickSim,
   onManageMatch,
+  onAutoSchedule,
 }: {
   session: TrackerSession;
   onOpenMatch: (m: TrackerMatch) => void;

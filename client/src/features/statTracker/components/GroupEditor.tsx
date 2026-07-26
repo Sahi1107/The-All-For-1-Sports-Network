@@ -35,9 +35,6 @@ export default function GroupEditor({ session, onClose }: { session: TrackerSess
       ...g,
       teamIds: g.id === toGid ? [...g.teamIds.filter((t) => t !== teamId), teamId] : g.teamIds.filter((t) => t !== teamId),
     })));
-  const removeFromGroups = (teamId: string) =>
-    setGroups((gs) => gs.map((g) => ({ ...g, teamIds: g.teamIds.filter((t) => t !== teamId) })));
-
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tracker-session', tid] });
   const save = useMutation({
     mutationFn: () => api.patch(`/tracker/sessions/${tid}/groups`, { groups }),

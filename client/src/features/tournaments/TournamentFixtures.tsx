@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
-import { GitFork, Settings, CalendarClock, ChevronRight } from 'lucide-react';
+import { GitFork, Settings, CalendarClock } from 'lucide-react';
 import StandingsTable from '../statTracker/components/StandingsTable';
 import SharedBracket, { type BracketData, type BracketMatchVM } from '../statTracker/components/Bracket';
 import type { StandingRow } from '../statTracker/stats';
