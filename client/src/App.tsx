@@ -9,7 +9,7 @@ import BallLoader from './components/BallLoader';
 import AnalyticsManager from './components/AnalyticsManager';
 import ConsentBanner from './components/ConsentBanner';
 import { getConsent, setConsent, type Consent } from './config/consent';
-import { stopAnalytics } from './config/analytics';
+import { stopAnalytics, analyticsAvailable } from './config/analytics';
 
 // Lazy-load every page so the initial bundle is tiny
 const Landing        = lazy(() => import('./pages/Landing'));
@@ -185,7 +185,8 @@ function ConsentGate() {
   return (
     <>
       <AnalyticsManager consent={consent} />
-      <ConsentBanner consent={consent} onDecide={decide} />
+      {/* Only ask for consent when analytics is actually configured. */}
+      {analyticsAvailable && <ConsentBanner consent={consent} onDecide={decide} />}
     </>
   );
 }
