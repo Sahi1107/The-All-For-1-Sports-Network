@@ -9,7 +9,7 @@ import { createSession } from './api';
 import { exportTournamentExcel } from './excel';
 import TournamentView from './TournamentView';
 import type { TrackerFormat, TrackerSession } from './types';
-import { Download, Trophy } from 'lucide-react';
+import { Download, Trophy, RotateCcw, AlertTriangle } from 'lucide-react';
 
 export default function TrackerDashboard() {
   const { tournamentId } = useParams();
@@ -29,6 +29,17 @@ export default function TrackerDashboard() {
     queryFn: async () => (await api.get(`/tracker/sessions/${tournamentId}`)).data.session,
   });
 
+  const [showReset, setShowReset] = useState(false);
+  const resetMutation = useMutation({
+    mutationFn: () => api.delete(`/tracker/sessions/${tournamentId}`),
+    onSuccess: () => {
+      toast.success('Draw reset — set it up again');
+      setShowReset(false);
+      qc.invalidateQueries({ queryKey: ['tracker-session', tournamentId] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to reset draw'),
+  });
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-16">
@@ -42,12 +53,21 @@ export default function TrackerDashboard() {
       <div className="flex items-center justify-between gap-3 mb-1">
         <h1 className="text-2xl font-bold truncate">{tournament?.name ?? 'Tournament'}</h1>
         {session && (
-          <button
-            onClick={() => exportTournamentExcel(session, tournament?.name ?? 'tournament')}
-            className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-primary rounded-lg text-xs transition-colors"
-          >
-            <Download size={14} /> Tournament totals
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => exportTournamentExcel(session, tournament?.name ?? 'tournament')}
+              className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-primary rounded-lg text-xs transition-colors"
+            >
+              <Download size={14} /> Tournament totals
+            </button>
+            <button
+              onClick={() => setShowReset(true)}
+              className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-red-400 text-gray-custom hover:text-red-400 rounded-lg text-xs transition-colors"
+              title="Regenerate the draw"
+            >
+              <RotateCcw size={14} /> Reset draw
+            </button>
+          </div>
         )}
       </div>
       <p className="text-sm text-gray-custom mb-6">
@@ -70,6 +90,52 @@ export default function TrackerDashboard() {
       <div className="mt-6">
         <Link to="/admin/stat-tracker" className="text-xs text-gray-custom hover:text-foreground">← All tournaments</Link>
       </div>
+
+      {showReset && session && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => !resetMutation.isPending && setShowReset(false)}
+        >
+          <div className="bg-card border border-line rounded-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle size={18} className="text-red-400" />
+              </div>
+              <h3 className="font-semibold text-lg">Reset the draw?</h3>
+            </div>
+            <div className="text-sm text-gray-custom space-y-2">
+              <p>This permanently deletes the current draw for <span className="text-foreground font-medium">{tournament?.name}</span>:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>all groups, fixtures and the bracket</li>
+                <li>any in-progress match tracking</li>
+                {(() => {
+                  const published = session.matches.filter((m) => m.status === 'PUBLISHED').length;
+                  return published > 0
+                    ? <li className="text-red-400">{published} published result{published > 1 ? 's' : ''} — including the player stats they wrote to profiles</li>
+                    : null;
+                })()}
+              </ul>
+              <p>You'll pick the format and generate a fresh draw. This can't be undone.</p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                onClick={() => setShowReset(false)}
+                disabled={resetMutation.isPending}
+                className="px-4 py-2 text-sm rounded-lg border border-line hover:bg-elevated transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => resetMutation.mutate()}
+                disabled={resetMutation.isPending}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-red-500 hover:bg-red-600 text-white transition-colors disabled:opacity-50"
+              >
+                {resetMutation.isPending ? 'Resetting…' : 'Reset draw'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

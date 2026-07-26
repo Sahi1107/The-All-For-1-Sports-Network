@@ -225,6 +225,46 @@ router.post(
   },
 );
 
+// ─── Reset a session (regenerate the draw) ───────────────────
+// Deletes the tracker session (cascades its TrackerMatch rows) AND any platform
+// Match rows those fixtures published (cascading per-player stats), so re-drawing
+// is a true clean slate with no orphaned results. Admin-only (router-level guard).
+router.delete(
+  '/sessions/:tournamentId',
+  validate({ params: TournamentIdParam }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.tournamentId as string;
+      const session = await prisma.trackerSession.findUnique({
+        where: { tournamentId },
+        include: { matches: { select: { publishedMatchId: true } } },
+      });
+      if (!session) {
+        res.status(404).json({ error: 'No draw to reset for this tournament' });
+        return;
+      }
+
+      const publishedMatchIds = session.matches
+        .map((m) => m.publishedMatchId)
+        .filter((id): id is string => !!id);
+
+      await prisma.$transaction(async (tx) => {
+        if (publishedMatchIds.length > 0) {
+          // Cascades FootballStats / BasketballStats / CricketStats for these matches.
+          await tx.match.deleteMany({ where: { id: { in: publishedMatchIds } } });
+        }
+        // Cascades the session's TrackerMatch rows.
+        await tx.trackerSession.delete({ where: { id: session.id } });
+      });
+
+      res.json({ reset: true, deletedPublishedMatches: publishedMatchIds.length });
+    } catch (err) {
+      console.error('Reset tracker session error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
 // ─── Get a single match (with roster + standings) ────────────
 router.get(
   '/matches/:id',
