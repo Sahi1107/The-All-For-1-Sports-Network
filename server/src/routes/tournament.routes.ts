@@ -8,12 +8,20 @@ import { validate } from '../middleware/validate';
 import { validateImageBytes } from '../middleware/upload';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { writeMatchPlayerStats } from '../services/matchStats';
+import { isStatSport, CAREER_STAT_FIELDS, type StatSport } from '../data/careerStats';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody,
 } from '../validation/tournament';
 
 const router = Router();
+
+// Which Prisma stat model holds each stat-sport's per-match rows.
+const STAT_MODEL: Record<StatSport, 'basketballStats' | 'footballStats' | 'cricketStats'> = {
+  BASKETBALL: 'basketballStats',
+  FOOTBALL:   'footballStats',
+  CRICKET:    'cricketStats',
+};
 
 const thumbnailUpload = multer({
   storage: multer.memoryStorage(),
@@ -204,6 +212,121 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     res.json({ tournament });
   } catch (error) {
     console.error('Get tournament error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tournaments/:id/teams — rosters + per-player per-match & per-tournament stats
+// Viewable by all authenticated users (the Teams tab). Stats are only populated for
+// the three stat sports (Football / Basketball / Cricket); other sports return rosters
+// with null stats.
+router.get('/:id/teams', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true, sport: true },
+    });
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+
+    // Rosters: registered teams → accepted members → user profile fields.
+    const registrations = await prisma.tournamentTeam.findMany({
+      where: { tournamentId },
+      include: {
+        team: {
+          include: {
+            members: {
+              where: { status: 'ACCEPTED' },
+              include: { user: { select: { id: true, name: true, position: true, age: true, avatar: true } } },
+              orderBy: { invitedAt: 'asc' },
+            },
+          },
+        },
+      },
+      orderBy: { registeredAt: 'asc' },
+    });
+
+    // Matches (for per-match context: opponent + result).
+    const matchRows = await prisma.match.findMany({
+      where: { tournamentId },
+      include: {
+        homeTeam: { select: { id: true, name: true } },
+        awayTeam: { select: { id: true, name: true } },
+      },
+      orderBy: { matchDate: 'asc' },
+    });
+    const matches = matchRows.map((m) => ({
+      id: m.id,
+      round: m.round,
+      date: m.matchDate,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+      homeTeamName: m.homeTeam?.name ?? null,
+      awayTeamName: m.awayTeam?.name ?? null,
+      homeScore: m.homeScore,
+      awayScore: m.awayScore,
+    }));
+
+    const statSport = isStatSport(tournament.sport);
+    const fields = statSport ? CAREER_STAT_FIELDS[tournament.sport as StatSport] : [];
+
+    // Aggregate stats once for the whole tournament, then attach per player.
+    const totalsByUser = new Map<string, { matches: number; totals: Record<string, number> }>();
+    const perMatchByUser = new Map<string, Array<Record<string, unknown>>>();
+    if (statSport) {
+      const model = (prisma as any)[STAT_MODEL[tournament.sport as StatSport]];
+      const grouped = await model.groupBy({
+        by: ['userId'],
+        where: { tournamentId },
+        _sum: Object.fromEntries(fields.map((f) => [f, true])),
+        _count: { _all: true },
+      });
+      for (const g of grouped as Array<{ userId: string; _sum: Record<string, number | null>; _count: { _all: number } }>) {
+        const totals: Record<string, number> = {};
+        for (const f of fields) totals[f] = Number(g._sum[f] ?? 0);
+        totalsByUser.set(g.userId, { matches: g._count._all, totals });
+      }
+      const rows = await model.findMany({
+        where: { tournamentId },
+        select: { matchId: true, userId: true, ...Object.fromEntries(fields.map((f) => [f, true])) },
+      });
+      for (const r of rows as Array<Record<string, any>>) {
+        const arr = perMatchByUser.get(r.userId) ?? [];
+        const line: Record<string, unknown> = { matchId: r.matchId };
+        for (const f of fields) line[f] = Number(r[f] ?? 0);
+        arr.push(line);
+        perMatchByUser.set(r.userId, arr);
+      }
+    }
+
+    const teams = registrations.map((r) => ({
+      id: r.team.id,
+      name: r.team.name,
+      logo: r.team.logo,
+      captainId: r.team.captainId,
+      players: r.team.members.map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        position: m.user.position,
+        age: m.user.age,
+        avatar: m.user.avatar,
+        role: m.role,
+        isCaptain: m.role === 'CAPTAIN' || r.team.captainId === m.user.id,
+        totals: totalsByUser.get(m.user.id) ?? null,
+        perMatch: perMatchByUser.get(m.user.id) ?? [],
+      })),
+    }));
+
+    // Sign avatars/logos (real GCS media; external test URLs pass through untouched).
+    await signMediaDeep(teams);
+
+    res.json({ sport: tournament.sport, isStatSport: statSport, statFields: fields, matches, teams });
+  } catch (error) {
+    console.error('Get tournament teams error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
