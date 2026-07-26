@@ -46,10 +46,11 @@ export default function StatTrackerLauncher() {
       <div className="mb-6 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5">
         <div className="flex items-center gap-2 mb-2">
           <FlaskConical size={16} className="text-amber-300" />
-          <p className="text-sm font-semibold">Try a demo</p>
+          <p className="text-sm font-semibold">Try a full tournament demo</p>
         </div>
         <p className="text-xs text-gray-custom mb-3">
-          Test the trackers with sample teams and players. Nothing is saved — results aren't published.
+          Run an entire tournament with sample teams — generate the draw, quick-sim or live-track
+          matches, and watch standings, brackets, and stat leaders fill in. Nothing is saved.
         </p>
         <div className="flex gap-2">
           <Link to="/admin/stat-tracker/demo/basketball"

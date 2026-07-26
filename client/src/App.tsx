@@ -31,7 +31,7 @@ const ForcePasswordReset = lazy(() => import('./pages/ForcePasswordReset'));
 const StatTrackerLauncher = lazy(() => import('./features/statTracker/StatTrackerLauncher'));
 const TrackerDashboard     = lazy(() => import('./features/statTracker/TrackerDashboard'));
 const TrackerMatchRoute    = lazy(() => import('./features/statTracker/MatchRoute'));
-const TrackerDemoRoute     = lazy(() => import('./features/statTracker/demo/DemoMatchRoute'));
+const TrackerDemoRoute     = lazy(() => import('./features/statTracker/demo/DemoTournamentRoute'));
 const Radar          = lazy(() => import('./pages/Radar'));
 const Grow           = lazy(() => import('./pages/Grow'));
 const Settings       = lazy(() => import('./pages/Settings'));

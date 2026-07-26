@@ -6,21 +6,30 @@ import logoUrl from '../../assets/logo.svg';
  *  a back arrow in the top-left corner so the full box score / action grid fits. */
 export default function FullscreenShell({
   backTo,
+  onBack,
   topRight,
   children,
 }: {
-  backTo: string;
+  /** Router path to navigate back to. Ignored when `onBack` is provided. */
+  backTo?: string;
+  /** In-page back handler — used by the demo so tournament state survives. */
+  onBack?: () => void;
   topRight?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const nav = useNavigate();
+  const goBack = () => {
+    if (onBack) onBack();
+    else if (backTo) nav(backTo);
+    else nav(-1);
+  };
   return (
     <div className="min-h-screen bg-dark text-white">
       {/* Logo + back arrow, stacked in the top-left corner */}
       <div className="fixed top-3 left-3 z-40 flex flex-col items-center gap-3">
         <img src={logoUrl} alt="All For 1" className="w-12 h-12" />
         <button
-          onClick={() => nav(backTo)}
+          onClick={goBack}
           title="Back"
           aria-label="Back"
           className="w-9 h-9 rounded-full bg-dark-light border border-dark-lighter flex items-center justify-center text-gray-custom hover:text-white hover:border-primary transition-colors"

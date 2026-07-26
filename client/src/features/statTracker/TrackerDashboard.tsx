@@ -1,17 +1,15 @@
 import BallLoader from '../../components/BallLoader';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api/client';
 import { createSession } from './api';
-import { standingsFor } from './stats';
 import { exportTournamentExcel } from './excel';
-import type { TrackerFormat, TrackerSession, TrackerMatch, GroupDef } from './types';
-import { Download, Play, CheckCircle2, Trophy } from 'lucide-react';
-
-const STAGE_ORDER = ['group', 'league', 'r32', 'r16', 'qf', 'sf', 'third_place', 'final'];
+import TournamentView from './TournamentView';
+import type { TrackerFormat, TrackerSession } from './types';
+import { Download, Trophy } from 'lucide-react';
 
 export default function TrackerDashboard() {
   const { tournamentId } = useParams();
@@ -63,7 +61,10 @@ export default function TrackerDashboard() {
           onCreated={() => qc.invalidateQueries({ queryKey: ['tracker-session', tournamentId] })}
         />
       ) : (
-        <SessionView session={session} onOpenMatch={(m) => nav(`/admin/stat-tracker/${tournamentId}/match/${m.id}`)} />
+        <TournamentView
+          session={session}
+          onOpenMatch={(m) => nav(`/admin/stat-tracker/${tournamentId}/match/${m.id}`)}
+        />
       )}
 
       <div className="mt-6">
@@ -180,113 +181,6 @@ function NumberField({
         onChange={(e) => onChange(Math.max(min, Math.min(max, Number(e.target.value) || min)))}
         className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
       />
-    </div>
-  );
-}
-
-function SessionView({
-  session,
-  onOpenMatch,
-}: { session: TrackerSession; onOpenMatch: (m: TrackerMatch) => void }) {
-  const teamNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    (session.roster ?? []).forEach((t) => m.set(t.teamId, t.name));
-    return m;
-  }, [session.roster]);
-  const teamName = (id: string | null) => (id ? teamNameMap.get(id) ?? 'TBD' : 'TBD');
-
-  const byStage = useMemo(() => {
-    const groups = new Map<string, TrackerMatch[]>();
-    [...session.matches]
-      .sort((a, b) => a.orderIndex - b.orderIndex)
-      .forEach((m) => {
-        const key = m.stage;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key)!.push(m);
-      });
-    return [...groups.entries()].sort(
-      (a, b) => STAGE_ORDER.indexOf(a[0]) - STAGE_ORDER.indexOf(b[0]),
-    );
-  }, [session.matches]);
-
-  return (
-    <div className="space-y-6">
-      {/* Standings */}
-      {session.format === 'LEAGUE' && (
-        <StandingsTable title="League table" rows={standingsFor(session, (session.roster ?? []).map((t) => t.teamId))} />
-      )}
-      {session.format === 'MIXED' && (session.groups ?? []).map((g: GroupDef) => (
-        <StandingsTable key={g.id} title={g.name} rows={standingsFor(session, g.teamIds)} />
-      ))}
-
-      {/* Fixtures by stage */}
-      {byStage.map(([stage, matches]) => (
-        <div key={stage}>
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom mb-2">
-            {matches[0].round || stage}
-          </h3>
-          <div className="bg-card rounded-xl border border-line overflow-hidden divide-y divide-line">
-            {matches.map((m) => (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
-                  <span className="text-right truncate">{teamName(m.homeTeamId)}</span>
-                  <span className="font-mono font-semibold px-2">
-                    {m.status === 'SCHEDULED' ? 'vs' : `${m.homeScore}–${m.awayScore}`}
-                  </span>
-                  <span className="truncate">{teamName(m.awayTeamId)}</span>
-                </div>
-                <StatusBadge status={m.status} />
-                <button
-                  onClick={() => onOpenMatch(m)}
-                  disabled={!m.homeTeamId || !m.awayTeamId}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary text-xs font-semibold rounded-lg disabled:opacity-40"
-                >
-                  {m.status === 'PUBLISHED' ? <CheckCircle2 size={13} /> : <Play size={13} />}
-                  {m.status === 'SCHEDULED' ? 'Track' : m.status === 'PUBLISHED' ? 'View' : 'Resume'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    SCHEDULED: 'bg-elevated text-gray-custom border-line',
-    IN_PROGRESS: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-    COMPLETED: 'bg-primary/20 text-primary-light border-primary/30',
-    PUBLISHED: 'bg-accent/20 text-accent border-accent/30',
-  };
-  return (
-    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${map[status] ?? map.SCHEDULED}`}>
-      {status.replace('_', ' ')}
-    </span>
-  );
-}
-
-function StandingsTable({ title, rows }: { title: string; rows: ReturnType<typeof standingsFor> }) {
-  return (
-    <div>
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom mb-2">{title}</h3>
-      <div className="bg-card rounded-xl border border-line overflow-hidden">
-        <div className="grid grid-cols-[2fr_repeat(6,1fr)] gap-1 px-4 py-2 text-[11px] text-gray-custom border-b border-line">
-          <span>Team</span><span className="text-center">P</span><span className="text-center">W</span>
-          <span className="text-center">D</span><span className="text-center">L</span>
-          <span className="text-center">GD</span><span className="text-center">Pts</span>
-        </div>
-        {rows.map((r) => (
-          <div key={r.teamId} className="grid grid-cols-[2fr_repeat(6,1fr)] gap-1 px-4 py-2 text-sm border-b border-line last:border-0">
-            <span className="truncate">{r.teamName}</span>
-            <span className="text-center">{r.played}</span><span className="text-center">{r.wins}</span>
-            <span className="text-center">{r.draws}</span><span className="text-center">{r.losses}</span>
-            <span className="text-center">{r.goalDifference}</span>
-            <span className="text-center font-semibold text-primary-light">{r.points}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
