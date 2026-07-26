@@ -8,12 +8,21 @@ import { validate } from '../middleware/validate';
 import { validateImageBytes } from '../middleware/upload';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { writeMatchPlayerStats } from '../services/matchStats';
+import { isStatSport, CAREER_STAT_FIELDS, type StatSport } from '../data/careerStats';
+import { computeStandings } from '../services/trackerDraw';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody,
 } from '../validation/tournament';
 
 const router = Router();
+
+// Which Prisma stat model holds each stat-sport's per-match rows.
+const STAT_MODEL: Record<StatSport, 'basketballStats' | 'footballStats' | 'cricketStats'> = {
+  BASKETBALL: 'basketballStats',
+  FOOTBALL:   'footballStats',
+  CRICKET:    'cricketStats',
+};
 
 const thumbnailUpload = multer({
   storage: multer.memoryStorage(),
@@ -204,6 +213,238 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     res.json({ tournament });
   } catch (error) {
     console.error('Get tournament error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tournaments/:id/teams — rosters + per-player per-match & per-tournament stats
+// Viewable by all authenticated users (the Teams tab). Stats are only populated for
+// the three stat sports (Football / Basketball / Cricket); other sports return rosters
+// with null stats.
+router.get('/:id/teams', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true, sport: true },
+    });
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+
+    // Rosters: registered teams → accepted members → user profile fields.
+    const registrations = await prisma.tournamentTeam.findMany({
+      where: { tournamentId },
+      include: {
+        team: {
+          include: {
+            members: {
+              where: { status: 'ACCEPTED' },
+              include: { user: { select: { id: true, name: true, position: true, age: true, avatar: true } } },
+              orderBy: { invitedAt: 'asc' },
+            },
+          },
+        },
+      },
+      orderBy: { registeredAt: 'asc' },
+    });
+
+    // Matches (for per-match context: opponent + result).
+    const matchRows = await prisma.match.findMany({
+      where: { tournamentId },
+      include: {
+        homeTeam: { select: { id: true, name: true } },
+        awayTeam: { select: { id: true, name: true } },
+      },
+      orderBy: { matchDate: 'asc' },
+    });
+    const matches = matchRows.map((m) => ({
+      id: m.id,
+      round: m.round,
+      date: m.matchDate,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+      homeTeamName: m.homeTeam?.name ?? null,
+      awayTeamName: m.awayTeam?.name ?? null,
+      homeScore: m.homeScore,
+      awayScore: m.awayScore,
+    }));
+
+    const statSport = isStatSport(tournament.sport);
+    const fields = statSport ? CAREER_STAT_FIELDS[tournament.sport as StatSport] : [];
+
+    // Aggregate stats once for the whole tournament, then attach per player.
+    const totalsByUser = new Map<string, { matches: number; totals: Record<string, number> }>();
+    const perMatchByUser = new Map<string, Array<Record<string, unknown>>>();
+    if (statSport) {
+      const model = (prisma as any)[STAT_MODEL[tournament.sport as StatSport]];
+      const grouped = await model.groupBy({
+        by: ['userId'],
+        where: { tournamentId },
+        _sum: Object.fromEntries(fields.map((f) => [f, true])),
+        _count: { _all: true },
+      });
+      for (const g of grouped as Array<{ userId: string; _sum: Record<string, number | null>; _count: { _all: number } }>) {
+        const totals: Record<string, number> = {};
+        for (const f of fields) totals[f] = Number(g._sum[f] ?? 0);
+        totalsByUser.set(g.userId, { matches: g._count._all, totals });
+      }
+      const rows = await model.findMany({
+        where: { tournamentId },
+        select: { matchId: true, userId: true, ...Object.fromEntries(fields.map((f) => [f, true])) },
+      });
+      for (const r of rows as Array<Record<string, any>>) {
+        const arr = perMatchByUser.get(r.userId) ?? [];
+        const line: Record<string, unknown> = { matchId: r.matchId };
+        for (const f of fields) line[f] = Number(r[f] ?? 0);
+        arr.push(line);
+        perMatchByUser.set(r.userId, arr);
+      }
+    }
+
+    const teams = registrations.map((r) => ({
+      id: r.team.id,
+      name: r.team.name,
+      logo: r.team.logo,
+      captainId: r.team.captainId,
+      players: r.team.members.map((m) => ({
+        id: m.user.id,
+        name: m.user.name,
+        position: m.user.position,
+        age: m.user.age,
+        avatar: m.user.avatar,
+        role: m.role,
+        isCaptain: m.role === 'CAPTAIN' || r.team.captainId === m.user.id,
+        totals: totalsByUser.get(m.user.id) ?? null,
+        perMatch: perMatchByUser.get(m.user.id) ?? [],
+      })),
+    }));
+
+    // Sign avatars/logos (real GCS media; external test URLs pass through untouched).
+    // signMediaDeep only descends specific keys, so sign the team logos and the
+    // player avatars as flat lists.
+    await signMediaDeepAll(teams);
+    await signMediaDeepAll(teams.flatMap((t) => t.players));
+
+    res.json({ sport: tournament.sport, isStatSport: statSport, statFields: fields, matches, teams });
+  } catch (error) {
+    console.error('Get tournament teams error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tournaments/:id/fixtures — group standings + knockout bracket (all users).
+// Reads the TrackerSession (groups/bracket JSON) + its TrackerMatch rows. When no
+// session exists, falls back to the flat platform Match list so the tab never dead-ends.
+const STAGE_RANK: Record<string, number> = { r32: 0, r16: 1, qf: 2, sf: 3, final: 4, third_place: 5 };
+const STAGE_TITLE: Record<string, string> = {
+  r32: 'Round of 32', r16: 'Round of 16', qf: 'Quarter-finals',
+  sf: 'Semi-finals', final: 'Final', third_place: 'Third place',
+};
+
+router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true, sport: true },
+    });
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+
+    // Team lookup (name + logo) for every registered team.
+    const regs = await prisma.tournamentTeam.findMany({
+      where: { tournamentId },
+      include: { team: { select: { id: true, name: true, logo: true } } },
+    });
+    const teamList = regs.map((r) => ({ id: r.team.id, name: r.team.name, logo: r.team.logo }));
+    await signMediaDeepAll(teamList);
+    const teams: Record<string, { id: string; name: string; logo: string | null }> =
+      Object.fromEntries(teamList.map((t) => [t.id, t]));
+
+    const session = await prisma.trackerSession.findUnique({
+      where: { tournamentId },
+      include: { matches: { orderBy: { orderIndex: 'asc' } } },
+    });
+
+    const lite = (m: any) => ({
+      id: m.id, stage: m.stage, round: m.round, groupId: m.groupId,
+      bracketSlot: m.bracketSlot, feedsInto: m.feedsInto,
+      homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
+      homeScore: m.homeScore, awayScore: m.awayScore, status: m.status,
+      winnerTeamId:
+        (m.status === 'COMPLETED' || m.status === 'PUBLISHED') && m.homeTeamId && m.awayTeamId && m.homeScore !== m.awayScore
+          ? (m.homeScore > m.awayScore ? m.homeTeamId : m.awayTeamId)
+          : null,
+    });
+
+    if (!session) {
+      // Fallback: flat platform match list (may be empty → client shows "not published yet").
+      const flat = await prisma.match.findMany({
+        where: { tournamentId },
+        orderBy: { matchDate: 'asc' },
+        select: { id: true, round: true, homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true, matchDate: true },
+      });
+      res.json({ hasBracket: false, format: null, teams, groups: null, bracket: null, flatMatches: flat });
+      return;
+    }
+
+    const allMatches = session.matches as any[];
+    const groupDefs: Array<{ id: string; name: string; teamIds: string[] }> = (session.groups as any) ?? [];
+
+    // Group stage: standings + fixtures per group.
+    const groups = groupDefs.map((g) => {
+      const gMatches = allMatches.filter((m) => (m.stage === 'group' || m.stage === 'league') && m.groupId === g.id);
+      const standings = computeStandings(
+        g.teamIds,
+        gMatches.map((m) => ({ homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId, homeScore: m.homeScore, awayScore: m.awayScore, status: m.status })),
+      );
+      return { id: g.id, name: g.name, teamIds: g.teamIds, standings, matches: gMatches.map(lite) };
+    });
+
+    // Knockout bracket: group non-group matches by stage, ordered.
+    const koMatches = allMatches.filter((m) => m.stage !== 'group' && m.stage !== 'league');
+    const byStage = new Map<string, any[]>();
+    for (const m of koMatches) {
+      const arr = byStage.get(m.stage) ?? [];
+      arr.push(m);
+      byStage.set(m.stage, arr);
+    }
+    const orderedStages = [...byStage.keys()].sort((a, b) => (STAGE_RANK[a] ?? 99) - (STAGE_RANK[b] ?? 99));
+    const rounds = orderedStages
+      .filter((s) => s !== 'third_place')
+      .map((s) => ({
+        stage: s,
+        title: STAGE_TITLE[s] ?? s,
+        matches: (byStage.get(s) ?? [])
+          .sort((a, b) => String(a.bracketSlot ?? a.orderIndex).localeCompare(String(b.bracketSlot ?? b.orderIndex)))
+          .map(lite),
+      }));
+    const thirdPlaceArr = byStage.get('third_place') ?? [];
+    const bracket = rounds.length > 0 || thirdPlaceArr.length > 0
+      ? { rounds, thirdPlace: thirdPlaceArr.length > 0 ? lite(thirdPlaceArr[0]) : null }
+      : null;
+
+    // Teams that reached the knockout (earliest bracket round) — for the "qualified" highlight.
+    const advancingTeamIds = rounds.length > 0
+      ? Array.from(new Set(rounds[0].matches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter(Boolean)))
+      : [];
+
+    res.json({
+      hasBracket: true,
+      format: session.format,
+      teams,
+      groups: groups.length > 0 ? groups : null,
+      bracket,
+      advancingTeamIds,
+      flatMatches: null,
+    });
+  } catch (error) {
+    console.error('Get tournament fixtures error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

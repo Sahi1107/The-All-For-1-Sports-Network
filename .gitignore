@@ -57,3 +57,4 @@ skills-lock.json
 .firebase/
 server/cloud-sql-proxy
 graphify-out/
+_test-seed/

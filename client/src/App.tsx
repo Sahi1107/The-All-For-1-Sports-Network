@@ -19,6 +19,7 @@ const Explore        = lazy(() => import('./pages/Explore'));
 const Profile        = lazy(() => import('./pages/Profile'));
 const EditProfile    = lazy(() => import('./pages/EditProfile'));
 const Tournaments       = lazy(() => import('./pages/Tournaments'));
+const TournamentDetail   = lazy(() => import('./pages/TournamentDetail'));
 const TournamentRegister = lazy(() => import('./pages/TournamentRegister'));
 const TeamManage         = lazy(() => import('./pages/TeamManage'));
 const Rankings       = lazy(() => import('./pages/Rankings'));
@@ -113,6 +114,7 @@ function AppRoutes() {
           <Route path="home"                element={<Home />} />
           <Route path="explore"             element={<Explore />} />
           <Route path="tournaments"              element={<Tournaments />} />
+          <Route path="tournaments/:id"          element={<TournamentDetail />} />
           <Route path="tournaments/:id/register" element={<TournamentRegister />} />
           <Route path="teams/:id"                element={<TeamManage />} />
           <Route path="rankings"            element={<Rankings />} />
