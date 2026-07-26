@@ -113,6 +113,25 @@ enum NotificationType {
   REPOST
   MESSAGE
   ENDORSEMENT
+  // ── High-value additions (channel-agnostic; see notificationCatalog.ts) ──
+  PROFILE_VIEW              // a scout/coach viewed your profile (collapsed)
+  PROFILE_VIEWS_WEEKLY      // weekly "your profile got N views" digest
+  STATS_VERIFIED            // your stats were verified / Performance Card updated
+  RANKING_MILESTONE         // entered a top-N / crossed a meaningful threshold
+  MATCH_STARTING_SOON       // your team's match starts soon
+  MATCH_RESULT_PUBLISHED    // your match result (incl. your stats) is live
+  REGISTRATION_OPEN         // a tournament you're eligible for opened registration
+  REGISTRATION_CLOSING      // registration for a tournament closes soon
+  DRAW_PUBLISHED            // a tournament draw/bracket was published
+  FIXTURES_SCHEDULED        // your team's fixtures were scheduled
+  NEW_ATHLETE_MATCH         // (scout) an athlete matching your interests joined
+}
+
+enum DigestFrequency {
+  INSTANT
+  DAILY
+  WEEKLY
+  OFF
 }
 
 enum PostType {
@@ -179,6 +198,11 @@ model User {
   showOnlineStatus       Boolean   @default(true) @map("show_online_status")
   messagingFollowersOnly Boolean   @default(false) @map("messaging_followers_only")
   disableAllComments     Boolean   @default(false) @map("disable_all_comments")
+  // ── Notification global controls (anti-spam + DPDP) ──
+  notificationsPaused    Boolean   @default(false) @map("notifications_paused")   // global "pause all"
+  notifyQuietStart       Int?      @map("notify_quiet_start")  // local hour 0-23 (email/push suppressed)
+  notifyQuietEnd         Int?      @map("notify_quiet_end")
+  notificationUnsubToken String?   @unique @map("notification_unsub_token") // one-click email unsubscribe
   lastActiveAt           DateTime? @map("last_active_at")
 
   // Whether this profile is publicly discoverable (search, Scout Copilot,
@@ -230,6 +254,7 @@ model User {
   playerRankings          PlayerRanking[]
   announcements           Announcement[]
   notifications           Notification[]
+  notificationPreferences NotificationPreference[]
   sentMessages            Message[]            @relation("MessageSender")
   sharedInMessages        Message[]            @relation("SharedProfileInMessage")
   conversationMemberships ConversationMember[]
@@ -739,13 +764,39 @@ model Notification {
   title       String
   message     String
   read        Boolean          @default(false)
-  referenceId String?
+  referenceId String?          // deep-link target (post/tournament/team/…)
   createdAt   DateTime         @default(now())
+
+  // ── Channel-agnostic / anti-spam additions (all nullable-safe) ──
+  actorId     String?          @map("actor_id")     // who triggered it (for avatar + collapse)
+  groupKey    String?          @map("group_key")    // collapse key, e.g. "LIKE:post123"
+  count       Int              @default(1)          // collapsed count ("N people …")
+  link        String?                               // precomputed client route
+  emailedAt   DateTime?        @map("emailed_at")   // set once an email is sent (dedup + digest)
+  updatedAt   DateTime         @default(now()) @updatedAt @map("updated_at") // bumps on collapse
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
   @@index([createdAt])
+  @@index([userId, groupKey, read])       // collapse lookup
+  @@index([userId, emailedAt])            // digest queue scan
+}
+
+// Sparse per-type preference OVERRIDES. A missing row means "use the code default"
+// (see notificationCatalog.ts), so we never have to seed 20 rows per user.
+model NotificationPreference {
+  id     String           @id @default(uuid())
+  userId String           @map("user_id")
+  type   NotificationType
+  inApp  Boolean          @default(true)  @map("in_app")
+  email  Boolean          @default(false)
+  digest DigestFrequency  @default(INSTANT)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
 }
 
 // ─── Messaging ───────────────────────────────────────────

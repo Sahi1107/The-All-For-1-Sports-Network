@@ -29,14 +29,15 @@ interface SendOptions {
   html: string;
   text: string;
   replyTo?: string;
+  headers?: Record<string, string>;
 }
 
-async function sendMail({ to, subject, html, text, replyTo }: SendOptions): Promise<void> {
+async function sendMail({ to, subject, html, text, replyTo, headers }: SendOptions): Promise<void> {
   if (!transport) {
     logger.warn('email.not_configured', { to, subject, text });
     return;
   }
-  await transport.sendMail({ from: env.SMTP_FROM, to, subject, html, text, ...(replyTo && { replyTo }) });
+  await transport.sendMail({ from: env.SMTP_FROM, to, subject, html, text, ...(replyTo && { replyTo }), ...(headers && { headers }) });
 }
 
 // ─── Guardian consent form (profile handover) ────────────────────────────────
@@ -346,5 +347,83 @@ export async function sendSupportRequest({
         <p style="color:#666;font-size:13px;border-left:3px solid #eee;padding-left:12px;white-space:pre-line">${safeMsg}</p>
         <p style="margin-top:24px">— The All For 1 team</p>
       </div>`,
+  });
+}
+
+// ─── Activity notification emails (branded, dark + lime) ──────────────────────
+
+export interface NotificationEmailOptions {
+  to: string;
+  recipientName: string;
+  subject: string;
+  heading: string;
+  body: string;
+  ctaUrl: string;
+  ctaLabel: string;
+  unsubscribeUrl: string;    // unsubscribe from THIS type
+  unsubscribeAllUrl: string; // unsubscribe from all activity emails
+  category: string;          // "Endorsements", "Match results", …
+}
+
+const managePrefsUrl = `${clientOrigin}/settings/notifications`;
+
+/**
+ * A single, well-crafted activity-notification email. Dark surface + lime accent,
+ * Archivo/Inter stack with web-safe fallbacks, table layout for client support,
+ * a preheader, and a compliant footer with per-type + all unsubscribe links.
+ */
+export async function sendNotificationEmail(o: NotificationEmailOptions): Promise<void> {
+  const H = escapeHtml;
+  const font = "'Archivo','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+  const preheader = o.body.slice(0, 140);
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark">
+<style>@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500&display=swap');
+  body{margin:0;padding:0;background:#080808;} a{text-decoration:none;}</style></head>
+<body style="margin:0;padding:0;background:#080808;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:#080808;font-size:1px;line-height:1px;">${H(preheader)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#080808;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+        <tr><td style="padding:0 4px 20px;">
+          <span style="font-family:${font};font-weight:700;font-size:15px;letter-spacing:3px;color:#dbff5a;">ALL FOR 1</span>
+        </td></tr>
+        <tr><td style="background:#111111;border:1px solid #1c1c1c;border-radius:16px;padding:32px;">
+          <h1 style="margin:0 0 12px;font-family:${font};font-weight:700;font-size:22px;line-height:1.25;color:#ffffff;">${H(o.heading)}</h1>
+          <p style="margin:0 0 24px;font-family:${font};font-weight:400;font-size:15px;line-height:1.6;color:#c9c9c9;">${H(o.body)}</p>
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            <td style="border-radius:10px;background:#dbff5a;">
+              <a href="${H(o.ctaUrl)}" style="display:inline-block;padding:13px 26px;font-family:${font};font-weight:600;font-size:14px;color:#080808;border-radius:10px;">${H(o.ctaLabel)} →</a>
+            </td>
+          </tr></table>
+        </td></tr>
+        <tr><td style="padding:20px 4px 0;">
+          <p style="margin:0 0 6px;font-family:${font};font-size:12px;line-height:1.6;color:#6b6b6b;">
+            You're receiving this because your <strong style="color:#8a8a8a;">${H(o.category)}</strong> email notifications are on.
+          </p>
+          <p style="margin:0;font-family:${font};font-size:12px;line-height:1.6;color:#6b6b6b;">
+            <a href="${H(managePrefsUrl)}" style="color:#8a8a8a;text-decoration:underline;">Manage preferences</a> ·
+            <a href="${H(o.unsubscribeUrl)}" style="color:#8a8a8a;text-decoration:underline;">Turn off these</a> ·
+            <a href="${H(o.unsubscribeAllUrl)}" style="color:#8a8a8a;text-decoration:underline;">Unsubscribe from all</a>
+          </p>
+          <p style="margin:14px 0 0;font-family:${font};font-size:11px;color:#4a4a4a;">All For 1 — the network for the sports ecosystem</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+
+  const text =
+    `${o.heading}\n\n${o.body}\n\n${o.ctaLabel}: ${o.ctaUrl}\n\n` +
+    `— You're receiving this because your ${o.category} email notifications are on.\n` +
+    `Manage preferences: ${managePrefsUrl}\nUnsubscribe from these: ${o.unsubscribeUrl}\nUnsubscribe from all: ${o.unsubscribeAllUrl}`;
+
+  await sendMail({
+    to: o.to,
+    subject: o.subject,
+    html,
+    text,
+    headers: { 'List-Unsubscribe': `<${o.unsubscribeAllUrl}>` },
   });
 }

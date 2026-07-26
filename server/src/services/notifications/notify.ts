@@ -1,0 +1,102 @@
+import prisma from '../../config/db';
+import logger from '../../utils/logger';
+import type { NotificationType } from '@prisma/client';
+import { CATALOG, type NotifCtx } from './catalog';
+import { resolvePreference } from './preferences';
+import { blockedUserIds } from '../blocks';
+import { deliverInApp } from './channels/inApp';
+import { deliverEmail } from './channels/email';
+// import { deliverPush } from './channels/push'; // wired when the mobile app ships
+
+export interface NotifyInput {
+  recipientId: string;
+  type: NotificationType;
+  actorId?: string;        // who caused it (self-check, block-check, avatar, collapse)
+  ctx?: NotifCtx;          // data the catalog renders copy from
+  referenceId?: string;    // deep-link entity id
+  link?: string;           // precomputed client route, e.g. `/profile/abc`
+  groupKey?: string;       // override the default collapse key
+  /** Caller has already verified visibility (e.g. it's the recipient's own team). */
+  skipBlockCheck?: boolean;
+}
+
+// Quiet hours are interpreted in IST (primary market). Per-user timezones are a
+// follow-up; until then this is the sensible default. Quiet hours DEFER email
+// (the digest job flushes them afterwards); they don't drop it.
+function currentHourIST(): number {
+  const s = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }).format(new Date());
+  return parseInt(s, 10) % 24;
+}
+export function inQuietHours(start: number | null, end: number | null, hour = currentHourIST()): boolean {
+  if (start == null || end == null) return false;
+  return start <= end ? hour >= start && hour < end : hour >= start || hour < end;
+}
+
+/** Fan a triggered event out to every enabled channel. Never throws into the caller. */
+export async function notify(input: NotifyInput): Promise<void> {
+  try {
+    await dispatch(input);
+  } catch (e) {
+    logger.error('notify.failed', { type: input.type, recipientId: input.recipientId, error: String(e) });
+  }
+}
+
+async function dispatch(input: NotifyInput): Promise<void> {
+  const meta = CATALOG[input.type];
+
+  // 1 · never notify someone about their own action
+  if (input.actorId && input.actorId === input.recipientId) return;
+
+  // 2 · recipient must exist
+  const recipient = await prisma.user.findUnique({
+    where: { id: input.recipientId },
+    select: {
+      id: true, email: true, name: true,
+      notificationsPaused: true, notifyQuietStart: true, notifyQuietEnd: true,
+      notificationUnsubToken: true,
+    },
+  });
+  if (!recipient) return;
+
+  // 3 · mutual block → suppress entirely
+  if (input.actorId && !input.skipBlockCheck) {
+    const blocked = await blockedUserIds(input.recipientId);
+    if (blocked.includes(input.actorId)) return;
+  }
+
+  // 4 · effective preferences (override ?? catalog default; SYSTEM forced on)
+  const pref = await resolvePreference(input.recipientId, input.type);
+  // Global pause suppresses external interruptions (email/push) but NOT in-app
+  // history — so the centre stays complete. SYSTEM (non-configurable) ignores pause.
+  const paused = recipient.notificationsPaused && meta.configurable;
+  const quiet = inQuietHours(recipient.notifyQuietStart, recipient.notifyQuietEnd);
+
+  const ctx = input.ctx ?? {};
+  const groupKey = input.groupKey ?? (meta.collapsible ? `${input.type}:${input.referenceId ?? 'all'}` : null);
+
+  // 5 · IN-APP channel
+  let created = true;
+  let alreadyEmailed = false;
+  let notifId: string | null = null;
+  if (pref.inApp) {
+    const r = await deliverInApp({
+      recipientId: input.recipientId, type: input.type, actorId: input.actorId ?? null,
+      referenceId: input.referenceId ?? null, link: input.link ?? null,
+      groupKey, ctx, collapsible: meta.collapsible, collapseWindowMins: meta.collapseWindowMins,
+    });
+    notifId = r.id; created = r.created; alreadyEmailed = r.alreadyEmailed;
+  }
+
+  // 6 · EMAIL channel — INSTANT only here; DAILY/WEEKLY handled by the digest job.
+  //     Skipped by: email pref off, global pause, quiet hours (deferred to job),
+  //     or a collapse that already emailed (so 12 likes ⇒ 1 email).
+  const emailNow =
+    pref.email && pref.digest === 'INSTANT' && !paused && !quiet &&
+    (created && !alreadyEmailed);
+  if (emailNow && recipient.email) {
+    await deliverEmail({ recipient, type: input.type, ctx, link: input.link ?? null, notifId });
+  }
+
+  // 7 · PUSH channel — no-op stub today; same gates apply when it ships.
+  // if (pref.push && !paused && !quiet) await deliverPush({ recipientId, type, ctx, link });
+}
