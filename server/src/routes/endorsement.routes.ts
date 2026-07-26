@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { signMediaDeepAll } from '../services/storage';
+import { notify } from '../services/notifications/notify';
 
 const router = Router();
 
@@ -77,14 +78,13 @@ router.post('/:athleteId', authenticate, writeLimiter, async (req: AuthRequest, 
       },
     });
 
-    await prisma.notification.create({
-      data: {
-        userId: athleteId,
-        type: 'ENDORSEMENT',
-        title: 'New Endorsement',
-        message: `${coach.name ?? 'A coach'} endorsed you`,
-        referenceId: coachId,
-      },
+    await notify({
+      recipientId: athleteId,
+      type: 'ENDORSEMENT',
+      actorId: coachId,
+      ctx: { actorName: coach.name ?? 'A coach' },
+      referenceId: coachId,
+      link: `/profile/${coachId}`,
     });
 
     res.status(201).json({ endorsement });

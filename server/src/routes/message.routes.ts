@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../config/socket';
 import { messageLimiter, writeLimiter } from '../middleware/rateLimiter';
+import { notify } from '../services/notifications/notify';
 import { validate } from '../middleware/validate';
 import {
   CreateConversationBody,
@@ -405,15 +406,17 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
           : sharedProfileId
           ? `${message.sender.name} shared a profile`
           : `${message.sender.name}: ${String(messageContent).slice(0, 80)}`;
-        await prisma.notification.createMany({
-          data: recipients.map((r) => ({
-            userId: r.id,
-            type: 'MESSAGE' as const,
-            title: 'New message',
-            message: preview,
-            referenceId: conversationId,
-          })),
-        });
+        // recipients is already block-filtered above, so skip the redundant check.
+        await Promise.all(recipients.map((r) => notify({
+          recipientId: r.id,
+          type: 'MESSAGE',
+          actorId: req.user!.userId,
+          title: 'New message',
+          message: preview,
+          referenceId: conversationId,
+          link: `/messages?c=${conversationId}`,
+          skipBlockCheck: true,
+        })));
       }
     }
 

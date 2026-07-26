@@ -5,6 +5,7 @@ import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { getIO } from '../config/socket';
 import { TeamSearchQuery } from '../validation/team';
+import { notify } from '../services/notifications/notify';
 
 const router = Router();
 
@@ -182,14 +183,15 @@ router.post('/:teamId/members/me/decline', authenticate, writeLimiter, async (re
       select: { name: true },
     });
     if (team && decliningUser && team.captainId !== userId) {
-      await prisma.notification.create({
-        data: {
-          userId: team.captainId,
-          type: 'TEAM_INVITE',
-          title: 'Invite declined',
-          message: `${decliningUser.name} declined your invite to ${team.name}`,
-          referenceId: teamId,
-        },
+      await notify({
+        recipientId: team.captainId,
+        type: 'TEAM_INVITE',
+        actorId: userId,
+        title: 'Invite declined',
+        message: `${decliningUser.name ?? 'Someone'} declined your invite to ${team.name}`,
+        suppressEmail: true, // a decline shouldn't email as an "invite"
+        referenceId: teamId,
+        link: `/teams/${teamId}`,
       });
     }
 
@@ -313,14 +315,13 @@ router.post('/:id/members/:userId/replace', authenticate, writeLimiter, async (r
       });
     });
 
-    await prisma.notification.create({
-      data: {
-        userId: newUserId,
-        type: 'TEAM_INVITE',
-        title: 'Team invitation',
-        message: `You've been invited to ${team.name} for ${team.tournament.name}`,
-        referenceId: teamId,
-      },
+    await notify({
+      recipientId: newUserId,
+      type: 'TEAM_INVITE',
+      actorId: req.user!.userId,
+      ctx: { entityName: team.name },
+      referenceId: teamId,
+      link: `/teams/${teamId}`,
     });
 
     res.status(201).json({ replaced: oldMember.userId, member: newMember });
@@ -390,14 +391,13 @@ router.post('/:id/members/invite', authenticate, writeLimiter, async (req: AuthR
       data: { teamId, userId, role: 'PLAYER', status: 'PENDING' },
     });
 
-    await prisma.notification.create({
-      data: {
-        userId,
-        type: 'TEAM_INVITE',
-        title: 'Team invitation',
-        message: `You've been invited to ${team.name} for ${team.tournament.name}`,
-        referenceId: teamId,
-      },
+    await notify({
+      recipientId: userId,
+      type: 'TEAM_INVITE',
+      actorId: req.user!.userId,
+      ctx: { entityName: team.name },
+      referenceId: teamId,
+      link: `/teams/${teamId}`,
     });
 
     res.status(201).json({ member });

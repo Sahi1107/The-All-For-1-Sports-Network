@@ -17,6 +17,7 @@ import {
 } from '../services/storage';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
+import { notify } from '../services/notifications/notify';
 
 const router = Router();
 
@@ -336,14 +337,12 @@ router.post('/:id/like', authenticate, writeLimiter, async (req: AuthRequest, re
     const post = await prisma.post.findUnique({ where: { id: postId }, select: { userId: true } });
     if (post && post.userId !== userId) {
       const liker = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-      await prisma.notification.create({
-        data: {
-          userId: post.userId,
-          type: 'LIKE',
-          title: 'New like',
-          message: `${liker?.name} liked your post`,
-          referenceId: postId,
-        },
+      await notify({
+        recipientId: post.userId,
+        type: 'LIKE',
+        actorId: userId,
+        ctx: { actorName: liker?.name ?? 'Someone' },
+        referenceId: postId,
       });
     }
 
@@ -376,14 +375,12 @@ router.post('/:id/repost', authenticate, writeLimiter, async (req: AuthRequest, 
     const post = await prisma.post.findUnique({ where: { id: postId }, select: { userId: true } });
     if (post && post.userId !== userId) {
       const reposter = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-      await prisma.notification.create({
-        data: {
-          userId: post.userId,
-          type: 'REPOST',
-          title: 'New repost',
-          message: `${reposter?.name} reposted your post`,
-          referenceId: postId,
-        },
+      await notify({
+        recipientId: post.userId,
+        type: 'REPOST',
+        actorId: userId,
+        ctx: { actorName: reposter?.name ?? 'Someone' },
+        referenceId: postId,
       });
     }
 
@@ -530,14 +527,12 @@ router.post('/:id/comments', authenticate, writeLimiter, async (req: AuthRequest
     // Notify post owner (skip self-comments)
     if (post.userId !== userId) {
       const commenter = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-      await prisma.notification.create({
-        data: {
-          userId: post.userId,
-          type: 'COMMENT',
-          title: 'New comment',
-          message: `${commenter?.name} commented on your post`,
-          referenceId: postId,
-        },
+      await notify({
+        recipientId: post.userId,
+        type: 'COMMENT',
+        actorId: userId,
+        ctx: { actorName: commenter?.name ?? 'Someone' },
+        referenceId: postId,
       });
     }
 
@@ -546,14 +541,13 @@ router.post('/:id/comments', authenticate, writeLimiter, async (req: AuthRequest
       const parent = await prisma.postComment.findUnique({ where: { id: parentId }, select: { userId: true } });
       if (parent && parent.userId !== userId && parent.userId !== post.userId) {
         const commenter = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
-        await prisma.notification.create({
-          data: {
-            userId: parent.userId,
-            type: 'COMMENT',
-            title: 'New reply',
-            message: `${commenter?.name} replied to your comment`,
-            referenceId: postId,
-          },
+        await notify({
+          recipientId: parent.userId,
+          type: 'COMMENT',
+          actorId: userId,
+          title: 'New reply',
+          message: `${commenter?.name ?? 'Someone'} replied to your comment`,
+          referenceId: postId,
         });
       }
     }

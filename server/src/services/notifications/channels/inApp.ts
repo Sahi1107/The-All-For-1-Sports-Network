@@ -11,6 +11,7 @@ export interface InAppInput {
   link: string | null;
   groupKey: string | null;
   ctx: NotifCtx;
+  override: { title: string; message: string } | null; // verbatim copy for sub-variants
   collapsible: boolean;
   collapseWindowMins: number;
 }
@@ -47,7 +48,7 @@ export async function deliverInApp(i: InAppInput): Promise<InAppResult> {
     }
   }
 
-  const { title, message } = renderCopy(i.type, { ...i.ctx, count: 1 });
+  const { title, message } = i.override ?? renderCopy(i.type, { ...i.ctx, count: 1 });
   const created = await prisma.notification.create({
     data: {
       userId: i.recipientId, type: i.type, title, message,

@@ -16,6 +16,12 @@ export interface NotifyInput {
   referenceId?: string;    // deep-link entity id
   link?: string;           // precomputed client route, e.g. `/profile/abc`
   groupKey?: string;       // override the default collapse key
+  /** Copy overrides for a sub-variant the catalog doesn't cover (e.g. comment
+   *  reply). When set, in-app uses these verbatim and does not collapse. */
+  title?: string;
+  message?: string;
+  /** Force the email channel off for this one call (sub-variant that shouldn't email). */
+  suppressEmail?: boolean;
   /** Caller has already verified visibility (e.g. it's the recipient's own team). */
   skipBlockCheck?: boolean;
 }
@@ -79,10 +85,12 @@ async function dispatch(input: NotifyInput): Promise<void> {
   let alreadyEmailed = false;
   let notifId: string | null = null;
   if (pref.inApp) {
+    const override = input.title && input.message ? { title: input.title, message: input.message } : null;
     const r = await deliverInApp({
       recipientId: input.recipientId, type: input.type, actorId: input.actorId ?? null,
       referenceId: input.referenceId ?? null, link: input.link ?? null,
-      groupKey, ctx, collapsible: meta.collapsible, collapseWindowMins: meta.collapseWindowMins,
+      groupKey: override ? null : groupKey, ctx, override,
+      collapsible: meta.collapsible && !override, collapseWindowMins: meta.collapseWindowMins,
     });
     notifId = r.id; created = r.created; alreadyEmailed = r.alreadyEmailed;
   }
@@ -91,7 +99,7 @@ async function dispatch(input: NotifyInput): Promise<void> {
   //     Skipped by: email pref off, global pause, quiet hours (deferred to job),
   //     or a collapse that already emailed (so 12 likes ⇒ 1 email).
   const emailNow =
-    pref.email && pref.digest === 'INSTANT' && !paused && !quiet &&
+    pref.email && pref.digest === 'INSTANT' && !paused && !quiet && !input.suppressEmail &&
     (created && !alreadyEmailed);
   if (emailNow && recipient.email) {
     await deliverEmail({ recipient, type: input.type, ctx, link: input.link ?? null, notifId });

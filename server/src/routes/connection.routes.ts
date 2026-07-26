@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { socialLimiter } from '../middleware/rateLimiter';
+import { notify } from '../services/notifications/notify';
 
 const router = Router();
 
@@ -19,14 +20,13 @@ router.post('/follow/:userId', authenticate, socialLimiter, async (req: AuthRequ
 
     // Create notification — include actor name
     const follower = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
-    await prisma.notification.create({
-      data: {
-        userId: req.params.userId as string,
-        type: 'FOLLOW',
-        title: 'New Follower',
-        message: `${follower?.name ?? 'Someone'} started following you`,
-        referenceId: req.user!.userId,
-      },
+    await notify({
+      recipientId: req.params.userId as string,
+      type: 'FOLLOW',
+      actorId: req.user!.userId,
+      ctx: { actorName: follower?.name ?? 'Someone' },
+      referenceId: req.user!.userId,
+      link: `/profile/${req.user!.userId}`,
     });
 
     res.status(201).json({ follow });
@@ -66,14 +66,13 @@ router.post('/request/:userId', authenticate, socialLimiter, async (req: AuthReq
     });
 
     const requester = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
-    await prisma.notification.create({
-      data: {
-        userId: req.params.userId as string,
-        type: 'CONNECTION_REQUEST',
-        title: 'Connection Request',
-        message: `${requester?.name ?? 'Someone'} sent you a connection request`,
-        referenceId: req.user!.userId,
-      },
+    await notify({
+      recipientId: req.params.userId as string,
+      type: 'CONNECTION_REQUEST',
+      actorId: req.user!.userId,
+      ctx: { actorName: requester?.name ?? 'Someone' },
+      referenceId: req.user!.userId,
+      link: `/profile/${req.user!.userId}`,
     });
 
     res.status(201).json({ connection });
@@ -108,14 +107,13 @@ router.put('/:id/accept', authenticate, async (req: AuthRequest, res: Response) 
     });
 
     const acceptor = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
-    await prisma.notification.create({
-      data: {
-        userId: connection.senderId,
-        type: 'CONNECTION_ACCEPTED',
-        title: 'Connection Accepted',
-        message: `${acceptor?.name ?? 'Someone'} accepted your connection request`,
-        referenceId: req.user!.userId,
-      },
+    await notify({
+      recipientId: connection.senderId,
+      type: 'CONNECTION_ACCEPTED',
+      actorId: req.user!.userId,
+      ctx: { actorName: acceptor?.name ?? 'Someone' },
+      referenceId: req.user!.userId,
+      link: `/profile/${req.user!.userId}`,
     });
 
     res.json({ connection });

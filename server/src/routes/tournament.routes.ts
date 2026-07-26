@@ -8,6 +8,7 @@ import { validate } from '../middleware/validate';
 import { validateImageBytes } from '../middleware/upload';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { writeMatchPlayerStats } from '../services/matchStats';
+import { notify } from '../services/notifications/notify';
 import { isStatSport, CAREER_STAT_FIELDS, type StatSport } from '../data/careerStats';
 import { computeStandings } from '../services/trackerDraw';
 import {
@@ -822,15 +823,14 @@ router.post(
     // Fire TEAM_INVITE notifications to all pending invitees.
     const pendingInvitees = memberRows.filter((m) => m.status === 'PENDING').map((m) => m.userId);
     if (pendingInvitees.length > 0) {
-      await prisma.notification.createMany({
-        data: pendingInvitees.map((userId) => ({
-          userId,
-          type: 'TEAM_INVITE' as const,
-          title: 'Team invitation',
-          message: `You've been invited to ${team.name} for ${registration.tournament.name}`,
-          referenceId: team.id,
-        })),
-      });
+      await Promise.all(pendingInvitees.map((userId) => notify({
+        recipientId: userId,
+        type: 'TEAM_INVITE',
+        actorId: req.user!.userId,
+        ctx: { entityName: team.name },
+        referenceId: team.id,
+        link: `/teams/${team.id}`,
+      })));
     }
 
     res.status(201).json({
