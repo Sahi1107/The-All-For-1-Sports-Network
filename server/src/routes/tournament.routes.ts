@@ -377,6 +377,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
       homeScore: m.homeScore, awayScore: m.awayScore, status: m.status,
       scheduledAt: m.scheduledAt ?? null, court: m.court ?? null,
+      statsMatchId: m.publishedMatchId ?? null, // platform Match id for the box score
       winnerTeamId:
         (m.status === 'COMPLETED' || m.status === 'PUBLISHED') && m.homeTeamId && m.awayTeamId && m.homeScore !== m.awayScore
           ? (m.homeScore > m.awayScore ? m.homeTeamId : m.awayTeamId)
@@ -390,7 +391,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
         orderBy: { matchDate: 'asc' },
         select: { id: true, round: true, homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true, matchDate: true, court: true },
       });
-      const flat = flatRows.map((m) => ({ ...m, scheduledAt: m.matchDate, court: m.court ?? null }));
+      const flat = flatRows.map((m) => ({ ...m, scheduledAt: m.matchDate, court: m.court ?? null, statsMatchId: m.id }));
       res.json({ hasBracket: false, format: null, teams, groups: null, bracket: null, flatMatches: flat });
       return;
     }

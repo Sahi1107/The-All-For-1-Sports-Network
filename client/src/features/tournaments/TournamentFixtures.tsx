@@ -1,13 +1,14 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
-import { GitFork, Settings } from 'lucide-react';
+import { GitFork, Settings, CalendarClock, ChevronRight } from 'lucide-react';
 import StandingsTable from '../statTracker/components/StandingsTable';
 import SharedBracket, { type BracketData, type BracketMatchVM } from '../statTracker/components/Bracket';
 import type { StandingRow } from '../statTracker/stats';
 import { fmtSchedule } from '../statTracker/schedule';
-import { CalendarClock } from 'lucide-react';
+import MatchDetailModal, { type MatchInfo } from './MatchDetailModal';
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface TeamLite { id: string; name: string; logo: string | null }
@@ -21,6 +22,7 @@ interface BMatch {
   homeTeamId: string | null; awayTeamId: string | null;
   homeScore: number | null; awayScore: number | null; status: string;
   scheduledAt: string | null; court: string | null;
+  statsMatchId: string | null;
   winnerTeamId: string | null;
 }
 interface Group { id: string; name: string; teamIds: string[]; standings: Standing[]; matches: BMatch[] }
@@ -38,8 +40,9 @@ const FORMAT_LABEL: Record<string, string> = {
   LEAGUE: 'League', KNOCKOUT: 'Knockout', MIXED: 'Group stage + Knockout',
 };
 
-export default function TournamentFixtures({ tournamentId, isAdmin }: { tournamentId: string; sport: string; isAdmin: boolean }) {
+export default function TournamentFixtures({ tournamentId, sport, isAdmin }: { tournamentId: string; sport: string; isAdmin: boolean }) {
   const navigate = useNavigate();
+  const [detail, setDetail] = useState<MatchInfo | null>(null);
   const { data, isLoading, isError } = useQuery<FixturesResponse>({
     queryKey: ['tournament-fixtures', tournamentId],
     queryFn: async () => (await api.get(`/tournaments/${tournamentId}/fixtures`)).data,
@@ -51,6 +54,14 @@ export default function TournamentFixtures({ tournamentId, isAdmin }: { tourname
   }
 
   const teams = data.teams;
+  const teamName = (id: string | null) => (id && teams[id] ? teams[id].name : 'TBD');
+  const openMatch = (m: BMatch) => setDetail({
+    statsMatchId: m.statsMatchId, sport,
+    homeName: teamName(m.homeTeamId), awayName: teamName(m.awayTeamId),
+    homeScore: m.homeScore, awayScore: m.awayScore, status: m.status, round: m.round,
+    scheduledAt: m.scheduledAt, court: m.court,
+  });
+  const detailModal = detail ? <MatchDetailModal match={detail} onClose={() => setDetail(null)} /> : null;
   const AdminBtn = isAdmin ? (
     <button
       onClick={() => navigate(`/admin/stat-tracker/${tournamentId}`)}
@@ -83,8 +94,9 @@ export default function TournamentFixtures({ tournamentId, isAdmin }: { tourname
           {AdminBtn}
         </div>
         <div className="bg-card rounded-xl border border-line divide-y divide-line">
-          {flat.map((m) => <FlatRow key={m.id} m={m} teams={teams} />)}
+          {flat.map((m) => <FlatRow key={m.id} m={m} teams={teams} onOpen={openMatch} />)}
         </div>
+        {detailModal}
       </div>
     );
   }
@@ -106,20 +118,30 @@ export default function TournamentFixtures({ tournamentId, isAdmin }: { tourname
         <div className="space-y-4">
           <SectionTitle>Group stage</SectionTitle>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {data.groups.map((g) => <GroupCard key={g.id} group={g} teams={teams} advancing={advancing} />)}
+            {data.groups.map((g) => <GroupCard key={g.id} group={g} teams={teams} advancing={advancing} onOpen={openMatch} />)}
           </div>
         </div>
       )}
 
       {/* Knockout bracket */}
-      {data.bracket && (
-        <div className="space-y-4">
-          <SectionTitle>Knockout</SectionTitle>
-          <div className="bg-card rounded-xl border border-line p-4 sm:p-6">
-            <SharedBracket {...bracketDataFromEndpoint(data.bracket, teams)} />
+      {data.bracket && (() => {
+        const bmById = new Map<string, BMatch>();
+        data.bracket.rounds.forEach((r) => r.matches.forEach((m) => bmById.set(m.id, m)));
+        if (data.bracket.thirdPlace) bmById.set(data.bracket.thirdPlace.id, data.bracket.thirdPlace);
+        return (
+          <div className="space-y-4">
+            <SectionTitle>Knockout</SectionTitle>
+            <div className="bg-card rounded-xl border border-line p-4 sm:p-6">
+              <SharedBracket
+                {...bracketDataFromEndpoint(data.bracket, teams)}
+                onShowDetails={(vm) => { const bm = bmById.get(vm.id); if (bm) openMatch(bm); }}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
+
+      {detailModal}
     </div>
   );
 }
@@ -142,7 +164,7 @@ function TeamChip({ team, size = 18 }: { team?: TeamLite; size?: number }) {
 function isPlayed(m: BMatch) { return m.status === 'COMPLETED' || m.status === 'PUBLISHED'; }
 
 // ── group standings + fixtures ─────────────────────────────────────────────────
-function GroupCard({ group, teams, advancing }: { group: Group; teams: Record<string, TeamLite>; advancing: Set<string> }) {
+function GroupCard({ group, teams, advancing, onOpen }: { group: Group; teams: Record<string, TeamLite>; advancing: Set<string>; onOpen: (m: BMatch) => void }) {
   // Qualifier highlight only when advancement is selective (some group team doesn't advance).
   const advCount = group.teamIds.filter((id) => advancing.has(id)).length;
   const selective = advCount > 0 && advCount < group.teamIds.length;
@@ -152,27 +174,34 @@ function GroupCard({ group, teams, advancing }: { group: Group; teams: Record<st
       <StandingsTable title={group.name} rows={rows} advanceCount={selective ? advCount : undefined} />
       {group.matches.length > 0 && (
         <div className="bg-card rounded-xl border border-line overflow-hidden divide-y divide-line/60">
-          {group.matches.map((m) => <FlatRow key={m.id} m={m} teams={teams} compact />)}
+          {group.matches.map((m) => <FlatRow key={m.id} m={m} teams={teams} compact onOpen={onOpen} />)}
         </div>
       )}
     </div>
   );
 }
 
-// ── flat match row (group fixtures + fallback list) ────────────────────────────
-function FlatRow({ m, teams, compact }: { m: BMatch; teams: Record<string, TeamLite>; compact?: boolean }) {
+// ── flat match row (group fixtures + fallback list) — tappable → match detail ──
+function FlatRow({ m, teams, compact, onOpen }: { m: BMatch; teams: Record<string, TeamLite>; compact?: boolean; onOpen: (m: BMatch) => void }) {
   const played = isPlayed(m);
+  const live = m.status === 'IN_PROGRESS';
+  const showScore = played || live;
   const homeWin = played && m.homeScore != null && m.awayScore != null && m.homeScore > m.awayScore;
   const awayWin = played && m.homeScore != null && m.awayScore != null && m.awayScore > m.homeScore;
   const when = fmtSchedule(m.scheduledAt, m.court);
   const sub = when ?? (played ? null : 'Time TBC');
   return (
-    <div className={`px-4 ${compact ? 'py-2' : 'py-2.5'} space-y-1`}>
+    <button
+      type="button"
+      onClick={() => onOpen(m)}
+      className={`w-full text-left px-4 ${compact ? 'py-2' : 'py-2.5'} space-y-1 hover:bg-surface active:bg-elevated transition-colors cursor-pointer`}
+      title="Match details"
+    >
       <div className="flex items-center gap-3 text-sm">
         {!compact && m.round && <span className="text-xs text-gray-custom w-24 shrink-0 truncate">{m.round}</span>}
         <div className={`flex-1 min-w-0 ${homeWin ? 'font-semibold' : 'text-gray-custom'}`}><TeamChip team={teams[m.homeTeamId ?? '']} size={18} /></div>
         <div className="font-numeric tabular-nums text-sm shrink-0 px-2">
-          {played ? <span><span className={homeWin ? 'text-primary' : ''}>{m.homeScore}</span><span className="text-gray-custom mx-1">–</span><span className={awayWin ? 'text-primary' : ''}>{m.awayScore}</span></span> : <span className="text-gray-custom text-xs">vs</span>}
+          {showScore ? <span><span className={homeWin ? 'text-primary' : live ? 'text-amber-300' : ''}>{m.homeScore ?? 0}</span><span className="text-gray-custom mx-1">–</span><span className={awayWin ? 'text-primary' : live ? 'text-amber-300' : ''}>{m.awayScore ?? 0}</span></span> : <span className="text-gray-custom text-xs">vs</span>}
         </div>
         <div className={`flex-1 min-w-0 flex justify-end text-right ${awayWin ? 'font-semibold' : 'text-gray-custom'}`}>
           <span className="flex items-center gap-2 min-w-0 flex-row-reverse">
@@ -187,12 +216,13 @@ function FlatRow({ m, teams, compact }: { m: BMatch; teams: Record<string, TeamL
           </span>
         </div>
       </div>
-      {sub && (
-        <div className={`text-[11px] flex items-center gap-1.5 ${compact ? '' : 'pl-24'} ${when ? 'text-gray-custom' : 'text-gray-custom/60'}`}>
-          <CalendarClock size={11} className="shrink-0" /> {sub}
+      {(sub || live) && (
+        <div className={`text-[11px] flex items-center gap-3 ${compact ? '' : 'sm:pl-24'} ${when ? 'text-gray-custom' : 'text-gray-custom/60'}`}>
+          {live && <span className="flex items-center gap-1.5 text-amber-300 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> Live</span>}
+          {sub && <span className="flex items-center gap-1.5"><CalendarClock size={11} className="shrink-0" /> {sub}</span>}
         </div>
       )}
-    </div>
+    </button>
   );
 }
 
@@ -210,6 +240,7 @@ function bracketDataFromEndpoint(
       id: m.id, slotId, stage: m.stage,
       homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
       homeScore: m.homeScore, awayScore: m.awayScore, status: m.status,
+      statsMatchId: m.statsMatchId,
     };
     return slotId;
   };
