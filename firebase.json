@@ -10,6 +10,42 @@
     ],
     "rewrites": [
       {
+        "source": "/athletes",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/athletes/**",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/sitemap-athletes.xml",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/faq",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/about",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/safety",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/community-guidelines",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/learn",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
+        "source": "/learn/**",
+        "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
