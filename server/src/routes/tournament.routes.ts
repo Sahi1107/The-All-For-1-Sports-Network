@@ -323,7 +323,10 @@ router.get('/:id/teams', authenticate, async (req: AuthRequest, res: Response) =
     }));
 
     // Sign avatars/logos (real GCS media; external test URLs pass through untouched).
-    await signMediaDeep(teams);
+    // signMediaDeep only descends specific keys, so sign the team logos and the
+    // player avatars as flat lists.
+    await signMediaDeepAll(teams);
+    await signMediaDeepAll(teams.flatMap((t) => t.players));
 
     res.json({ sport: tournament.sport, isStatSport: statSport, statFields: fields, matches, teams });
   } catch (error) {
@@ -359,7 +362,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       include: { team: { select: { id: true, name: true, logo: true } } },
     });
     const teamList = regs.map((r) => ({ id: r.team.id, name: r.team.name, logo: r.team.logo }));
-    await signMediaDeep(teamList);
+    await signMediaDeepAll(teamList);
     const teams: Record<string, { id: string; name: string; logo: string | null }> =
       Object.fromEntries(teamList.map((t) => [t.id, t]));
 
