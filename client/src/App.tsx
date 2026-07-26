@@ -21,6 +21,7 @@ const EditProfile    = lazy(() => import('./pages/EditProfile'));
 const Tournaments       = lazy(() => import('./pages/Tournaments'));
 const TournamentDetail   = lazy(() => import('./pages/TournamentDetail'));
 const TournamentRegister = lazy(() => import('./pages/TournamentRegister'));
+const TournamentManage   = lazy(() => import('./pages/TournamentManage'));
 const TeamManage         = lazy(() => import('./pages/TeamManage'));
 const Rankings       = lazy(() => import('./pages/Rankings'));
 const Messages       = lazy(() => import('./pages/Messages'));
@@ -127,6 +128,7 @@ function AppRoutes() {
           <Route path="admin"               element={<AdminDashboard />} />
           <Route path="admin/provision"                          element={<BulkProvision />} />
           <Route path="admin/tournaments/:tournamentId/provision" element={<BulkProvision />} />
+          <Route path="admin/tournaments/:id/manage"              element={<TournamentManage />} />
           <Route path="admin/stat-tracker"                              element={<StatTrackerLauncher />} />
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />
           <Route path="settings"            element={<Settings />} />

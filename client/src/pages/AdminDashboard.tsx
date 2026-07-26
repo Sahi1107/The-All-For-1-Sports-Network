@@ -1268,6 +1268,13 @@ export default function AdminDashboard() {
                           {t.status}
                         </span>
                         <Link
+                          to={`/admin/tournaments/${t.id}/manage`}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-on-primary bg-primary hover:bg-primary-dark transition-colors rounded-lg"
+                          title="Manage tournament (guided)"
+                        >
+                          <Activity size={13} /> Manage
+                        </Link>
+                        <Link
                           to={`/admin/tournaments/${t.id}/provision`}
                           className="flex items-center gap-1 p-1.5 text-xs text-gray-custom hover:text-primary-light transition-colors rounded"
                           title="Bulk provision roster from CSV"
