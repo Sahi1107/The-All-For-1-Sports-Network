@@ -54,6 +54,86 @@ const emptyTournamentForm: TournamentForm = {
 };
 
 
+// Lifecycle transitions offered per status (must mirror the server's guard).
+const LIFECYCLE_ACTIONS: Record<string, { to: string; label: string; primary?: boolean }[]> = {
+  UPCOMING:            [{ to: 'REGISTRATION_OPEN', label: 'Open registration', primary: true }],
+  REGISTRATION_OPEN:   [{ to: 'REGISTRATION_CLOSED', label: 'Close registration', primary: true }],
+  REGISTRATION_CLOSED: [{ to: 'IN_PROGRESS', label: 'Start tournament', primary: true }, { to: 'REGISTRATION_OPEN', label: 'Reopen registration' }],
+  IN_PROGRESS:         [{ to: 'COMPLETED', label: 'Mark complete', primary: true }],
+  COMPLETED:           [{ to: 'IN_PROGRESS', label: 'Reopen' }],
+  CANCELLED:           [{ to: 'UPCOMING', label: 'Reactivate', primary: true }],
+};
+const STATUS_STYLE: Record<string, string> = {
+  UPCOMING: 'bg-blue-500/20 text-blue-400',
+  REGISTRATION_OPEN: 'bg-accent/20 text-accent',
+  REGISTRATION_CLOSED: 'bg-amber-500/20 text-amber-300',
+  IN_PROGRESS: 'bg-accent/20 text-accent',
+  COMPLETED: 'bg-gray-500/20 text-gray-custom',
+  CANCELLED: 'bg-red-500/20 text-red-400',
+};
+const TRACKABLE_STATUSES = new Set(['REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED']);
+
+/** Admin lifecycle control: moves a tournament through its statuses and shows
+ *  when live tracking becomes available. Wired to PUT /tournaments/:id. */
+function TournamentLifecycle({ tournament }: { tournament: any }) {
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: (status: string) => api.put(`/tournaments/${tournament.id}`, { status }),
+    onSuccess: (_d, status) => {
+      toast.success(`Status → ${status.replace(/_/g, ' ').toLowerCase()}`);
+      qc.invalidateQueries({ queryKey: ['admin-tournaments'] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Failed to update status'),
+  });
+  const actions = LIFECYCLE_ACTIONS[tournament.status] ?? [];
+  const canCancel = !['CANCELLED', 'COMPLETED'].includes(tournament.status);
+  const trackable = TRACKABLE_STATUSES.has(tournament.status);
+
+  return (
+    <div className="px-5 py-4 border-b border-line bg-surface/30 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-custom uppercase tracking-wide">Lifecycle</span>
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[tournament.status] ?? 'bg-elevated text-gray-custom'}`}>
+          {tournament.status.replace(/_/g, ' ')}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {actions.map((a) => (
+          <button
+            key={a.to}
+            disabled={mutation.isPending}
+            onClick={() => mutation.mutate(a.to)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 ${
+              a.primary ? 'bg-primary hover:bg-primary-dark text-on-primary' : 'bg-elevated hover:bg-card border border-line text-foreground'
+            }`}
+          >
+            {a.label}
+          </button>
+        ))}
+        {canCancel && (
+          <button
+            disabled={mutation.isPending}
+            onClick={() => { if (confirm(`Cancel “${tournament.name}”? Registered teams stay, but it leaves the active lifecycle.`)) mutation.mutate('CANCELLED'); }}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface hover:bg-elevated border border-line text-red-400 disabled:opacity-50"
+          >
+            Cancel tournament
+          </button>
+        )}
+        {actions.length === 0 && !canCancel && (
+          <span className="text-xs text-gray-custom">No further lifecycle actions.</span>
+        )}
+      </div>
+      <div className={`text-xs flex items-center gap-1.5 ${trackable ? 'text-accent' : 'text-gray-custom'}`}>
+        {trackable ? (
+          <><CheckCircle size={12} /> Live tracking enabled — <Link to={`/admin/stat-tracker/${tournament.id}`} className="text-primary-light hover:underline">open Stat Tracker</Link></>
+        ) : (
+          <>Close registration to enable live tracking.</>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-tournament-registrations', tournamentId],
@@ -1169,7 +1249,7 @@ export default function AdminDashboard() {
                         <button
                           onClick={() => setExpandedTournamentId(isExpanded ? null : t.id)}
                           className="flex items-center gap-1 p-1.5 text-xs text-gray-custom hover:text-foreground transition-colors rounded"
-                          title={isExpanded ? 'Hide registrations' : 'View registrations'}
+                          title={isExpanded ? 'Hide manage panel' : 'Manage status & registrations'}
                         >
                           {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
@@ -1185,7 +1265,12 @@ export default function AdminDashboard() {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      {isExpanded && <TournamentRegistrationsPanel tournamentId={t.id} />}
+                      {isExpanded && (
+                        <>
+                          <TournamentLifecycle tournament={t} />
+                          <TournamentRegistrationsPanel tournamentId={t.id} />
+                        </>
+                      )}
                     </div>
                   );
                 })}

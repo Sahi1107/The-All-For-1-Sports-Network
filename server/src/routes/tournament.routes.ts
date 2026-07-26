@@ -614,13 +614,39 @@ router.get('/matches/:matchId/stats', authenticate, async (req: AuthRequest, res
   }
 });
 
+// Allowed tournament lifecycle transitions (admin-driven). Forward flow plus a
+// one-step-back / cancel escape hatch so mistakes are correctable. Enforced only
+// when `status` actually changes; other field edits are unaffected.
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  UPCOMING:            ['REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'CANCELLED'],
+  REGISTRATION_OPEN:   ['REGISTRATION_CLOSED', 'UPCOMING', 'CANCELLED'],
+  REGISTRATION_CLOSED: ['IN_PROGRESS', 'REGISTRATION_OPEN', 'CANCELLED'],
+  IN_PROGRESS:         ['COMPLETED', 'REGISTRATION_CLOSED', 'CANCELLED'],
+  COMPLETED:           ['IN_PROGRESS'],
+  CANCELLED:           ['UPCOMING'],
+};
+
 // PUT /api/tournaments/:id — update (admin only)
 router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
   try {
     const { name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize } = req.body;
+    const id = req.params.id as string;
+
+    // Validate lifecycle transitions when the status is being changed.
+    if (status) {
+      const current = await prisma.tournament.findUnique({ where: { id }, select: { status: true } });
+      if (!current) {
+        res.status(404).json({ error: 'Tournament not found' });
+        return;
+      }
+      if (status !== current.status && !(STATUS_TRANSITIONS[current.status] ?? []).includes(status)) {
+        res.status(400).json({ error: `Cannot move a ${current.status.replace(/_/g, ' ').toLowerCase()} tournament to ${status.replace(/_/g, ' ').toLowerCase()}` });
+        return;
+      }
+    }
 
     const tournament = await prisma.tournament.update({
-      where: { id: req.params.id as string },
+      where: { id },
       data: {
         ...(name && { name }),
         ...(status && { status }),
