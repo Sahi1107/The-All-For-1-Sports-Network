@@ -415,13 +415,19 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       byStage.set(m.stage, arr);
     }
     const orderedStages = [...byStage.keys()].sort((a, b) => (STAGE_RANK[a] ?? 99) - (STAGE_RANK[b] ?? 99));
+    // Order slots within a stage by the numeric suffix of bracketSlot ("qf-1".."qf-10")
+    // so a 10+ slot round doesn't misorder; fall back to orderIndex.
+    const slotOrder = (m: any): number => {
+      const match = String(m.bracketSlot ?? '').match(/(\d+)\s*$/);
+      return match ? parseInt(match[1], 10) : m.orderIndex;
+    };
     const rounds = orderedStages
       .filter((s) => s !== 'third_place')
       .map((s) => ({
         stage: s,
         title: STAGE_TITLE[s] ?? s,
         matches: (byStage.get(s) ?? [])
-          .sort((a, b) => String(a.bracketSlot ?? a.orderIndex).localeCompare(String(b.bracketSlot ?? b.orderIndex)))
+          .sort((a, b) => slotOrder(a) - slotOrder(b) || a.orderIndex - b.orderIndex)
           .map(lite),
       }));
     const thirdPlaceArr = byStage.get('third_place') ?? [];
