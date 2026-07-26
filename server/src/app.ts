@@ -23,6 +23,7 @@ import radarRoutes        from './routes/radar.routes';
 import statsRoutes        from './routes/stats.routes';
 import trackerRoutes      from './routes/tracker.routes';
 import endorsementRoutes  from './routes/endorsement.routes';
+import supportRoutes      from './routes/support.routes';
 
 const app = express();
 
@@ -86,6 +87,7 @@ app.use('/api/radar',         radarRoutes);
 app.use('/api/stats',         statsRoutes);
 app.use('/api/tracker',       trackerRoutes);
 app.use('/api/endorsements',  endorsementRoutes);
+app.use('/api/support',       supportRoutes);
 
 // ─── 404 handler ─────────────────────────────────────────────
 app.use((_req, res) => {

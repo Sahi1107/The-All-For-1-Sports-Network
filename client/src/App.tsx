@@ -19,6 +19,7 @@ const Privacy        = lazy(() => import('./pages/Privacy'));
 const Login          = lazy(() => import('./pages/Login'));
 const Register       = lazy(() => import('./pages/Register'));
 const Onboarding     = lazy(() => import('./pages/Onboarding'));
+const Support        = lazy(() => import('./pages/Support'));
 const Home           = lazy(() => import('./pages/Home'));
 const Explore        = lazy(() => import('./pages/Explore'));
 const Profile        = lazy(() => import('./pages/Profile'));
@@ -151,6 +152,7 @@ function AppRoutes() {
           <Route path="admin/stat-tracker"                              element={<StatTrackerLauncher />} />
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />
           <Route path="settings"            element={<Settings />} />
+          <Route path="support"             element={<Support />} />
           <Route path="saved"               element={<SavedPosts />} />
           <Route path="radar"               element={<Radar />} />
         </Route>

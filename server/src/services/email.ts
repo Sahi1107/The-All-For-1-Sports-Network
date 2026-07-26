@@ -28,14 +28,15 @@ interface SendOptions {
   subject: string;
   html: string;
   text: string;
+  replyTo?: string;
 }
 
-async function sendMail({ to, subject, html, text }: SendOptions): Promise<void> {
+async function sendMail({ to, subject, html, text, replyTo }: SendOptions): Promise<void> {
   if (!transport) {
     logger.warn('email.not_configured', { to, subject, text });
     return;
   }
-  await transport.sendMail({ from: env.SMTP_FROM, to, subject, html, text });
+  await transport.sendMail({ from: env.SMTP_FROM, to, subject, html, text, ...(replyTo && { replyTo }) });
 }
 
 // ─── Guardian consent form (profile handover) ────────────────────────────────
@@ -297,4 +298,53 @@ export async function sendGuardianConsentInvite({
          the account stays inactive.</p>
     </div>`;
   await sendMail({ to, subject, html, text });
+}
+
+// ─── In-app support / contact request ────────────────────────────────────────
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+
+/**
+ * Forward an in-app support/contact request to the support inbox (reply-to set to
+ * the user's email) and send the user a confirmation copy.
+ */
+export async function sendSupportRequest({
+  fromName, fromEmail, userId, category, subject, message,
+}: {
+  fromName: string; fromEmail: string; userId: string;
+  category: string; subject: string; message: string;
+}): Promise<void> {
+  const safeMsg = escapeHtml(message).replace(/\n/g, '<br>');
+  const meta = `From: ${fromName} <${fromEmail}> (user ${userId})\nCategory: ${category}`;
+
+  // 1) To support
+  await sendMail({
+    to: env.SUPPORT_EMAIL,
+    replyTo: fromEmail,
+    subject: `[Support · ${category}] ${subject}`,
+    text: `${meta}\n\n${message}`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
+        <p style="color:#666;font-size:13px;white-space:pre-line">${escapeHtml(meta)}</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:16px 0">
+        <p>${safeMsg}</p>
+      </div>`,
+  });
+
+  // 2) Confirmation to the user
+  await sendMail({
+    to: fromEmail,
+    subject: `We received your message — All For 1 Support`,
+    text:
+      `Hi ${fromName},\n\nThanks for reaching out — we've received your message and will get back to you soon.\n\n` +
+      `Your message:\n"${message}"\n\n— The All For 1 team`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
+        <h2 style="margin:0 0 16px">We got your message</h2>
+        <p>Hi ${escapeHtml(fromName)}, thanks for reaching out — we've received your message and will get back to you soon.</p>
+        <p style="color:#666;font-size:13px;border-left:3px solid #eee;padding-left:12px;white-space:pre-line">${safeMsg}</p>
+        <p style="margin-top:24px">— The All For 1 team</p>
+      </div>`,
+  });
 }
