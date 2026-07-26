@@ -5,10 +5,11 @@ import api from '../api/client';
 import BallLoader from '../components/BallLoader';
 import TournamentTeams from '../features/tournaments/TournamentTeams';
 import TournamentFixtures from '../features/tournaments/TournamentFixtures';
+import TournamentStats from '../features/tournaments/TournamentStats';
 import { SPORTS } from '../data/sports';
 import {
   Trophy, MapPin, Calendar, Users, ArrowLeft, Crown, Award, Settings,
-  Info, GitFork, ListOrdered, ChevronRight, Shield,
+  Info, GitFork, ListOrdered, ChevronRight, Shield, BarChart3,
 } from 'lucide-react';
 
 const SPORT_ICONS: Record<string, string> = Object.fromEntries(SPORTS.map(({ value, emoji }) => [value, emoji]));
@@ -31,6 +32,7 @@ const TABS = [
   { key: 'about',    label: 'About',    Icon: Info },
   { key: 'fixtures', label: 'Fixtures', Icon: GitFork },
   { key: 'teams',    label: 'Teams',    Icon: Users },
+  { key: 'stats',    label: 'Stats',    Icon: BarChart3 },
   { key: 'rankings', label: 'Rankings', Icon: ListOrdered },
 ] as const;
 type TabKey = (typeof TABS)[number]['key'];
@@ -45,6 +47,9 @@ export default function TournamentDetail() {
   const rawTab = searchParams.get('tab') as TabKey | null;
   const activeTab: TabKey = TABS.some((t) => t.key === rawTab) ? (rawTab as TabKey) : 'about';
   const setTab = (key: TabKey) => setSearchParams((p) => { p.set('tab', key); return p; }, { replace: false });
+  // Open the Teams tab focused on a specific team (from the About tab's team list).
+  const openTeam = (teamId: string) => setSearchParams({ tab: 'teams', team: teamId });
+  const focusTeamId = searchParams.get('team');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['tournament', id],
@@ -130,16 +135,17 @@ export default function TournamentDetail() {
       </div>
 
       {/* Panels */}
-      {activeTab === 'about'    && <AboutPanel t={t} teams={teams} myTeams={myTeams} acceptsTeamRegistration={acceptsTeamRegistration} navigate={navigate} />}
+      {activeTab === 'about'    && <AboutPanel t={t} teams={teams} myTeams={myTeams} acceptsTeamRegistration={acceptsTeamRegistration} navigate={navigate} onOpenTeam={openTeam} />}
       {activeTab === 'fixtures' && <TournamentFixtures tournamentId={t.id} sport={t.sport} isAdmin={isAdmin} />}
-      {activeTab === 'teams'    && <TournamentTeams tournamentId={t.id} />}
+      {activeTab === 'teams'    && <TournamentTeams tournamentId={t.id} focusTeamId={focusTeamId} />}
+      {activeTab === 'stats'    && <TournamentStats tournamentId={t.id} sport={t.sport} />}
       {activeTab === 'rankings' && <RankingsPanel sport={t.sport} navigate={navigate} />}
     </div>
   );
 }
 
 // ─── About ────────────────────────────────────────────────────────────────────
-function AboutPanel({ t, teams, myTeams, acceptsTeamRegistration, navigate }: any) {
+function AboutPanel({ t, teams, myTeams, acceptsTeamRegistration, navigate, onOpenTeam }: any) {
   return (
     <div className="space-y-5">
       {/* Description */}
@@ -202,13 +208,18 @@ function AboutPanel({ t, teams, myTeams, acceptsTeamRegistration, navigate }: an
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {teams.map((r: any) => (
-              <div key={r.id} className="flex items-center gap-3 py-2 px-3 bg-surface rounded-lg border border-line">
+              <button
+                key={r.id}
+                onClick={() => onOpenTeam(r.team.id)}
+                className="flex items-center gap-3 py-2 px-3 bg-surface rounded-lg border border-line text-left w-full cursor-pointer hover:border-primary/50 hover:bg-elevated active:bg-elevated transition-colors"
+                title={`View ${r.team?.name} roster`}
+              >
                 {r.team?.logo
                   ? <img src={r.team.logo} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
                   : <div className="w-7 h-7 rounded-md bg-elevated flex items-center justify-center text-xs font-bold text-gray-custom shrink-0">{r.team?.name?.charAt(0).toUpperCase()}</div>}
                 <span className="text-sm truncate">{r.team?.name}</span>
-                <span className="text-xs text-gray-custom ml-auto shrink-0">{r.team?._count?.members ?? 0} players</span>
-              </div>
+                <span className="text-xs text-gray-custom ml-auto shrink-0 flex items-center gap-1">{r.team?._count?.members ?? 0} players <ChevronRight size={13} /></span>
+              </button>
             ))}
           </div>
         )}

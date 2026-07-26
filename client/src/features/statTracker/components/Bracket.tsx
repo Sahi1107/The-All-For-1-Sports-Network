@@ -16,6 +16,7 @@ export interface BracketMatchVM {
   homeScore: number | null;
   awayScore: number | null;
   status: string;             // SCHEDULED | IN_PROGRESS | COMPLETED | PUBLISHED
+  statsMatchId?: string | null; // platform Match id for the public box score
 }
 
 export interface BracketData {
@@ -169,9 +170,14 @@ function SlotCard({
   // Public (no actions): show the footer only when the match isn't finished — a
   // finished match's scoreline already says everything; avoids a redundant "Final".
   const showFooter = hasActions || !done;
+  // The whole card opens the match detail once it's played or live.
+  const clickable = !!onShowDetails && !!vm && (done || live);
 
   return (
-    <div className="w-full rounded-lg border border-line bg-surface overflow-hidden">
+    <div
+      className={`w-full rounded-lg border bg-surface overflow-hidden transition-colors ${clickable ? 'border-line hover:border-primary/50 cursor-pointer' : 'border-line'}`}
+      {...(clickable ? { role: 'button', tabIndex: 0, onClick: () => onShowDetails!(vm!), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onShowDetails!(vm!); } } } : {})}
+    >
       <Row name={vm ? teamName(vm.homeTeamId) : 'TBD'} logo={teamLogo?.(vm?.homeTeamId ?? null)} score={vm?.homeScore} show={showScore} winner={homeWin} champion={!!champion && homeWin} />
       <div className="h-px bg-line" />
       <Row name={vm ? teamName(vm.awayTeamId) : 'TBD'} logo={teamLogo?.(vm?.awayTeamId ?? null)} score={vm?.awayScore} show={showScore} winner={awayWin} champion={!!champion && awayWin} />
@@ -185,11 +191,11 @@ function SlotCard({
             </span>
           </span>
           {vm && done && onShowDetails ? (
-            <button onClick={() => onShowDetails(vm)} className="flex items-center gap-1 text-[11px] text-gray-custom hover:text-foreground">
+            <button onClick={(e) => { e.stopPropagation(); onShowDetails(vm); }} className="flex items-center gap-1 text-[11px] text-gray-custom hover:text-foreground">
               <BarChart3 size={11} /> Details
             </button>
           ) : vm && ready && !done && onOpenMatch ? (
-            <button onClick={() => onOpenMatch(vm)} className="flex items-center gap-1 text-[11px] text-primary hover:text-primary-light">
+            <button onClick={(e) => { e.stopPropagation(); onOpenMatch(vm); }} className="flex items-center gap-1 text-[11px] text-primary hover:text-primary-light">
               <Play size={11} /> {live ? 'Resume' : 'Track'}
             </button>
           ) : null}

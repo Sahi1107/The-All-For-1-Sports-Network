@@ -377,6 +377,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
       homeScore: m.homeScore, awayScore: m.awayScore, status: m.status,
       scheduledAt: m.scheduledAt ?? null, court: m.court ?? null,
+      statsMatchId: m.publishedMatchId ?? null, // platform Match id for the box score
       winnerTeamId:
         (m.status === 'COMPLETED' || m.status === 'PUBLISHED') && m.homeTeamId && m.awayTeamId && m.homeScore !== m.awayScore
           ? (m.homeScore > m.awayScore ? m.homeTeamId : m.awayTeamId)
@@ -390,7 +391,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
         orderBy: { matchDate: 'asc' },
         select: { id: true, round: true, homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true, matchDate: true, court: true },
       });
-      const flat = flatRows.map((m) => ({ ...m, scheduledAt: m.matchDate, court: m.court ?? null }));
+      const flat = flatRows.map((m) => ({ ...m, scheduledAt: m.matchDate, court: m.court ?? null, statsMatchId: m.id }));
       res.json({ hasBracket: false, format: null, teams, groups: null, bracket: null, flatMatches: flat });
       return;
     }
@@ -465,17 +466,26 @@ const LEADER_CATS: Record<StatSport, { key: string; label: string; fields: strin
     { key: 'goals',   label: 'Top scorers',        fields: ['goals'] },
     { key: 'assists', label: 'Assists',            fields: ['assists'] },
     { key: 'ga',      label: 'Goal contributions', fields: ['goals', 'assists'] },
+    { key: 'shots',   label: 'Shots',              fields: ['shots'] },
+    { key: 'passes',  label: 'Passes',             fields: ['passes'] },
+    { key: 'tackles', label: 'Tackles',            fields: ['tackles'] },
     { key: 'saves',   label: 'Goalkeeper saves',   fields: ['saves'] },
   ],
   BASKETBALL: [
-    { key: 'points',   label: 'Points',   fields: ['points'] },
-    { key: 'rebounds', label: 'Rebounds', fields: ['rebounds'] },
-    { key: 'assists',  label: 'Assists',  fields: ['assists'] },
-    { key: 'steals',   label: 'Steals',   fields: ['steals'] },
+    { key: 'points',        label: 'Points',         fields: ['points'] },
+    { key: 'rebounds',      label: 'Rebounds',       fields: ['rebounds'] },
+    { key: 'assists',       label: 'Assists',        fields: ['assists'] },
+    { key: 'steals',        label: 'Steals',         fields: ['steals'] },
+    { key: 'blocks',        label: 'Blocks',         fields: ['blocks'] },
+    { key: 'threePointers', label: 'Three-pointers', fields: ['threePointers'] },
+    { key: 'freeThrows',    label: 'Free throws',    fields: ['freeThrows'] },
   ],
   CRICKET: [
     { key: 'runs',    label: 'Runs',    fields: ['runs'] },
     { key: 'wickets', label: 'Wickets', fields: ['wickets'] },
+    { key: 'fours',   label: 'Fours',   fields: ['fours'] },
+    { key: 'sixes',   label: 'Sixes',   fields: ['sixes'] },
+    { key: 'catches', label: 'Catches', fields: ['catches'] },
   ],
 };
 
@@ -545,7 +555,7 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
           }))
           .filter((r) => r.value > 0)
           .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
-          .slice(0, 5),
+          .slice(0, 10),
       }))
       .filter((c) => c.rows.length > 0);
 
