@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Play, CheckCircle2, BarChart3, Zap } from 'lucide-react';
+import { Play, CheckCircle2, BarChart3, Zap, SlidersHorizontal } from 'lucide-react';
 import type { TrackerSession, TrackerMatch } from '../types';
 import { teamNames, DONE, stageSort, isBye } from './helpers';
 
@@ -24,11 +24,13 @@ export default function FixturesList({
   onOpenMatch,
   onShowDetails,
   onQuickSim,
+  onManageMatch,
 }: {
   session: TrackerSession;
   onOpenMatch: (m: TrackerMatch) => void;
   onShowDetails: (m: TrackerMatch) => void;
   onQuickSim?: (m: TrackerMatch) => void;
+  onManageMatch?: (m: TrackerMatch) => void;
 }) {
   const name = teamNames(session);
 
@@ -84,6 +86,16 @@ export default function FixturesList({
                       title="Simulate a result"
                     >
                       <Zap size={13} /> Quick sim
+                    </button>
+                  )}
+
+                  {onManageMatch && (
+                    <button
+                      onClick={() => onManageMatch(m)}
+                      className="flex items-center gap-1 px-2 py-1.5 bg-elevated border border-line hover:border-primary text-gray-custom hover:text-foreground text-xs rounded-lg transition-colors"
+                      title="Manage match — reassign teams, walkover, un-publish"
+                    >
+                      <SlidersHorizontal size={13} />
                     </button>
                   )}
 

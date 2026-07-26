@@ -13,6 +13,7 @@ import StandingsTable from './components/StandingsTable';
 import Bracket, { type BracketData, type BracketMatchVM } from './components/Bracket';
 import FixturesList from './components/FixturesList';
 import MatchDetails from './components/MatchDetails';
+import MatchAdminModal from './components/MatchAdminModal';
 
 /** Adapt a live TrackerSession's bracket into the shared Bracket's plain props. */
 function bracketDataFromSession(session: TrackerSession): BracketData {
@@ -63,6 +64,7 @@ export default function TournamentView({
   const hasBracket = !!session.bracket;
   const hasStandings = session.format === 'LEAGUE' || session.format === 'MIXED';
   const [detail, setDetail] = useState<TrackerMatch | null>(null);
+  const [manage, setManage] = useState<TrackerMatch | null>(null);
 
   // Stat leaders: prefer live tracker state; for published/imported tournaments
   // whose matches carry no live state (state === null), fall back to the DB
@@ -156,10 +158,12 @@ export default function TournamentView({
           onOpenMatch={onOpenMatch}
           onShowDetails={setDetail}
           onQuickSim={demo?.onQuickSim}
+          onManageMatch={demo ? undefined : setManage}
         />
       )}
 
       {detail && <MatchDetails session={session} match={detail} onClose={() => setDetail(null)} />}
+      {manage && <MatchAdminModal session={session} match={manage} onClose={() => setManage(null)} />}
     </div>
   );
 }

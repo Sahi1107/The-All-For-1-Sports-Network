@@ -310,7 +310,7 @@ router.patch(
   async (req: AuthRequest, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { state, homeScore, awayScore, status } = req.body;
+      const { state, homeScore, awayScore, status, homeTeamId, awayTeamId } = req.body;
 
       const existing = await prisma.trackerMatch.findUnique({
         where: { id },
@@ -321,7 +321,7 @@ router.patch(
         return;
       }
       if (existing.status === 'PUBLISHED') {
-        res.status(409).json({ error: 'Match already published' });
+        res.status(409).json({ error: 'Match already published — unpublish it first to make changes' });
         return;
       }
 
@@ -332,11 +332,16 @@ router.patch(
           ...(homeScore !== undefined ? { homeScore } : {}),
           ...(awayScore !== undefined ? { awayScore } : {}),
           ...(status !== undefined ? { status } : {}),
+          ...(homeTeamId !== undefined ? { homeTeamId } : {}),
+          ...(awayTeamId !== undefined ? { awayTeamId } : {}),
         },
       });
 
-      // When a match completes, advance the bracket / seed knockout.
-      if (status === 'COMPLETED' && existing.status !== 'COMPLETED') {
+      // Whenever a knockout match is (or stays) COMPLETED, (re)propagate — so a
+      // corrected result that flips the winner flows through the bracket. The
+      // advancement side is deterministic (feedFrom order), so re-running simply
+      // overwrites the parent slot with the current winner.
+      if (updated.status === 'COMPLETED') {
         const sess = existing.session;
         const bracket = sess.bracket as BracketDef | null;
         if (updated.bracketSlot) {
@@ -424,6 +429,42 @@ router.post(
       res.json({ published: true, matchId: platformMatchId, playerCount: playerStats.length });
     } catch (err) {
       console.error('Publish tracker match error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Un-publish a match (revert to editable, remove platform data) ───
+// Deletes the platform Match (cascading its per-player stats) and returns the
+// tracker match to COMPLETED so it can be corrected and re-published.
+router.post(
+  '/matches/:id/unpublish',
+  validate({ params: IdParam }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const trackerMatch = await prisma.trackerMatch.findUnique({ where: { id: req.params.id as string } });
+      if (!trackerMatch) {
+        res.status(404).json({ error: 'Match not found' });
+        return;
+      }
+      if (trackerMatch.status !== 'PUBLISHED') {
+        res.status(400).json({ error: 'Match is not published' });
+        return;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        if (trackerMatch.publishedMatchId) {
+          await tx.match.deleteMany({ where: { id: trackerMatch.publishedMatchId } });
+        }
+        await tx.trackerMatch.update({
+          where: { id: trackerMatch.id },
+          data: { status: 'COMPLETED', publishedMatchId: null },
+        });
+      });
+
+      res.json({ unpublished: true });
+    } catch (err) {
+      console.error('Unpublish tracker match error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   },

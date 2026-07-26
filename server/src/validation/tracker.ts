@@ -36,6 +36,10 @@ export const PatchMatchBody = z.object({
   homeScore: z.coerce.number().int().min(0).max(9999).optional(),
   awayScore: z.coerce.number().int().min(0).max(9999).optional(),
   status: TrackerMatchStatusEnum.optional(),
+  // Admin team reassignment (correct a wrong/null-opponent match). Nullable to
+  // allow clearing a side.
+  homeTeamId: z.string().uuid().nullable().optional(),
+  awayTeamId: z.string().uuid().nullable().optional(),
 });
 
 export const IdParam = z.object({ id: uuidParam });
