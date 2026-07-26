@@ -548,6 +548,66 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
   }
 });
 
+// GET /api/tournaments/matches/:matchId/stats — per-player stats for ONE published
+// match, from the DB stat tables. Shaped to match the client's footballPlayerRows /
+// basketballPlayerRows output so MatchDetails renders live-state and DB rows the same.
+router.get('/matches/:matchId/stats', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const matchId = req.params.matchId as string;
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      select: { id: true, tournamentId: true, tournament: { select: { sport: true } } },
+    });
+    if (!match) {
+      res.status(404).json({ error: 'Match not found' });
+      return;
+    }
+    const sport = match.tournament.sport;
+    if (!isStatSport(sport)) {
+      res.json({ sport, rows: [] });
+      return;
+    }
+
+    // userId -> teamName (from the tournament's accepted rosters).
+    const regs = await prisma.tournamentTeam.findMany({
+      where: { tournamentId: match.tournamentId },
+      include: { team: { select: { name: true, members: { where: { status: 'ACCEPTED' }, select: { userId: true } } } } },
+    });
+    const teamByUser = new Map<string, string>();
+    regs.forEach((r) => r.team.members.forEach((m) => { if (!teamByUser.has(m.userId)) teamByUser.set(m.userId, r.team.name); }));
+
+    const model = (prisma as any)[STAT_MODEL[sport as StatSport]];
+    const statRows = await model.findMany({
+      where: { matchId },
+      include: { user: { select: { name: true } } },
+    });
+
+    let rows: any[];
+    if (sport === 'FOOTBALL') {
+      rows = statRows.map((s: any) => ({
+        userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '',
+        goals: s.goals, assists: s.assists, shots: s.shots, shotsOnTarget: 0,
+        saves: s.saves, tackles: s.tackles, passC: s.passes, passI: 0,
+        yellow: s.yellowCards, red: s.redCards, minutes: Math.round(s.minutesPlayed),
+      })).sort((a: any, b: any) => b.goals - a.goals || b.assists - a.assists);
+    } else if (sport === 'BASKETBALL') {
+      rows = statRows.map((s: any) => ({
+        userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '',
+        min: Math.round(s.minutesPlayed), pts: s.points, ast: s.assists, reb: s.rebounds,
+        stl: s.steals, blk: s.blocks, fg: 0, fga: 0, tp: s.threePointers, tpa: 0,
+        ft: s.freeThrows, fta: 0, to: s.turnovers,
+      })).sort((a: any, b: any) => b.pts - a.pts);
+    } else {
+      rows = statRows.map((s: any) => ({ userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '', ...s }));
+    }
+
+    res.json({ sport, rows });
+  } catch (error) {
+    console.error('Get match stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // PUT /api/tournaments/:id — update (admin only)
 router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
   try {

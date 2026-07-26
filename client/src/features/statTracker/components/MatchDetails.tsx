@@ -1,7 +1,10 @@
 import { X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import type { TrackerSession, TrackerMatch, FootballState, FootballEvent } from '../types';
-import { footballPlayerRows, basketballPlayerRows } from '../stats';
+import { footballPlayerRows, basketballPlayerRows, type FootballPlayerRow, type BasketballPlayerRow } from '../stats';
 import { teamNames } from './helpers';
+import api from '../../../api/client';
+import BallLoader from '../../../components/BallLoader';
 
 /** Read-only breakdown of a finished (or in-progress) match: final score plus
  *  a football event timeline / box score or a basketball box score. */
@@ -15,6 +18,17 @@ export default function MatchDetails({
   onClose: () => void;
 }) {
   const name = teamNames(session);
+
+  // Live tracker state is authoritative; a published/imported match with no state
+  // falls back to the DB (same live-else-DB pattern as the leaders card).
+  const hasState = !!match.state;
+  const { data: dbData, isLoading: dbLoading } = useQuery({
+    queryKey: ['match-stats', match.publishedMatchId],
+    queryFn: async () => (await api.get(`/tournaments/matches/${match.publishedMatchId}/stats`)).data,
+    enabled: !hasState && !!match.publishedMatchId,
+  });
+  const dbRows = hasState ? undefined : (dbData?.rows as any[] | undefined);
+  const showLoader = !hasState && !!match.publishedMatchId && dbLoading;
 
   return (
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
@@ -40,17 +54,21 @@ export default function MatchDetails({
         </div>
 
         <div className="overflow-y-auto p-5">
-          {session.sport === 'FOOTBALL'
-            ? <FootballDetails session={session} match={match} />
-            : <BasketballDetails session={session} match={match} />}
+          {showLoader ? (
+            <div className="flex justify-center py-8"><BallLoader /></div>
+          ) : session.sport === 'FOOTBALL' ? (
+            <FootballDetails session={session} match={match} dbRows={dbRows as FootballPlayerRow[] | undefined} />
+          ) : (
+            <BasketballDetails session={session} match={match} dbRows={dbRows as BasketballPlayerRow[] | undefined} />
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function FootballDetails({ session, match }: { session: TrackerSession; match: TrackerMatch }) {
-  const rows = footballPlayerRows(match, session).filter(
+function FootballDetails({ session, match, dbRows }: { session: TrackerSession; match: TrackerMatch; dbRows?: FootballPlayerRow[] }) {
+  const rows = (match.state ? footballPlayerRows(match, session) : (dbRows ?? [])).filter(
     (r) => r.goals || r.assists || r.saves || r.tackles || r.shots || r.yellow || r.red,
   );
   const state = match.state as FootballState | null;
@@ -113,8 +131,8 @@ function FootballDetails({ session, match }: { session: TrackerSession; match: T
   );
 }
 
-function BasketballDetails({ session, match }: { session: TrackerSession; match: TrackerMatch }) {
-  const rows = basketballPlayerRows(match, session).filter((r) => r.min > 0 || r.pts || r.reb || r.ast);
+function BasketballDetails({ session, match, dbRows }: { session: TrackerSession; match: TrackerMatch; dbRows?: BasketballPlayerRow[] }) {
+  const rows = (match.state ? basketballPlayerRows(match, session) : (dbRows ?? [])).filter((r) => r.min > 0 || r.pts || r.reb || r.ast);
   const teams = [...new Set(rows.map((r) => r.teamName))];
 
   return (
