@@ -2,8 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
-import { GitFork, Settings, Trophy, Medal } from 'lucide-react';
+import { GitFork, Settings } from 'lucide-react';
 import StandingsTable from '../statTracker/components/StandingsTable';
+import SharedBracket, { type BracketData, type BracketMatchVM } from '../statTracker/components/Bracket';
 import type { StandingRow } from '../statTracker/stats';
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -33,7 +34,6 @@ interface FixturesResponse {
 const FORMAT_LABEL: Record<string, string> = {
   LEAGUE: 'League', KNOCKOUT: 'Knockout', MIXED: 'Group stage + Knockout',
 };
-const CW = 30; // connector column width (px)
 
 export default function TournamentFixtures({ tournamentId, isAdmin }: { tournamentId: string; sport: string; isAdmin: boolean }) {
   const navigate = useNavigate();
@@ -113,8 +113,7 @@ export default function TournamentFixtures({ tournamentId, isAdmin }: { tourname
         <div className="space-y-4">
           <SectionTitle>Knockout</SectionTitle>
           <div className="bg-card rounded-xl border border-line p-4 sm:p-6">
-            <Bracket rounds={data.bracket.rounds} teams={teams} />
-            {data.bracket.thirdPlace && <ThirdPlace m={data.bracket.thirdPlace} teams={teams} />}
+            <SharedBracket {...bracketDataFromEndpoint(data.bracket, teams)} />
           </div>
         </div>
       )}
@@ -185,87 +184,35 @@ function FlatRow({ m, teams, compact }: { m: BMatch; teams: Record<string, TeamL
   );
 }
 
-// ── knockout bracket (connector tree) ──────────────────────────────────────────
-function Bracket({ rounds, teams }: { rounds: { stage: string; title: string; matches: BMatch[] }[]; teams: Record<string, TeamLite> }) {
-  return (
-    <div className="overflow-x-auto pb-1">
-      <div className="flex min-w-max">
-        {rounds.map((round, ri) => {
-          const last = ri === rounds.length - 1;
-          return (
-            <div key={round.stage} className="flex flex-col" style={{ minWidth: 190 }}>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-custom text-center pb-3">{round.title}</div>
-              <div className="flex-1 flex flex-col">
-                {round.matches.map((m, mi) => {
-                  const isTop = mi % 2 === 0;
-                  const hasPartner = isTop ? mi + 1 < round.matches.length : true;
-                  return (
-                    <div key={m.id} className="flex-1 flex items-stretch">
-                      <div className="flex-1 flex items-center px-1">
-                        <BracketMatch m={m} teams={teams} champion={last} />
-                      </div>
-                      {!last && (
-                        <div className="relative shrink-0" style={{ width: CW }}>
-                          {/* stub out of this match to mid-x */}
-                          <div className="absolute top-1/2 left-0 h-0.5 bg-gray-custom/40" style={{ width: CW / 2 }} />
-                          {/* vertical half joining the pair */}
-                          {hasPartner && (
-                            <div
-                              className="absolute w-0.5 bg-gray-custom/40"
-                              style={{ left: CW / 2, ...(isTop ? { top: '50%', bottom: 0 } : { top: 0, height: '50%' }) }}
-                            />
-                          )}
-                          {/* into-next stub from the pair midpoint (drawn once, on the top match) */}
-                          {isTop && hasPartner && (
-                            <div className="absolute h-0.5 bg-gray-custom/40" style={{ left: CW / 2, right: 0, bottom: 0 }} />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function BracketMatch({ m, teams, champion }: { m: BMatch; teams: Record<string, TeamLite>; champion?: boolean }) {
-  const played = isPlayed(m);
-  return (
-    <div className="w-full rounded-lg border border-line bg-surface overflow-hidden">
-      <BracketRow team={teams[m.homeTeamId ?? '']} score={m.homeScore} win={m.winnerTeamId === m.homeTeamId && !!m.homeTeamId} played={played} champion={champion} />
-      <div className="h-px bg-line" />
-      <BracketRow team={teams[m.awayTeamId ?? '']} score={m.awayScore} win={m.winnerTeamId === m.awayTeamId && !!m.awayTeamId} played={played} champion={champion} />
-    </div>
-  );
-}
-function BracketRow({ team, score, win, played, champion }: { team?: TeamLite; score: number | null; win: boolean; played: boolean; champion?: boolean }) {
-  return (
-    <div className={`flex items-center gap-2 px-2.5 py-1.5 ${win ? 'bg-primary/10' : ''}`}>
-      <span className={`flex items-center gap-2 min-w-0 flex-1 text-sm ${win ? 'font-semibold text-foreground' : played ? 'text-gray-custom' : 'text-foreground'}`}>
-        {win && champion && <Trophy size={12} className="text-primary shrink-0" />}
-        <TeamChip team={team} size={18} />
-      </span>
-      <span className={`font-numeric tabular-nums text-sm shrink-0 ${win ? 'text-primary font-semibold' : 'text-gray-custom'}`}>
-        {played && score != null ? score : '–'}
-      </span>
-    </div>
-  );
-}
-
-function ThirdPlace({ m, teams }: { m: BMatch; teams: Record<string, TeamLite> }) {
-  return (
-    <div className="mt-6 pt-5 border-t border-line">
-      <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-custom flex items-center gap-1.5 mb-3">
-        <Medal size={13} className="text-amber-400" /> Third place
-      </div>
-      <div className="max-w-xs">
-        <BracketMatch m={m} teams={teams} />
-      </div>
-    </div>
-  );
+// ── adapt the /fixtures endpoint's bracket into the shared Bracket's props ──────
+function bracketDataFromEndpoint(
+  bracket: NonNullable<FixturesResponse['bracket']>,
+  teams: Record<string, TeamLite>,
+): BracketData {
+  const slotsByStage: Record<string, string[]> = {};
+  const matchBySlot: Record<string, BracketMatchVM | undefined> = {};
+  const titleByStage: Record<string, string> = {};
+  const add = (m: BMatch): string => {
+    const slotId = m.bracketSlot ?? m.id;
+    matchBySlot[slotId] = {
+      id: m.id, slotId, stage: m.stage,
+      homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
+      homeScore: m.homeScore, awayScore: m.awayScore, status: m.status,
+    };
+    return slotId;
+  };
+  bracket.rounds.forEach((r) => {
+    titleByStage[r.stage] = r.title;
+    slotsByStage[r.stage] = r.matches.map(add);
+  });
+  const thirdPlaceSlotId = bracket.thirdPlace ? add(bracket.thirdPlace) : null;
+  return {
+    stages: bracket.rounds.map((r) => r.stage),
+    slotsByStage,
+    matchBySlot,
+    thirdPlaceSlotId,
+    teamName: (id) => (id && teams[id] ? teams[id].name : 'TBD'),
+    teamLogo: (id) => (id && teams[id] ? teams[id].logo : null),
+    stageLabel: (s) => titleByStage[s] ?? s,
+  };
 }

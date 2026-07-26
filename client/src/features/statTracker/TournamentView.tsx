@@ -2,12 +2,40 @@ import { useMemo, useState } from 'react';
 import { LayoutDashboard, Table2, GitFork, ListOrdered, Zap, RotateCcw } from 'lucide-react';
 import type { TrackerSession, TrackerMatch, GroupDef } from './types';
 import { standingsFor } from './stats';
+import { teamNames } from './components/helpers';
+import { STAGE_LABEL } from './engine';
 import ProgressSummary from './components/ProgressSummary';
 import StatLeaders from './components/StatLeaders';
 import StandingsTable from './components/StandingsTable';
-import Bracket from './components/Bracket';
+import Bracket, { type BracketData, type BracketMatchVM } from './components/Bracket';
 import FixturesList from './components/FixturesList';
 import MatchDetails from './components/MatchDetails';
+
+/** Adapt a live TrackerSession's bracket into the shared Bracket's plain props. */
+function bracketDataFromSession(session: TrackerSession): BracketData {
+  const b = session.bracket!;
+  const mainStages = b.stages.filter((s) => s !== 'third_place');
+  const slotsByStage: Record<string, string[]> = {};
+  mainStages.forEach((s) => { slotsByStage[s] = b.slots.filter((x) => x.stage === s).map((x) => x.id); });
+  const matchBySlot: Record<string, BracketMatchVM | undefined> = {};
+  session.matches.forEach((m) => {
+    if (!m.bracketSlot) return;
+    matchBySlot[m.bracketSlot] = {
+      id: m.id, slotId: m.bracketSlot, stage: m.stage,
+      homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
+      homeScore: m.homeScore, awayScore: m.awayScore, status: m.status,
+    };
+  });
+  const tp = b.slots.find((s) => s.stage === 'third_place');
+  return {
+    stages: mainStages,
+    slotsByStage,
+    matchBySlot,
+    thirdPlaceSlotId: b.includesThirdPlace && tp ? tp.id : null,
+    teamName: teamNames(session),
+    stageLabel: (s) => STAGE_LABEL[s] ?? s,
+  };
+}
 
 type TabKey = 'overview' | 'standings' | 'bracket' | 'fixtures';
 
@@ -100,7 +128,11 @@ export default function TournamentView({
       {activeTab === 'standings' && <StandingsSection session={session} />}
 
       {activeTab === 'bracket' && (
-        <Bracket session={session} onOpenMatch={onOpenMatch} onShowDetails={setDetail} />
+        <Bracket
+          {...bracketDataFromSession(session)}
+          onOpenMatch={(vm) => { const m = session.matches.find((x) => x.id === vm.id); if (m) onOpenMatch(m); }}
+          onShowDetails={(vm) => { const m = session.matches.find((x) => x.id === vm.id); if (m) setDetail(m); }}
+        />
       )}
 
       {activeTab === 'fixtures' && (
