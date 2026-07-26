@@ -1,5 +1,6 @@
 import BallLoader from '../components/BallLoader';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { track } from '../config/analytics';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -523,6 +524,10 @@ export default function Profile() {
     enabled: !!id,
   });
 
+  useEffect(() => {
+    if (id) track('athlete_profile_viewed', { profileId: id, self: isOwnProfile });
+  }, [id, isOwnProfile]);
+
   const { data: mutualData } = useQuery<{
     users: any[];
     count: number;
@@ -861,6 +866,7 @@ export default function Profile() {
                             const url = `${window.location.origin}/profile/${profile.id}`;
                             try {
                               await navigator.clipboard.writeText(url);
+                              track('share', { type: 'profile', method: 'copy' });
                               toast.success('Profile link copied');
                             } catch {
                               toast.error('Could not copy link');
@@ -875,7 +881,7 @@ export default function Profile() {
                             onClick={async () => {
                               setShareMenuOpen(false);
                               const url = `${window.location.origin}/profile/${profile.id}`;
-                              try { await navigator.share({ title: profile.name, url }); } catch { /* cancelled */ }
+                              try { await navigator.share({ title: profile.name, url }); track('share', { type: 'profile', method: 'native' }); } catch { /* cancelled */ }
                             }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
                           >

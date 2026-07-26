@@ -1,6 +1,7 @@
 import BallLoader from './BallLoader';
 import { useState, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
+import { track } from '../config/analytics';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -33,6 +34,7 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
       const { data: convData } = await api.post('/messages/conversations', { userId: targetUser.id });
       const conversationId = convData.conversation.id;
       await api.post(`/messages/conversations/${conversationId}`, { sharedProfileId: profileId });
+      track('share', { type: 'profile', method: 'message' });
       setSentTo((prev) => new Set(prev).add(targetUser.id));
       toast.success(`Sent to ${targetUser.name}`);
     } catch {

@@ -17,6 +17,7 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
 import { setSentryUser } from '../config/sentry';
+import { track } from '../config/analytics';
 import type { Sport } from '../data/sports';
 
 const baseURL = (import.meta.env.VITE_API_URL ?? '') + '/api';
@@ -224,6 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...(height && { height }),
     });
 
+    track('sign_up', { method: 'password' });
+
     // 3. Send Firebase verification email.
     //    continueUrl brings the user back to login after they click the link.
     await sendEmailVerification(cred.user, {
@@ -352,6 +355,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...(data.location && { location: data.location }),
       ...(data.height && { height: data.height }),
     });
+    track('sign_up', { method: 'google' });
     const fresh = await firebaseUser.getIdToken(true);
     const { data: me } = await authedGet(fresh, '/auth/me');
     setUser(me.user);

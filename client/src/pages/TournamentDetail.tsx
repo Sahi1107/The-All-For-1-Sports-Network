@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { track } from '../config/analytics';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
@@ -50,6 +52,8 @@ export default function TournamentDetail() {
   // Open the Teams tab focused on a specific team (from the About tab's team list).
   const openTeam = (teamId: string) => setSearchParams({ tab: 'teams', team: teamId });
   const focusTeamId = searchParams.get('team');
+
+  useEffect(() => { if (id) track('tournament_viewed', { tournamentId: id }); }, [id]);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['tournament', id],

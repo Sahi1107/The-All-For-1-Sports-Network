@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -6,6 +6,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import MainLayout from './layouts/MainLayout';
 import BallLoader from './components/BallLoader';
+import AnalyticsManager from './components/AnalyticsManager';
+import ConsentBanner from './components/ConsentBanner';
+import { getConsent, setConsent, type Consent } from './config/consent';
+import { stopAnalytics } from './config/analytics';
 
 // Lazy-load every page so the initial bundle is tiny
 const Landing        = lazy(() => import('./pages/Landing'));
@@ -167,6 +171,23 @@ function AppRoutes() {
   );
 }
 
+/** Holds analytics-consent state and renders the consent banner + analytics
+ *  bridge. Lives inside Router + AuthProvider so it can read location + user. */
+function ConsentGate() {
+  const [consent, setConsentState] = useState<Consent | null>(() => getConsent());
+  const decide = (v: Consent) => {
+    setConsent(v);
+    setConsentState(v);
+    if (v === 'denied') stopAnalytics();
+  };
+  return (
+    <>
+      <AnalyticsManager consent={consent} />
+      <ConsentBanner consent={consent} onDecide={decide} />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -174,6 +195,7 @@ export default function App() {
         <BrowserRouter>
           <AuthProvider>
             <AppRoutes />
+            <ConsentGate />
             <Toaster
               position="top-right"
               toastOptions={{

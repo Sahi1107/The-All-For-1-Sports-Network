@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import BallLoader from '../components/BallLoader';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
+import { track } from '../config/analytics';
 import { Search, MapPin, User, Zap, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
@@ -231,6 +232,7 @@ export default function Radar() {
   const handleSubmit = (q: string) => {
     const trimmed = q.trim();
     if (!trimmed) return;
+    track('radar_search');
     setQuery(trimmed);
     mutation.mutate(trimmed);
   };

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
+import { track } from '../config/analytics';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
@@ -115,6 +116,8 @@ export default function EditProfile() {
     },
     onSuccess: (data) => {
       updateUser(data.user);
+      const u = data.user;
+      track('profile_updated', { complete: !!(u?.bio && u?.avatar && u?.location && u?.age && u?.position && u?.sport) });
       toast.success('Profile updated!');
       navigate(`/profile/${user?.id}`);
     },
