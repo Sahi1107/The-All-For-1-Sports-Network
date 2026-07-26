@@ -376,6 +376,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       bracketSlot: m.bracketSlot, feedsInto: m.feedsInto,
       homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
       homeScore: m.homeScore, awayScore: m.awayScore, status: m.status,
+      scheduledAt: m.scheduledAt ?? null, court: m.court ?? null,
       winnerTeamId:
         (m.status === 'COMPLETED' || m.status === 'PUBLISHED') && m.homeTeamId && m.awayTeamId && m.homeScore !== m.awayScore
           ? (m.homeScore > m.awayScore ? m.homeTeamId : m.awayTeamId)
@@ -384,11 +385,12 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
 
     if (!session) {
       // Fallback: flat platform match list (may be empty → client shows "not published yet").
-      const flat = await prisma.match.findMany({
+      const flatRows = await prisma.match.findMany({
         where: { tournamentId },
         orderBy: { matchDate: 'asc' },
-        select: { id: true, round: true, homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true, matchDate: true },
+        select: { id: true, round: true, homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true, matchDate: true, court: true },
       });
+      const flat = flatRows.map((m) => ({ ...m, scheduledAt: m.matchDate, court: m.court ?? null }));
       res.json({ hasBracket: false, format: null, teams, groups: null, bracket: null, flatMatches: flat });
       return;
     }

@@ -14,6 +14,7 @@ import Bracket, { type BracketData, type BracketMatchVM } from './components/Bra
 import FixturesList from './components/FixturesList';
 import MatchDetails from './components/MatchDetails';
 import MatchAdminModal from './components/MatchAdminModal';
+import AutoScheduleModal from './components/AutoScheduleModal';
 
 /** Adapt a live TrackerSession's bracket into the shared Bracket's plain props. */
 function bracketDataFromSession(session: TrackerSession): BracketData {
@@ -65,6 +66,7 @@ export default function TournamentView({
   const hasStandings = session.format === 'LEAGUE' || session.format === 'MIXED';
   const [detail, setDetail] = useState<TrackerMatch | null>(null);
   const [manage, setManage] = useState<TrackerMatch | null>(null);
+  const [showSchedule, setShowSchedule] = useState(false);
 
   // Stat leaders: prefer live tracker state; for published/imported tournaments
   // whose matches carry no live state (state === null), fall back to the DB
@@ -159,11 +161,13 @@ export default function TournamentView({
           onShowDetails={setDetail}
           onQuickSim={demo?.onQuickSim}
           onManageMatch={demo ? undefined : setManage}
+          onAutoSchedule={demo ? undefined : () => setShowSchedule(true)}
         />
       )}
 
       {detail && <MatchDetails session={session} match={detail} onClose={() => setDetail(null)} />}
       {manage && <MatchAdminModal session={session} match={manage} onClose={() => setManage(null)} />}
+      {showSchedule && <AutoScheduleModal tournamentId={session.tournamentId} sport={session.sport} onClose={() => setShowSchedule(false)} />}
     </div>
   );
 }

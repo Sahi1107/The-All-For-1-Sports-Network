@@ -6,6 +6,8 @@ import { GitFork, Settings } from 'lucide-react';
 import StandingsTable from '../statTracker/components/StandingsTable';
 import SharedBracket, { type BracketData, type BracketMatchVM } from '../statTracker/components/Bracket';
 import type { StandingRow } from '../statTracker/stats';
+import { fmtSchedule } from '../statTracker/schedule';
+import { CalendarClock } from 'lucide-react';
 
 // ── types ─────────────────────────────────────────────────────────────────────
 interface TeamLite { id: string; name: string; logo: string | null }
@@ -18,6 +20,7 @@ interface BMatch {
   bracketSlot: string | null; feedsInto: string | null;
   homeTeamId: string | null; awayTeamId: string | null;
   homeScore: number | null; awayScore: number | null; status: string;
+  scheduledAt: string | null; court: string | null;
   winnerTeamId: string | null;
 }
 interface Group { id: string; name: string; teamIds: string[]; standings: Standing[]; matches: BMatch[] }
@@ -161,25 +164,34 @@ function FlatRow({ m, teams, compact }: { m: BMatch; teams: Record<string, TeamL
   const played = isPlayed(m);
   const homeWin = played && m.homeScore != null && m.awayScore != null && m.homeScore > m.awayScore;
   const awayWin = played && m.homeScore != null && m.awayScore != null && m.awayScore > m.homeScore;
+  const when = fmtSchedule(m.scheduledAt, m.court);
+  const sub = when ?? (played ? null : 'Time TBC');
   return (
-    <div className={`flex items-center gap-3 px-4 ${compact ? 'py-2' : 'py-2.5'} text-sm`}>
-      {!compact && m.round && <span className="text-xs text-gray-custom w-24 shrink-0 truncate">{m.round}</span>}
-      <div className={`flex-1 min-w-0 ${homeWin ? 'font-semibold' : 'text-gray-custom'}`}><TeamChip team={teams[m.homeTeamId ?? '']} size={18} /></div>
-      <div className="font-numeric tabular-nums text-sm shrink-0 px-2">
-        {played ? <span><span className={homeWin ? 'text-primary' : ''}>{m.homeScore}</span><span className="text-gray-custom mx-1">–</span><span className={awayWin ? 'text-primary' : ''}>{m.awayScore}</span></span> : <span className="text-gray-custom text-xs">vs</span>}
+    <div className={`px-4 ${compact ? 'py-2' : 'py-2.5'} space-y-1`}>
+      <div className="flex items-center gap-3 text-sm">
+        {!compact && m.round && <span className="text-xs text-gray-custom w-24 shrink-0 truncate">{m.round}</span>}
+        <div className={`flex-1 min-w-0 ${homeWin ? 'font-semibold' : 'text-gray-custom'}`}><TeamChip team={teams[m.homeTeamId ?? '']} size={18} /></div>
+        <div className="font-numeric tabular-nums text-sm shrink-0 px-2">
+          {played ? <span><span className={homeWin ? 'text-primary' : ''}>{m.homeScore}</span><span className="text-gray-custom mx-1">–</span><span className={awayWin ? 'text-primary' : ''}>{m.awayScore}</span></span> : <span className="text-gray-custom text-xs">vs</span>}
+        </div>
+        <div className={`flex-1 min-w-0 flex justify-end text-right ${awayWin ? 'font-semibold' : 'text-gray-custom'}`}>
+          <span className="flex items-center gap-2 min-w-0 flex-row-reverse">
+            {teams[m.awayTeamId ?? '']
+              ? <>
+                  {teams[m.awayTeamId!].logo
+                    ? <img src={teams[m.awayTeamId!].logo!} alt="" className="w-[18px] h-[18px] rounded object-cover shrink-0 border border-line" />
+                    : <span className="w-[18px] h-[18px] rounded bg-elevated flex items-center justify-center text-[9px] font-bold text-gray-custom shrink-0">{teams[m.awayTeamId!].name.charAt(0).toUpperCase()}</span>}
+                  <span className="truncate">{teams[m.awayTeamId!].name}</span>
+                </>
+              : <span className="text-gray-custom italic">TBD</span>}
+          </span>
+        </div>
       </div>
-      <div className={`flex-1 min-w-0 flex justify-end text-right ${awayWin ? 'font-semibold' : 'text-gray-custom'}`}>
-        <span className="flex items-center gap-2 min-w-0 flex-row-reverse">
-          {teams[m.awayTeamId ?? '']
-            ? <>
-                {teams[m.awayTeamId!].logo
-                  ? <img src={teams[m.awayTeamId!].logo!} alt="" className="w-[18px] h-[18px] rounded object-cover shrink-0 border border-line" />
-                  : <span className="w-[18px] h-[18px] rounded bg-elevated flex items-center justify-center text-[9px] font-bold text-gray-custom shrink-0">{teams[m.awayTeamId!].name.charAt(0).toUpperCase()}</span>}
-                <span className="truncate">{teams[m.awayTeamId!].name}</span>
-              </>
-            : <span className="text-gray-custom italic">TBD</span>}
-        </span>
-      </div>
+      {sub && (
+        <div className={`text-[11px] flex items-center gap-1.5 ${compact ? '' : 'pl-24'} ${when ? 'text-gray-custom' : 'text-gray-custom/60'}`}>
+          <CalendarClock size={11} className="shrink-0" /> {sub}
+        </div>
+      )}
     </div>
   );
 }

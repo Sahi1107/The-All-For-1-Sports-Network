@@ -40,6 +40,18 @@ export const PatchMatchBody = z.object({
   // allow clearing a side.
   homeTeamId: z.string().uuid().nullable().optional(),
   awayTeamId: z.string().uuid().nullable().optional(),
+  // Scheduling: when + where the fixture is played. Nullable to clear (→ TBC).
+  scheduledAt: z.coerce.date().nullable().optional(),
+  court: z.string().trim().max(80).nullable().optional(),
+});
+
+// Bulk / sequential auto-scheduling across one or more courts.
+export const ScheduleBody = z.object({
+  startAt: z.coerce.date(),
+  matchMinutes: z.coerce.number().int().min(1).max(600),
+  gapMinutes: z.coerce.number().int().min(0).max(600),
+  courts: z.array(z.string().trim().min(1).max(80)).min(1).max(20),
+  onlyUnscheduled: z.boolean().optional(),
 });
 
 export const IdParam = z.object({ id: uuidParam });

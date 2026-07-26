@@ -18,9 +18,18 @@ import { writeMatchPlayerStats } from '../services/matchStats';
 import {
   CreateSessionBody,
   PatchMatchBody,
+  ScheduleBody,
   IdParam,
   TournamentIdParam,
 } from '../validation/tracker';
+
+// Stage ordering for sequential scheduling (groups first, then knockout rounds).
+const STAGE_SCHED_RANK: Record<string, number> = {
+  group: 0, league: 0, r32: 1, r16: 2, qf: 3, sf: 4, third_place: 5, final: 6,
+};
+// A bye is auto-resolved (one team, marked done) — never scheduled.
+const isByeMatch = (m: { status: string; homeTeamId: string | null; awayTeamId: string | null }) =>
+  (m.status === 'COMPLETED' || m.status === 'PUBLISHED') && (!!m.homeTeamId !== !!m.awayTeamId);
 
 const router = Router();
 router.use(authenticate, requireRole('ADMIN'));
@@ -281,6 +290,57 @@ router.delete(
   },
 );
 
+// ─── Bulk / sequential auto-scheduling ───────────────────────
+// Assigns scheduledAt + court to eligible fixtures in waves across the given
+// courts (groups first, then knockout rounds by orderIndex). Byes are skipped;
+// `onlyUnscheduled` leaves already-scheduled matches alone. Fine-tune individual
+// matches afterwards via PATCH.
+router.post(
+  '/sessions/:tournamentId/schedule',
+  validate({ params: TournamentIdParam, body: ScheduleBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.tournamentId as string;
+      const { startAt, matchMinutes, gapMinutes, courts, onlyUnscheduled } = req.body;
+
+      const session = await prisma.trackerSession.findUnique({
+        where: { tournamentId },
+        include: { matches: true },
+      });
+      if (!session) {
+        res.status(404).json({ error: 'No draw to schedule — generate fixtures first' });
+        return;
+      }
+
+      const slotMs = (matchMinutes + gapMinutes) * 60_000;
+      const start = new Date(startAt).getTime();
+      const eligible = session.matches
+        .filter((m) => !isByeMatch(m))
+        .filter((m) => (onlyUnscheduled ? !m.scheduledAt : true))
+        .sort(
+          (a, b) =>
+            (STAGE_SCHED_RANK[a.stage] ?? 9) - (STAGE_SCHED_RANK[b.stage] ?? 9) ||
+            a.orderIndex - b.orderIndex,
+        );
+
+      await prisma.$transaction(
+        eligible.map((m, i) => {
+          const wave = Math.floor(i / courts.length);
+          return prisma.trackerMatch.update({
+            where: { id: m.id },
+            data: { scheduledAt: new Date(start + wave * slotMs), court: courts[i % courts.length] },
+          });
+        }),
+      );
+
+      res.json({ scheduled: eligible.length });
+    } catch (err) {
+      console.error('Auto-schedule error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
 // ─── Get a single match (with roster + standings) ────────────
 router.get(
   '/matches/:id',
@@ -310,7 +370,7 @@ router.patch(
   async (req: AuthRequest, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { state, homeScore, awayScore, status, homeTeamId, awayTeamId } = req.body;
+      const { state, homeScore, awayScore, status, homeTeamId, awayTeamId, scheduledAt, court } = req.body;
 
       const existing = await prisma.trackerMatch.findUnique({
         where: { id },
@@ -334,6 +394,8 @@ router.patch(
           ...(status !== undefined ? { status } : {}),
           ...(homeTeamId !== undefined ? { homeTeamId } : {}),
           ...(awayTeamId !== undefined ? { awayTeamId } : {}),
+          ...(scheduledAt !== undefined ? { scheduledAt } : {}),
+          ...(court !== undefined ? { court: court || null } : {}),
         },
       });
 
@@ -398,6 +460,8 @@ router.post(
           data: {
             homeScore: trackerMatch.homeScore,
             awayScore: trackerMatch.awayScore,
+            ...(trackerMatch.scheduledAt ? { matchDate: trackerMatch.scheduledAt } : {}),
+            court: trackerMatch.court,
             status: 'COMPLETED',
           },
         });
@@ -408,7 +472,8 @@ router.post(
             homeTeamId: trackerMatch.homeTeamId,
             awayTeamId: trackerMatch.awayTeamId,
             round: trackerMatch.round,
-            matchDate: new Date(),
+            matchDate: trackerMatch.scheduledAt ?? new Date(),
+            court: trackerMatch.court,
             homeScore: trackerMatch.homeScore,
             awayScore: trackerMatch.awayScore,
             status: 'COMPLETED',

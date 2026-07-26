@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Users, Flag, Undo2 } from 'lucide-react';
+import { X, Users, Flag, Undo2, CalendarClock } from 'lucide-react';
 import api from '../../../api/client';
 import type { TrackerSession, TrackerMatch } from '../types';
+import { toLocalInput } from '../schedule';
 
 /** Admin match controls: reassign teams (fix a wrong/null-opponent match),
  *  declare a walkover (no-show → winner without faking a game), and un-publish a
@@ -22,6 +23,8 @@ export default function MatchAdminModal({
 
   const [home, setHome] = useState<string>(match.homeTeamId ?? '');
   const [away, setAway] = useState<string>(match.awayTeamId ?? '');
+  const [sched, setSched] = useState<string>(toLocalInput(match.scheduledAt));
+  const [court, setCourt] = useState<string>(match.court ?? '');
   const published = match.status === 'PUBLISHED';
 
   const patch = useMutation({
@@ -43,6 +46,11 @@ export default function MatchAdminModal({
     patch.mutate(
       { homeScore: winner === 'home' ? 1 : 0, awayScore: winner === 'away' ? 1 : 0, status: 'COMPLETED' },
       { onSuccess: () => { toast.success('Walkover recorded'); invalidate(); onClose(); } },
+    );
+  const saveSchedule = () =>
+    patch.mutate(
+      { scheduledAt: sched ? new Date(sched).toISOString() : null, court: court.trim() || null },
+      { onSuccess: () => { toast.success('Schedule updated'); invalidate(); onClose(); } },
     );
 
   const busy = patch.isPending || unpublish.isPending;
@@ -76,9 +84,33 @@ export default function MatchAdminModal({
           </div>
         ) : (
           <div className="p-5 space-y-6">
-            {/* Reassign teams */}
+            {/* Schedule */}
             <div className="space-y-3">
-              <h4 className="text-xs uppercase tracking-wide text-gray-custom flex items-center gap-1.5"><Users size={13} /> Teams</h4>
+              <h4 className="text-xs uppercase tracking-wide text-gray-custom flex items-center gap-1.5"><CalendarClock size={13} /> Schedule</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3">
+                <label className="block">
+                  <span className="block text-[11px] text-gray-custom mb-1">Date &amp; time</span>
+                  <input type="datetime-local" value={sched} onChange={(e) => setSched(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary" />
+                </label>
+                <label className="block">
+                  <span className="block text-[11px] text-gray-custom mb-1">Court / pitch</span>
+                  <input type="text" value={court} onChange={(e) => setCourt(e.target.value)} placeholder="Court 1"
+                    className="w-full sm:w-32 px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary" />
+                </label>
+              </div>
+              <button
+                onClick={saveSchedule}
+                disabled={busy || (sched === toLocalInput(match.scheduledAt) && court.trim() === (match.court ?? ''))}
+                className="w-full py-2 rounded-lg bg-elevated hover:bg-surface border border-line text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                Save schedule
+              </button>
+            </div>
+
+            {/* Reassign teams */}
+            <div className="space-y-3 pt-1 border-t border-line">
+              <h4 className="text-xs uppercase tracking-wide text-gray-custom flex items-center gap-1.5 pt-4"><Users size={13} /> Teams</h4>
               <div className="grid grid-cols-2 gap-3">
                 <TeamSelect label="Home" value={home} teams={teams} exclude={away} onChange={setHome} />
                 <TeamSelect label="Away" value={away} teams={teams} exclude={home} onChange={setAway} />

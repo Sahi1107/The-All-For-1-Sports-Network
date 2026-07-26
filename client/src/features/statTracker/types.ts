@@ -49,6 +49,8 @@ export interface TrackerMatch {
   homeScore: number;
   awayScore: number;
   status: TrackerMatchStatus;
+  scheduledAt?: string | null; // present from the server; omitted by the client-only demo
+  court?: string | null;
   state: FootballState | BasketballState | null;
   publishedMatchId: string | null;
 }

@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { Play, CheckCircle2, BarChart3, Zap, SlidersHorizontal } from 'lucide-react';
+import { Play, CheckCircle2, BarChart3, Zap, SlidersHorizontal, CalendarClock, CalendarPlus } from 'lucide-react';
 import type { TrackerSession, TrackerMatch } from '../types';
 import { teamNames, DONE, stageSort, isBye } from './helpers';
+import { fmtSchedule } from '../schedule';
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -31,6 +32,7 @@ export default function FixturesList({
   onShowDetails: (m: TrackerMatch) => void;
   onQuickSim?: (m: TrackerMatch) => void;
   onManageMatch?: (m: TrackerMatch) => void;
+  onAutoSchedule?: () => void;
 }) {
   const name = teamNames(session);
 
@@ -48,6 +50,16 @@ export default function FixturesList({
 
   return (
     <div className="space-y-6">
+      {onAutoSchedule && (
+        <div className="flex justify-end">
+          <button
+            onClick={onAutoSchedule}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"
+          >
+            <CalendarPlus size={13} /> Auto-schedule
+          </button>
+        </div>
+      )}
       {byStage.map(([stage, matches]) => (
         <div key={stage}>
           <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom mb-2">
@@ -57,8 +69,10 @@ export default function FixturesList({
             {matches.map((m) => {
               const ready = !!m.homeTeamId && !!m.awayTeamId;
               const done = DONE(m);
+              const when = fmtSchedule(m.scheduledAt, m.court);
               return (
-                <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                <div key={m.id} className="px-4 py-3 space-y-1.5">
+                  <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
                     <span className="text-right truncate">{name(m.homeTeamId)}</span>
                     <span className="font-mono font-semibold px-2 tabular-nums">
@@ -107,6 +121,10 @@ export default function FixturesList({
                     {m.status === 'PUBLISHED' ? <CheckCircle2 size={13} /> : <Play size={13} />}
                     {m.status === 'SCHEDULED' ? 'Track' : m.status === 'PUBLISHED' ? 'View' : done ? 'View' : 'Resume'}
                   </button>
+                  </div>
+                  <div className={`text-[11px] flex items-center gap-1.5 ${when ? 'text-gray-custom' : 'text-gray-custom/60'}`}>
+                    <CalendarClock size={11} className="shrink-0" /> {when ?? 'Unscheduled'}
+                  </div>
                 </div>
               );
             })}
