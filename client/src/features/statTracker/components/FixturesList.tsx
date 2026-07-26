@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Play, CheckCircle2, BarChart3, Zap } from 'lucide-react';
 import type { TrackerSession, TrackerMatch } from '../types';
-import { teamNames, DONE, stageSort } from './helpers';
+import { teamNames, DONE, stageSort, isBye } from './helpers';
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
@@ -35,12 +35,13 @@ export default function FixturesList({
   const byStage = useMemo(() => {
     const groups = new Map<string, TrackerMatch[]>();
     [...session.matches]
+      .filter((m) => !isBye(m)) // byes are auto-resolved — not playable fixtures
       .sort((a, b) => a.orderIndex - b.orderIndex)
       .forEach((m) => {
         if (!groups.has(m.stage)) groups.set(m.stage, []);
         groups.get(m.stage)!.push(m);
       });
-    return [...groups.entries()].sort((a, b) => stageSort(a[0], b[0]));
+    return [...groups.entries()].filter(([, ms]) => ms.length > 0).sort((a, b) => stageSort(a[0], b[0]));
   }, [session.matches]);
 
   return (

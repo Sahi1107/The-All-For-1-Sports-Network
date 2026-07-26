@@ -24,6 +24,8 @@ export interface FixtureDescriptor {
   orderIndex: number;
   homeTeamId?: string | null;
   awayTeamId?: string | null;
+  // 'COMPLETED' marks an auto-resolved bye (one team, no opponent); default SCHEDULED.
+  status?: 'SCHEDULED' | 'COMPLETED';
 }
 
 export interface GroupDef {
@@ -168,7 +170,58 @@ export function buildBracket(participantCount: number, includesThirdPlace: boole
   };
 }
 
-// Build one fixture per bracket slot, seeding the first round from `seedOrder`.
+export interface FirstRoundSeed {
+  slotId: string;
+  home: string | null;
+  away: string | null;
+  bye: boolean;
+}
+export interface ByeAdvance {
+  slotId: string;            // parent slot the bye team advances into
+  side: 'home' | 'away';     // side dictated by the parent's feedFrom order
+  teamId: string;
+}
+
+/**
+ * Seed a knockout's first round from an ordered team list, handling byes for any
+ * non-power-of-2 count. Teams are spread round-robin across the first-round slots
+ * so byes are distributed (never an empty slot, so byes never cascade). A slot
+ * with a single team is a bye: that team auto-advances into its parent slot, on
+ * the side that matches the parent's `feedFrom` order (so it agrees with
+ * bracketAdvancements when the sibling match later resolves).
+ */
+export function seedFirstRound(
+  bracket: BracketDef,
+  teamOrder: string[],
+): { seeds: FirstRoundSeed[]; byeAdvances: ByeAdvance[] } {
+  const firstStage = bracket.stages[0];
+  const firstSlots = bracket.slots.filter((s) => s.stage === firstStage);
+  const teams = teamOrder.filter(Boolean);
+  const S = firstSlots.length || 1;
+  const buckets: string[][] = firstSlots.map(() => []);
+  teams.forEach((t, i) => buckets[i % S].push(t));
+
+  const seeds: FirstRoundSeed[] = [];
+  const byeAdvances: ByeAdvance[] = [];
+  firstSlots.forEach((slot, i) => {
+    const home = buckets[i][0] ?? null;
+    const away = buckets[i][1] ?? null;
+    const bye = !!home && !away;
+    seeds.push({ slotId: slot.id, home, away, bye });
+    if (bye && home) {
+      const parent = bracket.slots.find((s) => (s.feedFrom ?? []).includes(slot.id));
+      if (parent) {
+        const side: 'home' | 'away' = parent.feedFrom?.[0] === slot.id ? 'home' : 'away';
+        byeAdvances.push({ slotId: parent.id, side, teamId: home });
+      }
+    }
+  });
+  return { seeds, byeAdvances };
+}
+
+// Build one fixture per bracket slot, seeding the first round from `seedOrder`
+// (byes auto-advanced). When `seedOrder` is null the whole bracket is left empty
+// (MIXED seeds it later from group standings via maybeSeedKnockout).
 function bracketFixtures(
   bracket: BracketDef,
   seedOrder: string[] | null,
@@ -182,25 +235,30 @@ function bracketFixtures(
     });
   });
 
-  const firstStage = bracket.stages[0];
-  const firstSlots = bracket.slots.filter((s) => s.stage === firstStage);
-  const seedFor = new Map<string, { home?: string; away?: string }>();
+  const seedBySlot = new Map<string, FirstRoundSeed>();
+  const byeBySlot = new Map<string, { home?: string; away?: string }>();
   if (seedOrder) {
-    firstSlots.forEach((slot, idx) => {
-      seedFor.set(slot.id, { home: seedOrder[idx * 2], away: seedOrder[idx * 2 + 1] });
+    const { seeds, byeAdvances } = seedFirstRound(bracket, seedOrder);
+    seeds.forEach((s) => seedBySlot.set(s.slotId, s));
+    byeAdvances.forEach((a) => {
+      const cur = byeBySlot.get(a.slotId) ?? {};
+      if (a.side === 'home') cur.home = a.teamId; else cur.away = a.teamId;
+      byeBySlot.set(a.slotId, cur);
     });
   }
 
   let order = startOrder;
   return bracket.slots.map((slot) => {
-    const seed = seedFor.get(slot.id);
+    const seed = seedBySlot.get(slot.id);
+    const pre = byeBySlot.get(slot.id);
     return {
       stage: slot.stage,
       round: STAGE_LABEL[slot.stage],
       bracketSlot: slot.id,
       feedsInto: feedsInto.get(slot.id),
-      homeTeamId: seed?.home ?? null,
-      awayTeamId: seed?.away ?? null,
+      homeTeamId: seed ? seed.home : pre?.home ?? null,
+      awayTeamId: seed ? seed.away : pre?.away ?? null,
+      status: seed?.bye ? 'COMPLETED' : undefined,
       orderIndex: order++,
     };
   });

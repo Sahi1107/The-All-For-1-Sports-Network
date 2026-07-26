@@ -138,6 +138,26 @@ function SlotCard({
   onOpenMatch?: (m: BracketMatchVM) => void;
   onShowDetails?: (m: BracketMatchVM) => void;
 }) {
+  // Bye: an auto-resolved slot with a single team (the other side is null). Render
+  // the lone team advancing with a "Bye" tag rather than a broken one-team match.
+  const byeTeamId = vm && isDone(vm.status) && (!!vm.homeTeamId !== !!vm.awayTeamId)
+    ? (vm.homeTeamId ?? vm.awayTeamId)
+    : null;
+  if (byeTeamId) {
+    const logo = teamLogo?.(byeTeamId);
+    return (
+      <div className="w-full rounded-lg border border-line bg-surface overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-sm">
+          <span className="flex items-center gap-1.5 min-w-0 font-medium">
+            {logo && <img src={logo} alt="" className="w-[18px] h-[18px] rounded object-cover border border-line shrink-0" />}
+            <span className="truncate">{teamName(byeTeamId)}</span>
+          </span>
+          <span className="text-[10px] uppercase tracking-wide text-gray-custom px-1.5 py-0.5 rounded bg-elevated shrink-0">Bye</span>
+        </div>
+      </div>
+    );
+  }
+
   const done = isDone(vm?.status);
   const live = vm?.status === 'IN_PROGRESS';
   const ready = !!vm?.homeTeamId && !!vm?.awayTeamId;

@@ -3,6 +3,8 @@ import { Navigate, useParams } from 'react-router-dom';
 import { FlaskConical, Trophy } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useDemoTournament } from './useDemoTournament';
+import { describeDraw } from '../drawPreview';
+import DrawPreviewPanel from '../DrawPreviewPanel';
 import FullscreenShell from '../FullscreenShell';
 import TournamentView from '../TournamentView';
 import FootballMatch from '../football/FootballMatch';
@@ -84,6 +86,7 @@ function DemoSetup({
   const [advancePerGroup, setAdvancePerGroup] = useState(2);
   const [thirdPlace, setThirdPlace] = useState(true);
   const [periodMinutes, setPeriodMinutes] = useState(5);
+  const preview = describeDraw(format, 8, { groupsCount, advancePerGroup });
 
   const showGroups = format === 'MIXED';
   const showKnockout = format === 'KNOCKOUT' || format === 'MIXED';
@@ -145,9 +148,12 @@ function DemoSetup({
         )}
       </div>
 
+      <DrawPreviewPanel preview={preview} />
+
       <button
         onClick={start}
-        className="w-full py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm"
+        disabled={preview.blocked}
+        className="w-full py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm disabled:opacity-50"
       >
         Generate fixtures (8 demo teams)
       </button>

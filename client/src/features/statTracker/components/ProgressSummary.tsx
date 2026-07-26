@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Trophy, CalendarClock, ListChecks } from 'lucide-react';
 import type { TrackerSession } from '../types';
-import { teamNames, DONE, stageSort } from './helpers';
+import { teamNames, DONE, stageSort, isBye } from './helpers';
 import { STAGE_LABEL } from '../engine';
 
 /** Top-of-tournament snapshot: completion, current stage, per-stage progress,
@@ -10,11 +10,13 @@ export default function ProgressSummary({ session }: { session: TrackerSession }
   const name = teamNames(session);
 
   const { total, played, byStage, currentStage, championId } = useMemo(() => {
-    const total = session.matches.length;
-    const played = session.matches.filter(DONE).length;
+    // Byes are auto-resolved, not matches anyone plays — exclude from counts.
+    const realMatches = session.matches.filter((m) => !isBye(m));
+    const total = realMatches.length;
+    const played = realMatches.filter(DONE).length;
 
     const stages = new Map<string, { total: number; done: number }>();
-    session.matches.forEach((m) => {
+    realMatches.forEach((m) => {
       const s = stages.get(m.stage) ?? { total: 0, done: 0 };
       s.total++;
       if (DONE(m)) s.done++;

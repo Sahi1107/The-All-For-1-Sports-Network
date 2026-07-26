@@ -6,6 +6,8 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api/client';
 import { createSession } from './api';
+import { describeDraw } from './drawPreview';
+import DrawPreviewPanel from './DrawPreviewPanel';
 import { exportTournamentExcel } from './excel';
 import TournamentView from './TournamentView';
 import type { TrackerFormat, TrackerSession } from './types';
@@ -78,6 +80,7 @@ export default function TrackerDashboard() {
         <CreateSessionForm
           tournamentId={tournamentId!}
           sport={tournament?.sport}
+          teamCount={tournament?.teams?.length ?? 0}
           onCreated={() => qc.invalidateQueries({ queryKey: ['tracker-session', tournamentId] })}
         />
       ) : (
@@ -143,10 +146,12 @@ export default function TrackerDashboard() {
 function CreateSessionForm({
   tournamentId,
   sport,
+  teamCount,
   onCreated,
 }: {
   tournamentId: string;
   sport?: string;
+  teamCount: number;
   onCreated: () => void;
 }) {
   const [format, setFormat] = useState<TrackerFormat>('MIXED');
@@ -154,6 +159,7 @@ function CreateSessionForm({
   const [advancePerGroup, setAdvancePerGroup] = useState(2);
   const [thirdPlace, setThirdPlace] = useState(true);
   const [periodMinutes, setPeriodMinutes] = useState(sport === 'BASKETBALL' ? 12 : 45);
+  const preview = describeDraw(format, teamCount, { groupsCount, advancePerGroup });
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -225,10 +231,12 @@ function CreateSessionForm({
         )}
       </div>
 
+      <DrawPreviewPanel preview={preview} />
+
       <button
         onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
-        className="w-full py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm disabled:opacity-50"
+        disabled={mutation.isPending || preview.blocked}
+        className="w-full py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {mutation.isPending ? 'Generating…' : 'Import teams & generate fixtures'}
       </button>

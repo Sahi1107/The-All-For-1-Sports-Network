@@ -8,6 +8,7 @@ import {
   generateDraw,
   computeStandings,
   seedOrderFromGroups,
+  seedFirstRound,
   bracketAdvancements,
   type BracketDef,
   type GroupDef,
@@ -97,13 +98,27 @@ async function maybeSeedKnockout(session: {
   );
   const order = seedOrderFromGroups(groups, standings, advancePerGroup);
 
-  for (let i = 0; i < firstSlots.length; i++) {
-    const slot = firstSlots[i];
-    const match = matches.find((m) => m.bracketSlot === slot.id);
+  // Seed the first knockout round, distributing byes for a non-power-of-2 count
+  // (e.g. 3 groups × 2 advancing = 6). Byes auto-advance into their parent slot.
+  const { seeds, byeAdvances } = seedFirstRound(bracket, order);
+  for (const seed of seeds) {
+    const match = matches.find((m) => m.bracketSlot === seed.slotId);
     if (!match) continue;
     await prisma.trackerMatch.update({
       where: { id: match.id },
-      data: { homeTeamId: order[i * 2] ?? null, awayTeamId: order[i * 2 + 1] ?? null },
+      data: {
+        homeTeamId: seed.home,
+        awayTeamId: seed.away,
+        ...(seed.bye ? { status: 'COMPLETED' as const } : {}),
+      },
+    });
+  }
+  for (const adv of byeAdvances) {
+    const parent = matches.find((m) => m.bracketSlot === adv.slotId);
+    if (!parent) continue;
+    await prisma.trackerMatch.update({
+      where: { id: parent.id },
+      data: adv.side === 'home' ? { homeTeamId: adv.teamId } : { awayTeamId: adv.teamId },
     });
   }
 }
@@ -211,6 +226,7 @@ router.post(
               orderIndex: f.orderIndex,
               homeTeamId: f.homeTeamId ?? null,
               awayTeamId: f.awayTeamId ?? null,
+              ...(f.status ? { status: f.status } : {}),
             })),
           },
         },
