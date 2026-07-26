@@ -4,6 +4,7 @@ import {
   browserSessionPersistence,
   inMemoryPersistence,
   initializeAuth,
+  GoogleAuthProvider,
 } from 'firebase/auth';
 
 // These values are safe to expose in frontend code — they identify your
@@ -32,3 +33,8 @@ export const auth = initializeAuth(app, {
     inMemoryPersistence,
   ],
 });
+
+// Google federated sign-in provider. `prompt: 'select_account'` always shows the
+// account chooser so a shared device never silently reuses the last Google login.
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });

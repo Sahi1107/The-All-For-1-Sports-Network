@@ -14,6 +14,7 @@ const Terms          = lazy(() => import('./pages/Terms'));
 const Privacy        = lazy(() => import('./pages/Privacy'));
 const Login          = lazy(() => import('./pages/Login'));
 const Register       = lazy(() => import('./pages/Register'));
+const Onboarding     = lazy(() => import('./pages/Onboarding'));
 const Home           = lazy(() => import('./pages/Home'));
 const Explore        = lazy(() => import('./pages/Explore'));
 const Profile        = lazy(() => import('./pages/Profile'));
@@ -68,19 +69,32 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   if (loading) return null;
   if (user) return <Navigate to="/home" replace />;
+  // A Google session that hasn't finished onboarding must complete it first.
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
 /** The public landing page. If the user is already authenticated,
  *  bounce them straight into the app. */
 function LandingRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needsOnboarding } = useAuth();
   if (loading) return null;
   if (user) return <Navigate to="/home" replace />;
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
+}
+
+/** First-time Google users land here to supply role/DOB/sport before entering
+ *  the app. Reachable only while a Google session needs onboarding. */
+function OnboardingRoute() {
+  const { user, loading, needsOnboarding } = useAuth();
+  if (loading) return <PageSpinner />;
+  if (user) return <Navigate to="/home" replace />;
+  if (!needsOnboarding) return <Navigate to="/login" replace />;
+  return <Onboarding />;
 }
 
 function CatchAllRoute() {
@@ -103,6 +117,7 @@ function AppRoutes() {
         {/* Public routes */}
         <Route path="/login"           element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register"        element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/onboarding"      element={<OnboardingRoute />} />
         <Route path="/verify-email"   element={<VerifyEmail />} />
         <Route path="/verify-pending" element={<VerifyEmailPending />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

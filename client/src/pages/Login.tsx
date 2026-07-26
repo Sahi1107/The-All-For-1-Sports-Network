@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { useLogo } from '../hooks/useLogo';
+import GoogleAuthButton from '../components/GoogleAuthButton';
 
 export default function Login() {
   const logoUrl = useLogo();
@@ -95,6 +96,9 @@ export default function Login() {
           >
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
+
+          {/* Google — renders nothing (incl. its divider) in the native app. */}
+          <GoogleAuthButton label="Sign in with Google" divider />
 
           <p className="mt-6 text-center text-sm text-gray-custom">
             Don&apos;t have an account?{' '}

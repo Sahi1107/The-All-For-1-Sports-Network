@@ -9,6 +9,7 @@ import { HandoverConsentBody, HandoverCompleteBody } from '../validation/auth';
 import { generateSecureToken, hashToken } from '../utils/crypto';
 import { sendGuardianConsentEmail, sendAthleteWelcome } from '../services/email';
 import { generateTempPassword } from '../services/provisionAthlete';
+import { decideProviderOutcome } from '../services/providerSignin';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { signMediaDeep } from '../services/storage';
@@ -50,6 +51,98 @@ const SyncBody = z.object({
   // guardian management. Age is derived from DOB server-side, never trusted.
   if (data.role === 'ATHLETE' && !data.dateOfBirth) {
     ctx.addIssue({ code: 'custom', path: ['dateOfBirth'], message: 'Date of birth is required for athletes' });
+  }
+});
+
+// ─── POST /api/auth/provider-signin ─────────────────────────────────────────────
+//
+// Called after a federated sign-in (Google) via `signInWithPopup`. Unlike
+// email/password signup — where the client already holds every profile field —
+// a Google account only gives us name/email/photo. We therefore must NOT create a
+// Prisma user here: role, sport and (critically) date-of-birth are still unknown,
+// and an athlete with a null DOB would bypass the under-13 guardian gate.
+//
+// Behaviour (token verified manually — a first-time Google user has no claims yet):
+//   • Existing user (matched by Firebase UID) → refresh claims, return the profile.
+//   • Orphan user (same email, not yet linked to a Firebase UID) → adopt the UID
+//     (account linking) and return the profile.
+//   • No user yet → return { needsOnboarding: true, prefill } and create nothing.
+//     The client then runs the onboarding wizard which POSTs /auth/sync with the
+//     full body, where DOB/role validation and the guardian logic actually apply.
+router.post('/provider-signin', async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'No token provided' });
+    return;
+  }
+
+  let decoded: admin.auth.DecodedIdToken;
+  try {
+    decoded = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+  } catch {
+    res.status(401).json({ error: 'Invalid Firebase token' });
+    return;
+  }
+
+  try {
+    if (!decoded.email) {
+      res.status(400).json({ error: 'Google account has no email' });
+      return;
+    }
+    const email = decoded.email.toLowerCase();
+
+    const existing = await prisma.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    const orphan   = existing ? null : await prisma.user.findUnique({ where: { email } });
+    const outcome  = decideProviderOutcome({
+      existsByUid:       !!existing,
+      orphanExists:      !!orphan,
+      orphanFirebaseUid: orphan?.firebaseUid,
+      incomingUid:       decoded.uid,
+    });
+
+    // ── Existing user (matched by Firebase UID) ────────────────────────────────
+    if (outcome === 'existing') {
+      await admin.auth().setCustomUserClaims(decoded.uid, { userId: existing!.id, role: existing!.role });
+      await signMediaDeep(existing!);
+      logger.info('auth.provider.existing', { userId: existing!.id });
+      res.json({ user: existing, needsOnboarding: false, refreshClaims: true });
+      return;
+    }
+
+    // ── Email already owned by a *different* Firebase UID ──────────────────────
+    // Don't steal it — the client links via linkWithCredential (preserves one UID).
+    if (outcome === 'conflict') {
+      logger.warn('auth.provider.email_owned_by_other_uid', { userId: orphan!.id });
+      res.status(409).json({
+        error: 'This email is already registered. Sign in with your password to connect Google.',
+        code:  'ACCOUNT_EXISTS_DIFFERENT_CREDENTIAL',
+      });
+      return;
+    }
+
+    // ── Orphan user (same email, not yet linked) → adopt the UID (linking) ─────
+    if (outcome === 'adopt_orphan') {
+      const user = await prisma.user.update({ where: { email }, data: { firebaseUid: decoded.uid } });
+      await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
+      await signMediaDeep(user);
+      logger.info('auth.provider.claimed_orphan', { userId: user.id });
+      res.json({ user, needsOnboarding: false, refreshClaims: true });
+      return;
+    }
+
+    // ── Brand-new Google user — needs onboarding, create nothing yet ───────────
+    logger.info('auth.provider.needs_onboarding', { email });
+    res.json({
+      needsOnboarding: true,
+      prefill: {
+        name:   decoded.name  ?? '',
+        email:  decoded.email,
+        avatar: decoded.picture ?? null,
+      },
+    });
+  } catch (error) {
+    logger.error('provider-signin error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
