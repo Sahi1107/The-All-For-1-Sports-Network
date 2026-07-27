@@ -4,13 +4,13 @@ import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight, Flag, AlertTriangle } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight, Flag, AlertTriangle, ShieldAlert, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
 import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
 
-type Tab = 'users' | 'stats' | 'reports' | 'new-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
+type Tab = 'users' | 'stats' | 'reports' | 'appeals' | 'new-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
 
 const EMPTY_ATHLETE_FORM = {
   name: '', email: '', sport: '', role: 'ATHLETE' as 'ATHLETE' | 'COACH',
@@ -266,6 +266,7 @@ export default function AdminDashboard() {
   const [roleFilter, setRoleFilter] = useState('');
   const [page, setPage] = useState(1);
   const [reportStatus, setReportStatus] = useState('OPEN');
+  const [appealStatus, setAppealStatus] = useState('PENDING');
 
   // Create-admin form state
   const [adminForm, setAdminForm] = useState({ name: '', email: '', password: '' });
@@ -324,6 +325,17 @@ export default function AdminDashboard() {
     enabled: tab === 'reports',
   });
 
+  const { data: appealsData, isLoading: appealsLoading } = useQuery({
+    queryKey: ['admin-appeals', appealStatus],
+    queryFn: async () => {
+      const params = new URLSearchParams({ limit: '50' });
+      if (appealStatus) params.set('status', appealStatus);
+      const { data } = await api.get(`/admin/appeals?${params}`);
+      return data;
+    },
+    enabled: tab === 'appeals',
+  });
+
   // ─── Mutations ────────────────────────────────────────────────
 
   const verifyMutation = useMutation({
@@ -364,6 +376,28 @@ export default function AdminDashboard() {
       toast.success(data?.message ?? 'Content removed');
     },
     onError: (err: any) => toast.error(err.response?.data?.error ?? 'Failed to remove content'),
+  });
+
+  const suspendMutation = useMutation({
+    mutationFn: ({ id, suspend, reason }: { id: string; suspend: boolean; reason?: string }) =>
+      api.patch(`/admin/users/${id}/suspend`, { suspend, reason }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      qc.invalidateQueries({ queryKey: ['admin-reports'] });
+      toast.success(v.suspend ? 'User suspended' : 'Suspension lifted');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error ?? 'Failed to update suspension'),
+  });
+
+  const resolveAppealMutation = useMutation({
+    mutationFn: ({ id, status, reviewNote }: { id: string; status: string; reviewNote?: string }) =>
+      api.patch(`/admin/appeals/${id}`, { status, reviewNote }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ['admin-appeals'] });
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success(v.status === 'GRANTED' ? 'Appeal approved' : v.status === 'DENIED' ? 'Appeal denied' : 'Appeal updated');
+    },
+    onError: () => toast.error('Failed to update appeal'),
   });
 
   const createAdminMutation = useMutation({
@@ -579,6 +613,7 @@ export default function AdminDashboard() {
           ['users',        'Users',          Users],
           ['stats',        'Platform Stats', BarChart3],
           ['reports',      'Reports',        Flag],
+          ['appeals',      'Appeals',        ShieldAlert],
           ['new-profile',  'New Profile',    UserPlus],
           ['new-team',     'Teams',          Crown],
           ['tournaments',  'Tournaments',    Trophy],
@@ -924,6 +959,17 @@ export default function AdminDashboard() {
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors"
                         >
                           <Trash2 size={13} /> Remove content
+                        </button>
+                      )}
+                      {r.reported?.id && (
+                        <button
+                          onClick={() => {
+                            const reason = prompt('Reason for suspension (this is shown to the user and in their appeal):', r.reason ?? '');
+                            if (reason !== null) suspendMutation.mutate({ id: r.reported.id, suspend: true, reason: reason || undefined });
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-500/15 text-orange-400 hover:bg-orange-500/25 transition-colors"
+                        >
+                          <Ban size={13} /> Suspend user
                         </button>
                       )}
                       <button
@@ -1339,6 +1385,69 @@ export default function AdminDashboard() {
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── Appeals Tab (moderation) ──────────────────────────────── */}
+      {tab === 'appeals' && (
+        <div>
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {([['PENDING', 'Pending'], ['REVIEWING', 'Reviewing'], ['GRANTED', 'Approved'], ['DENIED', 'Denied'], ['', 'All']] as const).map(([value, label]) => (
+              <button key={label} onClick={() => setAppealStatus(value)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${appealStatus === value ? 'bg-primary text-on-primary font-semibold' : 'bg-card text-gray-custom hover:text-foreground border border-line'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {appealsLoading ? (
+            <p className="text-gray-custom text-sm">Loading appeals…</p>
+          ) : !appealsData?.appeals?.length ? (
+            <div className="bg-card border border-line rounded-xl p-8 text-center">
+              <ShieldAlert size={32} className="mx-auto mb-3 text-gray-custom" />
+              <p className="text-sm text-gray-custom">No appeals{appealStatus ? ` with status ${appealStatus.toLowerCase()}` : ''}.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {appealsData.appeals.map((a: any) => {
+                const sColor = a.status === 'PENDING' ? 'bg-yellow-500/15 text-yellow-400' : a.status === 'REVIEWING' ? 'bg-blue-500/15 text-blue-400' : a.status === 'GRANTED' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400';
+                const open = a.status === 'PENDING' || a.status === 'REVIEWING';
+                return (
+                  <div key={a.id} className="bg-card border border-line rounded-xl p-4">
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-elevated text-foreground/80">{a.kind === 'ACCOUNT_SUSPENSION' ? 'Suspension' : 'Content removal'}</span>
+                      <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${sColor}`}>{a.status}</span>
+                      <span className="text-xs text-gray-custom">{new Date(a.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    </div>
+                    <p className="text-xs text-gray-custom">
+                      From <Link to={`/profile/${a.user?.id}`} className="text-primary hover:text-primary-light">{a.user?.name ?? 'Unknown'}</Link>
+                      {a.user?.email ? ` · ${a.user.email}` : ''}
+                      {a.user?.suspended && <span className="ml-1 text-orange-400">(currently suspended)</span>}
+                    </p>
+                    {a.subjectLabel && <p className="text-xs text-gray-custom mt-1">Re: <span className="text-foreground/70">{a.subjectLabel}</span></p>}
+                    <div className="mt-2 rounded-lg bg-surface border border-line px-3 py-2">
+                      <p className="text-[11px] uppercase tracking-wide text-gray-custom mb-1">Their appeal</p>
+                      <p className="text-sm text-foreground/80 whitespace-pre-wrap break-words">{a.message}</p>
+                    </div>
+                    {a.reviewNote && <p className="text-xs text-gray-custom mt-2">Note: {a.reviewNote}</p>}
+                    {open && (
+                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                        {a.status === 'PENDING' && (
+                          <button onClick={() => resolveAppealMutation.mutate({ id: a.id, status: 'REVIEWING' })}
+                            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-elevated border border-line text-foreground/80 hover:text-foreground transition-colors">Start review</button>
+                        )}
+                        <button onClick={() => { const note = prompt('Note (optional, shown to the user):') ?? undefined; resolveAppealMutation.mutate({ id: a.id, status: 'GRANTED', reviewNote: note || undefined }); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors">
+                          <CheckCircle size={13} /> {a.kind === 'ACCOUNT_SUSPENSION' ? 'Approve & lift' : 'Approve'}
+                        </button>
+                        <button onClick={() => { const note = prompt('Reason for denial (optional, shown to the user):') ?? undefined; resolveAppealMutation.mutate({ id: a.id, status: 'DENIED', reviewNote: note || undefined }); }}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors">Deny</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

@@ -45,6 +45,7 @@ interface User {
   handoverStatus?: 'NONE' | 'PENDING' | 'CONSENTED';
   discoverable?: boolean;
   mustResetPassword?: boolean;
+  pendingEmail?: string | null;
 }
 
 interface RegisterData {
@@ -78,13 +79,23 @@ export interface OnboardingPrefill {
 /** Result of a Google sign-in attempt: whether the user still needs onboarding. */
 type GoogleResult = { needsOnboarding: boolean };
 
+/** Set when the signed-in account is suspended: they can authenticate but are
+ *  confined to the appeal screen until it's lifted. */
+export interface Suspension {
+  reason: string | null;
+  suspendedAt: string | null;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  suspension: Suspension | null;
   unverifiedEmail: string | null;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
+  /** Revoke every session (refresh tokens) server-side, then sign out here. */
+  logoutAllDevices: () => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   updateUser: (user: User) => void;
   resendVerification: () => Promise<void>;
@@ -121,7 +132,18 @@ async function authedPost(token: string, path: string, body: unknown) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]             = useState<User | null>(null);
   const [loading, setLoading]       = useState(true);
+  const [suspension, setSuspension] = useState<Suspension | null>(null);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+
+  // Detect an ACCOUNT_SUSPENDED response from /auth/me. Returns true if handled.
+  const detectSuspension = (err: any): boolean => {
+    if (err?.response?.status === 403 && err?.response?.data?.code === 'ACCOUNT_SUSPENDED') {
+      setSuspension({ reason: err.response.data.reason ?? null, suspendedAt: err.response.data.suspendedAt ?? null });
+      setUser(null);
+      return true;
+    }
+    return false;
+  };
   const [needsOnboarding, setNeedsOnboarding]     = useState(false);
   const [onboardingPrefill, setOnboardingPrefill] = useState<OnboardingPrefill | null>(null);
   const [linkEmail, setLinkEmail]   = useState<string | null>(null);
@@ -170,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         setUser(null);
+        setSuspension(null);
         setUnverifiedEmail(null);
         setNeedsOnboarding(false);
         setOnboardingPrefill(null);
@@ -182,18 +205,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const token = await firebaseUser.getIdToken();
         const { data } = await authedGet(token, '/auth/me');
         setUser(data.user);
+        setSuspension(null);
         setNeedsOnboarding(false);
-      } catch {
-        // No complete profile for this session. A Google user (fresh signup, or a
-        // redirect that hasn't been resolved yet) must finish onboarding rather
-        // than be silently locked out — resolve via provider-signin.
-        const isGoogle = firebaseUser.providerData.some((p) => p.providerId === 'google.com');
-        if (isGoogle) {
-          try { await finishProviderSignIn(firebaseUser); }
-          catch { setUser(null); setNeedsOnboarding(false); }
-        } else {
-          setUser(null);
-          setNeedsOnboarding(false);
+      } catch (err: any) {
+        // Suspended: keep the Firebase session (so the appeal routes work) but
+        // confine them to the appeal screen.
+        if (detectSuspension(err)) { setNeedsOnboarding(false); }
+        else {
+          // No complete profile for this session. A Google user (fresh signup, or a
+          // redirect that hasn't been resolved yet) must finish onboarding rather
+          // than be silently locked out — resolve via provider-signin.
+          const isGoogle = firebaseUser.providerData.some((p) => p.providerId === 'google.com');
+          if (isGoogle) {
+            try { await finishProviderSignIn(firebaseUser); }
+            catch { setUser(null); setNeedsOnboarding(false); }
+          } else {
+            setUser(null);
+            setNeedsOnboarding(false);
+          }
         }
       } finally {
         setLoading(false);
@@ -270,8 +299,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token = await cred.user.getIdToken(true);
     }
 
-    const { data } = await authedGet(token, '/auth/me');
-    setUser(data.user);
+    try {
+      const { data } = await authedGet(token, '/auth/me');
+      setUser(data.user);
+      setSuspension(null);
+    } catch (err: any) {
+      // Suspended accounts can sign in but are routed to the appeal screen.
+      if (detectSuspension(err)) return;
+      throw err;
+    }
   };
 
   // ── Logout ───────────────────────────────────────────────────────────────
@@ -280,6 +316,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOut(auth);
     setUser(null);
     setUnverifiedEmail(null);
+  };
+
+  // "Sign out of all devices": revoke server-side (Firebase refresh tokens +
+  // sessionsRevokedAt) so every other session is killed immediately and can't
+  // refresh, then sign out this device too. The revoke call is best-effort — if
+  // it fails we still sign out locally rather than leave the user stuck.
+  const logoutAllDevices = async () => {
+    const firebaseUser = auth.currentUser;
+    try {
+      if (firebaseUser) {
+        const token = await firebaseUser.getIdToken();
+        await authedPost(token, '/auth/revoke-sessions', {});
+      }
+    } finally {
+      await signOut(auth);
+      setUser(null);
+      setUnverifiedEmail(null);
+    }
   };
 
   const resendVerification = async () => {
@@ -391,7 +445,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, loading, unverifiedEmail, login, register, logout, sendPasswordReset, updateUser, resendVerification,
+      user, loading, suspension, unverifiedEmail, login, register, logout, logoutAllDevices, sendPasswordReset, updateUser, resendVerification,
       needsOnboarding, onboardingPrefill, linkEmail,
       signInWithGoogle, completeGoogleOnboarding, linkGoogleToPassword, cancelGoogleLink,
     }}>

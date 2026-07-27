@@ -31,7 +31,14 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Don't redirect on /auth/sync — that endpoint is called pre-login
       if (!error.config?.url?.includes('/auth/sync')) {
-        window.location.href = '/login';
+        // A revoked session ("sign out of all devices" from elsewhere): clear the
+        // Firebase session too so this device doesn't loop back in with a stale
+        // token, then land on login. Other 401s just redirect.
+        if (error.response?.data?.code === 'SESSION_REVOKED') {
+          auth.signOut().catch(() => {}).finally(() => { window.location.href = '/login'; });
+        } else {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);

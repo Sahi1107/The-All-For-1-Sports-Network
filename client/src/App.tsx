@@ -48,6 +48,7 @@ const TrackerDemoRoute     = lazy(() => import('./features/statTracker/demo/Demo
 const Radar          = lazy(() => import('./pages/Radar'));
 const Grow           = lazy(() => import('./pages/Grow'));
 const Settings       = lazy(() => import('./pages/Settings'));
+const Suspended      = lazy(() => import('./pages/Suspended'));
 const SavedPosts     = lazy(() => import('./pages/SavedPosts'));
 const VerifyEmail        = lazy(() => import('./pages/VerifyEmail'));
 const VerifyEmailPending = lazy(() => import('./pages/VerifyEmailPending'));
@@ -114,6 +115,12 @@ function CatchAllRoute() {
 }
 
 function AppRoutes() {
+  const { suspension, loading } = useAuth();
+  // A suspended account is confined to the appeal screen — it can authenticate
+  // but can't use the app until the suspension is lifted.
+  if (!loading && suspension) {
+    return <Suspense fallback={<PageSpinner />}><Suspended /></Suspense>;
+  }
   return (
     <Suspense fallback={<PageSpinner />}>
       <Routes>

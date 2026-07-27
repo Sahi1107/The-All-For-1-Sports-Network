@@ -1,11 +1,11 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { auth } from '../config/firebase';
+import { auth, googleProvider } from '../config/firebase';
 import {
   sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential,
   PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
-  updatePassword, verifyBeforeUpdateEmail,
+  updatePassword, verifyBeforeUpdateEmail, reauthenticateWithPopup,
 } from 'firebase/auth';
 import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare, Ban, Wifi, Phone, CheckCircle2, Circle, BadgeCheck, Users, Sun, Moon, Monitor, Download, LifeBuoy } from 'lucide-react';
 import { useTheme, type ThemePreference } from '../contexts/ThemeContext';
@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import api from '../api/client';
 
 export default function Settings() {
-  const { user, logout, unverifiedEmail, updateUser } = useAuth();
+  const { user, logout, logoutAllDevices, unverifiedEmail, updateUser } = useAuth();
   const { preference, setPreference } = useTheme();
   const navigate = useNavigate();
   const [sendingReset, setSendingReset] = useState(false);
@@ -47,6 +47,30 @@ export default function Settings() {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
+
+  // ── Email change (normal, non-guardian users) ────────────
+  const [emailFormOpen, setEmailFormOpen] = useState(false);
+  const [emailNew, setEmailNew] = useState('');
+  const [emailPw, setEmailPw] = useState('');
+  const [changingEmail, setChangingEmail] = useState(false);
+  const [cancelingEmail, setCancelingEmail] = useState(false);
+  // Google-only accounts add a password first (their email is their Google identity).
+  const [addPwOpen, setAddPwOpen] = useState(false);
+  const [addPw1, setAddPw1] = useState('');
+  const [addPw2, setAddPw2] = useState('');
+  const [addingPw, setAddingPw] = useState(false);
+  const [providerRefresh, setProviderRefresh] = useState(0); // bump to re-read providerData
+
+  // ── Sign out of all devices ──────────────────────────────
+  const [confirmSignOutAll, setConfirmSignOutAll] = useState(false);
+  const [signingOutAll, setSigningOutAll] = useState(false);
+  const providerIds = useMemo(
+    () => auth.currentUser?.providerData.map((p) => p.providerId) ?? [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [providerRefresh, user?.id],
+  );
+  const hasPassword = providerIds.includes('password');
+  const isGoogleOnly = providerIds.includes('google.com') && !hasPassword;
 
   // ── Minor discoverability (guardian-controlled) ──────────
   const [discoverable, setDiscoverable] = useState<boolean>(user?.discoverable ?? false);
@@ -112,6 +136,76 @@ export default function Settings() {
       toast.error('Failed to send reset email');
     } finally {
       setSendingReset(false);
+    }
+  };
+
+  // ── Email change handlers (normal users) ─────────────────
+  const handleChangeEmail = async () => {
+    if (!auth.currentUser || !user?.email) return;
+    const next = emailNew.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) { toast.error('Enter a valid email address'); return; }
+    if (next === user.email.toLowerCase()) { toast.error("That's already your email"); return; }
+    setChangingEmail(true);
+    try {
+      // 1. Re-authenticate — email change is a sensitive action.
+      await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(user.email, emailPw));
+      // 2. Server enforces uniqueness (our DB + Firebase) and records the pending address.
+      const { data } = await api.post('/auth/email/request-change', { newEmail: next });
+      // 3. Firebase sends a confirm link to the new address; the login email only
+      //    switches once they click it (verifyBeforeUpdateEmail, not updateEmail).
+      await verifyBeforeUpdateEmail(auth.currentUser, next);
+      updateUser(data.user);
+      setEmailFormOpen(false); setEmailNew(''); setEmailPw('');
+      toast.success(`Verification sent to ${next}. Click the link to finish the change.`);
+    } catch (err: any) {
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') toast.error('Incorrect password');
+      else if (err.code === 'auth/email-already-in-use') toast.error('That email is already in use');
+      else if (err.code === 'auth/requires-recent-login') toast.error('Please sign in again, then retry the change');
+      else if (err.response?.status === 409) toast.error('That email is already in use');
+      else toast.error(err.response?.data?.error ?? 'Failed to change email');
+    } finally { setChangingEmail(false); }
+  };
+
+  const handleCancelEmailChange = async () => {
+    setCancelingEmail(true);
+    try {
+      const { data } = await api.post('/auth/email/cancel-change');
+      updateUser(data.user);
+      toast.success('Email change cancelled');
+    } catch { toast.error('Failed to cancel'); }
+    finally { setCancelingEmail(false); }
+  };
+
+  // Google-only account: link a password (re-auth with Google), after which the
+  // account is hybrid and email can be managed independently of Google.
+  const handleAddPassword = async () => {
+    if (!auth.currentUser || !user?.email) return;
+    if (!PASSWORD_REGEX.test(addPw1)) { toast.error('Password must be 8+ chars with uppercase, lowercase, and a number'); return; }
+    if (addPw1 !== addPw2) { toast.error('Passwords do not match'); return; }
+    setAddingPw(true);
+    try {
+      await reauthenticateWithPopup(auth.currentUser, googleProvider);
+      await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(user.email, addPw1));
+      setAddPwOpen(false); setAddPw1(''); setAddPw2('');
+      setProviderRefresh((n) => n + 1);
+      toast.success('Password added — you can now change your email');
+    } catch (err: any) {
+      if (err.code === 'auth/credential-already-in-use' || err.code === 'auth/provider-already-linked') toast.error('This account already has a password');
+      else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') toast.error('Re-authentication cancelled');
+      else toast.error('Failed to add a password');
+    } finally { setAddingPw(false); }
+  };
+
+  const handleSignOutAll = async () => {
+    setSigningOutAll(true);
+    try {
+      await logoutAllDevices();
+      navigate('/login');
+      toast.success('Signed out of all devices');
+    } catch {
+      toast.error('Failed to sign out of all devices');
+      setSigningOutAll(false);
+      setConfirmSignOutAll(false);
     }
   };
 
@@ -334,14 +428,66 @@ export default function Settings() {
             <User size={16} className="text-primary-light" />
             Account
           </h2>
-          <div className="space-y-1 text-sm text-gray-custom">
-            <p>Email</p>
-            <p className="text-foreground font-medium">{user?.email}</p>
-            {guardianManaged && (
+          <div className="text-sm">
+            <p className="text-gray-custom">Email</p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <p className="text-foreground font-medium break-all">{user?.email}</p>
+              {emailVerified
+                ? <span className="text-[11px] text-emerald-400 flex items-center gap-1"><CheckCircle2 size={12} /> Verified</span>
+                : <span className="text-[11px] text-yellow-400 flex items-center gap-1"><Circle size={12} /> Unverified</span>}
+            </div>
+
+            {guardianManaged ? (
               <p className="flex items-center gap-1.5 text-xs text-primary-light mt-2">
-                <Users size={13} />
-                Managed by a parent / academy
+                <Users size={13} /> Managed by a parent / academy
               </p>
+            ) : user?.pendingEmail ? (
+              <div className="mt-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3">
+                <p className="text-xs text-yellow-300">Pending change to <span className="font-semibold break-all">{user.pendingEmail}</span></p>
+                <p className="text-[11px] text-yellow-400/70 mt-0.5">Check that inbox and click the link to finish. Until then your email stays <span className="break-all">{user.email}</span>.</p>
+                <button onClick={handleCancelEmailChange} disabled={cancelingEmail} className="mt-2 text-[11px] font-semibold text-yellow-300 hover:underline disabled:opacity-50">
+                  {cancelingEmail ? 'Cancelling…' : 'Cancel change'}
+                </button>
+              </div>
+            ) : isGoogleOnly ? (
+              <div className="mt-3">
+                {!addPwOpen ? (
+                  <>
+                    <p className="text-xs text-gray-custom">You sign in with Google, so your email is managed by your Google account. Add a password to change your email here.</p>
+                    <button onClick={() => setAddPwOpen(true)} className="mt-2 text-xs font-semibold text-primary hover:underline">Add a password</button>
+                  </>
+                ) : (
+                  <div className="space-y-2">
+                    <input type="password" autoComplete="new-password" value={addPw1} onChange={(e) => setAddPw1(e.target.value)} placeholder="New password"
+                      className="w-full px-3 py-2 bg-elevated border border-line rounded-lg text-sm focus:outline-none focus:border-primary" />
+                    <input type="password" autoComplete="new-password" value={addPw2} onChange={(e) => setAddPw2(e.target.value)} placeholder="Confirm password"
+                      className="w-full px-3 py-2 bg-elevated border border-line rounded-lg text-sm focus:outline-none focus:border-primary" />
+                    <p className="text-[11px] text-gray-custom">You'll confirm with Google, then this password is set.</p>
+                    <div className="flex gap-2">
+                      <button onClick={handleAddPassword} disabled={addingPw} className="px-3 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded-lg disabled:opacity-50">{addingPw ? 'Adding…' : 'Add password'}</button>
+                      <button onClick={() => { setAddPwOpen(false); setAddPw1(''); setAddPw2(''); }} className="px-3 py-1.5 bg-elevated border border-line text-xs rounded-lg">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-3">
+                {!emailFormOpen ? (
+                  <button onClick={() => setEmailFormOpen(true)} className="text-xs font-semibold text-primary hover:underline">Change email</button>
+                ) : (
+                  <div className="space-y-2">
+                    <input type="email" autoComplete="off" value={emailNew} onChange={(e) => setEmailNew(e.target.value)} placeholder="New email address"
+                      className="w-full px-3 py-2 bg-elevated border border-line rounded-lg text-sm focus:outline-none focus:border-primary" />
+                    <input type="password" autoComplete="current-password" value={emailPw} onChange={(e) => setEmailPw(e.target.value)} placeholder="Current password"
+                      className="w-full px-3 py-2 bg-elevated border border-line rounded-lg text-sm focus:outline-none focus:border-primary" />
+                    <p className="text-[11px] text-gray-custom">We'll send a confirmation link to the new address. Your email changes only after you click it.</p>
+                    <div className="flex gap-2">
+                      <button onClick={handleChangeEmail} disabled={changingEmail} className="px-3 py-1.5 bg-primary text-on-primary text-xs font-semibold rounded-lg disabled:opacity-50">{changingEmail ? 'Sending…' : 'Send confirmation'}</button>
+                      <button onClick={() => { setEmailFormOpen(false); setEmailNew(''); setEmailPw(''); }} className="px-3 py-1.5 bg-elevated border border-line text-xs rounded-lg">Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -392,6 +538,37 @@ export default function Settings() {
           >
             {sendingReset ? 'Sending…' : 'Send Reset Email'}
           </button>
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium flex items-center gap-2">
+                <LogOut size={14} className="text-gray-custom" />
+                Sign out of all devices
+              </p>
+              <p className="text-xs text-gray-custom mt-0.5">Ends every active session — including this one</p>
+            </div>
+            {!confirmSignOutAll && (
+              <button
+                onClick={() => setConfirmSignOutAll(true)}
+                className="shrink-0 px-4 py-2 bg-elevated hover:bg-surface border border-line text-sm rounded-lg transition-colors"
+              >
+                Sign out all
+              </button>
+            )}
+          </div>
+          {confirmSignOutAll && (
+            <div className="mt-3 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+              <p className="text-xs text-red-300">This signs you out on every device, including this one. You'll need to sign in again.</p>
+              <div className="flex gap-2 mt-2">
+                <button onClick={handleSignOutAll} disabled={signingOutAll} className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 transition-colors">
+                  {signingOutAll ? 'Signing out…' : 'Yes, sign out everywhere'}
+                </button>
+                <button onClick={() => setConfirmSignOutAll(false)} disabled={signingOutAll} className="px-3 py-1.5 bg-elevated border border-line text-xs rounded-lg disabled:opacity-50">Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
