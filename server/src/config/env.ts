@@ -78,6 +78,14 @@ export const env = {
   // When unset, the cron endpoint is disabled (returns 403).
   CRON_SECRET: process.env.CRON_SECRET || '',
 
+  // ─── Web push (VAPID) — optional ─────────────────────────────
+  // Generate once with `npx web-push generate-vapid-keys`. When unset, push is
+  // disabled (subscribe endpoints 503, deliverPush no-ops). Public key is also
+  // exposed to the client as VITE_VAPID_PUBLIC_KEY.
+  VAPID_PUBLIC_KEY:  process.env.VAPID_PUBLIC_KEY || '',
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY || '',
+  VAPID_SUBJECT:     process.env.VAPID_SUBJECT || 'mailto:info@allfor1.pro',
+
   // ─── Logging ─────────────────────────────────────────────────
   // Accepted values: error | warn | info | http | verbose | debug
   LOG_LEVEL: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),

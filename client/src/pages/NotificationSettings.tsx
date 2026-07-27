@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, BellOff, Moon, EyeOff } from 'lucide-react';
+import { ChevronLeft, BellOff, Moon, EyeOff, Smartphone } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import BallLoader from '../components/BallLoader';
+import { pushSupported, subscribeToPush, unsubscribeFromPush, isPushSubscribed } from '../config/push';
 
 type Digest = 'INSTANT' | 'DAILY' | 'WEEKLY' | 'OFF';
 interface Effective { inApp: boolean; email: boolean; digest: Digest }
@@ -52,6 +53,24 @@ export default function NotificationSettings() {
 
   const [local, setLocal] = useState<PrefsResponse | null>(null);
   useEffect(() => { if (data) setLocal(data); }, [data]);
+
+  // Web push (this browser)
+  const [pushOn, setPushOn] = useState<boolean | null>(null);
+  const [pushBusy, setPushBusy] = useState(false);
+  useEffect(() => { if (pushSupported()) isPushSubscribed().then(setPushOn); }, []);
+  const togglePush = async (v: boolean) => {
+    setPushBusy(true);
+    try {
+      if (v) {
+        const ok = await subscribeToPush();
+        setPushOn(ok);
+        toast[ok ? 'success' : 'error'](ok ? 'Push notifications on' : 'Allow notifications in your browser to enable push');
+      } else {
+        await unsubscribeFromPush();
+        setPushOn(false);
+      }
+    } catch { toast.error('Could not update push'); } finally { setPushBusy(false); }
+  };
 
   const save = useMutation({
     mutationFn: (body: any) => api.patch('/notifications/preferences', body),
@@ -136,6 +155,21 @@ export default function NotificationSettings() {
             <Toggle on={local.global.privateProfileViews} onChange={(v) => patchGlobal({ privateProfileViews: v })} label="Private profile viewing" />
           </div>
         </div>
+
+        {pushSupported() && pushOn !== null && (
+          <div className="border-t border-line pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <Smartphone size={18} className="text-gray-custom mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Push notifications</p>
+                  <p className="text-xs text-gray-custom mt-0.5">Get the important ones on this device, even when the app is closed.</p>
+                </div>
+              </div>
+              <Toggle on={!!pushOn} disabled={pushBusy} onChange={togglePush} label="Push notifications" />
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Per-category, per-type */}

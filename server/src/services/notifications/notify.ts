@@ -6,7 +6,7 @@ import { resolvePreference } from './preferences';
 import { blockedUserIds } from '../blocks';
 import { deliverInApp } from './channels/inApp';
 import { deliverEmail } from './channels/email';
-// import { deliverPush } from './channels/push'; // wired when the mobile app ships
+import { deliverPush } from './channels/push';
 
 export interface NotifyInput {
   recipientId: string;
@@ -120,6 +120,10 @@ async function dispatch(input: NotifyInput): Promise<void> {
     await deliverEmail({ recipient, type: input.type, ctx, link: input.link ?? null, notifId });
   }
 
-  // 7 · PUSH channel — no-op stub today; same gates apply when it ships.
-  // if (pref.push && !paused && !quiet) await deliverPush({ recipientId, type, ctx, link });
+  // 7 · PUSH channel — mirrors the instant, in-app-enabled notifications (the
+  //     "get me back to the app" signal). Same pause + quiet-hours gates. Sent
+  //     fire-and-forget (never delays the trigger); no-ops without VAPID/subs.
+  if (pref.inApp && pref.digest === 'INSTANT' && !paused && !quiet && !input.suppressEmail) {
+    void deliverPush({ recipientId: input.recipientId, type: input.type, ctx, link: input.link ?? null }).catch(() => {});
+  }
 }

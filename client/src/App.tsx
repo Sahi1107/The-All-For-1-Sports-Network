@@ -8,6 +8,7 @@ import MainLayout from './layouts/MainLayout';
 import BallLoader from './components/BallLoader';
 import AnalyticsManager from './components/AnalyticsManager';
 import ConsentBanner from './components/ConsentBanner';
+import InstallPrompt from './components/InstallPrompt';
 import { getConsent, setConsent, type Consent } from './config/consent';
 import { stopAnalytics, analyticsAvailable } from './config/analytics';
 
@@ -207,6 +208,7 @@ export default function App() {
           <AuthProvider>
             <AppRoutes />
             <ConsentGate />
+            <InstallPrompt />
             <Toaster
               position="top-right"
               toastOptions={{

@@ -272,6 +272,7 @@ model User {
   profileViewsMade        ProfileView[]        @relation("ProfileViewer")
   profileViewsReceived    ProfileView[]        @relation("ProfileViewed")
   invitesSent             Invite[]             @relation("InvitesSent")
+  pushSubscriptions       PushSubscription[]
   sentMessages            Message[]            @relation("MessageSender")
   sharedInMessages        Message[]            @relation("SharedProfileInMessage")
   conversationMemberships ConversationMember[]
@@ -815,6 +816,20 @@ model ProfileView {
 
   @@unique([viewerId, targetId, day])
   @@index([targetId, createdAt])
+}
+
+// Web push subscription (one per browser/device). deliverPush sends to these.
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Contextual invite (carries who invited + what they're joining). The personal
