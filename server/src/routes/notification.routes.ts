@@ -44,8 +44,12 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response) => {
     // Resolve the actor: prefer the dedicated actorId; fall back to referenceId
     // for legacy social rows created before actorId existed.
     const LEGACY_ACTOR_TYPES = ['FOLLOW', 'CONNECTION_REQUEST', 'CONNECTION_ACCEPTED', 'ENDORSEMENT'];
+    // Privacy: profile-view types carry an actorId for block-check/collapse, but
+    // the viewer's identity is never revealed — the athlete sees only the role.
+    const PRIVATE_ACTOR_TYPES = ['PROFILE_VIEW', 'PROFILE_VIEWS_WEEKLY'];
     const actorOf = (n: any): string | null =>
-      n.actorId ?? (LEGACY_ACTOR_TYPES.includes(n.type) ? n.referenceId : null);
+      PRIVATE_ACTOR_TYPES.includes(n.type) ? null
+        : n.actorId ?? (LEGACY_ACTOR_TYPES.includes(n.type) ? n.referenceId : null);
 
     const actorIds = [...new Set(rawNotifications.map(actorOf).filter(Boolean))] as string[];
 

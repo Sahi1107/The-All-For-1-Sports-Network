@@ -9,6 +9,7 @@ import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { deleteUserCompletely } from '../services/userDeletion';
 import { buildUserExport } from '../services/dataExport';
+import { recordProfileView } from '../services/notifications/profileViews';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import logger from '../utils/logger';
@@ -394,6 +395,14 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 
     await signMediaDeep(user);
     res.json({ user, isFollowing: !!isFollowing, connection, isBlocked: !!blockRow });
+
+    // Fire-and-forget: record the view + (for scouts/coaches) notify the athlete.
+    if (!isSelf && !blockRow) {
+      void recordProfileView(
+        { id: req.user!.userId, role: req.user!.role },
+        { id: user.id, role: user.role, discoverable: user.discoverable, guardianManaged: user.guardianManaged },
+      );
+    }
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Internal server error' });

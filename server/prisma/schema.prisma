@@ -255,6 +255,8 @@ model User {
   announcements           Announcement[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  profileViewsMade        ProfileView[]        @relation("ProfileViewer")
+  profileViewsReceived    ProfileView[]        @relation("ProfileViewed")
   sentMessages            Message[]            @relation("MessageSender")
   sharedInMessages        Message[]            @relation("SharedProfileInMessage")
   conversationMemberships ConversationMember[]
@@ -781,6 +783,22 @@ model Notification {
   @@index([createdAt])
   @@index([userId, groupKey, read])       // collapse lookup
   @@index([userId, emailedAt])            // digest queue scan
+}
+
+// Profile views — one row per viewer per target per day (dedup bucket). Powers
+// the "a scout viewed your profile" notification and the weekly views digest.
+model ProfileView {
+  id        String   @id @default(uuid())
+  viewerId  String   @map("viewer_id")
+  targetId  String   @map("target_id")
+  day       String   // YYYY-MM-DD, the dedup bucket
+  createdAt DateTime @default(now()) @map("created_at")
+
+  viewer User @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  target User @relation("ProfileViewed", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, targetId, day])
+  @@index([targetId, createdAt])
 }
 
 // Sparse per-type preference OVERRIDES. A missing row means "use the code default"
