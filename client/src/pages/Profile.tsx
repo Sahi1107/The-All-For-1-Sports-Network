@@ -863,7 +863,7 @@ export default function Profile() {
                         <button
                           onClick={async () => {
                             setShareMenuOpen(false);
-                            const url = `${window.location.origin}/profile/${profile.id}`;
+                            const url = `${window.location.origin}/s/athlete/${profile.id}`;
                             try {
                               await navigator.clipboard.writeText(url);
                               track('share', { type: 'profile', method: 'copy' });
@@ -880,7 +880,7 @@ export default function Profile() {
                           <button
                             onClick={async () => {
                               setShareMenuOpen(false);
-                              const url = `${window.location.origin}/profile/${profile.id}`;
+                              const url = `${window.location.origin}/s/athlete/${profile.id}`;
                               try { await navigator.share({ title: profile.name, url }); track('share', { type: 'profile', method: 'native' }); } catch { /* cancelled */ }
                             }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"

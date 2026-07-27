@@ -46,6 +46,14 @@
         "run": { "serviceId": "allfor1-web", "region": "asia-south1" }
       },
       {
+        "source": "/og/**",
+        "run": { "serviceId": "allfor1-api", "region": "asia-south1" }
+      },
+      {
+        "source": "/s/**",
+        "run": { "serviceId": "allfor1-api", "region": "asia-south1" }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

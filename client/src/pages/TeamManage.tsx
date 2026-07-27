@@ -1,4 +1,5 @@
 import BallLoader from '../components/BallLoader';
+import ShareButton from '../components/ShareButton';
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -177,7 +178,10 @@ export default function TeamManage() {
             ? <img src={team.logo} alt={team.name} className="w-14 h-14 rounded-lg object-cover" />
             : <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center font-bold text-primary-light text-xl">{team.name?.charAt(0).toUpperCase()}</div>}
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate">{team.name}</h1>
+            <div className="flex items-start justify-between gap-3">
+              <h1 className="text-xl font-bold truncate">{team.name}</h1>
+              <ShareButton path={`/s/team/${team.id}`} title={team.name} type="team" label="" />
+            </div>
             {tournament && (
               <p className="text-xs text-gray-custom mt-0.5">
                 {tournament.name} · {tournament.status}

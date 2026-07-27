@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import BallLoader from '../components/BallLoader';
+import ShareButton from '../components/ShareButton';
 import TournamentTeams from '../features/tournaments/TournamentTeams';
 import TournamentFixtures from '../features/tournaments/TournamentFixtures';
 import TournamentStats from '../features/tournaments/TournamentStats';
@@ -107,9 +108,12 @@ export default function TournamentDetail() {
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
               <h1 className="text-xl sm:text-2xl font-bold leading-tight">{t.name}</h1>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[t.status] ?? 'bg-elevated text-gray-custom'}`}>
-                {t.status?.replace(/_/g, ' ')}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[t.status] ?? 'bg-elevated text-gray-custom'}`}>
+                  {t.status?.replace(/_/g, ' ')}
+                </span>
+                <ShareButton path={`/s/tournament/${t.id}`} title={t.name} type="tournament" label="" />
+              </div>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 text-xs text-gray-custom">
               <span className="flex items-center gap-1.5">{SPORT_ICONS[t.sport]} {SPORT_LABELS[t.sport] ?? t.sport}</span>

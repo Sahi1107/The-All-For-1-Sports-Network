@@ -24,6 +24,8 @@ import statsRoutes        from './routes/stats.routes';
 import trackerRoutes      from './routes/tracker.routes';
 import endorsementRoutes  from './routes/endorsement.routes';
 import supportRoutes      from './routes/support.routes';
+import ogRoutes           from './routes/og.routes';
+import shareRoutes        from './routes/share.routes';
 
 const app = express();
 
@@ -88,6 +90,12 @@ app.use('/api/stats',         statsRoutes);
 app.use('/api/tracker',       trackerRoutes);
 app.use('/api/endorsements',  endorsementRoutes);
 app.use('/api/support',       supportRoutes);
+
+// ─── Public share surface (top-level, outside /api so images stay cacheable) ──
+// Reached via Firebase Hosting run: rewrites (/og/**, /s/**). Serves OG card
+// PNGs and crawler-friendly share pages.
+app.use('/og', ogRoutes);
+app.use('/s',  shareRoutes);
 
 // ─── 404 handler ─────────────────────────────────────────────
 app.use((_req, res) => {

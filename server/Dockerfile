@@ -21,6 +21,7 @@ RUN npm install
 COPY tsconfig.json ./
 COPY prisma ./prisma
 COPY src ./src
+COPY assets ./assets
 
 # Build: generate Prisma client + compile TS.
 RUN npx prisma generate
@@ -49,6 +50,7 @@ RUN groupadd --system --gid 1001 app \
 COPY --from=builder --chown=app:app /app/node_modules ./node_modules
 COPY --from=builder --chown=app:app /app/dist         ./dist
 COPY --from=builder --chown=app:app /app/prisma       ./prisma
+COPY --from=builder --chown=app:app /app/assets       ./assets
 COPY --from=builder --chown=app:app /app/package.json ./package.json
 
 # Create logs directory so Winston doesn't fail at startup.
