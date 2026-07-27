@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "af-1-a1c26"
+    "default": "allfor1-prod",
+    "legacy-af-1-a1c26": "af-1-a1c26"
   }
 }
