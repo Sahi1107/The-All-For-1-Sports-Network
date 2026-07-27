@@ -22,6 +22,8 @@ const Onboarding     = lazy(() => import('./pages/Onboarding'));
 const Support        = lazy(() => import('./pages/Support'));
 const NotificationSettings = lazy(() => import('./pages/NotificationSettings'));
 const Unsubscribe    = lazy(() => import('./pages/Unsubscribe'));
+const Invite         = lazy(() => import('./pages/Invite'));
+const JoinInvite     = lazy(() => import('./pages/JoinInvite'));
 const Home           = lazy(() => import('./pages/Home'));
 const Explore        = lazy(() => import('./pages/Explore'));
 const Profile        = lazy(() => import('./pages/Profile'));
@@ -132,6 +134,7 @@ function AppRoutes() {
         <Route path="/handover/consent" element={<HandoverConsent />} />
         <Route path="/guardian-consent" element={<GuardianConsent />} />
         <Route path="/unsubscribe"     element={<Unsubscribe />} />
+        <Route path="/join/:code"      element={<JoinInvite />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
@@ -156,6 +159,7 @@ function AppRoutes() {
           <Route path="admin/stat-tracker/:tournamentId"                element={<TrackerDashboard />} />
           <Route path="settings"            element={<Settings />} />
           <Route path="settings/notifications" element={<NotificationSettings />} />
+          <Route path="invite"              element={<Invite />} />
           <Route path="support"             element={<Support />} />
           <Route path="saved"               element={<SavedPosts />} />
           <Route path="radar"               element={<Radar />} />

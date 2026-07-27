@@ -10,6 +10,7 @@ import { generateSecureToken, hashToken } from '../utils/crypto';
 import { sendGuardianConsentEmail, sendAthleteWelcome } from '../services/email';
 import { generateTempPassword } from '../services/provisionAthlete';
 import { decideProviderOutcome } from '../services/providerSignin';
+import { attributeReferral } from '../services/referral';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { signMediaDeep } from '../services/storage';
@@ -46,6 +47,7 @@ const SyncBody = z.object({
   dateOfBirth:      z.string().refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date').optional(),
   location:         z.string().max(200).optional(),
   height:           z.string().max(20).optional(),
+  referralCode:     z.string().max(64).optional(), // invite attribution
 }).superRefine((data, ctx) => {
   // DOB is mandatory for athletes so an under-13 can't omit it to dodge
   // guardian management. Age is derived from DOB server-side, never trusted.
@@ -254,6 +256,8 @@ router.post('/sync', async (req: Request, res: Response) => {
 
     // Set custom claims so the client's next getIdToken(true) includes them
     await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
+
+    await attributeReferral(user.id, parse.data.referralCode);
 
     logger.info('auth.register', { userId: user.id, role: user.role, sport: user.sport, guardianManaged });
     res.status(201).json({ user, refreshClaims: true });

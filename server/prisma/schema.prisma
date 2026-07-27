@@ -134,6 +134,14 @@ enum DigestFrequency {
   OFF
 }
 
+enum InviteKind {
+  GENERAL      // personal "join me on All For 1"
+  TEAMMATE     // join my team
+  COACH        // I'd like you to coach / see my athletes
+  ATHLETE      // join as an athlete
+  TOURNAMENT   // join this tournament
+}
+
 enum PostType {
   TEXT
   IMAGE
@@ -206,6 +214,9 @@ model User {
   notifyQuietStart       Int?      @map("notify_quiet_start")  // local hour 0-23 (email/push suppressed)
   notifyQuietEnd         Int?      @map("notify_quiet_end")
   notificationUnsubToken String?   @unique @map("notification_unsub_token") // one-click email unsubscribe
+  // ── Referral / invite loop ──
+  referralCode           String?   @unique @map("referral_code") // personal reusable invite link
+  referredById           String?   @map("referred_by_id")        // who invited this user (attribution)
   lastActiveAt           DateTime? @map("last_active_at")
 
   // Whether this profile is publicly discoverable (search, Scout Copilot,
@@ -260,6 +271,7 @@ model User {
   notificationPreferences NotificationPreference[]
   profileViewsMade        ProfileView[]        @relation("ProfileViewer")
   profileViewsReceived    ProfileView[]        @relation("ProfileViewed")
+  invitesSent             Invite[]             @relation("InvitesSent")
   sentMessages            Message[]            @relation("MessageSender")
   sharedInMessages        Message[]            @relation("SharedProfileInMessage")
   conversationMemberships ConversationMember[]
@@ -803,6 +815,25 @@ model ProfileView {
 
   @@unique([viewerId, targetId, day])
   @@index([targetId, createdAt])
+}
+
+// Contextual invite (carries who invited + what they're joining). The personal
+// reusable link uses User.referralCode instead; both resolve at /join/:code.
+model Invite {
+  id           String     @id @default(uuid())
+  code         String     @unique
+  inviterId    String     @map("inviter_id")
+  kind         InviteKind @default(GENERAL)
+  teamId       String?    @map("team_id")
+  tournamentId String?    @map("tournament_id")
+  note         String?
+  acceptedById String?    @map("accepted_by_id") // the user who signed up via it
+  acceptedAt   DateTime?  @map("accepted_at")
+  createdAt    DateTime   @default(now())
+
+  inviter User @relation("InvitesSent", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([inviterId])
 }
 
 // Sparse per-type preference OVERRIDES. A missing row means "use the code default"

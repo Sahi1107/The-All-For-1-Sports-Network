@@ -24,6 +24,7 @@ import statsRoutes        from './routes/stats.routes';
 import trackerRoutes      from './routes/tracker.routes';
 import endorsementRoutes  from './routes/endorsement.routes';
 import supportRoutes      from './routes/support.routes';
+import inviteRoutes       from './routes/invite.routes';
 import ogRoutes           from './routes/og.routes';
 import shareRoutes        from './routes/share.routes';
 
@@ -90,6 +91,7 @@ app.use('/api/stats',         statsRoutes);
 app.use('/api/tracker',       trackerRoutes);
 app.use('/api/endorsements',  endorsementRoutes);
 app.use('/api/support',       supportRoutes);
+app.use('/api/invite',        inviteRoutes);
 
 // ─── Public share surface (top-level, outside /api so images stay cacheable) ──
 // Reached via Firebase Hosting run: rewrites (/og/**, /s/**). Serves OG card

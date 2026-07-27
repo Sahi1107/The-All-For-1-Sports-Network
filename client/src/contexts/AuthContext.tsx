@@ -18,6 +18,7 @@ import {
 import { auth, googleProvider } from '../config/firebase';
 import { setSentryUser } from '../config/sentry';
 import { track } from '../config/analytics';
+import { getRefCode, clearRefCode } from '../config/referral';
 import type { Sport } from '../data/sports';
 
 const baseURL = (import.meta.env.VITE_API_URL ?? '') + '/api';
@@ -215,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 2. Create Prisma user via /sync (before email is verified)
     //    The Prisma user must exist before we set custom claims.
     const rawToken = await cred.user.getIdToken();
+    const ref = getRefCode();
     await authedPost(rawToken, '/auth/sync', {
       name, role, sport,
       ...(gender && { gender }),
@@ -223,9 +225,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...(dateOfBirth && { dateOfBirth }),
       ...(location && { location }),
       ...(height && { height }),
+      ...(ref && { referralCode: ref }),
     });
 
     track('sign_up', { method: 'password' });
+    if (ref) { track('referral_signup', { method: 'password' }); clearRefCode(); }
 
     // 3. Send Firebase verification email.
     //    continueUrl brings the user back to login after they click the link.
@@ -346,6 +350,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const e: any = new Error('Your Google session expired. Please sign in again.'); e.code = 'NO_SESSION'; throw e;
     }
     const token = await firebaseUser.getIdToken();
+    const ref = getRefCode();
     await authedPost(token, '/auth/sync', {
       name: data.name, role: data.role, sport: data.sport,
       ...(data.gender && { gender: data.gender }),
@@ -354,8 +359,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...(data.dateOfBirth && { dateOfBirth: data.dateOfBirth }),
       ...(data.location && { location: data.location }),
       ...(data.height && { height: data.height }),
+      ...(ref && { referralCode: ref }),
     });
     track('sign_up', { method: 'google' });
+    if (ref) { track('referral_signup', { method: 'google' }); clearRefCode(); }
     const fresh = await firebaseUser.getIdToken(true);
     const { data: me } = await authedGet(fresh, '/auth/me');
     setUser(me.user);

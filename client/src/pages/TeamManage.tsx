@@ -1,5 +1,6 @@
 import BallLoader from '../components/BallLoader';
 import ShareButton from '../components/ShareButton';
+import InviteButton from '../components/InviteButton';
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -180,7 +181,10 @@ export default function TeamManage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <h1 className="text-xl font-bold truncate">{team.name}</h1>
-              <ShareButton path={`/s/team/${team.id}`} title={team.name} type="team" label="" />
+              <div className="flex items-center gap-2 shrink-0">
+                <InviteButton kind="TEAMMATE" teamId={team.id} title={`Join ${team.name} on All For 1`} label="Invite" />
+                <ShareButton path={`/s/team/${team.id}`} title={team.name} type="team" label="" />
+              </div>
             </div>
             {tournament && (
               <p className="text-xs text-gray-custom mt-0.5">

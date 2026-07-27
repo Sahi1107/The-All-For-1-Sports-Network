@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import {
   Home, Search, Trophy, BarChart3, TrendingUp,
-  Bell, MessageSquare, Settings, LogOut, Megaphone, Shield, Plus, X, Menu, Zap,
+  Bell, MessageSquare, Settings, LogOut, Megaphone, Shield, Plus, X, Menu, Zap, UserPlus,
 } from 'lucide-react';
 import { useLogo } from '../hooks/useLogo';
 import CreatePostModal from '../components/CreatePostModal';
@@ -67,6 +67,7 @@ export default function MainLayout() {
       : []),
     { to: '/messages',      icon: MessageSquare, label: 'Messages' },
     { to: '/notifications', icon: Bell,          label: 'Notifications' },
+    { to: '/invite',        icon: UserPlus,      label: 'Invite' },
     ...(user?.role === 'ADMIN'
       ? [{ to: '/admin', icon: Shield, label: 'Admin' }]
       : []),
