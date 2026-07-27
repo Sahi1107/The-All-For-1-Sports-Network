@@ -1,0 +1,22 @@
+{
+  "name": "allfor1-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Public SSR renderer for allfor1.pro SEO pages (read-only). Enforces the athlete exposure gate.",
+  "scripts": {
+    "start": "node --import tsx src/server.ts",
+    "dev": "node --import tsx --watch src/server.ts",
+    "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.0",
+    "@types/pg": "^8.11.10",
+    "typescript": "~5.9.3"
+  }
+}
