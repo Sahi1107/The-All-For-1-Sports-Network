@@ -286,6 +286,7 @@ model User {
   @@index([role])
   @@index([sport])
   @@index([sport, role])
+  @@index([name]) // search: helps ORDER BY name; pg_trgm GIN (see prisma/sql) accelerates the ILIKE
 }
 
 // ─── Social: Follow & Connect ────────────────────────────
@@ -508,6 +509,7 @@ model Team {
   @@index([captainId])
   @@index([coachId])
   @@index([tournamentId])
+  @@index([name]) // search
 }
 
 model TeamMember {
@@ -568,6 +570,7 @@ model Tournament {
   @@index([sport])
   @@index([status])
   @@index([startDate])
+  @@index([name]) // search
 }
 
 // ─── Stat Tracker (admin live tracking, decoupled from platform matches) ──
