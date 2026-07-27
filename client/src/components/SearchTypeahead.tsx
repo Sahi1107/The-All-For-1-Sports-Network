@@ -47,7 +47,7 @@ const dateRange = (a: string, b: string) => {
  * offline states. Selecting a suggestion navigates straight to the entity;
  * Enter with nothing highlighted goes to the full results page.
  */
-export default function SearchTypeahead({ className = '' }: { className?: string }) {
+export default function SearchTypeahead({ className = '', autoFocus = false, onNavigate }: { className?: string; autoFocus?: boolean; onNavigate?: () => void }) {
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,6 +63,8 @@ export default function SearchTypeahead({ className = '' }: { className?: string
   const enabled = dq.length >= 2 && online;
 
   useEffect(() => { setRecents(loadRecents()); }, []);
+  // When embedded in the global-search overlay, focus + open on mount.
+  useEffect(() => { if (autoFocus) { inputRef.current?.focus(); setOpen(true); } }, [autoFocus]);
   useEffect(() => {
     const on = () => setOnline(true); const off = () => setOnline(false);
     window.addEventListener('online', on); window.addEventListener('offline', off);
@@ -121,7 +123,7 @@ export default function SearchTypeahead({ className = '' }: { className?: string
     });
   }, []);
 
-  const go = useCallback((to: string) => { setOpen(false); inputRef.current?.blur(); navigate(to); }, [navigate]);
+  const go = useCallback((to: string) => { setOpen(false); inputRef.current?.blur(); onNavigate?.(); navigate(to); }, [navigate, onNavigate]);
 
   const selectAthlete = (a: Athlete) => { track('search_result_selected', { kind: 'athlete' }); pushRecent({ kind: 'athlete', id: a.id, to: `/profile/${a.id}`, label: a.name, sub: [cap(a.role), cap(a.sport ?? '')].filter(Boolean).join(' · '), avatar: a.avatar, verified: a.verified }); go(`/profile/${a.id}`); };
   const selectTeam = (t: Team) => { track('search_result_selected', { kind: 'team' }); pushRecent({ kind: 'team', id: t.id, to: `/teams/${t.id}`, label: t.name, sub: cap(t.sport ?? ''), avatar: t.logo }); go(`/teams/${t.id}`); };

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useLogo } from '../hooks/useLogo';
 import CreatePostModal from '../components/CreatePostModal';
+import GlobalSearchOverlay from '../components/GlobalSearchOverlay';
 
 export default function MainLayout() {
   const logoUrl = useLogo();
@@ -17,6 +18,7 @@ export default function MainLayout() {
   const navigate  = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Unread notification count
   const { data: notifData } = useQuery({
@@ -122,6 +124,12 @@ export default function MainLayout() {
 
       {/* ── DESKTOP ICON RAIL (hidden on mobile) ─────────────────── */}
       <aside className="hidden md:flex fixed left-3 top-[108px] bottom-3 w-[76px] z-50 flex-col items-center rounded-[26px] bg-surface border border-ink/10 shadow-xl py-4">
+        {/* Global search trigger */}
+        <button onClick={() => setSearchOpen(true)} title="Search" aria-label="Search"
+          className="w-11 h-11 mb-1.5 rounded-2xl flex items-center justify-center text-gray-custom hover:bg-ink/10 hover:text-foreground transition-colors"
+        >
+          <Search size={21} strokeWidth={1.9} />
+        </button>
         {/* Nav icons */}
         <nav className="flex-1 w-full flex flex-col items-center gap-1.5 overflow-y-auto no-scrollbar">
           {navItems.map(({ to, icon: Icon, label }) => {
@@ -187,11 +195,17 @@ export default function MainLayout() {
         <div className="flex-1 flex justify-center">
           <Link to="/home"><img src={logoUrl} alt="All For 1" className="h-9" /></Link>
         </div>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-xs rounded-lg transition-colors w-10 justify-center"
-        >
-          <Plus size={15} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => setSearchOpen(true)} aria-label="Search"
+            className="p-2 text-gray-custom hover:text-foreground transition-colors">
+            <Search size={20} />
+          </button>
+          <button onClick={() => setShowCreate(true)} aria-label="Create post"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-xs rounded-lg transition-colors w-10 justify-center"
+          >
+            <Plus size={15} />
+          </button>
+        </div>
       </header>
 
       {/* ── MOBILE DRAWER ─────────────────────────────────────────── */}
@@ -345,6 +359,7 @@ export default function MainLayout() {
       </nav>
 
       {showCreate && <CreatePostModal onClose={() => setShowCreate(false)} />}
+      <GlobalSearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }
