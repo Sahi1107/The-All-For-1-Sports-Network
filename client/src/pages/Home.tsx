@@ -12,6 +12,7 @@ import { SPORTS } from '../data/sports';
 import { SPORT_BACKDROP } from '../components/SportBackdrop';
 import { NameLine, PostMeta, PerformanceCard } from '../components/feed/FeedBits';
 import SearchTypeahead from '../components/SearchTypeahead';
+import PullToRefresh from '../components/PullToRefresh';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -59,6 +60,7 @@ export default function Home() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    refetch,
   } = useInfiniteQuery({
     queryKey: ['feed'],
     queryFn: async ({ pageParam = 1 }) => {
@@ -102,6 +104,7 @@ export default function Home() {
   const Backdrop = SPORT_BACKDROP[effectiveSport];
 
   return (
+    <PullToRefresh onRefresh={() => refetch()}>
     <div className="relative md:overflow-hidden">
       {/* Sport line-art watermark — fixed inside the content panel so it stays
          behind the feed for the user's sport as the page scrolls. Falls back to
@@ -330,5 +333,6 @@ export default function Home() {
         />
       )}
     </div>
+    </PullToRefresh>
   );
 }

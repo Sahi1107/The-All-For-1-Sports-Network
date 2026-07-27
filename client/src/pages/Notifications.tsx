@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../api/client';
+import PullToRefresh from '../components/PullToRefresh';
 import {
   Bell, Check, CheckCheck, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2,
   MessageSquare as CommentIcon, Users, Award, Eye, BadgeCheck, TrendingUp, Clock,
@@ -69,7 +70,7 @@ export default function Notifications() {
   const [unread, setUnread] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['notifications', 1],
     queryFn: async () => (await api.get(`/notifications?page=1&limit=${PAGE_SIZE}`)).data,
   });
@@ -145,6 +146,7 @@ export default function Notifications() {
   };
 
   return (
+    <PullToRefresh onRefresh={() => refetch()}>
     <div>
       <div className="flex items-center gap-3 mb-6">
         <Bell size={22} />
@@ -233,5 +235,6 @@ export default function Notifications() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }

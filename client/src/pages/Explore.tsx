@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Search, MapPin, Users, Shield, Trophy, Calendar } from 'lucide-react';
 import api from '../api/client';
 import { VerifiedTick } from '../components/feed/FeedBits';
+import PullToRefresh from '../components/PullToRefresh';
 import { useDebounce } from '../hooks/useDebounce';
 import { SPORTS as ALL_SPORTS } from '../data/sports';
 
@@ -74,6 +75,7 @@ export default function Explore() {
   const totalPages = active.data?.totalPages ?? 1;
 
   return (
+    <PullToRefresh onRefresh={() => Promise.all([peopleQ.refetch(), teamsQ.refetch(), tournQ.refetch()])}>
     <div>
       <h1 className="text-2xl font-bold mb-5">Explore</h1>
 
@@ -159,6 +161,7 @@ export default function Explore() {
         </>
       )}
     </div>
+    </PullToRefresh>
   );
 }
 

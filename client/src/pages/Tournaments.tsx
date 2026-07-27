@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../api/client'
+import PullToRefresh from '../components/PullToRefresh'
 import { Trophy, MapPin, Calendar, Users, ChevronRight } from 'lucide-react'
 import { SPORTS } from '../data/sports'
 
@@ -29,7 +30,7 @@ export default function Tournaments() {
   const navigate = useNavigate()
   const [sportFilter, setSportFilter] = useState('')
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['tournaments', sportFilter],
     queryFn: async () => {
       const params = sportFilter ? `?sport=${sportFilter}` : ''
@@ -41,6 +42,7 @@ export default function Tournaments() {
   const tournaments = data?.tournaments ?? []
 
   return (
+    <PullToRefresh onRefresh={() => refetch()}>
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Tournaments</h1>
@@ -107,5 +109,6 @@ export default function Tournaments() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   )
 }
