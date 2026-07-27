@@ -27,21 +27,25 @@ const app = initializeApp(firebaseConfig);
 // Providing an ordered fallback (local → session → memory) lets Firebase pick
 // whichever works; in the worst case auth just doesn't survive a reload,
 // which is fine for an embedded browser session.
-// NOTE: because we use initializeAuth (not getAuth) to control persistence, we
-// MUST supply popupRedirectResolver ourselves — getAuth would include it for
-// free. Without it, signInWithPopup / signInWithRedirect / getRedirectResult
-// throw `auth/argument-error` (a malformed-argument error, thrown before any
-// network call), which is exactly what breaks Google sign-in. It only affects
-// popup/redirect resolution, not persistence, so the in-app-WebView fallback
-// above is unchanged.
+// NOTE: because we use initializeAuth (not getAuth) to control persistence, a
+// popupRedirectResolver is not registered for free the way getAuth would. We
+// deliberately do NOT pass it here: supplying it at init makes Firebase eagerly
+// load its auth iframe + gapi (~130KB, three cross-origin round-trips) on every
+// page, which measurably stalls first paint. Instead we pass `authResolver`
+// explicitly to the sign-in methods that need it (signInWithPopup /
+// signInWithRedirect / getRedirectResult / reauthenticateWithPopup) — without a
+// resolver those throw `auth/argument-error` before any network call. Passing
+// per-call satisfies them AND defers the iframe until a real sign-in happens.
 export const auth = initializeAuth(app, {
   persistence: [
     browserLocalPersistence,
     browserSessionPersistence,
     inMemoryPersistence,
   ],
-  popupRedirectResolver: browserPopupRedirectResolver,
 });
+
+// The popup/redirect resolver, supplied per sign-in call (see note above).
+export const authResolver = browserPopupRedirectResolver;
 
 // Google federated sign-in provider. `prompt: 'select_account'` always shows the
 // account chooser so a shared device never silently reuses the last Google login.

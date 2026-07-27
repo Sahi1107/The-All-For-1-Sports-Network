@@ -15,7 +15,7 @@ import {
   type AuthCredential,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { auth, googleProvider } from '../config/firebase';
+import { auth, googleProvider, authResolver } from '../config/firebase';
 import { setSentryUser } from '../config/sentry';
 import { track } from '../config/analytics';
 import { getRefCode, clearRefCode } from '../config/referral';
@@ -214,7 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // iframe (see markRedirectPending / redirectPending above).
   useEffect(() => {
     if (!redirectPending()) return;
-    getRedirectResult(auth)
+    getRedirectResult(auth, authResolver)
       .catch((err: any) => {
         console.error('[google-auth] getRedirectResult failed:', { code: err?.code, message: err?.message, stack: err?.stack, error: err });
         if (err?.code === 'auth/account-exists-with-different-credential') {
@@ -394,7 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async (): Promise<GoogleResult> => {
     try {
-      const cred = await signInWithPopup(auth, googleProvider);
+      const cred = await signInWithPopup(auth, googleProvider, authResolver);
       return await finishProviderSignIn(cred.user);
     } catch (err: any) {
       const code = err?.code ?? '';
@@ -415,7 +415,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // normal loads); the result is then picked up there / by onAuthStateChanged.
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
         markRedirectPending();
-        await signInWithRedirect(auth, googleProvider);
+        await signInWithRedirect(auth, googleProvider, authResolver);
         return { needsOnboarding: false };
       }
 

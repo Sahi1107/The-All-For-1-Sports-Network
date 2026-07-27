@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { auth, googleProvider } from '../config/firebase';
+import { auth, googleProvider, authResolver } from '../config/firebase';
 import {
   sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential,
   PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
@@ -183,7 +183,7 @@ export default function Settings() {
     if (addPw1 !== addPw2) { toast.error('Passwords do not match'); return; }
     setAddingPw(true);
     try {
-      await reauthenticateWithPopup(auth.currentUser, googleProvider);
+      await reauthenticateWithPopup(auth.currentUser, googleProvider, authResolver);
       await linkWithCredential(auth.currentUser, EmailAuthProvider.credential(user.email, addPw1));
       setAddPwOpen(false); setAddPw1(''); setAddPw2('');
       setProviderRefresh((n) => n + 1);
