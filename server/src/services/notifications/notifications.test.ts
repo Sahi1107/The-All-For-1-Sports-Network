@@ -4,7 +4,7 @@ import { inQuietHours, shouldEmailNow } from './notify';
 import { effectivePref } from './preferences';
 import { renderCopy } from './catalog';
 import { qualifiesForViewTracking, shouldNotifyScoutView, viewerLeavesTrace } from './profileViews';
-import { statLine } from './competitionNotify';
+import { statLine, firstTimers } from './competitionNotify';
 
 // ── Quiet hours ──────────────────────────────────────────────────────────────
 test('quiet hours: unset bounds are never quiet', () => {
@@ -95,4 +95,9 @@ test('statLine formats per sport and omits zeros', () => {
   assert.equal(statLine('BASKETBALL', { points: 18, rebounds: 5, assists: 0 }), '18 pts, 5 reb');
   assert.equal(statLine('CRICKET', { runs: 42, wickets: 2 }), '42 runs, 2 wkts');
   assert.equal(statLine('FOOTBALL', {}), '');
+});
+test('stats-verified fires only for first-timers (not those with prior stats)', () => {
+  assert.deepEqual(firstTimers(['a', 'b', 'c'], new Set(['b'])), ['a', 'c']);
+  assert.deepEqual(firstTimers(['a', 'a', 'b'], new Set()), ['a', 'b']); // dedups
+  assert.deepEqual(firstTimers(['a'], new Set(['a'])), []);              // veteran → no notify
 });

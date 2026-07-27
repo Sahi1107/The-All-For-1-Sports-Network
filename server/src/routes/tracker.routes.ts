@@ -15,7 +15,7 @@ import {
   type GroupDef,
 } from '../services/trackerDraw';
 import { derivePlayerStats } from '../services/trackerStats';
-import { fanoutMatchResult, fanoutDrawPublished, fanoutFixturesScheduled, slotLabel } from '../services/notifications/competitionNotify';
+import { fanoutMatchResult, fanoutDrawPublished, fanoutFixturesScheduled, fanoutStatsVerified, slotLabel } from '../services/notifications/competitionNotify';
 import { writeMatchPlayerStats } from '../services/matchStats';
 import {
   CreateSessionBody,
@@ -736,12 +736,15 @@ router.post(
             select: { id: true, name: true },
           });
           const nameOf = (id: string) => teams.find((t) => t.id === id)?.name ?? 'Team';
+          const stats = playerStats as { userId: string; stats?: Record<string, number> }[];
           await fanoutMatchResult({
             tournamentId, sport,
             homeName: nameOf(trackerMatch.homeTeamId!), awayName: nameOf(trackerMatch.awayTeamId!),
             homeScore: trackerMatch.homeScore, awayScore: trackerMatch.awayScore,
-            playerStats: playerStats as { userId: string; stats?: Record<string, number> }[],
+            playerStats: stats,
           });
+          // First-timers also get "your Performance Card is now live".
+          await fanoutStatsVerified({ tournamentId, sport, matchId: platformMatchId!, playerIds: stats.map((p) => p.userId) });
         } catch (e) { console.error('match-result notify failed', e); }
       })();
     } catch (err) {

@@ -1,3 +1,4 @@
+import prisma from '../../config/db';
 import { notify } from './notify';
 
 // Fan-out helpers for live-tournament notifications. Kept out of the route
@@ -66,4 +67,81 @@ export function slotLabel(scheduledAt: Date | null, court: string | null): strin
   if (!scheduledAt) return undefined;
   const t = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' }).format(scheduledAt);
   return court ? `${t} · ${court}` : t;
+}
+
+// ── Stats verified (first Performance Card) ──────────────────────────────────
+
+/** Pure: which players are getting verified stats for the FIRST time. */
+export function firstTimers(allIds: string[], priorIds: Set<string>): string[] {
+  return [...new Set(allIds)].filter((id) => !priorIds.has(id));
+}
+
+async function priorStatUserIds(sport: string, matchId: string, playerIds: string[]): Promise<Set<string>> {
+  if (playerIds.length === 0) return new Set();
+  const where = { userId: { in: playerIds }, matchId: { not: matchId } };
+  const select = { userId: true } as const;
+  let rows: { userId: string }[] = [];
+  if (sport === 'FOOTBALL') rows = await prisma.footballStats.findMany({ where, select, distinct: ['userId'] });
+  else if (sport === 'BASKETBALL') rows = await prisma.basketballStats.findMany({ where, select, distinct: ['userId'] });
+  return new Set(rows.map((r) => r.userId));
+}
+
+/**
+ * Fire STATS_VERIFIED only for athletes getting verified stats for the FIRST
+ * time — "your Performance Card is now live". Subsequent matches fire
+ * MATCH_RESULT_PUBLISHED instead, so the two never double up.
+ */
+export async function fanoutStatsVerified(opts: { tournamentId: string; sport: string; matchId: string; playerIds: string[] }): Promise<void> {
+  const prior = await priorStatUserIds(opts.sport, opts.matchId, opts.playerIds);
+  const newcomers = firstTimers(opts.playerIds, prior);
+  await Promise.all(newcomers.map((id) => notify({
+    recipientId: id,
+    type: 'STATS_VERIFIED',
+    ctx: { extra: 'Your stats are verified — your Performance Card is now live' },
+    link: `/profile/${id}`,
+  })));
+}
+
+// ── Match starting soon (scheduled sweep) ────────────────────────────────────
+
+interface RosterTeam { teamId: string; name?: string; players?: { userId?: string }[] }
+
+/**
+ * Sweep upcoming fixtures and remind each player their match starts soon (once
+ * per match — deduped via TrackerMatch.startNotifiedAt). Called by Cloud
+ * Scheduler every ~15 min during an event.
+ */
+export async function sweepMatchStartingSoon(withinMinutes = 45): Promise<{ matches: number; notified: number }> {
+  const now = new Date();
+  const until = new Date(now.getTime() + withinMinutes * 60_000);
+  const matches = await prisma.trackerMatch.findMany({
+    where: {
+      status: 'SCHEDULED',
+      startNotifiedAt: null,
+      scheduledAt: { gte: now, lte: until },
+      homeTeamId: { not: null },
+      awayTeamId: { not: null },
+    },
+    include: { session: { select: { tournamentId: true, roster: true } } },
+  });
+
+  let notified = 0;
+  for (const m of matches) {
+    try {
+      const roster = (m.session.roster as RosterTeam[] | null) ?? [];
+      const home = roster.find((t) => t.teamId === m.homeTeamId);
+      const away = roster.find((t) => t.teamId === m.awayTeamId);
+      const label = `${home?.name ?? 'Your team'} vs ${away?.name ?? 'opponents'}`;
+      const slot = slotLabel(m.scheduledAt, m.court);
+      const link = fixturesLink(m.session.tournamentId);
+      const players = [...(home?.players ?? []), ...(away?.players ?? [])].map((p) => p.userId).filter(Boolean) as string[];
+
+      await Promise.all([...new Set(players)].map((id) => notify({
+        recipientId: id, type: 'MATCH_STARTING_SOON', ctx: { entityName: label, extra: slot }, referenceId: m.session.tournamentId, link,
+      })));
+      await prisma.trackerMatch.update({ where: { id: m.id }, data: { startNotifiedAt: new Date() } });
+      notified += players.length;
+    } catch { /* skip this match, continue the sweep */ }
+  }
+  return { matches: matches.length, notified };
 }

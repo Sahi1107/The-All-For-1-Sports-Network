@@ -5,6 +5,7 @@ import { writeLimiter } from '../middleware/rateLimiter';
 import { CATALOG, preferenceMeta, CATEGORY_ORDER, CATEGORY_LABELS } from '../services/notifications/catalog';
 import { resolveAllPreferences, defaultPref } from '../services/notifications/preferences';
 import { runDigestTask, type DigestTask } from '../services/notifications/digest';
+import { sweepMatchStartingSoon } from '../services/notifications/competitionNotify';
 import { env } from '../config/env';
 import type { NotificationType } from '@prisma/client';
 
@@ -237,6 +238,23 @@ router.post('/cron/digest', async (req: Request, res: Response) => {
     res.json(result);
   } catch (error) {
     console.error('Digest cron error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/notifications/cron/match-reminders?within=45 — remind players whose
+// match starts within `within` minutes. Run every ~15 min during an event.
+router.post('/cron/match-reminders', async (req: Request, res: Response) => {
+  if (!env.CRON_SECRET || req.get('x-cron-secret') !== env.CRON_SECRET) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  const within = Math.min(180, Math.max(5, parseInt(String(req.query.within ?? '45'), 10) || 45));
+  try {
+    const result = await sweepMatchStartingSoon(within);
+    res.json(result);
+  } catch (error) {
+    console.error('Match-reminder cron error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

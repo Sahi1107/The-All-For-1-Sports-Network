@@ -594,6 +594,7 @@ model TrackerMatch {
   court            String? // court / pitch / venue label (admin-set); null = TBC
   state            Json? // full live state (clock, lineups, per-player stats, event/action log)
   publishedMatchId String? // platform Match id once published (updated in place on re-publish)
+  startNotifiedAt  DateTime? @map("start_notified_at") // "match starting soon" reminder sent (dedup)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
