@@ -23,7 +23,7 @@ export default function ImageCarousel({ urls, alt = '', className = '' }: Props)
 
   if (urls.length === 0) return null;
   if (urls.length === 1) {
-    return <img src={urls[0]} alt={alt} className={`w-full max-h-[32rem] object-contain bg-black ${className}`} />;
+    return <img src={urls[0]} alt={alt} loading="lazy" decoding="async" className={`w-full max-h-[32rem] object-contain bg-black ${className}`} />;
   }
 
   // Stop propagation so clicking a nav chevron/dot doesn't also trigger the
@@ -96,6 +96,8 @@ export default function ImageCarousel({ urls, alt = '', className = '' }: Props)
             src={url}
             alt={`${alt} ${i + 1}`}
             draggable={false}
+            loading="lazy"
+            decoding="async"
             className="w-full shrink-0 max-h-[32rem] object-contain"
           />
         ))}

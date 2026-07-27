@@ -221,7 +221,7 @@ export default function Home() {
                   <div className="p-4 flex items-center gap-3">
                     <Link to={`/profile/${item.user?.id}`}>
                       {item.user?.avatar ? (
-                        <img src={item.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        <img src={item.user.avatar} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-display font-bold text-primary-light">
                           {item.user?.name?.charAt(0).toUpperCase()}
@@ -281,7 +281,7 @@ export default function Home() {
                       {item.media?.length > 0 ? (
                         <ImageCarousel urls={item.media.map((m: any) => m.url)} alt={item.title || ''} />
                       ) : item.mediaUrl ? (
-                        <img src={item.mediaUrl} alt={item.title || ''} className="w-full max-h-[32rem] object-contain bg-black" />
+                        <img src={item.mediaUrl} alt={item.title || ''} loading="lazy" decoding="async" className="w-full max-h-[32rem] object-contain bg-black" />
                       ) : null}
                     </div>
                   )}

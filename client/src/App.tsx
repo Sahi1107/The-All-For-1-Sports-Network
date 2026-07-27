@@ -61,7 +61,13 @@ const GuardianConsent    = lazy(() => import('./pages/GuardianConsent'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30000 },
+    queries: {
+      retry: 1,
+      staleTime: 60_000,            // 1 min: don't refetch fresh data on every mount
+      gcTime: 10 * 60_000,          // keep unused data 10 min so back-nav is instant
+      refetchOnWindowFocus: false,  // stop refetching everything on every tab/app focus
+      // refetchOnReconnect stays true (default) so offline → online recovers.
+    },
   },
 });
 
