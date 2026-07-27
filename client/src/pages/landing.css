@@ -271,7 +271,7 @@ body {
   touch-action: pan-y;
   background:
     linear-gradient(180deg, rgba(8, 8, 8, 0.44) 0%, rgba(8, 8, 8, 0.62) 100%),
-    url("/landing/background%202.png") center / cover no-repeat;
+    url("/landing/landing-bg.webp") center / cover no-repeat;
 }
 
 .hero-aurora {
@@ -435,7 +435,7 @@ body {
   padding-top: 210px;
   padding-bottom: 210px;
   background-color: #dbff5a;
-  background-image: url("/landing/hub.png");
+  background-image: url("/landing/hub.webp");
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;

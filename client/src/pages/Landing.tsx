@@ -219,7 +219,7 @@ export default function Landing() {
           muted
           playsInline
           preload="metadata"
-          poster="/landing/background%202.png"
+          poster="/landing/landing-bg.webp"
           aria-hidden
         />
         <div className="about-split">

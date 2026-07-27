@@ -47,7 +47,7 @@ const CHALLENGES: Challenge[] = [
     duration: 'Closes 20 June 2026, 11:59 PM',
     participants: 0,
     banner:
-      "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%), url('/landing/dribble-dash-cover.png') center/cover no-repeat",
+      "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%), url('/landing/dribble-dash-cover.webp') center/cover no-repeat",
     teaser:
       'A timed cone-weave finished with a shot on goal. Fastest clean run wins.',
     eligibility: 'U-25 · Born on or after 01/01/2001',
