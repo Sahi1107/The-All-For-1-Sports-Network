@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, BellOff, Moon } from 'lucide-react';
+import { ChevronLeft, BellOff, Moon, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import BallLoader from '../components/BallLoader';
@@ -15,7 +15,7 @@ interface TypeRow {
 interface Category { key: string; label: string; types: TypeRow[] }
 interface PrefsResponse {
   categories: Category[];
-  global: { paused: boolean; quietStart: number | null; quietEnd: number | null };
+  global: { paused: boolean; quietStart: number | null; quietEnd: number | null; privateProfileViews: boolean };
 }
 
 const DIGESTS: { value: Digest; label: string }[] = [
@@ -122,6 +122,19 @@ export default function NotificationSettings() {
               <HourSelect value={local.global.quietEnd!} onChange={(h) => patchGlobal({ quietEnd: h })} />
             </div>
           )}
+        </div>
+
+        <div className="border-t border-line pt-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0">
+              <EyeOff size={18} className="text-gray-custom mt-0.5 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Private profile viewing</p>
+                <p className="text-xs text-gray-custom mt-0.5">Browse profiles privately — people won't be notified or counted when you view them.</p>
+              </div>
+            </div>
+            <Toggle on={local.global.privateProfileViews} onChange={(v) => patchGlobal({ privateProfileViews: v })} label="Private profile viewing" />
+          </div>
         </div>
       </section>
 

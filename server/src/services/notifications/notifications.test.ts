@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { inQuietHours, shouldEmailNow } from './notify';
 import { effectivePref } from './preferences';
 import { renderCopy } from './catalog';
-import { qualifiesForViewTracking, shouldNotifyScoutView } from './profileViews';
+import { qualifiesForViewTracking, shouldNotifyScoutView, viewerLeavesTrace } from './profileViews';
 
 // ── Quiet hours ──────────────────────────────────────────────────────────────
 test('quiet hours: unset bounds are never quiet', () => {
@@ -80,4 +80,9 @@ test('notifies only scouts/coaches, only the first view of the day', () => {
   assert.equal(shouldNotifyScoutView('COACH', true), true);
   assert.equal(shouldNotifyScoutView('ATHLETE', true), false);
   assert.equal(shouldNotifyScoutView('SCOUT', false), false);
+});
+test('private browsing leaves no trace (LinkedIn-style)', () => {
+  assert.equal(viewerLeavesTrace(true), false);   // private → no record, no notify
+  assert.equal(viewerLeavesTrace(false), true);
+  assert.equal(viewerLeavesTrace(null), true);     // default (not set) → normal
 });

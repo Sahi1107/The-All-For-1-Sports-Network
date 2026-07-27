@@ -115,7 +115,7 @@ router.get('/preferences', authenticate, async (req: AuthRequest, res: Response)
       resolveAllPreferences(uid),
       prisma.user.findUnique({
         where: { id: uid },
-        select: { notificationsPaused: true, notifyQuietStart: true, notifyQuietEnd: true },
+        select: { notificationsPaused: true, notifyQuietStart: true, notifyQuietEnd: true, privateProfileViews: true },
       }),
     ]);
     const categories = CATEGORY_ORDER.map((cat) => ({
@@ -129,6 +129,7 @@ router.get('/preferences', authenticate, async (req: AuthRequest, res: Response)
         paused: user?.notificationsPaused ?? false,
         quietStart: user?.notifyQuietStart ?? null,
         quietEnd: user?.notifyQuietEnd ?? null,
+        privateProfileViews: user?.privateProfileViews ?? false,
       },
     });
   } catch (error) {
@@ -147,6 +148,7 @@ router.patch('/preferences', authenticate, writeLimiter, async (req: AuthRequest
     if (global && typeof global === 'object') {
       const data: Record<string, unknown> = {};
       if (typeof global.paused === 'boolean') data.notificationsPaused = global.paused;
+      if (typeof global.privateProfileViews === 'boolean') data.privateProfileViews = global.privateProfileViews;
       const validHour = (h: unknown) => h === null || (Number.isInteger(h) && (h as number) >= 0 && (h as number) <= 23);
       if ('quietStart' in global && validHour(global.quietStart)) data.notifyQuietStart = global.quietStart;
       if ('quietEnd' in global && validHour(global.quietEnd)) data.notifyQuietEnd = global.quietEnd;

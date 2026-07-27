@@ -20,6 +20,11 @@ export function shouldNotifyScoutView(viewerRole: string, firstToday: boolean): 
   return firstToday && SCOUT_ROLES.has(viewerRole);
 }
 
+/** Pure: does this viewer leave a trace, or are they browsing privately? */
+export function viewerLeavesTrace(privateProfileViews: boolean | null | undefined): boolean {
+  return !privateProfileViews;
+}
+
 /**
  * Record a profile view (one row per viewer/target/day) and — the first time a
  * scout/coach views a discoverable adult athlete on a given day — fire a
@@ -34,6 +39,12 @@ export function shouldNotifyScoutView(viewerRole: string, firstToday: boolean): 
 export async function recordProfileView(viewer: Viewer, target: Target): Promise<void> {
   try {
     if (!qualifiesForViewTracking(viewer.id, target)) return;
+
+    // Respect the viewer's private-browsing choice — leave no trace at all.
+    const v = await prisma.user.findUnique({
+      where: { id: viewer.id }, select: { privateProfileViews: true },
+    }).catch(() => null);
+    if (!viewerLeavesTrace(v?.privateProfileViews)) return;
 
     const day = new Date().toISOString().slice(0, 10);
     let firstToday = false;

@@ -198,6 +198,9 @@ model User {
   showOnlineStatus       Boolean   @default(true) @map("show_online_status")
   messagingFollowersOnly Boolean   @default(false) @map("messaging_followers_only")
   disableAllComments     Boolean   @default(false) @map("disable_all_comments")
+  // When on, this user browses privately — viewing someone's profile leaves no
+  // trace (no view recorded, no "a scout viewed you" notification). Like LinkedIn.
+  privateProfileViews    Boolean   @default(false) @map("private_profile_views")
   // ── Notification global controls (anti-spam + DPDP) ──
   notificationsPaused    Boolean   @default(false) @map("notifications_paused")   // global "pause all"
   notifyQuietStart       Int?      @map("notify_quiet_start")  // local hour 0-23 (email/push suppressed)
