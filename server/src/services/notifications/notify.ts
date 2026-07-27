@@ -1,6 +1,6 @@
 import prisma from '../../config/db';
 import logger from '../../utils/logger';
-import type { NotificationType } from '@prisma/client';
+import type { NotificationType, DigestFrequency } from '@prisma/client';
 import { CATALOG, type NotifCtx } from './catalog';
 import { resolvePreference } from './preferences';
 import { blockedUserIds } from '../blocks';
@@ -36,6 +36,20 @@ function currentHourIST(): number {
 export function inQuietHours(start: number | null, end: number | null, hour = currentHourIST()): boolean {
   if (start == null || end == null) return false;
   return start <= end ? hour >= start && hour < end : hour >= start || hour < end;
+}
+
+/**
+ * Pure decision: should this notification email be sent right now? (INSTANT only;
+ * suppressed by pref off, pause, quiet hours, explicit suppress, or a collapse
+ * that already emailed — so 12 likes ⇒ 1 email). Digest DAILY/WEEKLY defer to
+ * the cron. Exported for unit tests.
+ */
+export function shouldEmailNow(o: {
+  emailPref: boolean; digest: DigestFrequency; paused: boolean; quiet: boolean;
+  suppressEmail: boolean; created: boolean; alreadyEmailed: boolean; hasEmail: boolean;
+}): boolean {
+  return o.emailPref && o.digest === 'INSTANT' && !o.paused && !o.quiet && !o.suppressEmail
+    && o.created && !o.alreadyEmailed && o.hasEmail;
 }
 
 /** Fan a triggered event out to every enabled channel. Never throws into the caller. */
@@ -98,10 +112,11 @@ async function dispatch(input: NotifyInput): Promise<void> {
   // 6 · EMAIL channel — INSTANT only here; DAILY/WEEKLY handled by the digest job.
   //     Skipped by: email pref off, global pause, quiet hours (deferred to job),
   //     or a collapse that already emailed (so 12 likes ⇒ 1 email).
-  const emailNow =
-    pref.email && pref.digest === 'INSTANT' && !paused && !quiet && !input.suppressEmail &&
-    (created && !alreadyEmailed);
-  if (emailNow && recipient.email) {
+  const emailNow = shouldEmailNow({
+    emailPref: pref.email, digest: pref.digest, paused, quiet,
+    suppressEmail: !!input.suppressEmail, created, alreadyEmailed, hasEmail: !!recipient.email,
+  });
+  if (emailNow) {
     await deliverEmail({ recipient, type: input.type, ctx, link: input.link ?? null, notifId });
   }
 

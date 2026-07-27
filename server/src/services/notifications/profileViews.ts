@@ -7,6 +7,19 @@ const ROLE_LABEL: Record<string, string> = { SCOUT: 'scout', COACH: 'coach', AGE
 export interface Viewer { id: string; role: string }
 export interface Target { id: string; role: string; discoverable?: boolean | null; guardianManaged?: boolean | null }
 
+/** Pure: is this a view we track at all? (adult, discoverable athlete; not self). */
+export function qualifiesForViewTracking(viewerId: string, target: Target): boolean {
+  return viewerId !== target.id
+    && target.role === 'ATHLETE'
+    && target.discoverable !== false
+    && !target.guardianManaged;
+}
+
+/** Pure: should the athlete be notified of this view? (scout/coach, first today). */
+export function shouldNotifyScoutView(viewerRole: string, firstToday: boolean): boolean {
+  return firstToday && SCOUT_ROLES.has(viewerRole);
+}
+
 /**
  * Record a profile view (one row per viewer/target/day) and — the first time a
  * scout/coach views a discoverable adult athlete on a given day — fire a
@@ -20,8 +33,7 @@ export interface Target { id: string; role: string; discoverable?: boolean | nul
  */
 export async function recordProfileView(viewer: Viewer, target: Target): Promise<void> {
   try {
-    if (viewer.id === target.id) return;
-    if (target.role !== 'ATHLETE' || target.discoverable === false || target.guardianManaged) return;
+    if (!qualifiesForViewTracking(viewer.id, target)) return;
 
     const day = new Date().toISOString().slice(0, 10);
     let firstToday = false;
@@ -32,7 +44,7 @@ export async function recordProfileView(viewer: Viewer, target: Target): Promise
       firstToday = false; // unique(viewer,target,day) violation → already counted today
     }
 
-    if (firstToday && SCOUT_ROLES.has(viewer.role)) {
+    if (shouldNotifyScoutView(viewer.role, firstToday)) {
       await notify({
         recipientId: target.id,
         type: 'PROFILE_VIEW',
