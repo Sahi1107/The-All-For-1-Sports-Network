@@ -5,9 +5,6 @@ import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 import { initSentry } from './config/sentry.ts'
 
-// Initialise error monitoring before the app renders (no-op without a DSN).
-initSentry()
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
@@ -15,6 +12,14 @@ createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </StrictMode>,
 )
+
+// Load error monitoring off the critical path (dynamic import, no-op without a
+// DSN). Errors before it loads are buffered by initSentry and flushed on init.
+const idle = (cb: () => void) =>
+  'requestIdleCallback' in window
+    ? (window as unknown as { requestIdleCallback: (c: () => void) => void }).requestIdleCallback(cb)
+    : setTimeout(cb, 1);
+idle(() => { void initSentry() })
 
 // Register the service worker (offline shell + web push) in production only,
 // so dev never caches stale assets.
