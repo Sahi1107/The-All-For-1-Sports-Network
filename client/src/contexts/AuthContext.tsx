@@ -133,6 +133,35 @@ async function authedPost(token: string, path: string, body: unknown) {
   });
 }
 
+// ── Redirect sign-in gating ───────────────────────────────────────────────
+// getRedirectResult() forces Firebase to load its auth iframe + gapi (three
+// cross-origin round-trips) to check for a pending redirect. Firebase's own
+// init only does that when *it* has a pending-redirect marker; calling
+// getRedirectResult unconditionally on every mount loads the iframe on pages
+// that never did a redirect, stalling first paint. We set this flag right
+// before signInWithRedirect and only call getRedirectResult when it's present,
+// so normal loads skip the iframe entirely. Written to both session and local
+// storage so it survives the same-tab round-trip to Google even in restrictive
+// in-app webviews (the only place the redirect fallback fires); if all storage
+// is unavailable, Firebase's redirect flow can't persist state anyway.
+const REDIRECT_PENDING_KEY = 'af1:google-redirect-pending';
+
+function markRedirectPending() {
+  try { sessionStorage.setItem(REDIRECT_PENDING_KEY, '1'); } catch { /* storage disabled */ }
+  try { localStorage.setItem(REDIRECT_PENDING_KEY, '1'); } catch { /* storage disabled */ }
+}
+
+function redirectPending(): boolean {
+  try { if (sessionStorage.getItem(REDIRECT_PENDING_KEY) === '1') return true; } catch { /* storage disabled */ }
+  try { if (localStorage.getItem(REDIRECT_PENDING_KEY) === '1') return true; } catch { /* storage disabled */ }
+  return false;
+}
+
+function clearRedirectPending() {
+  try { sessionStorage.removeItem(REDIRECT_PENDING_KEY); } catch { /* storage disabled */ }
+  try { localStorage.removeItem(REDIRECT_PENDING_KEY); } catch { /* storage disabled */ }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser]             = useState<User | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -180,15 +209,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Complete the redirect-based fallback (popup-blocked path). Success surfaces
   // via onAuthStateChanged below; here we only need to recover a link prompt if
-  // the redirected email collides with an existing password account.
+  // the redirected email collides with an existing password account. Gated on
+  // the redirect-pending flag so normal loads never touch the Firebase auth
+  // iframe (see markRedirectPending / redirectPending above).
   useEffect(() => {
-    getRedirectResult(auth).catch((err: any) => {
-      console.error('[google-auth] getRedirectResult failed:', { code: err?.code, message: err?.message, stack: err?.stack, error: err });
-      if (err?.code === 'auth/account-exists-with-different-credential') {
-        pendingGoogleCred.current = GoogleAuthProvider.credentialFromError(err);
-        setLinkEmail(err?.customData?.email ?? null);
-      }
-    });
+    if (!redirectPending()) return;
+    getRedirectResult(auth)
+      .catch((err: any) => {
+        console.error('[google-auth] getRedirectResult failed:', { code: err?.code, message: err?.message, stack: err?.stack, error: err });
+        if (err?.code === 'auth/account-exists-with-different-credential') {
+          pendingGoogleCred.current = GoogleAuthProvider.credentialFromError(err);
+          setLinkEmail(err?.customData?.email ?? null);
+        }
+      })
+      .finally(clearRedirectPending);
   }, []);
 
   // Persist auth across page reloads — listen to Firebase auth state
@@ -377,8 +411,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Popup blocked (or unsupported context) — fall back to a full-page redirect.
-      // The result is picked up by getRedirectResult / onAuthStateChanged on return.
+      // Mark the redirect so getRedirectResult runs on return (it's skipped on
+      // normal loads); the result is then picked up there / by onAuthStateChanged.
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+        markRedirectPending();
         await signInWithRedirect(auth, googleProvider);
         return { needsOnboarding: false };
       }
