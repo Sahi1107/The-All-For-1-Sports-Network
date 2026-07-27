@@ -122,6 +122,16 @@ body {
   display: none;
 }
 
+/* Subtle fade + slide-up (offline pill, small transient chrome). */
+@keyframes af-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.af-fade-in { animation: af-fade-in 0.22s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .af-fade-in { animation: none; }
+}
+
 /* Sport feed backdrops (Home): the court/field line-art is drawn in white for
    the dark theme. In light mode, recolor the strokes/fills to ink so the
    outlines stay visible against the light page, and lift the group opacity a

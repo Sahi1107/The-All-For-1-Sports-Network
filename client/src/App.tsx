@@ -10,6 +10,7 @@ import BallLoader from './components/BallLoader';
 import AnalyticsManager from './components/AnalyticsManager';
 import ConsentBanner from './components/ConsentBanner';
 import InstallPrompt from './components/InstallPrompt';
+import OfflineIndicator from './components/OfflineIndicator';
 import { getConsent, setConsent, type Consent } from './config/consent';
 import { stopAnalytics, analyticsAvailable } from './config/analytics';
 
@@ -211,6 +212,7 @@ export default function App() {
             <AppRoutes />
             <ConsentGate />
             <InstallPrompt />
+            <OfflineIndicator />
             <Toaster
               position="top-right"
               toastOptions={{
