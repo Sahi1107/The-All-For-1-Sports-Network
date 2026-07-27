@@ -91,6 +91,30 @@ function personLd(a: PublicAthlete, url: string): object {
   };
 }
 
+/** Branded SSR 404 — replaces the bare `<h1>404</h1>`. noindex, no-store. */
+export function renderNotFound(): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page not found | ${SITE_NAME}</title>
+    <meta name="robots" content="noindex, follow" />
+    ${HEAD_STYLES}
+  </head>
+  <body>
+    ${pageHeader()}
+    <main class="af-main" style="text-align:center;padding:72px 20px 96px">
+      <p style="font-family:var(--font-display,inherit);font-weight:800;font-size:96px;line-height:1;margin:0;color:var(--primary);opacity:.16">404</p>
+      <h1 style="font-size:28px;margin:6px 0 0">Page not found</h1>
+      <p class="af-note" style="margin:12px auto 26px;max-width:440px">The page you're looking for doesn't exist or may have moved.</p>
+      <a class="af-btn af-btn--primary af-btn--lg" href="/">Back to ${SITE_NAME}</a>
+    </main>
+    ${footerHtml()}
+  </body>
+</html>`;
+}
+
 export function renderProfile(a: PublicAthlete): string {
   const url = canonicalUrl(a);
   const title = `${a.name}${titleLine(a)} | All For 1`;

@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import MainLayout from './layouts/MainLayout';
+import NotFound from './pages/NotFound';
 import BallLoader from './components/BallLoader';
 import AnalyticsManager from './components/AnalyticsManager';
 import ConsentBanner from './components/ConsentBanner';
@@ -108,12 +109,6 @@ function OnboardingRoute() {
   return <Onboarding />;
 }
 
-function CatchAllRoute() {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  return <Navigate to={user ? '/home' : '/'} replace />;
-}
-
 function AppRoutes() {
   const { suspension, loading } = useAuth();
   // A suspended account is confined to the appeal screen — it can authenticate
@@ -182,8 +177,8 @@ function AppRoutes() {
           <Route path="/admin/stat-tracker/:tournamentId/match/:matchId" element={<TrackerMatchRoute />} />
         </Route>
 
-        {/* Catch-all */}
-        <Route path="*" element={<CatchAllRoute />} />
+        {/* Catch-all → real 404 (adapts to auth state) */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   );

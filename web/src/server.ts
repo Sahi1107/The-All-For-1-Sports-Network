@@ -9,7 +9,7 @@ import {
   fetchAthleteRow, fetchAthletesBySport, fetchEligibleForSitemap, fetchSportsWithCounts,
 } from './db.js';
 import { gateAndSerialize, parseSlugId, kebab, type PublicAthlete } from './publicAthlete.js';
-import { renderProfile } from './render.js';
+import { renderProfile, renderNotFound } from './render.js';
 import { renderSportHub, renderAthletesRoot, renderSitemap } from './renderHub.js';
 import { renderFaq } from './renderFaq.js';
 import { renderAbout, renderSafety, renderCommunityGuidelines } from './renderPages.js';
@@ -42,7 +42,7 @@ function send(res: http.ServerResponse, method: string, status: number, body: st
 
 /** Hard 404 — identical for ineligible AND non-existent; never cached, noindex. */
 function notFound(res: http.ServerResponse, method: string) {
-  send(res, method, 404, '<!doctype html><meta charset="utf-8"><title>Not found</title><h1>404 — Not found</h1>', {
+  send(res, method, 404, renderNotFound(), {
     'Cache-Control': 'no-store',
     'X-Robots-Tag': 'noindex',
   });
