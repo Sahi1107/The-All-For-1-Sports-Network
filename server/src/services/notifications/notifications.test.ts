@@ -4,6 +4,7 @@ import { inQuietHours, shouldEmailNow } from './notify';
 import { effectivePref } from './preferences';
 import { renderCopy } from './catalog';
 import { qualifiesForViewTracking, shouldNotifyScoutView, viewerLeavesTrace } from './profileViews';
+import { statLine } from './competitionNotify';
 
 // ── Quiet hours ──────────────────────────────────────────────────────────────
 test('quiet hours: unset bounds are never quiet', () => {
@@ -85,4 +86,13 @@ test('private browsing leaves no trace (LinkedIn-style)', () => {
   assert.equal(viewerLeavesTrace(true), false);   // private → no record, no notify
   assert.equal(viewerLeavesTrace(false), true);
   assert.equal(viewerLeavesTrace(null), true);     // default (not set) → normal
+});
+
+// ── Match-result stat line (live-tournament copy) ────────────────────────────
+test('statLine formats per sport and omits zeros', () => {
+  assert.equal(statLine('FOOTBALL', { goals: 2, assists: 1 }), '2 goals, 1 assist');
+  assert.equal(statLine('FOOTBALL', { goals: 1, assists: 0 }), '1 goal');
+  assert.equal(statLine('BASKETBALL', { points: 18, rebounds: 5, assists: 0 }), '18 pts, 5 reb');
+  assert.equal(statLine('CRICKET', { runs: 42, wickets: 2 }), '42 runs, 2 wkts');
+  assert.equal(statLine('FOOTBALL', {}), '');
 });

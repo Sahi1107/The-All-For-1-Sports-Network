@@ -15,6 +15,7 @@ import {
   type GroupDef,
 } from '../services/trackerDraw';
 import { derivePlayerStats } from '../services/trackerStats';
+import { fanoutMatchResult, fanoutDrawPublished, fanoutFixturesScheduled, slotLabel } from '../services/notifications/competitionNotify';
 import { writeMatchPlayerStats } from '../services/matchStats';
 import {
   CreateSessionBody,
@@ -191,7 +192,7 @@ router.post(
 
       const tournament = await prisma.tournament.findUnique({
         where: { id: tournamentId },
-        select: { id: true, sport: true },
+        select: { id: true, sport: true, name: true },
       });
       if (!tournament) {
         res.status(404).json({ error: 'Tournament not found' });
@@ -274,6 +275,11 @@ router.post(
       });
 
       res.status(201).json({ session });
+
+      // Fire-and-forget: tell every registered player the draw is out.
+      const drawPlayerIds = roster.flatMap((t) => t.players.map((p) => p.userId)).filter(Boolean);
+      void fanoutDrawPublished({ tournamentId, tournamentName: tournament.name, playerIds: drawPlayerIds })
+        .catch((e) => console.error('draw notify failed', e));
     } catch (err) {
       console.error('Create tracker session error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -365,6 +371,30 @@ router.post(
       );
 
       res.json({ scheduled: eligible.length });
+
+      // Fire-and-forget: tell each player their next match time + court.
+      void (async () => {
+        try {
+          const teamEarliest = new Map<string, Date>();
+          const teamCourt = new Map<string, string>();
+          eligible.forEach((m, i) => {
+            const at = new Date(start + Math.floor(i / courts.length) * slotMs);
+            const court = courts[i % courts.length];
+            for (const tid of [m.homeTeamId, m.awayTeamId]) {
+              if (!tid) continue;
+              if (!teamEarliest.has(tid) || at < teamEarliest.get(tid)!) { teamEarliest.set(tid, at); teamCourt.set(tid, court); }
+            }
+          });
+          const roster = (session.roster as { teamId: string; players?: { userId?: string }[] }[] | null) ?? [];
+          const perUser: { userId: string; next?: string }[] = [];
+          for (const team of roster) {
+            const next = slotLabel(teamEarliest.get(team.teamId) ?? null, teamCourt.get(team.teamId) ?? null);
+            for (const p of team.players ?? []) if (p.userId) perUser.push({ userId: p.userId, next });
+          }
+          const t = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { name: true } });
+          await fanoutFixturesScheduled({ tournamentId, tournamentName: t?.name ?? 'Your tournament', perUser });
+        } catch (e) { console.error('fixtures notify failed', e); }
+      })();
     } catch (err) {
       console.error('Auto-schedule error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -697,6 +727,23 @@ router.post(
       });
 
       res.json({ published: true, matchId: platformMatchId, playerCount: playerStats.length });
+
+      // Fire-and-forget: notify each athlete their result is live, with stat line.
+      void (async () => {
+        try {
+          const teams = await prisma.team.findMany({
+            where: { id: { in: [trackerMatch.homeTeamId!, trackerMatch.awayTeamId!] } },
+            select: { id: true, name: true },
+          });
+          const nameOf = (id: string) => teams.find((t) => t.id === id)?.name ?? 'Team';
+          await fanoutMatchResult({
+            tournamentId, sport,
+            homeName: nameOf(trackerMatch.homeTeamId!), awayName: nameOf(trackerMatch.awayTeamId!),
+            homeScore: trackerMatch.homeScore, awayScore: trackerMatch.awayScore,
+            playerStats: playerStats as { userId: string; stats?: Record<string, number> }[],
+          });
+        } catch (e) { console.error('match-result notify failed', e); }
+      })();
     } catch (err) {
       console.error('Publish tracker match error:', err);
       res.status(500).json({ error: 'Internal server error' });
