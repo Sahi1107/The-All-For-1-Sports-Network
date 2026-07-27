@@ -1,8 +1,8 @@
 import BallLoader from '../components/BallLoader';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, MapPin, Clock, X, Search } from 'lucide-react';
+import { Eye, MapPin, Clock, X } from 'lucide-react';
 import api from '../api/client';
 import { useEffect, useRef, useState } from 'react';
 import ImageCarousel from '../components/ImageCarousel';
@@ -11,6 +11,7 @@ import PostDetailModal from '../components/PostDetailModal';
 import { SPORTS } from '../data/sports';
 import { SPORT_BACKDROP } from '../components/SportBackdrop';
 import { NameLine, PostMeta, PerformanceCard } from '../components/feed/FeedBits';
+import SearchTypeahead from '../components/SearchTypeahead';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -47,18 +48,10 @@ function matchesFilter(item: any, filter: FilterValue) {
 
 export default function Home() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [openPost, setOpenPost] = useState<any | null>(null);
   const [filter, setFilter] = useState<FilterValue>('all');
-  const [searchText, setSearchText] = useState('');
-
-  const submitSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = searchText.trim();
-    navigate(q ? `/explore?search=${encodeURIComponent(q)}` : '/explore');
-  };
 
   const {
     data,
@@ -131,17 +124,7 @@ export default function Home() {
             <h1 className="font-display font-extrabold text-3xl md:text-4xl tracking-tight">Home</h1>
             <p className="text-gray-custom text-sm mt-1.5">Latest from the athletes and coaches you follow</p>
           </div>
-          <form onSubmit={submitSearch} className="lg:w-72 shrink-0">
-            <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-ink/5 border border-ink/10 focus-within:border-primary/50 transition-colors">
-              <Search size={16} className="text-gray-custom shrink-0" />
-              <input
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                placeholder="Search athletes, teams..."
-                className="flex-1 min-w-0 bg-transparent text-sm text-foreground placeholder-gray-custom focus:outline-none"
-              />
-            </div>
-          </form>
+          <SearchTypeahead className="lg:w-72 shrink-0" />
         </div>
 
         {/* ── Filter chips ────────────────────────────────────── */}
