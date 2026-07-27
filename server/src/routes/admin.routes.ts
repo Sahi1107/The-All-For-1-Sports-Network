@@ -13,6 +13,8 @@ import {
   AdminCreateTeamBody, AdminTeamParams, AdminTeamMemberParams,
   AdminAddMemberBody, AdminTeamListQuery, AdminComposeTeamBody,
 } from '../validation/admin';
+import { AdminSuspendBody, AdminAppealResolveBody, AdminAppealListQuery } from '../validation/appeal';
+import { grantEffect, isResolution } from '../services/account/appeals';
 import { deleteUserCompletely } from '../services/userDeletion';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 import { getIO } from '../config/socket';
@@ -756,12 +758,109 @@ router.delete('/reports/:id/content', async (req: AuthRequest, res: Response) =>
       data: { status: 'ACTIONED' },
     });
 
+    // Record the removal so the affected user can SEE it happened and appeal —
+    // otherwise a hard delete leaves them nothing to contest.
+    if (removed) {
+      await prisma.moderationAction.create({
+        data: {
+          userId: report.reportedUserId,
+          actorId: req.user!.userId,
+          type: 'CONTENT_REMOVED',
+          targetType,
+          targetId,
+          reason: report.reason,
+          detail: `Your ${targetType.toLowerCase()} was removed for violating the community guidelines.`,
+        },
+      });
+    }
+
     logger.info('admin.content_removed', {
       actorId: req.user!.userId, reportId: report.id, targetType, targetId, removed,
     });
     res.json({ removed, message: removed ? 'Content removed' : 'Content was already removed' });
   } catch (error) {
     console.error('Admin remove content error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Trust & Safety: suspend / unsuspend a user ──────────────────────────────
+router.patch('/users/:id/suspend', writeLimiter, validate({ body: AdminSuspendBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const targetId = req.params.id as string;
+    const { suspend, reason } = req.body as { suspend: boolean; reason?: string };
+    if (targetId === req.user!.userId) { res.status(400).json({ error: 'You cannot suspend your own account' }); return; }
+    const target = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true, role: true, firebaseUid: true } });
+    if (!target) { res.status(404).json({ error: 'User not found' }); return; }
+    if (target.role === 'ADMIN') { res.status(400).json({ error: 'Cannot suspend an admin account' }); return; }
+
+    if (suspend) {
+      // Suspend + kill sessions so it takes effect immediately.
+      await prisma.user.update({
+        where: { id: targetId },
+        data: { suspended: true, suspendedAt: new Date(), suspensionReason: reason ?? null, sessionsRevokedAt: new Date() },
+      });
+      if (target.firebaseUid) { try { await admin.auth().revokeRefreshTokens(target.firebaseUid); } catch { /* best effort */ } }
+      await prisma.moderationAction.create({
+        data: { userId: targetId, actorId: req.user!.userId, type: 'SUSPEND', reason: reason ?? null, detail: reason ?? 'Your account was suspended for violating the community guidelines.' },
+      });
+    } else {
+      await prisma.user.update({ where: { id: targetId }, data: { suspended: false, suspendedAt: null, suspensionReason: null } });
+      await prisma.moderationAction.create({ data: { userId: targetId, actorId: req.user!.userId, type: 'UNSUSPEND' } });
+    }
+    logger.info('admin.user_suspension', { actorId: req.user!.userId, targetId, suspend });
+    res.json({ suspended: suspend });
+  } catch (error) {
+    console.error('Admin suspend error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Trust & Safety: appeals review ──────────────────────────────────────────
+router.get('/appeals', validate({ query: AdminAppealListQuery }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { status } = req.query as { status?: string };
+    const page = parseInt((req.query.page as string) ?? '1');
+    const limit = parseInt((req.query.limit as string) ?? '20');
+    const where = status ? { status: status as any } : {};
+    const [appeals, total] = await Promise.all([
+      prisma.appeal.findMany({
+        where,
+        include: { user: { select: { id: true, name: true, email: true, avatar: true, suspended: true } }, action: true },
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.appeal.count({ where }),
+    ]);
+    res.json({ appeals, total, page, totalPages: Math.ceil(total / limit) });
+  } catch (error) {
+    console.error('Admin appeals list error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.patch('/appeals/:id', writeLimiter, validate({ body: AdminAppealResolveBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { status, reviewNote } = req.body as { status: 'REVIEWING' | 'GRANTED' | 'DENIED'; reviewNote?: string };
+    const appeal = await prisma.appeal.findUnique({ where: { id: req.params.id as string } });
+    if (!appeal) { res.status(404).json({ error: 'Appeal not found' }); return; }
+
+    const resolving = isResolution(status);
+    const updated = await prisma.appeal.update({
+      where: { id: appeal.id },
+      data: { status, reviewNote: reviewNote ?? null, reviewedById: req.user!.userId, resolvedAt: resolving ? new Date() : null },
+    });
+
+    // Granting a suspension appeal lifts the suspension (content removals can't be undone).
+    if (status === 'GRANTED' && grantEffect(appeal.kind).unsuspend) {
+      await prisma.user.update({ where: { id: appeal.userId }, data: { suspended: false, suspendedAt: null, suspensionReason: null } });
+      await prisma.moderationAction.create({ data: { userId: appeal.userId, actorId: req.user!.userId, type: 'UNSUSPEND', detail: 'Your suspension was lifted after review.' } });
+    }
+    logger.info('admin.appeal_resolved', { actorId: req.user!.userId, appealId: appeal.id, status });
+    res.json({ appeal: updated });
+  } catch (error) {
+    console.error('Admin resolve appeal error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -218,6 +218,24 @@ model User {
   referralCode           String?   @unique @map("referral_code") // personal reusable invite link
   referredById           String?   @map("referred_by_id")        // who invited this user (attribution)
   lastActiveAt           DateTime? @map("last_active_at")
+  // Email the user is switching to. Set when they start a change; the Firebase
+  // email only flips once they click the verification link, so `email` (below)
+  // is reconciled to the token's verified email on the next /auth/me. UI shows
+  // this as a "pending change" until then.
+  pendingEmail           String?   @map("pending_email")
+  // "Sign out of all devices": set when the user revokes sessions. The auth
+  // middleware rejects any ID token whose auth_time predates this instant, so
+  // revocation is immediate. Firebase refresh tokens are revoked at the same
+  // time so no new tokens can be minted for the old sessions either.
+  sessionsRevokedAt      DateTime? @map("sessions_revoked_at")
+  // ── Account suspension (Trust & Safety) ──
+  // App-level (we do NOT disable the Firebase account): a suspended user can
+  // still authenticate, but the auth middleware blocks every route except the
+  // appeal endpoints, so they land on /suspended and can contest it. On suspend
+  // we also revoke sessions to end any active ones.
+  suspended              Boolean   @default(false)
+  suspendedAt            DateTime? @map("suspended_at")
+  suspensionReason       String?   @map("suspension_reason")
 
   // Whether this profile is publicly discoverable (search, Scout Copilot,
   // rankings) and viewable by non-self. Under-13 accounts default to false;
@@ -282,6 +300,9 @@ model User {
   reportsAgainst          Report[]             @relation("Reported")
   endorsementsGiven       Endorsement[]        @relation("EndorsementCoach")
   endorsementsReceived    Endorsement[]        @relation("EndorsementAthlete")
+  appeals                 Appeal[]             @relation("AppealUser")
+  appealsReviewed         Appeal[]             @relation("AppealReviewer")
+  moderationActions       ModerationAction[]   @relation("ModeratedUser")
 
   @@index([role])
   @@index([sport])
@@ -968,6 +989,69 @@ model Report {
   @@index([reportedUserId])
   @@index([status])
   @@index([targetType, targetId])
+}
+
+// ─── Trust & Safety: Moderation actions + Appeals ────────
+// A ModerationAction is the durable record of what a moderator did to a user
+// (suspended them, removed a post). It's what a user "sees" when contesting a
+// decision, and what an Appeal points at. Content removals are otherwise a hard
+// delete, so without this the user would have nothing to appeal against.
+enum ModerationActionType {
+  SUSPEND
+  UNSUSPEND
+  CONTENT_REMOVED
+}
+
+model ModerationAction {
+  id         String               @id @default(uuid())
+  userId     String               // the affected user
+  actorId    String?              // the admin who acted (null if system)
+  type       ModerationActionType
+  targetType String?              // for CONTENT_REMOVED: POST / COMMENT / MESSAGE
+  targetId   String?
+  reason     String?              // moderator-facing reason / guideline cited
+  detail     String?              // short snapshot the user sees ("your post: …")
+  createdAt  DateTime             @default(now())
+
+  user    User     @relation("ModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
+  appeals Appeal[] @relation("AppealAction")
+
+  @@index([userId])
+  @@index([type])
+}
+
+enum AppealKind {
+  ACCOUNT_SUSPENSION
+  CONTENT_REMOVAL
+}
+
+enum AppealStatus {
+  PENDING     // submitted, not yet looked at
+  REVIEWING   // an admin is on it
+  GRANTED     // appeal upheld — action reversed
+  DENIED      // appeal rejected — action stands
+}
+
+model Appeal {
+  id            String       @id @default(uuid())
+  userId        String
+  kind          AppealKind
+  actionId      String?      // the ModerationAction being contested (if recorded)
+  subjectLabel  String?      // snapshot of what's being appealed (reason / content)
+  message       String       // the user's own appeal text
+  status        AppealStatus @default(PENDING)
+  reviewNote    String?      // admin's note on resolution
+  reviewedById  String?
+  createdAt     DateTime     @default(now())
+  resolvedAt    DateTime?
+
+  user     User              @relation("AppealUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User?             @relation("AppealReviewer", fields: [reviewedById], references: [id])
+  action   ModerationAction? @relation("AppealAction", fields: [actionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([kind, status])
 }
 
 // Auth tokens (refresh, email-verification, password-reset) are managed by

@@ -76,3 +76,9 @@ export const HandoverCompleteBody = z.object({
   // The athlete's own new email. Password is changed client-side via Firebase.
   newEmail: email,
 });
+
+// ─── Email change (normal users) ────────────────────────────────────────────────
+
+export const EmailChangeBody = z.object({
+  newEmail: email,
+});

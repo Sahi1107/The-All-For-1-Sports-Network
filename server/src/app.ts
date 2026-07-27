@@ -29,6 +29,7 @@ import pushRoutes         from './routes/push.routes';
 import ogRoutes           from './routes/og.routes';
 import shareRoutes        from './routes/share.routes';
 import searchRoutes       from './routes/search.routes';
+import appealRoutes       from './routes/appeal.routes';
 
 const app = express();
 
@@ -78,6 +79,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth',          authRoutes);
 app.use('/api/users',         userRoutes);
 app.use('/api/search',        searchRoutes);
+app.use('/api/appeals',       appealRoutes);
 app.use('/api/connections',   connectionRoutes);
 app.use('/api/highlights',    highlightRoutes);
 app.use('/api/posts',         postRoutes);

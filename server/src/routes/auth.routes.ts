@@ -5,7 +5,8 @@ import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum, GenderEnum } from '../validation/common';
-import { HandoverConsentBody, HandoverCompleteBody } from '../validation/auth';
+import { HandoverConsentBody, HandoverCompleteBody, EmailChangeBody } from '../validation/auth';
+import { reconcileEmail } from '../services/account/emailChange';
 import { generateSecureToken, hashToken } from '../utils/crypto';
 import { sendGuardianConsentEmail, sendAthleteWelcome } from '../services/email';
 import { generateTempPassword } from '../services/provisionAthlete';
@@ -279,6 +280,7 @@ const meSelect = {
   dateOfBirth: true, guardianManaged: true, handoverStatus: true,
   discoverable: true,
   mustResetPassword: true,
+  pendingEmail: true,
 };
 
 /** A profile is "complete" when these essential fields are all filled in. */
@@ -316,6 +318,30 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
       res.status(404).json({ error: 'User not found' });
       return;
     }
+
+    // Reconcile a completed email change: once the user clicks Firebase's
+    // verify-before-update link, the token's email flips to the new (verified)
+    // address. Adopt it into our DB (identity provider is source of truth) and
+    // clear the pending marker — guarding against colliding with another row.
+    const rec = reconcileEmail({ tokenEmail: req.user!.email, emailVerified: req.user!.emailVerified, dbEmail: user.email });
+    if (rec.update) {
+      const clash = await prisma.user.findUnique({ where: { email: rec.email }, select: { id: true } });
+      if (clash && clash.id !== user.id) {
+        logger.warn('auth.me.email_reconcile_conflict', { userId: user.id, tokenEmail: rec.email });
+      } else {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { email: rec.email, pendingEmail: null },
+          select: meSelect,
+        });
+        logger.info('auth.me.email_reconciled', { userId: user.id });
+      }
+    } else if (user.pendingEmail && req.user!.emailVerified && req.user!.email.toLowerCase() === user.email.toLowerCase()) {
+      // Token already matches the stored email but a stale pending marker remains
+      // (e.g. reconciled on another device) — clear it so the UI stops nagging.
+      user = await prisma.user.update({ where: { id: user.id }, data: { pendingEmail: null }, select: meSelect });
+    }
+
     // Recalculate verified status on every /me call
     const updated = await recalcVerified(req.user!.userId, req.user!.emailVerified);
     if (updated) user = updated;
@@ -324,6 +350,70 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     res.json({ user });
   } catch (error) {
     logger.error('Me error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/email/request-change ─────────────────────────────────────
+//
+// Normal-user email change. Re-auth + the actual verifyBeforeUpdateEmail happen
+// client-side (Firebase sends the confirm link to the new address). This just
+// enforces uniqueness against our DB *and* Firebase, then records the pending
+// address so the UI can show it. The DB `email` is only switched later, on the
+// next /auth/me after the user confirms (see reconcileEmail above).
+router.post('/email/request-change', authenticate, validate({ body: EmailChangeBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const newEmail = (req.body.newEmail as string).toLowerCase();
+    const me = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { id: true, email: true } });
+    if (!me) { res.status(404).json({ error: 'User not found' }); return; }
+    if (newEmail === me.email.toLowerCase()) { res.status(400).json({ error: "That's already your email" }); return; }
+
+    // Taken by another of our users?
+    const dbClash = await prisma.user.findUnique({ where: { email: newEmail }, select: { id: true } });
+    if (dbClash && dbClash.id !== me.id) { res.status(409).json({ error: 'That email is already in use' }); return; }
+    // Taken by a Firebase account we don't have a row for? (belt and suspenders)
+    try {
+      const fbUser = await admin.auth().getUserByEmail(newEmail);
+      if (fbUser && fbUser.uid) { res.status(409).json({ error: 'That email is already in use' }); return; }
+    } catch { /* auth/user-not-found → the address is free */ }
+
+    const user = await prisma.user.update({ where: { id: me.id }, data: { pendingEmail: newEmail }, select: meSelect });
+    logger.info('auth.email.change_requested', { userId: me.id });
+    res.json({ user });
+  } catch (error) {
+    logger.error('email.request-change error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/email/cancel-change ──────────────────────────────────────
+router.post('/email/cancel-change', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await prisma.user.update({ where: { id: req.user!.userId }, data: { pendingEmail: null }, select: meSelect });
+    res.json({ user });
+  } catch (error) {
+    logger.error('email.cancel-change error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/revoke-sessions ──────────────────────────────────────────
+//
+// "Sign out of all devices." Revokes Firebase refresh tokens (no new ID tokens
+// can be minted for old sessions) AND stamps sessionsRevokedAt so existing ID
+// tokens — including this device's — are rejected immediately by the auth
+// middleware. The client then signs out locally and returns to login, so the
+// device you triggered it from is handled gracefully.
+router.post('/revoke-sessions', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const me = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { id: true, firebaseUid: true } });
+    if (!me) { res.status(404).json({ error: 'User not found' }); return; }
+    if (me.firebaseUid) await admin.auth().revokeRefreshTokens(me.firebaseUid);
+    await prisma.user.update({ where: { id: me.id }, data: { sessionsRevokedAt: new Date() } });
+    logger.info('auth.sessions_revoked', { userId: me.id });
+    res.json({ ok: true });
+  } catch (error) {
+    logger.error('revoke-sessions error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
