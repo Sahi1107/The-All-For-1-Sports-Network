@@ -36,6 +36,9 @@ export default function Landing() {
   const [navBlue, setNavBlue] = useState(false);
   const [expandedCreator, setExpandedCreator] = useState<Creator | null>(null);
   const [wipeActive, setWipeActive] = useState(true);
+  // Defer the 1.8MB background video until the About section is near view — the
+  // poster (40KB WebP) shows until then, so nothing loads on first paint.
+  const [videoSrc, setVideoSrc] = useState('');
 
   useEffect(() => {
     const t = setTimeout(() => setWipeActive(false), 1200);
@@ -100,6 +103,19 @@ export default function Landing() {
     observer.observe(infoHubRef.current);
     return () => observer.disconnect();
   }, []);
+
+  // Lazy-load the About video only when its section is ~one screen away. Falls
+  // back to loading immediately where IntersectionObserver isn't available.
+  useEffect(() => {
+    if (videoSrc) return;
+    if (!aboutRef.current || !('IntersectionObserver' in window)) { setVideoSrc('/about.mp4'); return; }
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVideoSrc('/about.mp4'); observer.disconnect(); } },
+      { rootMargin: '600px 0px' },
+    );
+    observer.observe(aboutRef.current);
+    return () => observer.disconnect();
+  }, [videoSrc]);
 
   useEffect(() => {
     if (!teamRef.current || !('IntersectionObserver' in window)) return;
@@ -212,13 +228,13 @@ export default function Landing() {
 
       <section id="about" className="about-section" ref={aboutRef}>
         <video
-          src="/about.mp4"
+          src={videoSrc || undefined}
           className="about-video"
           autoPlay
           loop
           muted
           playsInline
-          preload="metadata"
+          preload="none"
           poster="/landing/landing-bg.webp"
           aria-hidden
         />
