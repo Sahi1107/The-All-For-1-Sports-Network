@@ -1,7 +1,9 @@
 /* All For 1 service worker — offline app shell + web push.
    Bump CACHE on shipping changes to this file to roll the cache. */
 const CACHE = 'af1-shell-v1';
-const CORE = ['/', '/index.html', '/offline.html', '/manifest.json', '/icons/icon-192.png', '/favicon.svg'];
+// Clean URLs: /index.html → /, /offline.html → /offline. Precache the served
+// paths, or cache.addAll rejects on the redirect and the SW never installs.
+const CORE = ['/', '/offline', '/manifest.json', '/icons/icon-192.png', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -27,7 +29,7 @@ self.addEventListener('fetch', (event) => {
 
   // Navigations: network-first (always fresh online) → cached shell → offline page.
   if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(() => caches.match('/index.html').then((r) => r || caches.match('/offline.html'))));
+    event.respondWith(fetch(req).catch(() => caches.match('/').then((r) => r || caches.match('/offline'))));
     return;
   }
 
