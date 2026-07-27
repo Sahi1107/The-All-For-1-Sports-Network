@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import prisma from '../config/db';
 import { renderCard } from '../services/og/render';
 import { athleteCard, tournamentCard, teamCard, fallbackCard } from '../services/og/cards';
+import { athleteCardEligible, stateOnly } from '../services/og/eligibility';
 import { browseLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
@@ -24,12 +25,6 @@ async function sendFallback(res: Response): Promise<void> {
 
 const initialOf = (name?: string | null) => (name?.trim()?.[0] ?? '·').toUpperCase();
 const titleCase = (s?: string | null) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : '');
-/** "City, State, Country" → State only (never city — privacy). */
-const stateOf = (location?: string | null) => {
-  if (!location) return null;
-  const parts = location.split(',').map((p) => p.trim()).filter(Boolean);
-  return parts.length >= 3 ? parts[parts.length - 2] : parts.length === 2 ? parts[0] : parts[0] ?? null;
-};
 
 function fmtDates(start: Date, end: Date): string {
   const M = { timeZone: 'Asia/Kolkata', month: 'short' as const };
@@ -47,10 +42,8 @@ router.get('/athlete/:id.png', browseLimiter, async (req: Request, res: Response
       where: { id: (req.params.id as string).replace(/\.png$/, '') },
       select: { name: true, sport: true, position: true, location: true, verified: true, age: true, role: true, discoverable: true, guardianManaged: true },
     });
-    // Same eligibility gate as the public SSR pages: discoverable, not guardian-
-    // managed (under-13), and — belt-and-suspenders — 13+. Never a public card otherwise.
-    const eligible = user && user.role === 'ATHLETE' && user.discoverable && !user.guardianManaged && (user.age == null || user.age >= 13);
-    if (!eligible) { await sendFallback(res); return; }
+    // Same eligibility gate as the public SSR pages. Never a public card otherwise.
+    if (!athleteCardEligible(user)) { await sendFallback(res); return; }
 
     // Key career totals (no photo — minor-safety; monogram instead).
     let stats: { value: string; label: string }[] = [];
@@ -66,7 +59,7 @@ router.get('/athlete/:id.png', browseLimiter, async (req: Request, res: Response
 
     await sendCard(res, athleteCard({
       name: user!.name, initial: initialOf(user!.name),
-      sport: titleCase(user!.sport), position: user!.position, state: stateOf(user!.location),
+      sport: titleCase(user!.sport), position: user!.position, state: stateOnly(user!.location),
       verified: user!.verified, stats,
     }));
   } catch (e) { console.error('og.athlete', e); await sendFallback(res); }

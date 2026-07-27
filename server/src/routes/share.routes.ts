@@ -1,15 +1,11 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../config/db';
+import { athleteCardEligible, stateOnly } from '../services/og/eligibility';
 
 const router = Router();
 const BASE = 'https://allfor1.pro';
 
 const titleCase = (s?: string | null) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : '');
-const stateOf = (location?: string | null) => {
-  if (!location) return null;
-  const p = location.split(',').map((x) => x.trim()).filter(Boolean);
-  return p.length >= 3 ? p[p.length - 2] : p[0] ?? null;
-};
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 const slugify = (name: string, id: string) =>
   `${name.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${id.replace(/-/g, '').slice(0, 12)}`;
@@ -23,9 +19,8 @@ async function resolveMeta(type: string, id: string): Promise<Meta> {
     const u = await prisma.user.findUnique({
       where: { id }, select: { name: true, sport: true, position: true, location: true, verified: true, role: true, discoverable: true, guardianManaged: true, age: true },
     });
-    const eligible = u && u.role === 'ATHLETE' && u.discoverable && !u.guardianManaged && (u.age == null || u.age >= 13);
-    if (!eligible) return fallback; // never leak an ineligible/minor profile's data
-    const bits = [titleCase(u!.sport), u!.position, stateOf(u!.location)].filter(Boolean).join(' · ');
+    if (!athleteCardEligible(u)) return fallback; // never leak an ineligible/minor profile's data
+    const bits = [titleCase(u!.sport), u!.position, stateOnly(u!.location)].filter(Boolean).join(' · ');
     return {
       title: `${u!.name}${u!.verified ? ' ✓' : ''} · ${titleCase(u!.sport)} | All For 1`,
       desc: `${u!.name} — ${bits}. See their profile, stats and highlights on All For 1.`,
