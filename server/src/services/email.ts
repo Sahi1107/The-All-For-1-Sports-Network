@@ -427,3 +427,46 @@ export async function sendNotificationEmail(o: NotificationEmailOptions): Promis
     headers: { 'List-Unsubscribe': `<${o.unsubscribeAllUrl}>` },
   });
 }
+
+export interface DigestItem { title: string; body: string; url: string }
+
+/** A batched digest email (daily/weekly) — one email listing several items. */
+export async function sendDigestEmail(o: {
+  to: string; subject: string; heading: string; intro: string;
+  items: DigestItem[]; ctaUrl: string; unsubscribeAllUrl: string; managed: string;
+}): Promise<void> {
+  const H = escapeHtml;
+  const font = "'Archivo','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+  const rows = o.items.map((it) => `
+    <tr><td style="padding:12px 0;border-bottom:1px solid #1c1c1c;">
+      <a href="${H(it.url)}" style="font-family:${font};font-weight:600;font-size:14px;color:#ffffff;">${H(it.title)}</a>
+      <div style="font-family:${font};font-size:13px;color:#c9c9c9;margin-top:2px;">${H(it.body)}</div>
+    </td></tr>`).join('');
+
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<meta name="color-scheme" content="dark"><style>@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500&display=swap');body{margin:0;background:#080808;}a{text-decoration:none;}</style></head>
+<body style="margin:0;background:#080808;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${H(o.intro)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#080808;padding:32px 16px;"><tr><td align="center">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+      <tr><td style="padding:0 4px 20px;"><span style="font-family:${font};font-weight:700;font-size:15px;letter-spacing:3px;color:#dbff5a;">ALL FOR 1</span></td></tr>
+      <tr><td style="background:#111111;border:1px solid #1c1c1c;border-radius:16px;padding:32px;">
+        <h1 style="margin:0 0 6px;font-family:${font};font-weight:700;font-size:22px;color:#ffffff;">${H(o.heading)}</h1>
+        <p style="margin:0 0 8px;font-family:${font};font-size:14px;color:#c9c9c9;">${H(o.intro)}</p>
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:24px;"><tr><td style="border-radius:10px;background:#dbff5a;">
+          <a href="${H(o.ctaUrl)}" style="display:inline-block;padding:13px 26px;font-family:${font};font-weight:600;font-size:14px;color:#080808;border-radius:10px;">Open All For 1 →</a>
+        </td></tr></table>
+      </td></tr>
+      <tr><td style="padding:20px 4px 0;">
+        <p style="margin:0;font-family:${font};font-size:12px;color:#6b6b6b;">${H(o.managed)} · <a href="${H(managePrefsUrl)}" style="color:#8a8a8a;text-decoration:underline;">Manage</a> · <a href="${H(o.unsubscribeAllUrl)}" style="color:#8a8a8a;text-decoration:underline;">Unsubscribe from all</a></p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+
+  const text = `${o.heading}\n${o.intro}\n\n` + o.items.map((it) => `• ${it.title} — ${it.body}\n  ${it.url}`).join('\n') +
+    `\n\nManage: ${managePrefsUrl}\nUnsubscribe from all: ${o.unsubscribeAllUrl}`;
+
+  await sendMail({ to: o.to, subject: o.subject, html, text, headers: { 'List-Unsubscribe': `<${o.unsubscribeAllUrl}>` } });
+}

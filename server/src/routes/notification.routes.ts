@@ -4,6 +4,8 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { CATALOG, preferenceMeta, CATEGORY_ORDER, CATEGORY_LABELS } from '../services/notifications/catalog';
 import { resolveAllPreferences, defaultPref } from '../services/notifications/preferences';
+import { runDigestTask, type DigestTask } from '../services/notifications/digest';
+import { env } from '../config/env';
 import type { NotificationType } from '@prisma/client';
 
 const router = Router();
@@ -212,6 +214,27 @@ router.post('/unsubscribe', async (req: Request, res: Response) => {
     res.json({ scope: 'all' });
   } catch (error) {
     console.error('Unsubscribe error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/notifications/cron/digest?task=instant|daily|weekly — run a digest
+// batch. Called by Cloud Scheduler with the shared secret header. No user auth.
+router.post('/cron/digest', async (req: Request, res: Response) => {
+  if (!env.CRON_SECRET || req.get('x-cron-secret') !== env.CRON_SECRET) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+  const task = String(req.query.task ?? 'instant');
+  if (!['instant', 'daily', 'weekly'].includes(task)) {
+    res.status(400).json({ error: 'task must be instant | daily | weekly' });
+    return;
+  }
+  try {
+    const result = await runDigestTask(task as DigestTask);
+    res.json(result);
+  } catch (error) {
+    console.error('Digest cron error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

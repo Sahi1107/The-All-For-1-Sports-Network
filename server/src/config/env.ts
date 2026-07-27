@@ -74,6 +74,10 @@ export const env = {
   SENTRY_DSN: process.env.SENTRY_DSN || '',
   SENTRY_TRACES_SAMPLE_RATE: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '0.1'),
 
+  // Shared secret Cloud Scheduler sends (header x-cron-secret) to run digest jobs.
+  // When unset, the cron endpoint is disabled (returns 403).
+  CRON_SECRET: process.env.CRON_SECRET || '',
+
   // ─── Logging ─────────────────────────────────────────────────
   // Accepted values: error | warn | info | http | verbose | debug
   LOG_LEVEL: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
