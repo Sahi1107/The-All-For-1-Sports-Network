@@ -75,6 +75,26 @@ function PageSpinner() {
   return <BallLoader fullScreen />;
 }
 
+/** Synchronous, network-free hint for whether a Firebase session is persisted
+ *  locally. Firebase stores the signed-in user under a `firebase:authUser:*`
+ *  key. Anonymous visitors have no such key, so we can paint public pages for
+ *  them immediately instead of blocking first paint on Firebase Auth's network
+ *  bootstrap (the getProjectConfig round-trip). Returners keep the clean
+ *  redirect. Fails safe to `true` if storage is unavailable. */
+function hasPersistedSession(): boolean {
+  try {
+    for (const store of [localStorage, sessionStorage]) {
+      for (let i = 0; i < store.length; i++) {
+        const k = store.key(i);
+        if (k && k.startsWith('firebase:authUser:')) return true;
+      }
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -100,9 +120,13 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
  *  bounce them straight into the app. */
 function LandingRoute({ children }: { children: React.ReactNode }) {
   const { user, loading, needsOnboarding } = useAuth();
-  if (loading) return null;
-  if (user) return <Navigate to="/home" replace />;
-  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
+  // Returners (persisted session) wait for auth to resolve so we can redirect
+  // them into the app without a marketing-page flash. Anonymous visitors — who
+  // have no persisted session and need no auth to view Landing — get the page
+  // painted immediately instead of waiting on Firebase Auth's network bootstrap.
+  if (loading && hasPersistedSession()) return null;
+  if (!loading && user) return <Navigate to="/home" replace />;
+  if (!loading && needsOnboarding) return <Navigate to="/onboarding" replace />;
   return <>{children}</>;
 }
 
