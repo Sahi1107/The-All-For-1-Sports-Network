@@ -63,21 +63,28 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
     });
     const myConnIds = myConnRows.map((r) => (r.senderId === meId ? r.receiverId : r.senderId));
 
+    // Mutual-connection counts in ONE query instead of N (was a count() per
+    // result user — up to 20 round-trips). Fetch every accepted edge between a
+    // result user and one of my connections, then tally per result user in JS.
     if (myConnIds.length > 0 && users.length > 0) {
-      const counts = await Promise.all(
-        users.map((u) =>
-          prisma.connection.count({
-            where: {
-              status: 'ACCEPTED',
-              OR: [
-                { senderId: u.id, receiverId: { in: myConnIds } },
-                { receiverId: u.id, senderId: { in: myConnIds } },
-              ],
-            },
-          }),
-        ),
-      );
-      users.forEach((u, i) => { (u as any).mutualCount = counts[i]; });
+      const userIds = users.map((u) => u.id);
+      const userIdSet = new Set(userIds);
+      const edges = await prisma.connection.findMany({
+        where: {
+          status: 'ACCEPTED',
+          OR: [
+            { senderId: { in: userIds }, receiverId: { in: myConnIds } },
+            { receiverId: { in: userIds }, senderId: { in: myConnIds } },
+          ],
+        },
+        select: { senderId: true, receiverId: true },
+      });
+      const tally = new Map<string, number>();
+      for (const e of edges) {
+        const uId = userIdSet.has(e.senderId) ? e.senderId : e.receiverId;
+        tally.set(uId, (tally.get(uId) ?? 0) + 1);
+      }
+      users.forEach((u) => { (u as any).mutualCount = tally.get(u.id) ?? 0; });
     } else {
       users.forEach((u) => { (u as any).mutualCount = 0; });
     }

@@ -281,6 +281,11 @@ const meSelect = {
   discoverable: true,
   mustResetPassword: true,
   pendingEmail: true,
+  // Notification/privacy toggles — surfaced here so Settings doesn't need a
+  // second (heavier) /users/:id round-trip just to read them.
+  messageNotifications: true,
+  showOnlineStatus: true,
+  disableAllComments: true,
 };
 
 /** A profile is "complete" when these essential fields are all filled in. */

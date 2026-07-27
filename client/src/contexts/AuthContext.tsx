@@ -47,6 +47,9 @@ interface User {
   mustResetPassword?: boolean;
   pendingEmail?: string | null;
   createdAt?: string;
+  messageNotifications?: boolean;
+  showOnlineStatus?: boolean;
+  disableAllComments?: boolean;
 }
 
 interface RegisterData {

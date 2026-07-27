@@ -91,19 +91,18 @@ export default function Settings() {
   const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
 
   useEffect(() => {
-    if (!user?.id) return;
-    api.get(`/users/${user.id}`).then(({ data }) => {
-      const u = data?.user;
-      if (!u) return;
-      if (typeof u.messageNotifications === 'boolean') setMsgNotifs(u.messageNotifications);
-      if (typeof u.showOnlineStatus === 'boolean') setOnlineStatus(u.showOnlineStatus);
-      if (typeof u.disableAllComments === 'boolean') setDisableComments(u.disableAllComments);
-      if (typeof u.phoneVerified === 'boolean') setPhoneVerified(u.phoneVerified);
-      if (u.phone) setCurrentPhone(u.phone);
-      setProfileData(u);
-    }).catch(() => {});
+    if (!user) return;
+    // Settings state now comes from the already-loaded `user` (/auth/me) — no
+    // second heavy /users/:id round-trip (which ran mutual-count + media signing
+    // just to read three toggles). Only the blocked list still needs a call.
+    if (typeof user.messageNotifications === 'boolean') setMsgNotifs(user.messageNotifications);
+    if (typeof user.showOnlineStatus === 'boolean') setOnlineStatus(user.showOnlineStatus);
+    if (typeof user.disableAllComments === 'boolean') setDisableComments(user.disableAllComments);
+    if (typeof user.phoneVerified === 'boolean') setPhoneVerified(user.phoneVerified);
+    if (user.phone) setCurrentPhone(user.phone);
+    setProfileData(user);
     api.get('/users/blocked').then(({ data }) => setBlocked(data.users ?? [])).catch(() => {});
-  }, [user?.id]);
+  }, [user]);
 
   const toggleMsgNotifs = async (next: boolean) => {
     setMsgNotifs(next);
