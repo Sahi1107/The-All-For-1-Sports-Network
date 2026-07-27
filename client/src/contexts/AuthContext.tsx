@@ -46,6 +46,7 @@ interface User {
   discoverable?: boolean;
   mustResetPassword?: boolean;
   pendingEmail?: string | null;
+  createdAt?: string;
 }
 
 interface RegisterData {

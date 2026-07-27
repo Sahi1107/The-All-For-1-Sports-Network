@@ -10,6 +10,7 @@ import {
 import { useLogo } from '../hooks/useLogo';
 import CreatePostModal from '../components/CreatePostModal';
 import GlobalSearchOverlay from '../components/GlobalSearchOverlay';
+import ProductTour from '../components/ProductTour';
 
 export default function MainLayout() {
   const logoUrl = useLogo();
@@ -360,6 +361,7 @@ export default function MainLayout() {
 
       {showCreate && <CreatePostModal onClose={() => setShowCreate(false)} />}
       <GlobalSearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <ProductTour />
     </div>
   );
 }
