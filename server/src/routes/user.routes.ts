@@ -12,6 +12,7 @@ import { buildUserExport } from '../services/dataExport';
 import { recordProfileView } from '../services/notifications/profileViews';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
+import { searchablePeopleWhere } from '../services/search/gate';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -22,15 +23,14 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
     const { role, sport, search, location, page = '1', limit = '20' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
-    const where: any = {};
-    // Never expose ADMIN accounts to other users
-    if (role && role !== 'ADMIN') where.role = role;
-    else where.role = { not: 'ADMIN' };
-    // Don't show the current user OR anyone in a block relationship with them
+    // ONE discovery gate, shared with the /api/search typeahead
+    // (searchablePeopleWhere): discoverable && !guardianManaged && role ∉
+    // {ADMIN,TEAM} && not the viewer && not in a block relationship (either way).
+    // Keeps privacy rules identical across every discovery surface.
     const blocked = await blockedUserIds(req.user!.userId);
-    where.id = { notIn: [req.user!.userId, ...blocked] };
-    // Never surface non-discoverable profiles (under-13 accounts by default)
-    where.discoverable = true;
+    const where: any = { ...searchablePeopleWhere([req.user!.userId, ...blocked]) };
+    // Optionally narrow to a specific role — but never one the gate excludes.
+    if (role && role !== 'ADMIN' && role !== 'TEAM') where.role = role;
     if (sport) where.sport = sport;
     if (location) where.location = { contains: location as string, mode: 'insensitive' };
     if (search) {

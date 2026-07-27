@@ -110,12 +110,13 @@ router.delete('/:id', authenticate, requireRole('ADMIN'), async (req: AuthReques
 // GET /api/tournaments
 router.get('/', authenticate, validate({ query: TournamentListQuery }), async (req: AuthRequest, res: Response) => {
   try {
-    const { sport, status, page = '1', limit = '20' } = req.query;
+    const { sport, status, search, page = '1', limit = '20' } = req.query;
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
 
     const where: any = {};
     if (sport) where.sport = sport;
     if (status) where.status = status;
+    if (search) where.name = { contains: search as string, mode: 'insensitive' };
 
     const [tournaments, total] = await Promise.all([
       prisma.tournament.findMany({

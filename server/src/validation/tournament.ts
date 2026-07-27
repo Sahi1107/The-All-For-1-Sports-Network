@@ -76,6 +76,7 @@ export const TournamentListQuery = PaginationQuery.extend({
   status: z.enum(
     ['UPCOMING', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
   ).optional(),
+  search: optStr(100, 'Search'),
 });
 
 // ─── Tournament registration (inline team creation) ──────────────────────────

@@ -7,7 +7,6 @@ import { SearchQuery } from '../validation/search';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere, isSearchablePerson } from '../services/search/gate';
 import { rankByRelevance, sanitizeTerm } from '../services/search/rank';
-import { signMediaDeepAll } from '../services/storage';
 
 const router = Router();
 
@@ -73,13 +72,8 @@ router.get('/', authenticate, browseLimiter, validate({ query: SearchQuery }), a
     const teams = rankByRelevance(teamRows, term, (t) => t.name, PER_GROUP);
     const tournaments = rankByRelevance(tournamentRows, term, (t) => t.name, PER_GROUP);
 
-    // Sign media only for the handful we return (avatar / logo / thumbnailUrl).
-    await Promise.all([
-      signMediaDeepAll(athletes),
-      signMediaDeepAll(teams),
-      signMediaDeepAll(tournaments),
-    ]);
-
+    // Media (avatar / logo / thumbnailUrl) is signed by the global
+    // signMediaResponse middleware, so no manual signing is needed here.
     res.json({ query: q, athletes, teams, tournaments });
   } catch (error) {
     console.error('Search error:', error);
