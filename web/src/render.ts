@@ -157,12 +157,17 @@ export function renderProfile(a: PublicAthlete): string {
     <meta name="description" content="${esc(desc)}" />
     <link rel="canonical" href="${esc(url)}" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
-    <meta property="og:type" content="profile" />
+    <!-- og:type=website (not "profile") — WhatsApp's preview parser skips
+         "profile" and renders no card; the Person JSON-LD below is what Google
+         actually reads for SEO, so switching this costs nothing there. -->
+    <meta property="og:type" content="website" />
     <meta property="og:site_name" content="${SITE_NAME}" />
     <meta property="og:url" content="${esc(url)}" />
     <meta property="og:title" content="${esc(title)}" />
     <meta property="og:description" content="${esc(desc)}" />
     <meta property="og:image" content="${ogImage}" />
+    <meta property="og:image:secure_url" content="${ogImage}" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="${esc(a.name)} on All For 1" />
