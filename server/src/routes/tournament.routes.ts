@@ -11,6 +11,7 @@ import { writeMatchPlayerStats } from '../services/matchStats';
 import { notify } from '../services/notifications/notify';
 import { isStatSport, CAREER_STAT_FIELDS, type StatSport } from '../data/careerStats';
 import { computeStandings } from '../services/trackerDraw';
+import { getOrCompute } from '../services/tournamentCache';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody,
@@ -143,28 +144,34 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
     const tournamentId = req.params.id as string;
     const userId = req.user!.userId;
 
-    const tournament = await prisma.tournament.findUnique({
-      where: { id: tournamentId },
-      include: {
-        teams: {
-          include: {
-            team: { include: { captain: { select: { id: true, name: true, avatar: true } }, _count: { select: { members: true } } } },
+    // Shared, viewer-independent base — cached + single-flighted. myTeams (per-viewer) stays fresh below.
+    const tournament = await getOrCompute(tournamentId, 'base', async () => {
+      const t = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        include: {
+          teams: {
+            include: {
+              team: { include: { captain: { select: { id: true, name: true, avatar: true } }, _count: { select: { members: true } } } },
+            },
+          },
+          matches: {
+            include: {
+              homeTeam: { select: { id: true, name: true, logo: true } },
+              awayTeam: { select: { id: true, name: true, logo: true } },
+            },
+            orderBy: { matchDate: 'asc' },
+          },
+          rankings: {
+            include: { user: { select: { id: true, name: true, avatar: true, position: true } } },
+            orderBy: { rank: 'asc' },
+            take: 50,
           },
         },
-        matches: {
-          include: {
-            homeTeam: { select: { id: true, name: true, logo: true } },
-            awayTeam: { select: { id: true, name: true, logo: true } },
-          },
-          orderBy: { matchDate: 'asc' },
-        },
-        rankings: {
-          include: { user: { select: { id: true, name: true, avatar: true, position: true } } },
-          orderBy: { rank: 'asc' },
-          take: 50,
-        },
-      },
-    });
+      });
+      if (!t) return null;
+      await signMediaDeep(t);
+      return t;
+    }) as any;
 
     if (!tournament) {
       res.status(404).json({ error: 'Tournament not found' });
@@ -209,10 +216,8 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       };
     });
 
-    (tournament as any).myTeams = myTeams;
-
-    await signMediaDeep(tournament);
-    res.json({ tournament });
+    // Spread so the per-viewer myTeams is never written back into the shared cache entry.
+    res.json({ tournament: { ...tournament, myTeams } });
   } catch (error) {
     console.error('Get tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -235,6 +240,9 @@ router.get('/:id/teams', authenticate, async (req: AuthRequest, res: Response) =
       res.status(404).json({ error: 'Tournament not found' });
       return;
     }
+
+    // Heavy roster + stat aggregation — cached + single-flighted (viewer-independent).
+    const payload = await getOrCompute(tournamentId, 'teams', async () => {
 
     // Rosters: registered teams → accepted members → user profile fields.
     const registrations = await prisma.tournamentTeam.findMany({
@@ -330,7 +338,9 @@ router.get('/:id/teams', authenticate, async (req: AuthRequest, res: Response) =
     await signMediaDeepAll(teams);
     await signMediaDeepAll(teams.flatMap((t) => t.players));
 
-    res.json({ sport: tournament.sport, isStatSport: statSport, statFields: fields, matches, teams });
+      return { sport: tournament.sport, isStatSport: statSport, statFields: fields, matches, teams };
+    });
+    res.json(payload);
   } catch (error) {
     console.error('Get tournament teams error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -349,6 +359,7 @@ const STAGE_TITLE: Record<string, string> = {
 router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const tournamentId = req.params.id as string;
+
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       select: { id: true, sport: true },
@@ -357,6 +368,9 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       res.status(404).json({ error: 'Tournament not found' });
       return;
     }
+
+    // Group standings + bracket build — cached + single-flighted (viewer-independent).
+    const payload = await getOrCompute(tournamentId, 'fixtures', async () => {
 
     // Team lookup (name + logo) for every registered team.
     const regs = await prisma.tournamentTeam.findMany({
@@ -394,8 +408,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
         select: { id: true, round: true, homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true, status: true, matchDate: true, court: true },
       });
       const flat = flatRows.map((m) => ({ ...m, scheduledAt: m.matchDate, court: m.court ?? null, statsMatchId: m.id }));
-      res.json({ hasBracket: false, format: null, teams, groups: null, bracket: null, flatMatches: flat });
-      return;
+      return { hasBracket: false, format: null, teams, groups: null, bracket: null, flatMatches: flat };
     }
 
     const allMatches = session.matches as any[];
@@ -445,7 +458,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       ? Array.from(new Set(rounds[0].matches.flatMap((m) => [m.homeTeamId, m.awayTeamId]).filter(Boolean)))
       : [];
 
-    res.json({
+    return {
       hasBracket: true,
       format: session.format,
       teams,
@@ -453,7 +466,9 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       bracket,
       advancingTeamIds,
       flatMatches: null,
+    };
     });
+    res.json(payload);
   } catch (error) {
     console.error('Get tournament fixtures error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -494,6 +509,7 @@ const LEADER_CATS: Record<StatSport, { key: string; label: string; fields: strin
 router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const tournamentId = req.params.id as string;
+
     const tournament = await prisma.tournament.findUnique({
       where: { id: tournamentId },
       select: { id: true, sport: true },
@@ -502,9 +518,11 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
       res.status(404).json({ error: 'Tournament not found' });
       return;
     }
+
+    // Stat leaderboard aggregation — cached + single-flighted (viewer-independent).
+    const payload = await getOrCompute(tournamentId, 'leaders', async () => {
     if (!isStatSport(tournament.sport)) {
-      res.json({ sport: tournament.sport, categories: [] });
-      return;
+      return { sport: tournament.sport, categories: [] };
     }
 
     const sport = tournament.sport as StatSport;
@@ -561,7 +579,9 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
       }))
       .filter((c) => c.rows.length > 0);
 
-    res.json({ sport: tournament.sport, categories });
+    return { sport: tournament.sport, categories };
+    });
+    res.json(payload);
   } catch (error) {
     console.error('Get tournament leaders error:', error);
     res.status(500).json({ error: 'Internal server error' });
