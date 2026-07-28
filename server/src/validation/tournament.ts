@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { reqStr, optStr, PaginationQuery, SportEnum } from './common';
+import { reqStr, optStr, PaginationQuery, SportEnum, GenderEnum } from './common';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -105,6 +105,36 @@ export const RegisterTeamBody = z.object({
   (d) => new Set(d.playerUserIds).size === d.playerUserIds.length,
   { message: 'Player list contains duplicates', path: ['playerUserIds'] },
 );
+
+// ─── Provision a NEW player onto a team (tournament-scoped) ────────────────────
+// Lets an organiser add a player who isn't on the platform yet: the account is
+// created and added to the team directly (all-accepted). The SPORT is taken from
+// the tournament, never the body — so this can't create off-tournament accounts.
+// DOB + gender are mandatory here; under-13 guardian-consent and duplicate-email
+// handling are enforced downstream by provisionAthleteAccount (same rules as the
+// admin single-create). Only ATHLETE/COACH — never a privileged role.
+
+export const ProvisionMemberBody = z.object({
+  name:  reqStr(80, 'Name'),
+  email: z
+    .string({ error: 'Email is required' })
+    .email('Invalid email address')
+    .max(254, 'Email address too long')
+    .transform((s) => s.toLowerCase().trim()),
+  role:  z.enum(['ATHLETE', 'COACH'], { error: 'role must be ATHLETE or COACH' }).default('ATHLETE'),
+  dateOfBirth: z
+    .string({ error: 'Date of birth is required' })
+    .refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date of birth'),
+  gender:   GenderEnum, // required — rankings are split men's/women's
+  position: optStr(60, 'Position'),
+  phone:    optStr(40, 'Phone'),
+  guardianEmail: z
+    .string()
+    .email('Invalid guardian email address')
+    .max(254)
+    .optional()
+    .transform((s) => (s ? s.toLowerCase().trim() : s)),
+});
 
 // ─── Team invite responses ────────────────────────────────────────────────────
 

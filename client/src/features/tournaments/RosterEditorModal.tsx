@@ -13,6 +13,20 @@ const STATUS = {
   DECLINED: 'bg-red-500/20 text-red-400',
 } as Record<string, string>;
 
+const EMPTY_NEW = { name: '', email: '', dateOfBirth: '', gender: '', position: '', guardianEmail: '' };
+type NewPlayer = typeof EMPTY_NEW;
+
+function ageFromDateString(s: string): number | null {
+  if (!s) return null;
+  const dob = new Date(s);
+  if (Number.isNaN(dob.getTime())) return null;
+  const t = new Date();
+  let a = t.getFullYear() - dob.getFullYear();
+  const m = t.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < dob.getDate())) a--;
+  return a;
+}
+
 /** Admin roster editor: add/remove players directly (ACCEPTED, no invite dance),
  *  and clearly surface members who haven't accepted — they're excluded from the
  *  draw. */
@@ -29,6 +43,13 @@ export default function RosterEditorModal({
     qc.invalidateQueries({ queryKey: ['admin-tournament-registrations', tournamentId] });
     qc.invalidateQueries({ queryKey: ['admin-tournaments'] });
   };
+
+  const [mode, setMode] = useState<'search' | 'create'>('search');
+  const [np, setNp] = useState<NewPlayer>(EMPTY_NEW);
+  const npAge = ageFromDateString(np.dateOfBirth);
+  const npUnder13 = npAge !== null && npAge < 13;
+  const npValid = !!(np.name.trim() && np.email.trim() && np.dateOfBirth && np.gender && (!npUnder13 || np.guardianEmail.trim()));
+  const setNpField = (patch: Partial<NewPlayer>) => setNp((v) => ({ ...v, ...patch }));
 
   const [search, setSearch] = useState('');
   const { data: results } = useQuery({
@@ -51,6 +72,28 @@ export default function RosterEditorModal({
     mutationFn: (userId: string) => api.delete(`/tournaments/${tournamentId}/teams/${team.id}/members/${userId}`),
     onSuccess: () => { toast.success('Player removed'); invalidate(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not remove player'),
+  });
+  const createPlayer = useMutation({
+    mutationFn: () => api.post(`/tournaments/${tournamentId}/teams/${team.id}/members/provision`, {
+      name: np.name.trim(),
+      email: np.email.trim(),
+      dateOfBirth: np.dateOfBirth,
+      gender: np.gender,
+      position: np.position.trim() || undefined,
+      guardianEmail: npUnder13 ? np.guardianEmail.trim() : undefined,
+    }),
+    onSuccess: (res: any) => {
+      const { created, guardianConsentPending } = res.data ?? {};
+      toast.success(
+        guardianConsentPending ? 'Added — guardian consent email sent'
+        : created ? 'Player created & added'
+        : 'Existing account added to team',
+      );
+      setNp(EMPTY_NEW);
+      setMode('search');
+      invalidate();
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not create player'),
   });
 
   const existing = new Set(team.members.map((m) => m.userId));
@@ -93,28 +136,113 @@ export default function RosterEditorModal({
             ))}
           </ul>
 
-          {/* Add player */}
-          <div className="space-y-2 pt-2 border-t border-line">
+          {/* Add player — search an existing user, or create a brand-new one */}
+          <div className="space-y-3 pt-2 border-t border-line">
             <p className="text-xs uppercase tracking-wide text-gray-custom flex items-center gap-1.5"><UserPlus size={13} /> Add a player</p>
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-custom" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search players by name…"
-                className="w-full pl-9 pr-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
-              />
+
+            {/* Mode toggle */}
+            <div className="grid grid-cols-2 gap-1 p-1 bg-surface border border-line rounded-lg text-xs font-medium">
+              <button
+                onClick={() => setMode('search')}
+                className={`py-1.5 rounded-md transition-colors ${mode === 'search' ? 'bg-elevated text-foreground' : 'text-gray-custom hover:text-foreground'}`}
+              >
+                Search existing
+              </button>
+              <button
+                onClick={() => setMode('create')}
+                className={`py-1.5 rounded-md transition-colors ${mode === 'create' ? 'bg-elevated text-foreground' : 'text-gray-custom hover:text-foreground'}`}
+              >
+                Create new player
+              </button>
             </div>
-            {search.trim().length > 1 && (
-              <div className="border border-line rounded-lg divide-y divide-line max-h-40 overflow-y-auto">
-                {(results ?? []).filter((u) => !existing.has(u.id)).length === 0 ? (
-                  <p className="px-3 py-2 text-xs text-gray-custom">No matching players.</p>
-                ) : (results ?? []).filter((u) => !existing.has(u.id)).map((u) => (
-                  <button key={u.id} onClick={() => add.mutate(u.id)} disabled={add.isPending} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface transition-colors disabled:opacity-50">
-                    <span className="truncate">{u.name}{u.position && <span className="text-xs text-gray-custom"> · {u.position}</span>}</span>
-                    <UserPlus size={13} className="text-primary shrink-0" />
-                  </button>
-                ))}
+
+            {mode === 'search' ? (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-custom" />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search players by name…"
+                    className="w-full pl-9 pr-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+                  />
+                </div>
+                {search.trim().length > 1 && (
+                  <div className="border border-line rounded-lg divide-y divide-line max-h-40 overflow-y-auto">
+                    {(results ?? []).filter((u) => !existing.has(u.id)).length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-gray-custom">No matching players. Switch to <button onClick={() => setMode('create')} className="text-primary hover:underline">Create new player</button>.</p>
+                    ) : (results ?? []).filter((u) => !existing.has(u.id)).map((u) => (
+                      <button key={u.id} onClick={() => add.mutate(u.id)} disabled={add.isPending} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-surface transition-colors disabled:opacity-50">
+                        <span className="truncate">{u.name}{u.position && <span className="text-xs text-gray-custom"> · {u.position}</span>}</span>
+                        <UserPlus size={13} className="text-primary shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <input
+                    type="text" value={np.name} maxLength={80} placeholder="Full name"
+                    onChange={(e) => setNpField({ name: e.target.value })}
+                    className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+                  />
+                  <input
+                    type="email" value={np.email} maxLength={254} placeholder="Email (login)"
+                    onChange={(e) => setNpField({ email: e.target.value })}
+                    className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] text-gray-custom mb-1">Date of birth</label>
+                    <input
+                      type="date" value={np.dateOfBirth}
+                      onChange={(e) => setNpField({ dateOfBirth: e.target.value })}
+                      className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] text-gray-custom mb-1">Category</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(['MALE', 'FEMALE'] as const).map((g) => (
+                        <button
+                          key={g} type="button" onClick={() => setNpField({ gender: g })}
+                          className={`py-2 rounded-lg text-xs font-medium border transition-colors ${np.gender === g ? 'bg-primary/15 border-primary/50 text-primary' : 'bg-surface border-line text-gray-custom hover:text-foreground'}`}
+                        >
+                          {g === 'MALE' ? "Men's" : "Women's"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <input
+                  type="text" value={np.position} maxLength={60} placeholder="Position (optional)"
+                  onChange={(e) => setNpField({ position: e.target.value })}
+                  className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+                />
+                {npUnder13 && (
+                  <div>
+                    <label className="block text-[11px] text-amber-300 mb-1">Guardian email (required · under 13)</label>
+                    <input
+                      type="email" value={np.guardianEmail} maxLength={254} placeholder="parent@example.com"
+                      onChange={(e) => setNpField({ guardianEmail: e.target.value })}
+                      className="w-full px-3 py-2 bg-surface border border-amber-500/40 rounded-lg text-sm focus:outline-none focus:border-amber-400 placeholder-gray-custom"
+                    />
+                    <p className="text-[11px] text-amber-300/80 mt-1.5">
+                      Under-13: the profile stays private and a guardian-consent email is sent. The account activates once the guardian consents.
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={() => createPlayer.mutate()}
+                  disabled={!npValid || createPlayer.isPending}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50"
+                >
+                  <UserPlus size={14} /> {createPlayer.isPending ? 'Creating…' : 'Create & add to team'}
+                </button>
+                <p className="text-[11px] text-gray-custom">Creates an account in this tournament's sport and adds them as accepted — no invite needed. An existing account with this email is added, not duplicated.</p>
               </div>
             )}
           </div>
