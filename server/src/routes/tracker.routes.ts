@@ -18,6 +18,7 @@ import { derivePlayerStats } from '../services/trackerStats';
 import { fanoutMatchResult, fanoutDrawPublished, fanoutFixturesScheduled, fanoutStatsVerified, slotLabel } from '../services/notifications/competitionNotify';
 import { writeMatchPlayerStats } from '../services/matchStats';
 import { recalculateTournamentRankings } from '../services/rankingService';
+import { captureException } from '../config/sentry';
 import {
   CreateSessionBody,
   PatchMatchBody,
@@ -744,7 +745,13 @@ router.post(
       // Rankings derive from published stats — recompute so the Rankings page and
       // profile receipts reflect this result. Fire-and-forget: a ranking hiccup
       // must never fail the publish itself.
-      void recalculateTournamentRankings(tournamentId).catch((e) => console.error('ranking recompute (publish) failed', e));
+      void recalculateTournamentRankings(tournamentId).catch((e) => {
+        // Kept fire-and-forget (a ranking hiccup must not fail the publish), but a
+        // failure means rankings are silently stale — surface it in Sentry so it
+        // doesn't sit unnoticed.
+        console.error('ranking recompute (publish) failed', e);
+        captureException(e, { where: 'ranking.recompute', phase: 'publish', tournamentId, matchId: req.params.id });
+      });
 
       // Fire-and-forget: notify each athlete their result is live, with stat line.
       void (async () => {
@@ -810,7 +817,10 @@ router.post(
       // The removed stats must drop out of the rankings too. Fire-and-forget.
       const tournamentId = trackerMatch.session?.tournamentId;
       if (tournamentId) {
-        void recalculateTournamentRankings(tournamentId).catch((e) => console.error('ranking recompute (unpublish) failed', e));
+        void recalculateTournamentRankings(tournamentId).catch((e) => {
+          console.error('ranking recompute (unpublish) failed', e);
+          captureException(e, { where: 'ranking.recompute', phase: 'unpublish', tournamentId, matchId: req.params.id });
+        });
       }
     } catch (err) {
       console.error('Unpublish tracker match error:', err);
