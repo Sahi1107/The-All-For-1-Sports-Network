@@ -11,6 +11,46 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://allfor1.pro/faq</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://allfor1.pro/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://allfor1.pro/safety</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://allfor1.pro/community-guidelines</loc>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://allfor1.pro/learn</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://allfor1.pro/learn/how-athletes-get-discovered-in-india</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://allfor1.pro/learn/what-is-an-athlete-performance-card</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://allfor1.pro/learn/why-indian-talent-goes-undiscovered</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://allfor1.pro/terms</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>

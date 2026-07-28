@@ -8,6 +8,12 @@ Allow: /$
 Allow: /challenges
 Allow: /terms
 Allow: /privacy
+Allow: /athletes
+Allow: /faq
+Allow: /about
+Allow: /safety
+Allow: /community-guidelines
+Allow: /learn
 Disallow: /home
 Disallow: /explore
 Disallow: /tournaments
@@ -40,6 +46,12 @@ Allow: /$
 Allow: /challenges
 Allow: /terms
 Allow: /privacy
+Allow: /athletes
+Allow: /faq
+Allow: /about
+Allow: /safety
+Allow: /community-guidelines
+Allow: /learn
 Disallow: /home
 Disallow: /explore
 Disallow: /profile/
@@ -54,6 +66,12 @@ Allow: /$
 Allow: /challenges
 Allow: /terms
 Allow: /privacy
+Allow: /athletes
+Allow: /faq
+Allow: /about
+Allow: /safety
+Allow: /community-guidelines
+Allow: /learn
 Disallow: /home
 Disallow: /explore
 Disallow: /profile/
@@ -68,6 +86,12 @@ Allow: /$
 Allow: /challenges
 Allow: /terms
 Allow: /privacy
+Allow: /athletes
+Allow: /faq
+Allow: /about
+Allow: /safety
+Allow: /community-guidelines
+Allow: /learn
 Disallow: /home
 Disallow: /explore
 Disallow: /profile/
@@ -82,6 +106,12 @@ Allow: /$
 Allow: /challenges
 Allow: /terms
 Allow: /privacy
+Allow: /athletes
+Allow: /faq
+Allow: /about
+Allow: /safety
+Allow: /community-guidelines
+Allow: /learn
 Disallow: /home
 Disallow: /explore
 Disallow: /profile/
@@ -92,3 +122,4 @@ Disallow: /settings
 Disallow: /api/
 
 Sitemap: https://allfor1.pro/sitemap.xml
+Sitemap: https://allfor1.pro/sitemap-athletes.xml

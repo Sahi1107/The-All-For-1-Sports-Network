@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Sitemap index. Phase 1b adds sitemap-athletes.xml (discoverable=true, 13+ only). -->
+<!-- Sitemap index. sitemap-athletes.xml is served dynamically by allfor1-web
+     (eligible profiles only: discoverable=true, 13+, not guardian-managed). -->
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <sitemap>
     <loc>https://allfor1.pro/sitemap-marketing.xml</loc>
+  </sitemap>
+  <sitemap>
+    <loc>https://allfor1.pro/sitemap-athletes.xml</loc>
   </sitemap>
 </sitemapindex>
