@@ -7,9 +7,11 @@ import api from '../api/client';
 import BallLoader from '../components/BallLoader';
 import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
+import OrganizersModal from '../features/tournaments/OrganizersModal';
 import {
   ArrowLeft, Check, Info, Users, Flag, GitFork, CalendarClock, Radio,
   UserPlus, Upload, AlertTriangle, ChevronRight, MapPin, Calendar, Crown,
+  ShieldCheck,
 } from 'lucide-react';
 
 const SPORT = (s?: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase().replace('_', ' ') : '');
@@ -36,21 +38,26 @@ export default function TournamentManage() {
   const qc = useQueryClient();
   const [editTeam, setEditTeam] = useState<any | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showOrganizers, setShowOrganizers] = useState(false);
 
-  if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
+  if (!user) return <Navigate to="/home" replace />;
+  const isSuperAdmin = user.role === 'ADMIN';
 
   const { data: t, isLoading } = useQuery({
     queryKey: ['manage-tournament', id],
     queryFn: async () => (await api.get(`/tournaments/${id}`)).data.tournament,
   });
+  // Advisory only — the server enforces access. Undefined during load ⇒ optimistic.
+  const canManage = t?.viewerCanManage !== false;
   const { data: regData } = useQuery({
     queryKey: ['admin-tournament-registrations', id],
     queryFn: async () => (await api.get(`/tournaments/${id}/registrations`)).data,
+    enabled: !!t && canManage,
   });
   const { data: session } = useQuery({
     queryKey: ['tracker-session', id],
     queryFn: async () => (await api.get(`/tracker/sessions/${id}`)).data.session,
-    enabled: TRACKABLE.has(t?.status ?? ''),
+    enabled: !!t && canManage && TRACKABLE.has(t?.status ?? ''),
   });
 
   const statusMutation = useMutation({
@@ -60,6 +67,8 @@ export default function TournamentManage() {
   });
 
   if (isLoading || !t) return <div className="flex justify-center py-20"><BallLoader /></div>;
+  // Organiser assigned elsewhere, or an ordinary user who guessed the URL.
+  if (!t.viewerCanManage) return <Navigate to="/home" replace />;
 
   const registrations: any[] = regData?.registrations ?? [];
   const pendingTeams = registrations.filter((r) => r.summary.pending > 0).length;
@@ -70,8 +79,8 @@ export default function TournamentManage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <button onClick={() => nav('/admin')} className="flex items-center gap-2 text-sm text-gray-custom hover:text-foreground mb-5">
-        <ArrowLeft size={16} /> Admin
+      <button onClick={() => nav(isSuperAdmin ? '/admin' : '/home')} className="flex items-center gap-2 text-sm text-gray-custom hover:text-foreground mb-5">
+        <ArrowLeft size={16} /> {isSuperAdmin ? 'Admin' : 'Home'}
       </button>
 
       {/* Header */}
@@ -123,7 +132,9 @@ export default function TournamentManage() {
           )}
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"><UserPlus size={13} /> Add team</button>
-            <Link to={`/admin/tournaments/${id}/provision`} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"><Upload size={13} /> Import CSV</Link>
+            {isSuperAdmin && (
+              <Link to={`/admin/tournaments/${id}/provision`} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"><Upload size={13} /> Import CSV</Link>
+            )}
           </div>
         </Stage>
 
@@ -181,8 +192,27 @@ export default function TournamentManage() {
         </Stage>
       </div>
 
+      {/* Organisers — super-admin governance, outside the delivery pipeline */}
+      {isSuperAdmin && (
+        <div className="mt-6 bg-card rounded-xl border border-line p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/40 text-primary flex items-center justify-center shrink-0">
+            <ShieldCheck size={15} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold">Organisers</h2>
+            <p className="text-[12px] text-gray-custom mt-0.5">
+              Give someone scoped control of this tournament — everything on this page — without any platform-wide admin access.
+            </p>
+            <button onClick={() => setShowOrganizers(true)} className="mt-2.5 flex items-center gap-1.5 px-3 py-1.5 bg-elevated hover:bg-surface border border-line text-xs font-medium rounded-lg transition-colors">
+              <ShieldCheck size={13} /> Manage organisers
+            </button>
+          </div>
+        </div>
+      )}
+
       {editTeam && <RosterEditorModal tournamentId={id!} team={editTeam} sport={t.sport} onClose={() => setEditTeam(null)} />}
       {showAdd && <AddTeamModal tournamentId={id!} sport={t.sport} onClose={() => setShowAdd(false)} />}
+      {showOrganizers && <OrganizersModal tournamentId={id!} tournamentName={t.name} onClose={() => setShowOrganizers(false)} />}
     </div>
   );
 }

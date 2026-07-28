@@ -27,7 +27,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA' | 'ADMIN';
+  role: 'ATHLETE' | 'COACH' | 'SCOUT' | 'TEAM' | 'AGENT' | 'MEDIA' | 'ORGANIZER' | 'ADMIN';
   sport: Sport;
   gender?: 'MALE' | 'FEMALE';
   athleticsEvents?: string[];

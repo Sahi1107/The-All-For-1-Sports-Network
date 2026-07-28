@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { requireRole } from '../middleware/roles';
+import { requireTournamentAccess, fromParamTournamentId, fromBodyTournamentId, fromTrackerMatchId } from '../middleware/tournamentAccess';
 import { validate } from '../middleware/validate';
 import { getIO } from '../config/socket';
 import {
@@ -64,7 +64,10 @@ const isByeMatch = (m: { status: string; homeTeamId: string | null; awayTeamId: 
   (m.status === 'COMPLETED' || m.status === 'PUBLISHED') && (!!m.homeTeamId !== !!m.awayTeamId);
 
 const router = Router();
-router.use(authenticate, requireRole('ADMIN'));
+// Auth is required for every tracker route; tournament-scoped authorisation is
+// applied PER ROUTE below via requireTournamentAccess (super-admin OR the
+// assigned organiser for that tournament). Every route MUST carry it.
+router.use(authenticate);
 
 type TrackerMatchRow = {
   id: string;
@@ -167,6 +170,7 @@ async function maybeSeedKnockout(session: {
 // ─── GET session for a tournament ────────────────────────────
 router.get(
   '/sessions/:tournamentId',
+  requireTournamentAccess(fromParamTournamentId),
   validate({ params: TournamentIdParam }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -185,6 +189,7 @@ router.get(
 // ─── Create session (import roster + generate fixtures) ──────
 router.post(
   '/sessions',
+  requireTournamentAccess(fromBodyTournamentId),
   validate({ body: CreateSessionBody }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -293,6 +298,7 @@ router.post(
 // is a true clean slate with no orphaned results. Admin-only (router-level guard).
 router.delete(
   '/sessions/:tournamentId',
+  requireTournamentAccess(fromParamTournamentId),
   validate({ params: TournamentIdParam }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -334,6 +340,7 @@ router.delete(
 // matches afterwards via PATCH.
 router.post(
   '/sessions/:tournamentId/schedule',
+  requireTournamentAccess(fromParamTournamentId),
   validate({ params: TournamentIdParam, body: ScheduleBody }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -408,6 +415,7 @@ router.post(
 // rejected (reset the draw instead). Roster is rebuilt so late entries appear.
 router.patch(
   '/sessions/:tournamentId/groups',
+  requireTournamentAccess(fromParamTournamentId),
   validate({ params: TournamentIdParam, body: GroupsBody }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -502,6 +510,7 @@ router.patch(
 // propagate), so results stay consistent — no dead matches.
 router.post(
   '/sessions/:tournamentId/withdraw',
+  requireTournamentAccess(fromParamTournamentId),
   validate({ params: TournamentIdParam, body: WithdrawBody }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -579,6 +588,7 @@ router.post(
 // ─── Get a single match (with roster + standings) ────────────
 router.get(
   '/matches/:id',
+  requireTournamentAccess(fromTrackerMatchId),
   validate({ params: IdParam }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -601,6 +611,7 @@ router.get(
 // ─── Patch live match state (autosave + broadcast) ───────────
 router.patch(
   '/matches/:id',
+  requireTournamentAccess(fromTrackerMatchId),
   validate({ params: IdParam, body: PatchMatchBody }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -667,6 +678,7 @@ router.patch(
 // ─── Publish a finished match to the platform ────────────────
 router.post(
   '/matches/:id/publish',
+  requireTournamentAccess(fromTrackerMatchId),
   validate({ params: IdParam }),
   async (req: AuthRequest, res: Response) => {
     try {
@@ -759,6 +771,7 @@ router.post(
 // tracker match to COMPLETED so it can be corrected and re-published.
 router.post(
   '/matches/:id/unpublish',
+  requireTournamentAccess(fromTrackerMatchId),
   validate({ params: IdParam }),
   async (req: AuthRequest, res: Response) => {
     try {

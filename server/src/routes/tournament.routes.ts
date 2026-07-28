@@ -3,6 +3,7 @@ import multer from 'multer';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
+import { requireTournamentAccess, fromParamId, fromMatchId } from '../middleware/tournamentAccess';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateImageBytes } from '../middleware/upload';
@@ -138,6 +139,27 @@ router.get('/', authenticate, validate({ query: TournamentListQuery }), async (r
   }
 });
 
+// GET /api/tournaments/mine/organizing — tournaments the requester organises.
+// Powers the organiser's landing (route straight to their tournament) and any
+// "my tournaments" view. Empty for users with no organiser assignments.
+router.get('/mine/organizing', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const rows = await prisma.tournamentOrganizer.findMany({
+      where: { userId: req.user!.userId },
+      select: {
+        tournament: {
+          select: { id: true, name: true, sport: true, status: true, startDate: true, city: true, venue: true, thumbnailUrl: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ tournaments: rows.map((r) => r.tournament) });
+  } catch (error) {
+    console.error('Get organizing tournaments error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/tournaments/:id
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -216,8 +238,18 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       };
     });
 
+    // Per-viewer management signal for the manage page: a platform ADMIN, or an
+    // organiser assigned to THIS tournament. Purely advisory for the UI — every
+    // management endpoint is still enforced server-side by requireTournamentAccess.
+    const viewerCanManage =
+      req.user!.role === 'ADMIN' ||
+      Boolean(await prisma.tournamentOrganizer.findUnique({
+        where: { tournamentId_userId: { tournamentId, userId } },
+        select: { id: true },
+      }));
+
     // Spread so the per-viewer myTeams is never written back into the shared cache entry.
-    res.json({ tournament: { ...tournament, myTeams } });
+    res.json({ tournament: { ...tournament, myTeams, viewerCanManage } });
   } catch (error) {
     console.error('Get tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -661,7 +693,7 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 };
 
 // PUT /api/tournaments/:id — update (admin only)
-router.put('/:id', authenticate, requireRole('ADMIN'), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
+router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
   try {
     const { name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize } = req.body;
     const id = req.params.id as string;
@@ -869,7 +901,7 @@ router.post(
 });
 
 // GET /api/tournaments/:id/registrations — admin: list all registered teams + rosters + invite statuses
-router.get('/:id/registrations', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+router.get('/:id/registrations', authenticate, requireTournamentAccess(fromParamId), async (req: AuthRequest, res: Response) => {
   try {
     const tournamentId = req.params.id as string;
     const tournament = await prisma.tournament.findUnique({
@@ -919,7 +951,7 @@ router.get('/:id/registrations', authenticate, requireRole('ADMIN'), async (req:
 // ─── Admin roster editing ───────────────────────────────────────────────────
 // POST /api/tournaments/:id/teams — admin: create a team with an all-ACCEPTED
 // roster (manual late entry, no CSV/self-serve accept dance).
-router.post('/:id/teams', authenticate, requireRole('ADMIN'), writeLimiter, async (req: AuthRequest, res: Response) => {
+router.post('/:id/teams', authenticate, requireTournamentAccess(fromParamId), writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const tournamentId = req.params.id as string;
     const { teamName, captainUserId, playerUserIds, coachUserId } = req.body as {
@@ -965,7 +997,7 @@ router.post('/:id/teams', authenticate, requireRole('ADMIN'), writeLimiter, asyn
 });
 
 // POST /api/tournaments/:id/teams/:teamId/members — admin: add a member (ACCEPTED).
-router.post('/:id/teams/:teamId/members', authenticate, requireRole('ADMIN'), writeLimiter, async (req: AuthRequest, res: Response) => {
+router.post('/:id/teams/:teamId/members', authenticate, requireTournamentAccess(fromParamId), writeLimiter, async (req: AuthRequest, res: Response) => {
   try {
     const { userId, role } = req.body as { userId?: string; role?: string };
     if (!userId) { res.status(400).json({ error: 'userId is required' }); return; }
@@ -986,7 +1018,7 @@ router.post('/:id/teams/:teamId/members', authenticate, requireRole('ADMIN'), wr
 });
 
 // DELETE /api/tournaments/:id/teams/:teamId/members/:userId — admin: remove a member.
-router.delete('/:id/teams/:teamId/members/:userId', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+router.delete('/:id/teams/:teamId/members/:userId', authenticate, requireTournamentAccess(fromParamId), async (req: AuthRequest, res: Response) => {
   try {
     const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
     if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
@@ -1003,7 +1035,7 @@ router.delete('/:id/teams/:teamId/members/:userId', authenticate, requireRole('A
 });
 
 // POST /api/tournaments/:id/matches — create match (admin)
-router.post('/:id/matches', authenticate, requireRole('ADMIN'), validate({ body: CreateMatchBody }), async (req: AuthRequest, res: Response) => {
+router.post('/:id/matches', authenticate, requireTournamentAccess(fromParamId), validate({ body: CreateMatchBody }), async (req: AuthRequest, res: Response) => {
   try {
     const { homeTeamId, awayTeamId, round, matchDate } = req.body;
     if (!homeTeamId || !awayTeamId || !matchDate) {
@@ -1033,7 +1065,7 @@ router.post('/:id/matches', authenticate, requireRole('ADMIN'), validate({ body:
 });
 
 // PUT /api/tournaments/matches/:matchId/result — update match result + stats (admin)
-router.put('/matches/:matchId/result', authenticate, requireRole('ADMIN'), validate({ body: MatchResultBody }), async (req: AuthRequest, res: Response) => {
+router.put('/matches/:matchId/result', authenticate, requireTournamentAccess(fromMatchId), validate({ body: MatchResultBody }), async (req: AuthRequest, res: Response) => {
   try {
     const { homeScore, awayScore, playerStats } = req.body;
 

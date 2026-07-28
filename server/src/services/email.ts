@@ -127,6 +127,54 @@ export async function sendTempPasswordWelcome(
   await sendMail({ to: user.email, subject, html, text });
 }
 
+// ─── Tournament-organiser welcome (temp password) ────────────────────────────
+
+/**
+ * Welcome a NEW account created for an external tournament organiser. Reuses the
+ * same temp-password mechanism (login email + temp password + forced reset on
+ * first login), branded like our other emails, and is explicit about the SCOPED
+ * access granted and which tournament. The password is never logged.
+ */
+export async function sendOrganizerWelcome(
+  user: { email: string; name: string },
+  tempPassword: string,
+  tournamentName: string,
+  manageUrl: string,
+): Promise<void> {
+  const subject = `You're an organiser for ${tournamentName} — your All For 1 login`;
+  const text =
+    `Hi ${user.name},\n\n` +
+    `You've been given organiser access for ${tournamentName} on All For 1. As an organiser you can manage ` +
+    `this tournament — teams and players, the draw and schedule, live scoring and results. Your access is ` +
+    `limited to this tournament only.\n\n` +
+    `Log in at ${clientOrigin}/login with:\n` +
+    `  Email: ${user.email}\n` +
+    `  Temporary password: ${tempPassword}\n\n` +
+    `For your security, you'll be asked to set a new password the first time you log in.\n\n` +
+    `Manage the tournament: ${manageUrl}`;
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111">
+      <h2 style="margin:0 0 16px">You're an organiser on All For 1</h2>
+      <p>Hi ${user.name},</p>
+      <p>You've been given <strong>organiser access</strong> for <strong>${tournamentName}</strong>. You can manage
+         this tournament — teams and players, the draw and schedule, live scoring and results.
+         Your access is limited to <strong>this tournament only</strong>.</p>
+      <p style="margin:20px 0;padding:16px;background:#f4f4f8;border-radius:8px">
+        <strong>Email:</strong> ${user.email}<br/>
+        <strong>Temporary password:</strong> <code style="font-size:15px">${tempPassword}</code>
+      </p>
+      <p style="margin:24px 0">
+        <a href="${clientOrigin}/login"
+           style="background:#2929db;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;display:inline-block">
+          Log in
+        </a>
+      </p>
+      <p style="color:#666;font-size:13px">For your security, you'll be asked to set a new password the first
+         time you log in.</p>
+    </div>`;
+  await sendMail({ to: user.email, subject, html, text });
+}
+
 // ─── Admin-created athlete: age-aware welcome ────────────────────────────────
 
 /** Public app URL shown in onboarding copy. */

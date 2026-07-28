@@ -12,11 +12,16 @@ import {
   AdminReportListQuery, AdminReportStatusBody, AdminCreateAthleteBody,
   AdminCreateTeamBody, AdminTeamParams, AdminTeamMemberParams,
   AdminAddMemberBody, AdminTeamListQuery, AdminComposeTeamBody,
+  AdminTournamentParams, AdminOrganizerParams, AdminAddOrganizerBody, AdminUserLookupQuery,
 } from '../validation/admin';
 import { AdminSuspendBody, AdminAppealResolveBody, AdminAppealListQuery } from '../validation/appeal';
 import { grantEffect, isResolution } from '../services/account/appeals';
 import { deleteUserCompletely } from '../services/userDeletion';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
+import {
+  findUserByEmail, provisionOrganizerAccount, assignOrganizer,
+  revokeOrganizer, listOrganizers, listOrganizerAudit, notifyOrganizerAssigned,
+} from '../services/tournamentOrganizer';
 import { getIO } from '../config/socket';
 import {
   buildReport, commitBulkProvision, normalizeEmail,
@@ -39,7 +44,12 @@ router.get('/users', validate({ query: AdminUserListQuery }), async (req: AuthRe
     const where: any = {};
     if (role) where.role = role;
     if (sport) where.sport = sport;
-    if (search) where.name = { contains: search as string, mode: 'insensitive' };
+    if (search) {
+      where.OR = [
+        { name:  { contains: search as string, mode: 'insensitive' } },
+        { email: { contains: search as string, mode: 'insensitive' } },
+      ];
+    }
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
@@ -1001,5 +1011,125 @@ router.post(
     }
   },
 );
+
+// ─── Tournament organiser management (super-admin only) ───────────────────────
+// Organiser assignment grants tournament-SCOPED access (enforced by
+// middleware/tournamentAccess). These management endpoints are ADMIN-only via the
+// router-level guard above — an organiser can never add/remove organisers.
+
+// GET /api/admin/users/lookup?email= — case detection for the add-organiser UI.
+// Tells the client whether entering this email will assign an existing account or
+// create a new one. Minimal projection; never leaks anything an admin can't see.
+router.get('/users/lookup', validate({ query: AdminUserLookupQuery }), async (req: AuthRequest, res: Response) => {
+  try {
+    const email = req.query.email as unknown as string;
+    const user = await findUserByEmail(email);
+    res.json({
+      exists: Boolean(user),
+      user: user ? { id: user.id, name: user.name, email: user.email, avatar: user.avatar, role: user.role } : null,
+    });
+  } catch (error) {
+    logger.error('Admin organiser lookup error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/tournaments/:id/organizers — who has organiser access.
+router.get('/tournaments/:id/organizers', validate({ params: AdminTournamentParams }), async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { id: true } });
+    if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
+    const [organizers, audit] = await Promise.all([listOrganizers(tournamentId), listOrganizerAudit(tournamentId)]);
+    res.json({
+      organizers: organizers.map((o) => ({
+        userId: o.user.id,
+        name: o.user.name,
+        email: o.user.email,
+        avatar: o.user.avatar,
+        addedBy: o.addedBy ? { id: o.addedBy.id, name: o.addedBy.name } : null,
+        createdAt: o.createdAt,
+      })),
+      // Durable access history — grants and revokes, most recent first.
+      audit: audit.map((a) => ({
+        action: a.action,
+        accountCreated: a.accountCreated,
+        userId: a.user.id,
+        userName: a.user.name,
+        userEmail: a.user.email,
+        actor: a.actor ? { id: a.actor.id, name: a.actor.name } : null,
+        createdAt: a.createdAt,
+      })),
+    });
+  } catch (error) {
+    logger.error('Admin list organisers error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/tournaments/:id/organizers — add an organiser.
+//   • { userId }        → existing account: assign + notify (in-app + email per prefs).
+//   • { name, email }   → email already on platform: assign + notify (no new account).
+//                       → email not on platform: create account, assign, email credentials.
+// Idempotent: re-adding an existing organiser is a no-op, never a duplicate.
+router.post(
+  '/tournaments/:id/organizers',
+  writeLimiter,
+  validate({ params: AdminTournamentParams, body: AdminAddOrganizerBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.id as string;
+      const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { id: true, name: true } });
+      if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
+
+      const { userId, name, email } = req.body as { userId?: string; name?: string; email?: string };
+      let targetUserId: string;
+      let created = false;
+
+      if (userId) {
+        const existing = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+        if (!existing) { res.status(404).json({ error: 'User not found' }); return; }
+        targetUserId = userId;
+      } else {
+        const existing = await findUserByEmail(email!);
+        if (existing) {
+          targetUserId = existing.id;
+        } else {
+          const provisioned = await provisionOrganizerAccount({ name: name!, email: email!, tournamentId, tournamentName: tournament.name });
+          targetUserId = provisioned.userId;
+          created = true;
+        }
+      }
+
+      await assignOrganizer(tournamentId, targetUserId, req.user!.userId, { accountCreated: created });
+
+      // Existing accounts get the in-app + email notification. New accounts already
+      // received the credentials email (which names the tournament) — no double-ping.
+      if (!created) {
+        await notifyOrganizerAssigned(targetUserId, tournamentId, tournament.name);
+      }
+
+      logger.info('admin.organizer_added', { actorId: req.user!.userId, tournamentId, userId: targetUserId, created });
+      res.status(201).json({ userId: targetUserId, created });
+    } catch (error) {
+      logger.error('Admin add organiser error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// DELETE /api/admin/tournaments/:id/organizers/:userId — revoke access (immediate).
+router.delete('/tournaments/:id/organizers/:userId', validate({ params: AdminOrganizerParams }), async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const userId = req.params.userId as string;
+    await revokeOrganizer(tournamentId, userId, req.user!.userId);
+    logger.info('admin.organizer_revoked', { actorId: req.user!.userId, tournamentId, userId });
+    res.status(204).send();
+  } catch (error) {
+    logger.error('Admin revoke organiser error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 export default router;
