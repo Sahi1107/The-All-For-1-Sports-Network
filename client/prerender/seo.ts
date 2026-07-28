@@ -10,9 +10,18 @@ export const SITE = {
   url: 'https://allfor1.pro',
   name: 'All For 1',
   legalName: 'The AllFor1 Network',
+  // ── Canonical entity descriptions — used verbatim across EVERY surface
+  //    (Organization JSON-LD, meta/OG/Twitter, marketing copy, FAQ) so search &
+  //    AI engines form ONE confident, citable entity. Do not paraphrase per page. ──
+  // Short form (~150 chars) for meta/OG/Twitter description:
   description:
-    'All For 1 is India’s sports network where athletes build a profile, showcase highlights, ' +
-    'join tournaments, climb the rankings, and get discovered by scouts, coaches, and academies.',
+    'All For 1 is the verified data layer for Indian grassroots sport — a LinkedIn for ' +
+    'athletes to build a verified profile and get discovered by scouts & coaches.',
+  // Full entity sentence for Organization JSON-LD + the FAQ "What is All For 1":
+  entityDescription:
+    'All For 1 is the verified data layer for Indian grassroots sport — a professional ' +
+    'network, a “LinkedIn for athletes,” where athletes build a verified profile of their ' +
+    'performances, stats, and achievements and get discovered by scouts, coaches, and academies.',
   ogImage: 'https://allfor1.pro/og-image.png',
   logo: 'https://allfor1.pro/logo-square-navy.png',
   contactEmail: 'info@allfor1.pro',
@@ -78,7 +87,7 @@ export function organizationLd(): object {
     legalName: SITE.legalName,
     url: SITE.url + '/',
     logo: SITE.logo,
-    description: SITE.description,
+    description: SITE.entityDescription,
     sameAs: SITE.sameAs,
     contactPoint: {
       '@type': 'ContactPoint',
@@ -105,8 +114,8 @@ export function websiteLd(): object {
 export function getRoutes(): RouteSEO[] {
   const landingBody = `
     <main>
-      <h1>All For 1 — India’s Sports Network for Athletes, Coaches &amp; Scouts</h1>
-      <p>${esc(SITE.description)}</p>
+      <h1>All For 1 — The verified data layer for Indian grassroots sport</h1>
+      <p>${esc(SITE.entityDescription)}</p>
       <section>
         <h2>For athletes</h2>
         <p>Build a standout athlete profile, showcase your best highlights, track your stats,
@@ -144,7 +153,7 @@ export function getRoutes(): RouteSEO[] {
     {
       path: '/',
       outFile: 'index.html',
-      title: 'All For 1 — India’s Sports Network for Athletes, Coaches & Scouts',
+      title: 'All For 1 — The verified data layer for Indian grassroots sport',
       description: SITE.description,
       bodyHtml: landingBody,
       jsonLd: [websiteLd()],
