@@ -17,11 +17,13 @@ export default function MatchRoute() {
   const ctrl = useTrackerMatch(matchId!);
   const [publishing, setPublishing] = useState(false);
 
-  if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
+  // Admins and organisers reach the live tracker; the match fetch itself is
+  // server-gated per tournament, so a denied organiser simply gets no data below.
+  if (user?.role !== 'ADMIN' && user?.role !== 'ORGANIZER') return <Navigate to="/home" replace />;
 
   const { match, session, loading, saving } = ctrl;
 
-  if (loading || !match || !session) {
+  if (loading) {
     return (
       <FullscreenShell backTo={`/admin/stat-tracker/${tournamentId}`}>
         <div className="flex justify-center py-16">
@@ -30,6 +32,9 @@ export default function MatchRoute() {
       </FullscreenShell>
     );
   }
+
+  // No data after loading = server withheld it (not assigned) or it's gone.
+  if (!match || !session) return <Navigate to="/home" replace />;
 
   const isPublished = match.status === 'PUBLISHED';
   const canPublish = match.status === 'COMPLETED' || isPublished;

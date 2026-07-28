@@ -54,10 +54,11 @@ export default function MainLayout() {
   };
 
   // Profile completeness check for "!" badge
-  // Gender is required for everyone except teams (and admins) so men's/women's
-  // rankings stay separate; existing profiles are nagged until they set it.
-  const needsGender = !!(user && user.role !== 'ADMIN' && user.role !== 'TEAM' && !user.gender);
-  const profileIncomplete = !!(user && user.role !== 'ADMIN' && (!user.bio || !user.avatar || !user.location || !user.age || !user.position)) || needsGender;
+  // Gender is required for everyone except teams (and staff: admins/organisers) so
+  // men's/women's rankings stay separate; existing profiles are nagged until set.
+  const isStaff = user?.role === 'ADMIN' || user?.role === 'ORGANIZER';
+  const needsGender = !!(user && !isStaff && user.role !== 'TEAM' && !user.gender);
+  const profileIncomplete = !!(user && !isStaff && (!user.bio || !user.avatar || !user.location || !user.age || !user.position)) || needsGender;
 
   const navItems = [
     { to: '/home',          icon: Home,          label: 'Home' },
@@ -74,6 +75,9 @@ export default function MainLayout() {
     { to: '/messages',      icon: MessageSquare, label: 'Messages' },
     { to: '/notifications', icon: Bell,          label: 'Notifications' },
     { to: '/invite',        icon: UserPlus,      label: 'Invite' },
+    ...(user?.role === 'ORGANIZER'
+      ? [{ to: '/my-tournaments', icon: Shield, label: 'My tournaments' }]
+      : []),
     ...(user?.role === 'ADMIN'
       ? [{ to: '/admin', icon: Shield, label: 'Admin' }]
       : []),

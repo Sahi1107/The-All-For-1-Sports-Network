@@ -19,7 +19,9 @@ export default function TrackerDashboard() {
   const nav = useNavigate();
   const qc = useQueryClient();
 
-  if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
+  // Platform admins and organisers reach the tracker; per-tournament access is
+  // enforced server-side (and re-checked below via viewerCanManage).
+  if (user?.role !== 'ADMIN' && user?.role !== 'ORGANIZER') return <Navigate to="/home" replace />;
 
   const { data: tournament } = useQuery({
     queryKey: ['tracker-tournament', tournamentId],
@@ -49,6 +51,10 @@ export default function TrackerDashboard() {
       </div>
     );
   }
+
+  // Organiser assigned elsewhere (or a non-organiser): the server withholds the
+  // data; bounce them out rather than render an empty shell.
+  if (tournament && tournament.viewerCanManage === false) return <Navigate to="/home" replace />;
 
   return (
     <div>
