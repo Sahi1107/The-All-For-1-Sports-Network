@@ -191,3 +191,45 @@ export const StandaloneBulkProvisionBody = z.object({
   sport: SportEnum,
   rows: BulkRowsArray,
 });
+
+// ─── Tournament organiser management (super-admin only) ───────────────────────
+// Assignment grants tournament-SCOPED access (TournamentOrganizer rows), enforced
+// server-side by middleware/tournamentAccess. It never grants platform-wide powers.
+
+export const AdminTournamentParams = z.object({
+  id: z.string().uuid('Invalid tournament ID'),
+});
+
+export const AdminOrganizerParams = z.object({
+  id:     z.string().uuid('Invalid tournament ID'),
+  userId: z.string().uuid('Invalid user ID'),
+});
+
+// Add an organiser by EITHER an existing profile (userId) OR name+email for a new
+// account. Exactly one path is required; the endpoint detects which case applies.
+export const AdminAddOrganizerBody = z
+  .object({
+    userId: z.string().uuid('Invalid user ID').optional(),
+    name:   z.string().max(80).optional().transform((v) => (v ? v.trim() : v)),
+    email: z
+      .string()
+      .email('Invalid email address')
+      .max(254, 'Email address too long')
+      .optional()
+      .transform((v) => (v ? v.toLowerCase().trim() : v)),
+  })
+  .refine((b) => Boolean(b.userId) || Boolean(b.email), {
+    message: 'Provide either an existing user or an email address',
+  })
+  .refine((b) => Boolean(b.userId) || Boolean(b.name), {
+    message: 'A name is required when adding a new organiser by email',
+    path: ['name'],
+  });
+
+export const AdminUserLookupQuery = z.object({
+  email: z
+    .string({ error: 'Email is required' })
+    .email('Invalid email address')
+    .max(254)
+    .transform((s) => s.toLowerCase().trim()),
+});
