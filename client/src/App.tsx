@@ -6,6 +6,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import MainLayout from './layouts/MainLayout';
 import NotFound from './pages/NotFound';
+// Eagerly bundled (not lazy): the very first screen a bulk/organiser-provisioned
+// account sees on login. A mid-session dynamic import here can hang/fail and leave
+// a new user on a blank screen; keeping it in the main bundle makes it reliable.
+import ForcePasswordReset from './pages/ForcePasswordReset';
 import BallLoader from './components/BallLoader';
 import AnalyticsManager from './components/AnalyticsManager';
 import ConsentBanner from './components/ConsentBanner';
@@ -43,7 +47,6 @@ const Notifications  = lazy(() => import('./pages/Notifications'));
 const Announcements  = lazy(() => import('./pages/Announcements'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const BulkProvision  = lazy(() => import('./pages/BulkProvision'));
-const ForcePasswordReset = lazy(() => import('./pages/ForcePasswordReset'));
 const StatTrackerLauncher = lazy(() => import('./features/statTracker/StatTrackerLauncher'));
 const TrackerDashboard     = lazy(() => import('./features/statTracker/TrackerDashboard'));
 const TrackerMatchRoute    = lazy(() => import('./features/statTracker/MatchRoute'));

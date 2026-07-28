@@ -17,8 +17,11 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/home');
+      const signedIn = await login(email, password);
+      // Route straight to the right place. A first-login (bulk/organiser) account
+      // must set a password before anything else — go there directly rather than
+      // hitting /home and bouncing, which races with auth-state resolution.
+      navigate(signedIn?.mustResetPassword ? '/force-password-reset' : '/home', { replace: true });
     } catch (err: any) {
       const code = err.code ?? err.message ?? '';
       if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {

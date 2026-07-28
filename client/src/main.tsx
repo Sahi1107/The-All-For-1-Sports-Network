@@ -5,6 +5,20 @@ import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 import { initSentry } from './config/sentry.ts'
 
+// Recover from a failed dynamic import — a stale/missing chunk after a deploy, or
+// a transient fetch failure — instead of leaving a blank screen the user has to
+// manually refresh out of. Vite fires this when a lazily-imported route/chunk
+// can't load; reload once to pull the current bundle. The recent-reload guard
+// prevents a loop if the chunk is genuinely gone.
+window.addEventListener('vite:preloadError', (event) => {
+  const KEY = 'af1:last-chunk-reload'
+  const last = Number(sessionStorage.getItem(KEY) || 0)
+  if (Date.now() - last < 10_000) return // already tried very recently — don't loop
+  sessionStorage.setItem(KEY, String(Date.now()))
+  event.preventDefault()
+  window.location.reload()
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>

@@ -95,7 +95,9 @@ interface AuthContextType {
   loading: boolean;
   suspension: Suspension | null;
   unverifiedEmail: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  /** Resolves to the signed-in user (or null if the account is suspended and was
+   *  routed to the appeal screen), so callers can route on first-login state. */
+  login: (email: string, password: string) => Promise<User | null>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   /** Revoke every session (refresh tokens) server-side, then sign out here. */
@@ -341,9 +343,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data } = await authedGet(token, '/auth/me');
       setUser(data.user);
       setSuspension(null);
+      // Return the resolved user so the caller can route deterministically (e.g.
+      // straight to the force-password-reset gate) instead of navigating to /home
+      // and relying on a second redirect to bounce them — that double-navigation
+      // races with this session resolution and can strand a first-login user.
+      return data.user as User;
     } catch (err: any) {
       // Suspended accounts can sign in but are routed to the appeal screen.
-      if (detectSuspension(err)) return;
+      if (detectSuspension(err)) return null;
       throw err;
     }
   };
