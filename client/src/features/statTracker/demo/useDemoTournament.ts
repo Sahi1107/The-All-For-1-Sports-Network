@@ -113,7 +113,7 @@ export function useDemoTournament(sport: TrackerSport) {
           match: liveMatch,
           session,
           loading: false,
-          saving: false,
+          saveState: 'saved', // demo is client-only — nothing to persist
           updateState,
           setStatus,
           flush: async () => {},

@@ -9,7 +9,8 @@ import { exportMatchExcel } from './excel';
 import FullscreenShell from './FullscreenShell';
 import FootballMatch from './football/FootballMatch';
 import BasketballMatch from './basketball/BasketballMatch';
-import { Download, Loader2, UploadCloud, CheckCircle2 } from 'lucide-react';
+import { saveDisplay } from './saveState';
+import { Download, Loader2, UploadCloud, CheckCircle2, CloudOff, AlertTriangle, Check } from 'lucide-react';
 
 export default function MatchRoute() {
   const { tournamentId, matchId } = useParams();
@@ -21,7 +22,7 @@ export default function MatchRoute() {
   // server-gated per tournament, so a denied organiser simply gets no data below.
   if (user?.role !== 'ADMIN' && user?.role !== 'ORGANIZER') return <Navigate to="/home" replace />;
 
-  const { match, session, loading, saving } = ctrl;
+  const { match, session, loading, saveState } = ctrl;
 
   if (loading) {
     return (
@@ -38,6 +39,17 @@ export default function MatchRoute() {
 
   const isPublished = match.status === 'PUBLISHED';
   const canPublish = match.status === 'COMPLETED' || isPublished;
+
+  const save = saveDisplay(saveState);
+  const SAVE_TONE: Record<string, string> = {
+    ok:   'text-gray-custom bg-dark-light/80 border-dark-lighter',
+    busy: 'text-gray-custom bg-dark-light/80 border-dark-lighter',
+    bad:  'text-red-300 bg-red-500/15 border-red-500/40',
+  };
+  const SaveIcon = saveState === 'saving' ? Loader2
+    : saveState === 'offline' ? CloudOff
+    : saveState === 'error' ? AlertTriangle
+    : Check;
 
   async function handlePublish() {
     if (!confirm('Publish this match? Player stats will be written to their profiles and the match added to the tournament log.')) return;
@@ -59,8 +71,11 @@ export default function MatchRoute() {
     <FullscreenShell
       backTo={`/admin/stat-tracker/${tournamentId}`}
       topRight={
-        <span className="flex items-center gap-1.5 text-xs text-gray-custom bg-dark-light/80 border border-dark-lighter rounded-full px-3 py-1">
-          {saving ? <><Loader2 size={12} className="animate-spin" /> Saving…</> : 'Saved'}
+        <span
+          role="status" aria-live="polite"
+          className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1 border ${SAVE_TONE[save.tone]}`}
+        >
+          <SaveIcon size={12} className={saveState === 'saving' ? 'animate-spin' : ''} /> {save.label}
         </span>
       }
     >
