@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import {
   buildReport,
   parseDob,
+  parseGender,
   ageFromDob,
   mapMemberRole,
   normalizeEmail,
@@ -295,6 +296,31 @@ test('mapMemberRole maps known roles and rejects unknown', () => {
 test('normalizeEmail trims and lowercases', () => {
   assert.equal(normalizeEmail('  Foo@Bar.COM '), 'foo@bar.com');
   assert.equal(normalizeEmail(undefined), '');
+});
+
+// ─── Category (Men's / Women's) parsing ──────────────────────────────────────
+// There are only two categories: Male = men's, Female = women's. The cell accepts
+// the category words as well as the legacy Male/Female/M/F.
+
+test("parseGender accepts category words and legacy values (Male = men's, Female = women's)", () => {
+  for (const v of ["Men's", 'Men', 'MENS', 'Male', 'm']) assert.equal(parseGender(v), 'MALE');
+  for (const v of ["Women's", 'Women', 'WOMENS', 'Female', 'F']) assert.equal(parseGender(v), 'FEMALE');
+  assert.equal(parseGender('mixed'), null);
+  assert.equal(parseGender(''), null);
+  assert.equal(parseGender(undefined), null);
+});
+
+test("a row's category resolves to the stored gender enum (Women's → FEMALE)", () => {
+  const rows: RawRow[] = [{ name: 'A', email: 'a@example.com', dob: '2005-01-01', gender: "Women's" }];
+  const { resolved } = buildReport(rows, standalone, new Set());
+  assert.equal(resolved[0].gender, 'FEMALE');
+});
+
+test("a tournament's category overrides each row's category", () => {
+  const womensCtx: ProvisionContext = { ...tournament, genderCategory: 'WOMEN' };
+  const rows = makeTeam('Team', 5).map((r) => ({ ...r, gender: "Men's" }));
+  const { resolved } = buildReport(rows, womensCtx, new Set());
+  assert.ok(resolved.every((r) => r.gender === 'FEMALE'));
 });
 
 test('generateTempPassword meets the complexity policy', () => {

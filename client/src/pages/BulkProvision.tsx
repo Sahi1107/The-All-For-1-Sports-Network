@@ -69,7 +69,7 @@ const CANONICAL_FIELDS: { key: keyof LongRow; label: string; required: boolean }
   { key: 'name',           label: 'Name',          required: true },
   { key: 'email',          label: 'Email',         required: true },
   { key: 'dob',            label: 'Date of birth', required: false },
-  { key: 'gender',         label: 'Gender',        required: false },
+  { key: 'gender',         label: 'Category',      required: false },
   { key: 'position',       label: 'Position',      required: false },
   { key: 'phone',          label: 'Phone',         required: false },
   { key: 'guardian_email', label: 'Guardian email', required: false },
@@ -95,6 +95,8 @@ const HEADER_ALIASES: Record<string, keyof LongRow> = {
   parent_email:     'guardian_email',
   team:             'team_name',
   role:             'member_role',
+  sex:              'gender',
+  category:         'gender', // competition category: Men's = Male, Women's = Female
 };
 
 /** norm() + alias resolution → a canonical field key when one matches. */
@@ -411,7 +413,7 @@ export default function BulkProvision() {
             <FileSpreadsheet size={32} className="mx-auto mb-3 text-gray-custom" />
             <p className="text-sm font-medium">Click to upload a CSV</p>
             <p className="text-xs text-gray-custom mt-1">
-              Accepts a simple player list (Player Name, Date of Birth, Playing Position, Email),
+              Accepts a simple player list (Player Name, Date of Birth, Category, Playing Position, Email),
               the Google Form export, or the multi-team roster template.
             </p>
             {previewMutation.isPending && (
