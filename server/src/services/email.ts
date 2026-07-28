@@ -34,6 +34,11 @@ interface SendOptions {
 
 async function sendMail({ to, subject, html, text, replyTo, headers }: SendOptions): Promise<void> {
   if (!transport) {
+    // A missing transport in production is a real misconfiguration — throw so callers
+    // log a genuine failure instead of a false "sent". Dev/local stays a silent no-op.
+    if (env.NODE_ENV === 'production') {
+      throw new Error('email.not_configured: SMTP is not configured in production');
+    }
     logger.warn('email.not_configured', { to, subject, text });
     return;
   }
