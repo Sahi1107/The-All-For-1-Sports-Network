@@ -23,7 +23,9 @@ export default function DemoTournamentRoute() {
   const normalized: TrackerSport = sport === 'football' ? 'FOOTBALL' : 'BASKETBALL';
   const t = useDemoTournament(normalized);
 
-  if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
+  // Admins and organisers can practise here. The demo is entirely client-side
+  // (in-memory sim, no server writes), so practice can't touch real tournament data.
+  if (user?.role !== 'ADMIN' && user?.role !== 'ORGANIZER') return <Navigate to="/home" replace />;
 
   // ── Live-tracking a fixture (inline, so tournament state survives) ──
   if (t.openId && t.matchCtrl) {

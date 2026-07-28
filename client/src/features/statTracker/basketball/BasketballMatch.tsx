@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './tracker.css';
 import type { useTrackerMatch } from '../useTrackerMatch';
 import type {
@@ -38,8 +38,16 @@ function applyAction(p: BasketballPlayer, kind: BasketballActionKind, dir: 1 | -
   return n;
 }
 
+// Cap any single elapsed computation. The clock commits every 10s while running,
+// so a legitimate delta is ≤~10s; anything larger is a stale timestamp (a reload
+// or a throttled/backgrounded tab) and must NOT be credited to the game clock or
+// to on-court minutes as though the game kept playing while the tab was away.
+const MAX_TICK_SECONDS = 15;
+function elapsedSince(startMs: number): number {
+  return Math.min(MAX_TICK_SECONDS, Math.max(0, (Date.now() - startMs) / 1000));
+}
 function liveClock(s: BasketballState): number {
-  if (s.clockRunning && s.clockLastStartMs) return s.clockSeconds + (Date.now() - s.clockLastStartMs) / 1000;
+  if (s.clockRunning && s.clockLastStartMs) return s.clockSeconds + elapsedSince(s.clockLastStartMs);
   return s.clockSeconds;
 }
 function fmtRemaining(elapsed: number, quarterSeconds: number) {
@@ -69,6 +77,18 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
     void setStatus('IN_PROGRESS');
   }, [match?.id, !!match?.state, homeTeam, awayTeam]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // On (re)load of a match whose clock was left running, re-anchor clockLastStartMs
+  // to now so the time the tab was closed/away is not retroactively credited. The
+  // capped delta above is the safety net; this makes the common reload case exact.
+  const resynced = useRef(false);
+  useEffect(() => {
+    if (!state || resynced.current) return;
+    resynced.current = true;
+    if (state.clockRunning && state.clockLastStartMs && Date.now() - state.clockLastStartMs > MAX_TICK_SECONDS * 1000) {
+      updateState((s) => ({ ...(s as BasketballState), clockLastStartMs: Date.now() }));
+    }
+  }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // tick + periodic clock commit (credits on-court minutes)
   useEffect(() => {
     if (!state?.clockRunning) return;
@@ -89,7 +109,7 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
 
   function commitClock(s: BasketballState): BasketballState {
     if (!s.clockRunning || !s.clockLastStartMs) return s;
-    const delta = (Date.now() - s.clockLastStartMs) / 1000;
+    const delta = elapsedSince(s.clockLastStartMs); // capped — never credits away-time
     const players = { ...s.players };
     [...s.onCourtHome, ...s.onCourtAway].forEach((id) => {
       if (players[id]) players[id] = { ...players[id], secondsPlayed: players[id].secondsPlayed + delta };
