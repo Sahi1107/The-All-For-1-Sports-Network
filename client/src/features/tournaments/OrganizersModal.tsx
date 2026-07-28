@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
-  X, Search, UserPlus, Trash2, ShieldCheck, Mail, Loader2, CheckCircle2, UserCheck,
+  X, Search, UserPlus, UserMinus, Trash2, ShieldCheck, Mail, Loader2, CheckCircle2, UserCheck, History,
 } from 'lucide-react';
 import api from '../../api/client';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -12,6 +12,12 @@ interface OrganizerRow {
   userId: string; name: string; email: string; avatar?: string | null;
   addedBy: { id: string; name: string } | null; createdAt: string;
 }
+interface AuditRow {
+  action: 'GRANTED' | 'REVOKED'; accountCreated: boolean;
+  userId: string; userName: string; userEmail: string;
+  actor: { id: string; name: string } | null; createdAt: string;
+}
+interface OrganizersPayload { organizers: OrganizerRow[]; audit: AuditRow[] }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -34,10 +40,12 @@ export default function OrganizersModal({
   const isEmail = EMAIL_RE.test(debounced);
 
   const listKey = ['tournament-organizers', tournamentId];
-  const { data: organizers = [], isLoading: loadingList } = useQuery<OrganizerRow[]>({
+  const { data, isLoading: loadingList } = useQuery<OrganizersPayload>({
     queryKey: listKey,
-    queryFn: async () => (await api.get(`/admin/tournaments/${tournamentId}/organizers`)).data.organizers,
+    queryFn: async () => (await api.get(`/admin/tournaments/${tournamentId}/organizers`)).data,
   });
+  const organizers = data?.organizers ?? [];
+  const audit = data?.audit ?? [];
   const assignedIds = useMemo(() => new Set(organizers.map((o) => o.userId)), [organizers]);
 
   // Typeahead over all users (name or email). Suppressed once a user is chosen.
@@ -72,8 +80,9 @@ export default function OrganizersModal({
     mutationFn: (userId: string) => api.delete(`/admin/tournaments/${tournamentId}/organizers/${userId}`),
     onMutate: async (userId) => {
       await qc.cancelQueries({ queryKey: listKey });
-      const prev = qc.getQueryData<OrganizerRow[]>(listKey);
-      qc.setQueryData<OrganizerRow[]>(listKey, (old) => (old ?? []).filter((o) => o.userId !== userId));
+      const prev = qc.getQueryData<OrganizersPayload>(listKey);
+      qc.setQueryData<OrganizersPayload>(listKey, (old) =>
+        old ? { ...old, organizers: old.organizers.filter((o) => o.userId !== userId) } : old);
       return { prev };
     },
     onError: (_e, _id, ctx) => { if (ctx?.prev) qc.setQueryData(listKey, ctx.prev); toast.error('Could not revoke access'); },
@@ -245,6 +254,34 @@ export default function OrganizersModal({
               <p className="mt-2 text-[12px] text-gray-custom">No matches. Enter a full email to add someone new.</p>
             )}
           </div>
+
+          {/* Access history — the durable audit trail (grants & revokes) */}
+          {audit.length > 0 && (
+            <div className="border-t border-line pt-4">
+              <h4 className="flex items-center gap-1.5 text-xs font-semibold text-gray-custom uppercase tracking-wide mb-2">
+                <History size={12} /> Access history
+              </h4>
+              <ul className="space-y-1.5">
+                {audit.map((a, i) => {
+                  const granted = a.action === 'GRANTED';
+                  return (
+                    <li key={i} className="flex items-start gap-2.5 text-[12px]">
+                      <span className={`mt-0.5 shrink-0 ${granted ? 'text-accent' : 'text-red-400'}`}>
+                        {granted ? <UserPlus size={13} /> : <UserMinus size={13} />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="text-foreground">{a.actor?.name ?? 'System'}</span>
+                        <span className="text-gray-custom"> {granted ? 'added' : 'revoked'} </span>
+                        <span className="text-foreground">{a.userName}</span>
+                        {granted && a.accountCreated && <span className="text-gray-custom"> · new account</span>}
+                        <span className="block text-[11px] text-gray-custom">{formatWhen(a.createdAt)}</span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end px-5 py-3 border-t border-line">
@@ -253,6 +290,12 @@ export default function OrganizersModal({
       </div>
     </div>
   );
+}
+
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+    ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
 function Avatar({ name, avatar }: { name: string; avatar?: string | null }) {

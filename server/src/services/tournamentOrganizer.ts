@@ -1,7 +1,7 @@
 // Tournament-organiser assignment + provisioning. Assignment (TournamentOrganizer
 // rows) is what grants scoped access; middleware/tournamentAccess.ts enforces it.
 // These functions are only ever called from super-admin-gated endpoints.
-import { Role } from '@prisma/client';
+import { Role, OrganizerAuditAction } from '@prisma/client';
 import prisma from '../config/db';
 import { generateTempPassword } from './provisionAthlete';
 import { sendOrganizerWelcome } from './email';
@@ -65,13 +65,47 @@ export async function provisionOrganizerAccount(input: {
   return { userId: user.id };
 }
 
-/** Grant organiser access (idempotent — re-adding is a no-op, never a duplicate). */
-export async function assignOrganizer(tournamentId: string, userId: string, addedById: string) {
-  return prisma.tournamentOrganizer.upsert({
+/** A durable, human-readable snapshot so an audit row stays legible even if the
+ *  tournament or user is later deleted. */
+async function auditDetail(tournamentId: string, userId: string): Promise<string> {
+  const [u, t] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } }),
+    prisma.tournament.findUnique({ where: { id: tournamentId }, select: { name: true } }),
+  ]);
+  return `${u?.name ?? 'Unknown user'} (${u?.email ?? '—'}) · ${t?.name ?? 'Unknown tournament'}`;
+}
+
+/**
+ * Grant organiser access (idempotent — re-adding is a no-op, never a duplicate).
+ * On a genuinely NEW grant the assignment and its audit row are written in one
+ * transaction, so access is never granted without a recorded reason and actor.
+ */
+export async function assignOrganizer(
+  tournamentId: string, userId: string, addedById: string,
+  opts: { accountCreated?: boolean } = {},
+) {
+  const existing = await prisma.tournamentOrganizer.findUnique({
     where: { tournamentId_userId: { tournamentId, userId } },
-    create: { tournamentId, userId, addedById },
-    update: {},
+    select: { id: true },
   });
+  if (existing) {
+    // Already an organiser — nothing changes, so nothing to audit.
+    return prisma.tournamentOrganizer.findUniqueOrThrow({ where: { tournamentId_userId: { tournamentId, userId } } });
+  }
+
+  const detail = await auditDetail(tournamentId, userId);
+  const [row] = await prisma.$transaction([
+    prisma.tournamentOrganizer.create({ data: { tournamentId, userId, addedById } }),
+    prisma.organizerAudit.create({
+      data: {
+        tournamentId, userId, actorId: addedById,
+        action: OrganizerAuditAction.GRANTED,
+        accountCreated: opts.accountCreated ?? false,
+        detail,
+      },
+    }),
+  ]);
+  return row;
 }
 
 /** Notify an EXISTING user they've been made an organiser (in-app + email per prefs). */
@@ -88,9 +122,25 @@ export async function notifyOrganizerAssigned(userId: string, tournamentId: stri
   }).catch((e) => logger.warn('organizer.notify_failed', { userId, e: String(e) }));
 }
 
-/** Revoke — access is checked live per request, so this takes effect immediately. */
-export async function revokeOrganizer(tournamentId: string, userId: string): Promise<void> {
-  await prisma.tournamentOrganizer.deleteMany({ where: { tournamentId, userId } });
+/**
+ * Revoke — access is checked live per request, so this takes effect immediately.
+ * The delete and its audit row are written in one transaction. Revoking someone
+ * who isn't an organiser is a no-op (nothing to record).
+ */
+export async function revokeOrganizer(tournamentId: string, userId: string, actorId: string | null): Promise<void> {
+  const existing = await prisma.tournamentOrganizer.findUnique({
+    where: { tournamentId_userId: { tournamentId, userId } },
+    select: { id: true },
+  });
+  if (!existing) return;
+
+  const detail = await auditDetail(tournamentId, userId);
+  await prisma.$transaction([
+    prisma.tournamentOrganizer.delete({ where: { tournamentId_userId: { tournamentId, userId } } }),
+    prisma.organizerAudit.create({
+      data: { tournamentId, userId, actorId, action: OrganizerAuditAction.REVOKED, detail },
+    }),
+  ]);
 }
 
 export async function listOrganizers(tournamentId: string) {
@@ -101,5 +151,18 @@ export async function listOrganizers(tournamentId: string) {
       addedBy: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: 'asc' },
+  });
+}
+
+/** The access-history audit trail for a tournament (most recent first). */
+export async function listOrganizerAudit(tournamentId: string) {
+  return prisma.organizerAudit.findMany({
+    where: { tournamentId },
+    include: {
+      user:  { select: { id: true, name: true, email: true } },
+      actor: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
   });
 }

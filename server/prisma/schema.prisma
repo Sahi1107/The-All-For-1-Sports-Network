@@ -289,6 +289,8 @@ model User {
   createdTournaments      Tournament[]
   organizerRoles          TournamentOrganizer[]    @relation("OrganizerRoles")
   organizersGranted       TournamentOrganizer[]    @relation("OrganizersGranted")
+  organizerAuditsSubject  OrganizerAudit[]         @relation("OrganizerAuditsSubject")
+  organizerAuditsActor    OrganizerAudit[]         @relation("OrganizerAuditsActor")
   basketballStats         BasketballStats[]
   footballStats           FootballStats[]
   cricketStats            CricketStats[]
@@ -588,6 +590,7 @@ model Tournament {
 
   createdBy       User                  @relation(fields: [createdById], references: [id])
   organizers      TournamentOrganizer[] @relation("TournamentOrganizers")
+  organizerAudits OrganizerAudit[]      @relation("TournamentOrganizerAudits")
   teams           TournamentTeam[]
   registeredTeams Team[]                @relation("TeamTournament")
   matches         Match[]
@@ -1083,6 +1086,34 @@ model TournamentOrganizer {
   @@unique([tournamentId, userId])
   @@index([userId])
   @@index([tournamentId])
+}
+
+enum OrganizerAuditAction {
+  GRANTED
+  REVOKED
+}
+
+// Immutable audit trail for organiser access grants/revokes. Access itself lives
+// in TournamentOrganizer (which is deleted on revoke); THIS table is the durable
+// record of who did what, to whom, and when — for a platform holding minors' data.
+// `detail` snapshots the names/email so a row stays legible even if the tournament
+// or user is later deleted. Follows the ModerationAction pattern.
+model OrganizerAudit {
+  id             String               @id @default(uuid())
+  tournamentId   String               @map("tournament_id")
+  userId         String               @map("user_id") // the organiser granted/revoked
+  actorId        String?              @map("actor_id") // the super-admin who acted (null if system)
+  action         OrganizerAuditAction
+  accountCreated Boolean              @default(false) @map("account_created") // grant that also created a new account
+  detail         String? // snapshot: "Priya Rao (p@x.in) · Don Bosco Cup 2026"
+  createdAt      DateTime             @default(now()) @map("created_at")
+
+  tournament Tournament @relation("TournamentOrganizerAudits", fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation("OrganizerAuditsSubject", fields: [userId], references: [id], onDelete: Cascade)
+  actor      User?      @relation("OrganizerAuditsActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tournamentId])
+  @@index([userId])
 }
 
 // Auth tokens (refresh, email-verification, password-reset) are managed by

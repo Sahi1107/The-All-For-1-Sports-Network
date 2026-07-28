@@ -20,7 +20,7 @@ import { deleteUserCompletely } from '../services/userDeletion';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 import {
   findUserByEmail, provisionOrganizerAccount, assignOrganizer,
-  revokeOrganizer, listOrganizers, notifyOrganizerAssigned,
+  revokeOrganizer, listOrganizers, listOrganizerAudit, notifyOrganizerAssigned,
 } from '../services/tournamentOrganizer';
 import { getIO } from '../config/socket';
 import {
@@ -1040,7 +1040,7 @@ router.get('/tournaments/:id/organizers', validate({ params: AdminTournamentPara
     const tournamentId = req.params.id as string;
     const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { id: true } });
     if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
-    const organizers = await listOrganizers(tournamentId);
+    const [organizers, audit] = await Promise.all([listOrganizers(tournamentId), listOrganizerAudit(tournamentId)]);
     res.json({
       organizers: organizers.map((o) => ({
         userId: o.user.id,
@@ -1049,6 +1049,16 @@ router.get('/tournaments/:id/organizers', validate({ params: AdminTournamentPara
         avatar: o.user.avatar,
         addedBy: o.addedBy ? { id: o.addedBy.id, name: o.addedBy.name } : null,
         createdAt: o.createdAt,
+      })),
+      // Durable access history — grants and revokes, most recent first.
+      audit: audit.map((a) => ({
+        action: a.action,
+        accountCreated: a.accountCreated,
+        userId: a.user.id,
+        userName: a.user.name,
+        userEmail: a.user.email,
+        actor: a.actor ? { id: a.actor.id, name: a.actor.name } : null,
+        createdAt: a.createdAt,
       })),
     });
   } catch (error) {
@@ -1091,7 +1101,7 @@ router.post(
         }
       }
 
-      await assignOrganizer(tournamentId, targetUserId, req.user!.userId);
+      await assignOrganizer(tournamentId, targetUserId, req.user!.userId, { accountCreated: created });
 
       // Existing accounts get the in-app + email notification. New accounts already
       // received the credentials email (which names the tournament) — no double-ping.
@@ -1113,7 +1123,7 @@ router.delete('/tournaments/:id/organizers/:userId', validate({ params: AdminOrg
   try {
     const tournamentId = req.params.id as string;
     const userId = req.params.userId as string;
-    await revokeOrganizer(tournamentId, userId);
+    await revokeOrganizer(tournamentId, userId, req.user!.userId);
     logger.info('admin.organizer_revoked', { actorId: req.user!.userId, tournamentId, userId });
     res.status(204).send();
   } catch (error) {
