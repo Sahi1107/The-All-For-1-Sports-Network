@@ -118,12 +118,15 @@ export interface FootballState {
 export interface BasketballPlayer {
   teamId: string;
   secondsPlayed: number;
-  pts: number; ast: number; reb: number; stl: number; blk: number;
+  // reb is the TOTAL (oreb + dreb), kept in step for existing surfaces; oreb/dreb
+  // are the split. fg/fga are TOTAL field goals (2pt + 3pt); 2-pt makes = fg - tp.
+  pts: number; ast: number; reb: number; oreb: number; dreb: number; stl: number; blk: number;
   fg: number; fga: number; tp: number; tpa: number; ft: number; fta: number; to: number;
+  pf: number; // personal fouls
 }
 export type BasketballActionKind =
   | 'FG_MADE' | 'FG_MISS' | '3PT_MADE' | '3PT_MISS' | 'FT_MADE' | 'FT_MISS'
-  | 'AST' | 'REB' | 'STL' | 'BLK' | 'TO';
+  | 'AST' | 'REB' | 'OREB' | 'DREB' | 'STL' | 'BLK' | 'TO' | 'PF';
 export interface BasketballLogEntry {
   id: string;
   playerId: string;
@@ -139,5 +142,8 @@ export interface BasketballState {
   onCourtHome: string[];
   onCourtAway: string[];
   players: Record<string, BasketballPlayer>;
+  // Team fouls per quarter (index = quarter - 1) — drives the live bonus indicator.
+  teamFoulsHome: number[];
+  teamFoulsAway: number[];
   log: BasketballLogEntry[];
 }

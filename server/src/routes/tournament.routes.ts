@@ -666,9 +666,10 @@ router.get('/matches/:matchId/stats', authenticate, async (req: AuthRequest, res
     } else if (sport === 'BASKETBALL') {
       rows = statRows.map((s: any) => ({
         userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '',
-        min: Math.round(s.minutesPlayed), pts: s.points, ast: s.assists, reb: s.rebounds,
-        stl: s.steals, blk: s.blocks, fg: 0, fga: 0, tp: s.threePointers, tpa: 0,
-        ft: s.freeThrows, fta: 0, to: s.turnovers,
+        min: Math.round(s.minutesPlayed), pts: s.points, ast: s.assists,
+        reb: s.rebounds, oreb: s.offRebounds, dreb: s.defRebounds,
+        stl: s.steals, blk: s.blocks, tp2: s.twoPointers, tp: s.threePointers,
+        ft: s.freeThrows, to: s.turnovers, pf: s.personalFouls,
       })).sort((a: any, b: any) => b.pts - a.pts);
     } else {
       rows = statRows.map((s: any) => ({ userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '', ...s }));

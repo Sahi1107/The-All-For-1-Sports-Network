@@ -22,8 +22,10 @@ const COLS: Record<string, { key: string; label: string }[]> = {
     { key: 'saves', label: 'Sv' }, { key: 'tackles', label: 'Tkl' }, { key: 'minutes', label: 'Min' },
   ],
   BASKETBALL: [
-    { key: 'pts', label: 'PTS' }, { key: 'reb', label: 'REB' }, { key: 'ast', label: 'AST' },
-    { key: 'stl', label: 'STL' }, { key: 'blk', label: 'BLK' }, { key: 'tp', label: '3P' },
+    { key: 'pts', label: 'PTS' }, { key: 'reb', label: 'REB' }, { key: 'oreb', label: 'OR' }, { key: 'dreb', label: 'DR' },
+    { key: 'ast', label: 'AST' }, { key: 'stl', label: 'STL' }, { key: 'blk', label: 'BLK' },
+    { key: 'tp2', label: '2P' }, { key: 'tp', label: '3P' }, { key: 'ft', label: 'FT' },
+    { key: 'to', label: 'TO' }, { key: 'pf', label: 'PF' }, { key: 'min', label: 'MIN' },
   ],
   CRICKET: [
     { key: 'runs', label: 'Runs' }, { key: 'wickets', label: 'Wkts' }, { key: 'fours', label: '4s' }, { key: 'sixes', label: '6s' },

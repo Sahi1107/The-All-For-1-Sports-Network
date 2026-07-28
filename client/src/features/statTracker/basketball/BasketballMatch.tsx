@@ -4,18 +4,22 @@ import type { useTrackerMatch } from '../useTrackerMatch';
 import type {
   BasketballState, BasketballPlayer, BasketballActionKind, RosterTeam,
 } from '../types';
+import {
+  bumpTeamFoul, teamFoulsInQuarter, teamInBonus, isFouledOut, inFoulTrouble, FOUL_OUT_LIMIT,
+} from './rules';
 
 type Ctrl = ReturnType<typeof useTrackerMatch>;
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
 
 function emptyPlayer(teamId: string): BasketballPlayer {
-  return { teamId, secondsPlayed: 0, pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, to: 0 };
+  return { teamId, secondsPlayed: 0, pts: 0, ast: 0, reb: 0, oreb: 0, dreb: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, to: 0, pf: 0 };
 }
 
 function applyAction(p: BasketballPlayer, kind: BasketballActionKind, dir: 1 | -1): BasketballPlayer {
   const n = { ...p };
   const c = (v: number) => Math.max(0, v);
   switch (kind) {
+    // FG_MADE is a 2-point make (fg/fga are TOTAL field goals; 3PT also bumps them).
     case 'FG_MADE': n.fg = c(n.fg + dir); n.fga = c(n.fga + dir); n.pts = c(n.pts + 2 * dir); break;
     case 'FG_MISS': n.fga = c(n.fga + dir); break;
     case '3PT_MADE': n.tp = c(n.tp + dir); n.tpa = c(n.tpa + dir); n.fg = c(n.fg + dir); n.fga = c(n.fga + dir); n.pts = c(n.pts + 3 * dir); break;
@@ -23,10 +27,13 @@ function applyAction(p: BasketballPlayer, kind: BasketballActionKind, dir: 1 | -
     case 'FT_MADE': n.ft = c(n.ft + dir); n.fta = c(n.fta + dir); n.pts = c(n.pts + dir); break;
     case 'FT_MISS': n.fta = c(n.fta + dir); break;
     case 'AST': n.ast = c(n.ast + dir); break;
-    case 'REB': n.reb = c(n.reb + dir); break;
+    case 'REB': n.reb = c(n.reb + dir); break; // legacy total-only path
+    case 'OREB': n.oreb = c(n.oreb + dir); n.reb = c(n.reb + dir); break;
+    case 'DREB': n.dreb = c(n.dreb + dir); n.reb = c(n.reb + dir); break;
     case 'STL': n.stl = c(n.stl + dir); break;
     case 'BLK': n.blk = c(n.blk + dir); break;
     case 'TO': n.to = c(n.to + dir); break;
+    case 'PF': n.pf = c(n.pf + dir); break;
   }
   return n;
 }
@@ -38,10 +45,6 @@ function liveClock(s: BasketballState): number {
 function fmtRemaining(elapsed: number, quarterSeconds: number) {
   const r = Math.max(0, Math.floor(quarterSeconds - elapsed));
   return `${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}`;
-}
-function pct(made?: number, att?: number) {
-  if (!att) return '—';
-  return (((made || 0) / att) * 100).toFixed(0) + '%';
 }
 
 export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
@@ -61,7 +64,7 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
     awayTeam.players.forEach((p) => (players[p.userId] = emptyPlayer(awayTeam.teamId)));
     updateState(() => ({
       quarter: 1, quarterSeconds, clockSeconds: 0, clockRunning: false,
-      onCourtHome: [], onCourtAway: [], players, log: [],
+      onCourtHome: [], onCourtAway: [], players, teamFoulsHome: [], teamFoulsAway: [], log: [],
     }));
     void setStatus('IN_PROGRESS');
   }, [match?.id, !!match?.state, homeTeam, awayTeam]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -103,6 +106,23 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
         ...bs,
         players: { ...bs.players, [playerId]: applyAction(p, kind, dir) },
         log: dir === 1 ? [...bs.log, { id: uid(), playerId, kind }] : bs.log,
+      };
+    });
+  }
+  // A foul updates the player AND the team's per-quarter foul count (bonus tracking).
+  function foul(playerId: string, dir: 1 | -1) {
+    if (locked) return;
+    updateState((s) => {
+      const bs = s as BasketballState;
+      const p = bs.players[playerId];
+      if (!p) return bs;
+      const isHome = p.teamId === home;
+      const key = isHome ? 'teamFoulsHome' : 'teamFoulsAway';
+      return {
+        ...bs,
+        players: { ...bs.players, [playerId]: applyAction(p, 'PF', dir) },
+        [key]: bumpTeamFoul(bs[key], bs.quarter, dir),
+        log: dir === 1 ? [...bs.log, { id: uid(), playerId, kind: 'PF' as BasketballActionKind }] : bs.log,
       };
     });
   }
@@ -157,15 +177,18 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
         <table>
           <thead>
             <tr>
-              <th>Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th>
-              <th>FGM / FGA</th><th>FG%</th><th>3PM / 3PA</th><th>3P%</th><th>FTM / FTA</th><th>FT%</th>
+              <th>Player</th><th>MIN</th><th>PTS</th>
+              <th>2PM / 2PA</th><th>3PM / 3PA</th><th>FTM / FTA</th>
+              <th>OREB</th><th>DREB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th>
             </tr>
           </thead>
           <tbody>
             <TeamBlock side="home" teamName={getTeamName(home)} headerBg="#061528" headerColor="#e6eef6"
-              team={homeTeam} state={state} disabled={locked} adjust={adjust} />
+              team={homeTeam} state={state} disabled={locked} adjust={adjust} foul={foul}
+              teamFouls={teamFoulsInQuarter(state.teamFoulsHome, state.quarter)} />
             <TeamBlock side="away" teamName={getTeamName(away)} headerBg="#24060a" headerColor="#ffe4e6"
-              team={awayTeam} state={state} disabled={locked} adjust={adjust} />
+              team={awayTeam} state={state} disabled={locked} adjust={adjust} foul={foul}
+              teamFouls={teamFoulsInQuarter(state.teamFoulsAway, state.quarter)} />
           </tbody>
         </table>
       </div>
@@ -179,56 +202,73 @@ function sub(s: BasketballState, side: 'home' | 'away', outId: string, inId: str
 }
 
 function teamTotals(team: RosterTeam, state: BasketballState) {
-  const t = { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0 };
+  const t = { pts: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, to: 0, pf: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0 };
   team.players.forEach((p) => {
     const r = state.players[p.userId]; if (!r) return;
-    t.pts += r.pts; t.reb += r.reb; t.ast += r.ast; t.stl += r.stl; t.blk += r.blk;
+    t.pts += r.pts; t.oreb += r.oreb ?? 0; t.dreb += r.dreb ?? 0; t.ast += r.ast; t.stl += r.stl; t.blk += r.blk;
+    t.to += r.to ?? 0; t.pf += r.pf ?? 0;
     t.fg += r.fg; t.fga += r.fga; t.tp += r.tp; t.tpa += r.tpa; t.ft += r.ft; t.fta += r.fta;
   });
   return t;
 }
 
-function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disabled, adjust }: {
+function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disabled, adjust, foul, teamFouls }: {
   side: 'home' | 'away'; teamName: string; headerBg: string; headerColor: string;
   team: RosterTeam; state: BasketballState; disabled: boolean;
   adjust: (playerId: string, kind: BasketballActionKind, dir: 1 | -1) => void;
+  foul: (playerId: string, dir: 1 | -1) => void;
+  teamFouls: number;
 }) {
   const onCourtSet = new Set(side === 'home' ? state.onCourtHome : state.onCourtAway);
   const t = teamTotals(team, state);
+  const bonus = teamInBonus(teamFouls);
   const rows = team.players
     .map((p) => ({ ...emptyPlayer(team.teamId), ...state.players[p.userId], userId: p.userId, name: p.name, jersey: p.number, onCourt: onCourtSet.has(p.userId) }))
     .sort((a, b) => Number(b.onCourt) - Number(a.onCourt));
+  const twoPM = (r: { fg: number; tp: number }) => Math.max(0, r.fg - r.tp);
+  const twoPA = (r: { fga: number; tpa: number }) => Math.max(0, r.fga - r.tpa);
 
   return (
     <>
       <tr style={{ background: headerBg, color: headerColor }}>
-        <td colSpan={13} style={{ padding: '8px 12px' }}><strong style={{ fontSize: 16 }}>{teamName}</strong></td>
+        <td colSpan={13} style={{ padding: '8px 12px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: 16 }}>{teamName}</strong>
+            <span style={{ fontSize: 12, fontWeight: 600, color: bonus ? '#fca5a5' : '#9ca3af' }}>
+              Team fouls Q{state.quarter}: {teamFouls}{bonus ? ' · BONUS' : ''}
+            </span>
+          </span>
+        </td>
       </tr>
       <tr style={{ background: 'rgba(255,255,255,0.02)', fontWeight: 700, color: '#e6eef6' }}>
-        <td>Team Totals</td><td>-</td><td>{t.pts}</td><td>{t.reb}</td><td>{t.ast}</td><td>{t.stl}</td><td>{t.blk}</td>
-        <td>{t.fg} / {t.fga}</td><td>{pct(t.fg, t.fga)}</td><td>{t.tp} / {t.tpa}</td><td>{pct(t.tp, t.tpa)}</td>
-        <td>{t.ft} / {t.fta}</td><td>{pct(t.ft, t.fta)}</td>
+        <td>Team Totals</td><td>-</td><td>{t.pts}</td>
+        <td>{t.fg - t.tp} / {t.fga - t.tpa}</td><td>{t.tp} / {t.tpa}</td><td>{t.ft} / {t.fta}</td>
+        <td>{t.oreb}</td><td>{t.dreb}</td><td>{t.ast}</td><td>{t.stl}</td><td>{t.blk}</td><td>{t.to}</td><td>{t.pf}</td>
       </tr>
-      {rows.map((r) => (
-        <tr key={r.userId} style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
+      {rows.map((r) => {
+        const fouledOut = isFouledOut(r.pf ?? 0);
+        return (
+        <tr key={r.userId} style={{ borderTop: '1px solid rgba(255,255,255,0.03)', opacity: fouledOut ? 0.55 : 1 }}>
           <td>
             #{r.jersey ?? '-'} {r.name}
             {r.onCourt ? <span className="badge-on">ON</span> : <span className="badge-bench">BENCH</span>}
+            {fouledOut && <span className="badge-bench" style={{ background: '#7f1d1d', color: '#fecaca' }}>FOULED OUT</span>}
           </td>
           <td style={{ fontVariantNumeric: 'tabular-nums' }}>{(r.secondsPlayed / 60).toFixed(1)}</td>
           <td>{r.pts}</td>
-          <Counter v={r.reb} onMinus={() => adjust(r.userId, 'REB', -1)} onPlus={() => adjust(r.userId, 'REB', 1)} disabled={disabled} />
+          <ShotCell made={twoPM(r)} att={twoPA(r)} kind="FG_MADE" missKind="FG_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
+          <ShotCell made={r.tp} att={r.tpa} kind="3PT_MADE" missKind="3PT_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
+          <ShotCell made={r.ft} att={r.fta} kind="FT_MADE" missKind="FT_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
+          <Counter v={r.oreb ?? 0} onMinus={() => adjust(r.userId, 'OREB', -1)} onPlus={() => adjust(r.userId, 'OREB', 1)} disabled={disabled} />
+          <Counter v={r.dreb ?? 0} onMinus={() => adjust(r.userId, 'DREB', -1)} onPlus={() => adjust(r.userId, 'DREB', 1)} disabled={disabled} />
           <Counter v={r.ast} onMinus={() => adjust(r.userId, 'AST', -1)} onPlus={() => adjust(r.userId, 'AST', 1)} disabled={disabled} />
           <Counter v={r.stl} onMinus={() => adjust(r.userId, 'STL', -1)} onPlus={() => adjust(r.userId, 'STL', 1)} disabled={disabled} />
           <Counter v={r.blk} onMinus={() => adjust(r.userId, 'BLK', -1)} onPlus={() => adjust(r.userId, 'BLK', 1)} disabled={disabled} />
-          <ShotCell made={r.fg} att={r.fga} kind="FG_MADE" missKind="FG_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
-          <td>{pct(r.fg, r.fga)}</td>
-          <ShotCell made={r.tp} att={r.tpa} kind="3PT_MADE" missKind="3PT_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
-          <td>{pct(r.tp, r.tpa)}</td>
-          <ShotCell made={r.ft} att={r.fta} kind="FT_MADE" missKind="FT_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
-          <td>{pct(r.ft, r.fta)}</td>
+          <Counter v={r.to ?? 0} onMinus={() => adjust(r.userId, 'TO', -1)} onPlus={() => adjust(r.userId, 'TO', 1)} disabled={disabled} />
+          <FoulCell v={r.pf ?? 0} onMinus={() => foul(r.userId, -1)} onPlus={() => foul(r.userId, 1)} disabled={disabled} />
         </tr>
-      ))}
+        );
+      })}
     </>
   );
 }
@@ -238,6 +278,20 @@ function Counter({ v, onMinus, onPlus, disabled }: { v: number; onMinus: () => v
     <td>
       <button onClick={onMinus} disabled={disabled}>-</button>
       {' '}{v}{' '}
+      <button onClick={onPlus} disabled={disabled}>+</button>
+    </td>
+  );
+}
+
+// Personal fouls — colours as the player nears (amber) and reaches (red) the limit.
+function FoulCell({ v, onMinus, onPlus, disabled }: { v: number; onMinus: () => void; onPlus: () => void; disabled: boolean }) {
+  const out = isFouledOut(v);
+  const trouble = inFoulTrouble(v);
+  const color = out ? '#f87171' : trouble ? '#fbbf24' : undefined;
+  return (
+    <td>
+      <button onClick={onMinus} disabled={disabled}>-</button>
+      {' '}<span style={{ color, fontWeight: out || trouble ? 700 : undefined }} title={out ? `Fouled out (${FOUL_OUT_LIMIT})` : undefined}>{v}</span>{' '}
       <button onClick={onPlus} disabled={disabled}>+</button>
     </td>
   );

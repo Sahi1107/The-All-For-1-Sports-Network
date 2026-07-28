@@ -37,12 +37,16 @@ export async function writeMatchPlayerStats(
       const data = {
         points: num(s.points),
         rebounds: num(s.rebounds),
+        offRebounds: num(s.offRebounds),
+        defRebounds: num(s.defRebounds),
         assists: num(s.assists),
         steals: num(s.steals),
         blocks: num(s.blocks),
+        twoPointers: num(s.twoPointers),
         threePointers: num(s.threePointers),
         freeThrows: num(s.freeThrows),
         turnovers: num(s.turnovers),
+        personalFouls: num(s.personalFouls),
         minutesPlayed: num(s.minutesPlayed),
       };
       await db.basketballStats.upsert({
