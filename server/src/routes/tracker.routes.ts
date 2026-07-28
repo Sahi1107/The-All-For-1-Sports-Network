@@ -17,6 +17,7 @@ import {
 import { derivePlayerStats } from '../services/trackerStats';
 import { fanoutMatchResult, fanoutDrawPublished, fanoutFixturesScheduled, fanoutStatsVerified, slotLabel } from '../services/notifications/competitionNotify';
 import { writeMatchPlayerStats } from '../services/matchStats';
+import { recalculateTournamentRankings } from '../services/rankingService';
 import {
   CreateSessionBody,
   PatchMatchBody,
@@ -740,6 +741,11 @@ router.post(
 
       res.json({ published: true, matchId: platformMatchId, playerCount: playerStats.length });
 
+      // Rankings derive from published stats — recompute so the Rankings page and
+      // profile receipts reflect this result. Fire-and-forget: a ranking hiccup
+      // must never fail the publish itself.
+      void recalculateTournamentRankings(tournamentId).catch((e) => console.error('ranking recompute (publish) failed', e));
+
       // Fire-and-forget: notify each athlete their result is live, with stat line.
       void (async () => {
         try {
@@ -775,7 +781,10 @@ router.post(
   validate({ params: IdParam }),
   async (req: AuthRequest, res: Response) => {
     try {
-      const trackerMatch = await prisma.trackerMatch.findUnique({ where: { id: req.params.id as string } });
+      const trackerMatch = await prisma.trackerMatch.findUnique({
+        where: { id: req.params.id as string },
+        include: { session: { select: { tournamentId: true } } },
+      });
       if (!trackerMatch) {
         res.status(404).json({ error: 'Match not found' });
         return;
@@ -787,6 +796,7 @@ router.post(
 
       await prisma.$transaction(async (tx) => {
         if (trackerMatch.publishedMatchId) {
+          // Deleting the platform Match cascades its per-player stat rows away.
           await tx.match.deleteMany({ where: { id: trackerMatch.publishedMatchId } });
         }
         await tx.trackerMatch.update({
@@ -796,6 +806,12 @@ router.post(
       });
 
       res.json({ unpublished: true });
+
+      // The removed stats must drop out of the rankings too. Fire-and-forget.
+      const tournamentId = trackerMatch.session?.tournamentId;
+      if (tournamentId) {
+        void recalculateTournamentRankings(tournamentId).catch((e) => console.error('ranking recompute (unpublish) failed', e));
+      }
     } catch (err) {
       console.error('Unpublish tracker match error:', err);
       res.status(500).json({ error: 'Internal server error' });
