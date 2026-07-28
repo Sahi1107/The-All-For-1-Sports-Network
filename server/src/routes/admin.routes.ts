@@ -44,7 +44,12 @@ router.get('/users', validate({ query: AdminUserListQuery }), async (req: AuthRe
     const where: any = {};
     if (role) where.role = role;
     if (sport) where.sport = sport;
-    if (search) where.name = { contains: search as string, mode: 'insensitive' };
+    if (search) {
+      where.OR = [
+        { name:  { contains: search as string, mode: 'insensitive' } },
+        { email: { contains: search as string, mode: 'insensitive' } },
+      ];
+    }
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({

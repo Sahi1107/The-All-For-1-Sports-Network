@@ -139,6 +139,27 @@ router.get('/', authenticate, validate({ query: TournamentListQuery }), async (r
   }
 });
 
+// GET /api/tournaments/mine/organizing — tournaments the requester organises.
+// Powers the organiser's landing (route straight to their tournament) and any
+// "my tournaments" view. Empty for users with no organiser assignments.
+router.get('/mine/organizing', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const rows = await prisma.tournamentOrganizer.findMany({
+      where: { userId: req.user!.userId },
+      select: {
+        tournament: {
+          select: { id: true, name: true, sport: true, status: true, startDate: true, city: true, venue: true, thumbnailUrl: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ tournaments: rows.map((r) => r.tournament) });
+  } catch (error) {
+    console.error('Get organizing tournaments error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/tournaments/:id
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
@@ -217,8 +238,18 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       };
     });
 
+    // Per-viewer management signal for the manage page: a platform ADMIN, or an
+    // organiser assigned to THIS tournament. Purely advisory for the UI — every
+    // management endpoint is still enforced server-side by requireTournamentAccess.
+    const viewerCanManage =
+      req.user!.role === 'ADMIN' ||
+      Boolean(await prisma.tournamentOrganizer.findUnique({
+        where: { tournamentId_userId: { tournamentId, userId } },
+        select: { id: true },
+      }));
+
     // Spread so the per-viewer myTeams is never written back into the shared cache entry.
-    res.json({ tournament: { ...tournament, myTeams } });
+    res.json({ tournament: { ...tournament, myTeams, viewerCanManage } });
   } catch (error) {
     console.error('Get tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
