@@ -15,8 +15,9 @@ import { computeStandings } from '../services/trackerDraw';
 import { getOrCompute } from '../services/tournamentCache';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
-  RegisterTeamBody, CreateMatchBody, MatchResultBody,
+  RegisterTeamBody, CreateMatchBody, MatchResultBody, ProvisionMemberBody,
 } from '../validation/tournament';
+import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 
 const router = Router();
 
@@ -1016,6 +1017,67 @@ router.post('/:id/teams/:teamId/members', authenticate, requireTournamentAccess(
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// POST /api/tournaments/:id/teams/:teamId/members/provision — create a NEW player
+// account and add them to the team directly (all-accepted). For organisers running
+// a live tournament where most players aren't on the platform yet.
+//
+// Tournament-SCOPED (requireTournamentAccess): the team must belong to THIS
+// tournament and the sport is taken from the tournament — this is not a path to
+// platform-wide user creation or bulk provisioning. Account creation (DOB / under-13
+// guardian consent / private-by-default / duplicate-email linking) is delegated to
+// provisionAthleteAccount, so every safeguard that applies to admin creation applies
+// here too. An existing account (by email) is linked and added, never recreated.
+router.post(
+  '/:id/teams/:teamId/members/provision',
+  authenticate,
+  requireTournamentAccess(fromParamId),
+  writeLimiter,
+  validate({ body: ProvisionMemberBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.id as string;
+      const team = await prisma.team.findFirst({
+        where: { id: req.params.teamId as string, tournamentId },
+        select: { id: true },
+      });
+      if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+
+      const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { sport: true } });
+      if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
+
+      const b = req.body;
+      // Sport is the tournament's, never client-supplied — keeps this scoped.
+      const result = await provisionAthleteAccount({
+        name: b.name,
+        email: b.email,
+        role: b.role,
+        sport: tournament.sport,
+        dateOfBirth: new Date(b.dateOfBirth),
+        gender: b.gender,
+        position: b.position,
+        phone: b.phone,
+        guardianEmail: b.guardianEmail,
+      });
+
+      await prisma.teamMember.upsert({
+        where: { teamId_userId: { teamId: team.id, userId: result.userId } },
+        create: { teamId: team.id, userId: result.userId, role: b.role === 'COACH' ? 'COACH' : 'PLAYER', status: 'ACCEPTED', respondedAt: new Date() },
+        update: { status: 'ACCEPTED', respondedAt: new Date() },
+      });
+
+      res.status(201).json({
+        userId: result.userId,
+        created: result.created,
+        guardianConsentPending: result.guardianConsentPending,
+      });
+    } catch (error) {
+      if (error instanceof ProvisionError) { res.status(400).json({ error: error.message }); return; }
+      console.error('Provision team member error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
 
 // DELETE /api/tournaments/:id/teams/:teamId/members/:userId — admin: remove a member.
 router.delete('/:id/teams/:teamId/members/:userId', authenticate, requireTournamentAccess(fromParamId), async (req: AuthRequest, res: Response) => {
