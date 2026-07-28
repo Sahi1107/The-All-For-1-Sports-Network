@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import logoUrl from '../../assets/logo.svg';
+import PublicFooter from '../../components/PublicFooter';
 import '../landing.css';
 import './legal.css';
 
@@ -85,15 +86,7 @@ export default function LegalDoc(props: LegalDocProps) {
         <LegalDocContent {...props} />
       </main>
 
-      <footer className="l-footer">
-        <div className="l-footer__bar" style={{ marginTop: 0, borderTop: 'none' }}>
-          <span>&copy; {new Date().getFullYear()} The AllFor1 Network. All rights reserved.</span>
-          <span>
-            <Link to="/terms" style={{ color: 'inherit', marginRight: 16 }}>Terms</Link>
-            <Link to="/privacy" style={{ color: 'inherit' }}>Privacy</Link>
-          </span>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

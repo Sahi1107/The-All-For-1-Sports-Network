@@ -11,12 +11,15 @@ import { useLogo } from '../hooks/useLogo';
 import CreatePostModal from '../components/CreatePostModal';
 import GlobalSearchOverlay from '../components/GlobalSearchOverlay';
 import ProductTour from '../components/ProductTour';
+import AppFooter from '../components/AppFooter';
 
 export default function MainLayout() {
   const logoUrl = useLogo();
   const { user, logout } = useAuth();
   const location  = useLocation();
   const navigate  = useNavigate();
+  // Minimal footer on pages that end; skip the feed and chat (infinite/interactive).
+  const showAppFooter = location.pathname !== '/home' && !location.pathname.startsWith('/messages');
   const [showCreate, setShowCreate] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -312,6 +315,10 @@ export default function MainLayout() {
             </Link>
           )}
           <Outlet />
+
+          {/* Minimal in-app footer on pages that end; skipped on the feed
+              (/home) and chat (/messages) — infinite/interactive surfaces. */}
+          {showAppFooter && <AppFooter />}
         </div>
         </div>
         {/* Spacer for mobile bottom nav (h-16 base + bottom safe-area inset) */}

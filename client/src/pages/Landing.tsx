@@ -446,7 +446,7 @@ export default function Landing() {
         <div className="l-footer__inner">
           <div>
             <img src={logoUrl} alt="All For One" className="footer-logo" />
-            <p>The network for the sports ecosystem.</p>
+            <p>The verified data layer for Indian grassroots sport.</p>
           </div>
           <div className="l-footer__col">
             <h5>Product</h5>
@@ -455,6 +455,14 @@ export default function Landing() {
             <button onClick={() => jumpTo('team')}>Team</button>
             <Link to="/challenges">Challenges</Link>
             <Link to="/login">Sign Up</Link>
+          </div>
+          <div className="l-footer__col">
+            <h5>Company</h5>
+            <a href="/about">About</a>
+            <a href="/safety">Safety</a>
+            <a href="/community-guidelines">Community Guidelines</a>
+            <a href="/faq">FAQ</a>
+            <a href="mailto:info@allfor1.pro">Contact</a>
           </div>
           <div className="l-footer__col">
             <h5>Legal</h5>
