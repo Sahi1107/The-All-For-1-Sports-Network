@@ -235,14 +235,23 @@ export function genderFromCategory(genderCategory: string | null): Gender | null
   }
 }
 
-/** Parse a free-text gender cell to the enum, or null. */
+/**
+ * Parse a category cell to the stored Gender enum, or null. There are only two
+ * categories: Male = men's, Female = women's. Accepts the category words
+ * (Men's / Women's / Men / Women) as well as the plain Male / Female / M / F —
+ * apostrophes and case are ignored. Anything else leaves the category unset.
+ */
 export function parseGender(raw: string | undefined | null): Gender | null {
-  switch ((raw ?? '').trim().toUpperCase()) {
+  switch ((raw ?? '').trim().toUpperCase().replace(/['’]/g, '')) {
     case 'MALE':
-    case 'M':   return Gender.MALE;
+    case 'M':
+    case 'MEN':
+    case 'MENS':   return Gender.MALE;
     case 'FEMALE':
-    case 'F':   return Gender.FEMALE;
-    default:    return null;
+    case 'F':
+    case 'WOMEN':
+    case 'WOMENS': return Gender.FEMALE;
+    default:       return null;
   }
 }
 
