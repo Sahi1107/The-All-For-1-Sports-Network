@@ -18,6 +18,13 @@ enum Role {
   AGENT
   MEDIA
   ADMIN
+  // Tournament organiser. This is an IDENTITY label only — it grants NO
+  // platform-wide powers by itself. All organiser powers are scoped to the
+  // specific tournaments the user is assigned to via TournamentOrganizer, and
+  // enforced by middleware/tournamentAccess.ts. New organiser-only accounts get
+  // this role; existing users keep their own role and gain scoped access via an
+  // assignment. ADMIN remains platform-wide and separate.
+  ORGANIZER
 }
 
 enum Sport {
@@ -114,17 +121,17 @@ enum NotificationType {
   MESSAGE
   ENDORSEMENT
   // ── High-value additions (channel-agnostic; see notificationCatalog.ts) ──
-  PROFILE_VIEW              // a scout/coach viewed your profile (collapsed)
-  PROFILE_VIEWS_WEEKLY      // weekly "your profile got N views" digest
-  STATS_VERIFIED            // your stats were verified / Performance Card updated
-  RANKING_MILESTONE         // entered a top-N / crossed a meaningful threshold
-  MATCH_STARTING_SOON       // your team's match starts soon
-  MATCH_RESULT_PUBLISHED    // your match result (incl. your stats) is live
-  REGISTRATION_OPEN         // a tournament you're eligible for opened registration
-  REGISTRATION_CLOSING      // registration for a tournament closes soon
-  DRAW_PUBLISHED            // a tournament draw/bracket was published
-  FIXTURES_SCHEDULED        // your team's fixtures were scheduled
-  NEW_ATHLETE_MATCH         // (scout) an athlete matching your interests joined
+  PROFILE_VIEW // a scout/coach viewed your profile (collapsed)
+  PROFILE_VIEWS_WEEKLY // weekly "your profile got N views" digest
+  STATS_VERIFIED // your stats were verified / Performance Card updated
+  RANKING_MILESTONE // entered a top-N / crossed a meaningful threshold
+  MATCH_STARTING_SOON // your team's match starts soon
+  MATCH_RESULT_PUBLISHED // your match result (incl. your stats) is live
+  REGISTRATION_OPEN // a tournament you're eligible for opened registration
+  REGISTRATION_CLOSING // registration for a tournament closes soon
+  DRAW_PUBLISHED // a tournament draw/bracket was published
+  FIXTURES_SCHEDULED // your team's fixtures were scheduled
+  NEW_ATHLETE_MATCH // (scout) an athlete matching your interests joined
 }
 
 enum DigestFrequency {
@@ -135,11 +142,11 @@ enum DigestFrequency {
 }
 
 enum InviteKind {
-  GENERAL      // personal "join me on All For 1"
-  TEAMMATE     // join my team
-  COACH        // I'd like you to coach / see my athletes
-  ATHLETE      // join as an athlete
-  TOURNAMENT   // join this tournament
+  GENERAL // personal "join me on All For 1"
+  TEAMMATE // join my team
+  COACH // I'd like you to coach / see my athletes
+  ATHLETE // join as an athlete
+  TOURNAMENT // join this tournament
 }
 
 enum PostType {
@@ -210,13 +217,13 @@ model User {
   // trace (no view recorded, no "a scout viewed you" notification). Like LinkedIn.
   privateProfileViews    Boolean   @default(false) @map("private_profile_views")
   // ── Notification global controls (anti-spam + DPDP) ──
-  notificationsPaused    Boolean   @default(false) @map("notifications_paused")   // global "pause all"
-  notifyQuietStart       Int?      @map("notify_quiet_start")  // local hour 0-23 (email/push suppressed)
+  notificationsPaused    Boolean   @default(false) @map("notifications_paused") // global "pause all"
+  notifyQuietStart       Int?      @map("notify_quiet_start") // local hour 0-23 (email/push suppressed)
   notifyQuietEnd         Int?      @map("notify_quiet_end")
   notificationUnsubToken String?   @unique @map("notification_unsub_token") // one-click email unsubscribe
   // ── Referral / invite loop ──
   referralCode           String?   @unique @map("referral_code") // personal reusable invite link
-  referredById           String?   @map("referred_by_id")        // who invited this user (attribution)
+  referredById           String?   @map("referred_by_id") // who invited this user (attribution)
   lastActiveAt           DateTime? @map("last_active_at")
   // Email the user is switching to. Set when they start a change; the Firebase
   // email only flips once they click the verification link, so `email` (below)
@@ -240,7 +247,7 @@ model User {
   // Whether this profile is publicly discoverable (search, Scout Copilot,
   // rankings) and viewable by non-self. Under-13 accounts default to false;
   // only the guardian can turn it on. Everyone else defaults to true.
-  discoverable           Boolean   @default(true)
+  discoverable Boolean @default(true)
 
   // ── Guardian management (athletes who registered under 13) ──
   guardianManaged        Boolean        @default(false) @map("guardian_managed")
@@ -256,10 +263,10 @@ model User {
   // emailed link before login credentials are issued (the account stays PENDING
   // and no temp password is delivered until then). Null for accounts that never
   // needed it (adults, 13+, or self-serve signup).
-  guardianConsentStatus        GuardianConsentStatus? @map("guardian_consent_status")
-  guardianConsentTokenHash     String?                @map("guardian_consent_token_hash")
-  guardianConsentTokenExpiresAt DateTime?             @map("guardian_consent_token_expires_at")
-  guardianConsentAt            DateTime?              @map("guardian_consent_at")
+  guardianConsentStatus         GuardianConsentStatus? @map("guardian_consent_status")
+  guardianConsentTokenHash      String?                @map("guardian_consent_token_hash")
+  guardianConsentTokenExpiresAt DateTime?              @map("guardian_consent_token_expires_at")
+  guardianConsentAt             DateTime?              @map("guardian_consent_at")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -272,14 +279,16 @@ model User {
   commentLikes            CommentLike[]
   postReposts             PostRepost[]
   postSaves               PostSave[]
-  sentConnections         Connection[]         @relation("ConnectionSender")
-  receivedConnections     Connection[]         @relation("ConnectionReceiver")
-  followers               Follow[]             @relation("FollowTarget")
-  following               Follow[]             @relation("FollowInitiator")
-  captainOfTeams          Team[]               @relation("TeamCaptain")
-  coachOfTeams            Team[]               @relation("TeamCoach")
+  sentConnections         Connection[]             @relation("ConnectionSender")
+  receivedConnections     Connection[]             @relation("ConnectionReceiver")
+  followers               Follow[]                 @relation("FollowTarget")
+  following               Follow[]                 @relation("FollowInitiator")
+  captainOfTeams          Team[]                   @relation("TeamCaptain")
+  coachOfTeams            Team[]                   @relation("TeamCoach")
   teamMemberships         TeamMember[]
   createdTournaments      Tournament[]
+  organizerRoles          TournamentOrganizer[]    @relation("OrganizerRoles")
+  organizersGranted       TournamentOrganizer[]    @relation("OrganizersGranted")
   basketballStats         BasketballStats[]
   footballStats           FootballStats[]
   cricketStats            CricketStats[]
@@ -287,22 +296,22 @@ model User {
   announcements           Announcement[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
-  profileViewsMade        ProfileView[]        @relation("ProfileViewer")
-  profileViewsReceived    ProfileView[]        @relation("ProfileViewed")
-  invitesSent             Invite[]             @relation("InvitesSent")
+  profileViewsMade        ProfileView[]            @relation("ProfileViewer")
+  profileViewsReceived    ProfileView[]            @relation("ProfileViewed")
+  invitesSent             Invite[]                 @relation("InvitesSent")
   pushSubscriptions       PushSubscription[]
-  sentMessages            Message[]            @relation("MessageSender")
-  sharedInMessages        Message[]            @relation("SharedProfileInMessage")
+  sentMessages            Message[]                @relation("MessageSender")
+  sharedInMessages        Message[]                @relation("SharedProfileInMessage")
   conversationMemberships ConversationMember[]
-  blocksMade              Block[]              @relation("Blocker")
-  blocksReceived          Block[]              @relation("Blocked")
-  reportsFiled            Report[]             @relation("Reporter")
-  reportsAgainst          Report[]             @relation("Reported")
-  endorsementsGiven       Endorsement[]        @relation("EndorsementCoach")
-  endorsementsReceived    Endorsement[]        @relation("EndorsementAthlete")
-  appeals                 Appeal[]             @relation("AppealUser")
-  appealsReviewed         Appeal[]             @relation("AppealReviewer")
-  moderationActions       ModerationAction[]   @relation("ModeratedUser")
+  blocksMade              Block[]                  @relation("Blocker")
+  blocksReceived          Block[]                  @relation("Blocked")
+  reportsFiled            Report[]                 @relation("Reporter")
+  reportsAgainst          Report[]                 @relation("Reported")
+  endorsementsGiven       Endorsement[]            @relation("EndorsementCoach")
+  endorsementsReceived    Endorsement[]            @relation("EndorsementAthlete")
+  appeals                 Appeal[]                 @relation("AppealUser")
+  appealsReviewed         Appeal[]                 @relation("AppealReviewer")
+  moderationActions       ModerationAction[]       @relation("ModeratedUser")
 
   @@index([role])
   @@index([sport])
@@ -577,9 +586,10 @@ model Tournament {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
 
-  createdBy       User              @relation(fields: [createdById], references: [id])
+  createdBy       User                  @relation(fields: [createdById], references: [id])
+  organizers      TournamentOrganizer[] @relation("TournamentOrganizers")
   teams           TournamentTeam[]
-  registeredTeams Team[]            @relation("TeamTournament")
+  registeredTeams Team[]                @relation("TeamTournament")
   matches         Match[]
   highlights      Highlight[]
   rankings        PlayerRanking[]
@@ -631,7 +641,7 @@ model TrackerMatch {
   court            String? // court / pitch / venue label (admin-set); null = TBC
   state            Json? // full live state (clock, lineups, per-player stats, event/action log)
   publishedMatchId String? // platform Match id once published (updated in place on re-publish)
-  startNotifiedAt  DateTime? @map("start_notified_at") // "match starting soon" reminder sent (dedup)
+  startNotifiedAt  DateTime?          @map("start_notified_at") // "match starting soon" reminder sent (dedup)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
@@ -807,23 +817,23 @@ model Notification {
   title       String
   message     String
   read        Boolean          @default(false)
-  referenceId String?          // deep-link target (post/tournament/team/…)
+  referenceId String? // deep-link target (post/tournament/team/…)
   createdAt   DateTime         @default(now())
 
   // ── Channel-agnostic / anti-spam additions (all nullable-safe) ──
-  actorId     String?          @map("actor_id")     // who triggered it (for avatar + collapse)
-  groupKey    String?          @map("group_key")    // collapse key, e.g. "LIKE:post123"
-  count       Int              @default(1)          // collapsed count ("N people …")
-  link        String?                               // precomputed client route
-  emailedAt   DateTime?        @map("emailed_at")   // set once an email is sent (dedup + digest)
-  updatedAt   DateTime         @default(now()) @updatedAt @map("updated_at") // bumps on collapse
+  actorId   String?   @map("actor_id") // who triggered it (for avatar + collapse)
+  groupKey  String?   @map("group_key") // collapse key, e.g. "LIKE:post123"
+  count     Int       @default(1) // collapsed count ("N people …")
+  link      String? // precomputed client route
+  emailedAt DateTime? @map("emailed_at") // set once an email is sent (dedup + digest)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") // bumps on collapse
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
   @@index([createdAt])
-  @@index([userId, groupKey, read])       // collapse lookup
-  @@index([userId, emailedAt])            // digest queue scan
+  @@index([userId, groupKey, read]) // collapse lookup
+  @@index([userId, emailedAt]) // digest queue scan
 }
 
 // Profile views — one row per viewer per target per day (dedup bucket). Powers
@@ -832,7 +842,7 @@ model ProfileView {
   id        String   @id @default(uuid())
   viewerId  String   @map("viewer_id")
   targetId  String   @map("target_id")
-  day       String   // YYYY-MM-DD, the dedup bucket
+  day       String // YYYY-MM-DD, the dedup bucket
   createdAt DateTime @default(now()) @map("created_at")
 
   viewer User @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
@@ -881,7 +891,7 @@ model NotificationPreference {
   id     String           @id @default(uuid())
   userId String           @map("user_id")
   type   NotificationType
-  inApp  Boolean          @default(true)  @map("in_app")
+  inApp  Boolean          @default(true) @map("in_app")
   email  Boolean          @default(false)
   digest DigestFrequency  @default(INSTANT)
 
@@ -1004,13 +1014,13 @@ enum ModerationActionType {
 
 model ModerationAction {
   id         String               @id @default(uuid())
-  userId     String               // the affected user
-  actorId    String?              // the admin who acted (null if system)
+  userId     String // the affected user
+  actorId    String? // the admin who acted (null if system)
   type       ModerationActionType
-  targetType String?              // for CONTENT_REMOVED: POST / COMMENT / MESSAGE
+  targetType String? // for CONTENT_REMOVED: POST / COMMENT / MESSAGE
   targetId   String?
-  reason     String?              // moderator-facing reason / guideline cited
-  detail     String?              // short snapshot the user sees ("your post: …")
+  reason     String? // moderator-facing reason / guideline cited
+  detail     String? // short snapshot the user sees ("your post: …")
   createdAt  DateTime             @default(now())
 
   user    User     @relation("ModeratedUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -1026,24 +1036,24 @@ enum AppealKind {
 }
 
 enum AppealStatus {
-  PENDING     // submitted, not yet looked at
-  REVIEWING   // an admin is on it
-  GRANTED     // appeal upheld — action reversed
-  DENIED      // appeal rejected — action stands
+  PENDING // submitted, not yet looked at
+  REVIEWING // an admin is on it
+  GRANTED // appeal upheld — action reversed
+  DENIED // appeal rejected — action stands
 }
 
 model Appeal {
-  id            String       @id @default(uuid())
-  userId        String
-  kind          AppealKind
-  actionId      String?      // the ModerationAction being contested (if recorded)
-  subjectLabel  String?      // snapshot of what's being appealed (reason / content)
-  message       String       // the user's own appeal text
-  status        AppealStatus @default(PENDING)
-  reviewNote    String?      // admin's note on resolution
-  reviewedById  String?
-  createdAt     DateTime     @default(now())
-  resolvedAt    DateTime?
+  id           String       @id @default(uuid())
+  userId       String
+  kind         AppealKind
+  actionId     String? // the ModerationAction being contested (if recorded)
+  subjectLabel String? // snapshot of what's being appealed (reason / content)
+  message      String // the user's own appeal text
+  status       AppealStatus @default(PENDING)
+  reviewNote   String? // admin's note on resolution
+  reviewedById String?
+  createdAt    DateTime     @default(now())
+  resolvedAt   DateTime?
 
   user     User              @relation("AppealUser", fields: [userId], references: [id], onDelete: Cascade)
   reviewer User?             @relation("AppealReviewer", fields: [reviewedById], references: [id])
@@ -1052,6 +1062,27 @@ model Appeal {
   @@index([userId])
   @@index([status])
   @@index([kind, status])
+}
+
+// ─── Tournament organiser access (tournament-scoped, NOT platform admin) ─────
+// A user assigned to organise a SPECIFIC tournament. Grants that tournament's
+// management powers only, enforced server-side in middleware/tournamentAccess.ts
+// (super-admin OR assigned organiser). Many organisers per tournament; a user
+// may organise many tournaments. Wholly distinct from platform ADMIN.
+model TournamentOrganizer {
+  id           String   @id @default(uuid())
+  tournamentId String   @map("tournament_id")
+  userId       String   @map("user_id")
+  addedById    String?  @map("added_by_id") // the super-admin who granted it
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tournament Tournament @relation("TournamentOrganizers", fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User       @relation("OrganizerRoles", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy    User?      @relation("OrganizersGranted", fields: [addedById], references: [id])
+
+  @@unique([tournamentId, userId])
+  @@index([userId])
+  @@index([tournamentId])
 }
 
 // Auth tokens (refresh, email-verification, password-reset) are managed by
