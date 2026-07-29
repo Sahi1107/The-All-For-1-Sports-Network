@@ -54,10 +54,6 @@ function fmtRemaining(elapsed: number, quarterSeconds: number) {
   const r = Math.max(0, Math.floor(quarterSeconds - elapsed));
   return `${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}`;
 }
-function pct(made?: number, att?: number) {
-  if (!att) return '—';
-  return (((made || 0) / att) * 100).toFixed(0) + '%';
-}
 
 export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
   const { match, session, updateState, setStatus } = ctrl;
@@ -202,7 +198,14 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
           <thead>
             <tr>
               <th>Player</th><th>MIN</th><th>PTS</th><th>OREB</th><th>DREB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th>
-              <th>FGM / FGA</th><th>FG%</th><th>3PM / 3PA</th><th>3P%</th><th>FTM / FTA</th><th>FT%</th>
+              {/* NOTE (Sahil): the FG%/3P%/FT% columns are intentionally NOT on the
+                  live tracker. The tracker is an ENTRY surface — a scorer only taps
+                  makes/misses; percentages are derived, read-only values nobody
+                  enters mid-game. They still render on the public box score
+                  (MatchDetailModal) and the Performance Card. Dropping them here
+                  reclaims ~150px so the 16→13 columns fit a landscape tablet with
+                  far less horizontal scroll. Attempts stay (FGM/FGA etc.). */}
+              <th>FGM / FGA</th><th>3PM / 3PA</th><th>FTM / FTA</th>
             </tr>
           </thead>
           <tbody>
@@ -253,7 +256,8 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
     <>
       {/* Team header — Sahil's row, with a quiet team-fouls / bonus readout appended. */}
       <tr style={{ background: headerBg, color: headerColor }}>
-        <td colSpan={16} style={{ padding: '8px 12px' }}>
+        {/* inline bg so the sticky first-column rule doesn't override the team banner */}
+        <td colSpan={13} style={{ padding: '8px 12px', background: headerBg }}>
           <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
             <strong style={{ fontSize: 16 }}>{teamName}</strong>
             <span style={{ fontSize: 12, fontWeight: 600, color: bonus ? '#fca5a5' : '#9ca3af' }}>
@@ -264,8 +268,7 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
       </tr>
       <tr style={{ background: 'rgba(255,255,255,0.02)', fontWeight: 700, color: '#e6eef6' }}>
         <td>Team Totals</td><td>-</td><td>{t.pts}</td><td>{t.oreb}</td><td>{t.dreb}</td><td>{t.ast}</td><td>{t.stl}</td><td>{t.blk}</td><td>{t.to}</td><td>{t.pf}</td>
-        <td>{t.fg} / {t.fga}</td><td>{pct(t.fg, t.fga)}</td><td>{t.tp} / {t.tpa}</td><td>{pct(t.tp, t.tpa)}</td>
-        <td>{t.ft} / {t.fta}</td><td>{pct(t.ft, t.fta)}</td>
+        <td>{t.fg} / {t.fga}</td><td>{t.tp} / {t.tpa}</td><td>{t.ft} / {t.fta}</td>
       </tr>
       {rows.map((r) => {
         const fouledOut = isFouledOut(r.pf ?? 0);
@@ -286,11 +289,8 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
           <Counter v={r.to ?? 0} onMinus={() => adjust(r.userId, 'TO', -1)} onPlus={() => adjust(r.userId, 'TO', 1)} disabled={disabled} />
           <FoulCell v={r.pf ?? 0} onMinus={() => foul(r.userId, -1)} onPlus={() => foul(r.userId, 1)} disabled={disabled} />
           <ShotCell made={r.fg} att={r.fga} kind="FG_MADE" missKind="FG_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
-          <td>{pct(r.fg, r.fga)}</td>
           <ShotCell made={r.tp} att={r.tpa} kind="3PT_MADE" missKind="3PT_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
-          <td>{pct(r.tp, r.tpa)}</td>
           <ShotCell made={r.ft} att={r.fta} kind="FT_MADE" missKind="FT_MISS" pid={r.userId} adjust={adjust} disabled={disabled} />
-          <td>{pct(r.ft, r.fta)}</td>
         </tr>
         );
       })}
@@ -301,9 +301,11 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
 function Counter({ v, onMinus, onPlus, disabled }: { v: number; onMinus: () => void; onPlus: () => void; disabled: boolean }) {
   return (
     <td>
-      <button onClick={onMinus} disabled={disabled}>-</button>
-      {' '}{v}{' '}
-      <button onClick={onPlus} disabled={disabled}>+</button>
+      <span className="cnt">
+        <button onClick={onMinus} disabled={disabled}>-</button>
+        <span className="v">{v}</span>
+        <button onClick={onPlus} disabled={disabled}>+</button>
+      </span>
     </td>
   );
 }
@@ -315,9 +317,11 @@ function FoulCell({ v, onMinus, onPlus, disabled }: { v: number; onMinus: () => 
   const color = out ? '#f87171' : trouble ? '#fbbf24' : undefined;
   return (
     <td>
-      <button onClick={onMinus} disabled={disabled}>-</button>
-      {' '}<span style={{ color, fontWeight: out || trouble ? 700 : undefined }} title={out ? `Fouled out (${FOUL_OUT_LIMIT})` : undefined}>{v}</span>{' '}
-      <button onClick={onPlus} disabled={disabled}>+</button>
+      <span className="cnt">
+        <button onClick={onMinus} disabled={disabled}>-</button>
+        <span className="v" style={{ color, fontWeight: out || trouble ? 700 : undefined }} title={out ? `Fouled out (${FOUL_OUT_LIMIT})` : undefined}>{v}</span>
+        <button onClick={onPlus} disabled={disabled}>+</button>
+      </span>
     </td>
   );
 }
