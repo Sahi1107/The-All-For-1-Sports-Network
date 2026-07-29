@@ -10,7 +10,7 @@ import FullscreenShell from './FullscreenShell';
 import FootballMatch from './football/FootballMatch';
 import BasketballMatch from './basketball/BasketballMatch';
 import { saveDisplay } from './saveState';
-import { Download, Loader2, UploadCloud, CheckCircle2, CloudOff, AlertTriangle, Check } from 'lucide-react';
+import { Download, Loader2, UploadCloud, CheckCircle2, CloudOff, AlertTriangle } from 'lucide-react';
 
 export default function MatchRoute() {
   const { tournamentId, matchId } = useParams();
@@ -41,15 +41,18 @@ export default function MatchRoute() {
   const canPublish = match.status === 'COMPLETED' || isPublished;
 
   const save = saveDisplay(saveState);
+  // Sahil's pill styling for the normal states; red only for the honest new ones.
   const SAVE_TONE: Record<string, string> = {
     ok:   'text-gray-custom bg-dark-light/80 border-dark-lighter',
     busy: 'text-gray-custom bg-dark-light/80 border-dark-lighter',
     bad:  'text-red-300 bg-red-500/15 border-red-500/40',
   };
+  // Icon only where his original had one (the Saving spinner) or where a red state
+  // needs to read at a glance. 'Saved' stays plain text, exactly as he had it.
   const SaveIcon = saveState === 'saving' ? Loader2
     : saveState === 'offline' ? CloudOff
     : saveState === 'error' ? AlertTriangle
-    : Check;
+    : null;
 
   async function handlePublish() {
     if (!confirm('Publish this match? Player stats will be written to their profiles and the match added to the tournament log.')) return;
@@ -75,7 +78,7 @@ export default function MatchRoute() {
           role="status" aria-live="polite"
           className={`flex items-center gap-1.5 text-xs rounded-full px-3 py-1 border ${SAVE_TONE[save.tone]}`}
         >
-          <SaveIcon size={12} className={saveState === 'saving' ? 'animate-spin' : ''} /> {save.label}
+          {SaveIcon && <SaveIcon size={12} className={saveState === 'saving' ? 'animate-spin' : ''} />} {save.label}
         </span>
       }
     >
