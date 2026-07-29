@@ -11,7 +11,7 @@ import DrawPreviewPanel from './DrawPreviewPanel';
 import { exportTournamentExcel } from './excel';
 import TournamentView from './TournamentView';
 import type { TrackerFormat, TrackerSession } from './types';
-import { Download, Trophy, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Download, Trophy, RotateCcw, AlertTriangle, GraduationCap } from 'lucide-react';
 
 export default function TrackerDashboard() {
   const { tournamentId } = useParams();
@@ -78,9 +78,16 @@ export default function TrackerDashboard() {
           </div>
         )}
       </div>
-      <p className="text-sm text-gray-custom mb-6">
+      <p className="text-sm text-gray-custom mb-2">
         {tournament?.sport} · {session ? `${session.format} format` : 'Not yet set up'}
       </p>
+      {/* Risk-free practice — a fully client-side demo that never touches real data. */}
+      <Link
+        to={`/admin/stat-tracker/demo/${tournament?.sport === 'FOOTBALL' ? 'football' : 'basketball'}`}
+        className="inline-flex items-center gap-1.5 text-xs text-primary-light hover:underline mb-6"
+      >
+        <GraduationCap size={13} /> New to the tracker? Practise on a demo tournament first →
+      </Link>
 
       {!session ? (
         <CreateSessionForm

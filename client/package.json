@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build && cp public/_redirects dist/_redirects && npm run prerender",
     "prerender": "tsx prerender/prerender.ts",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types --test 'src/**/*.test.ts'",
     "preview": "vite preview"
   },
   "dependencies": {

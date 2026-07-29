@@ -10,7 +10,10 @@ export const UpdateProfileBody = z.object({
   height:       optStr(20,   'Height'),
   position:     optStr(50,   'Position'),
   gender:       GenderEnum.optional(),
-  achievements: optText(1000, 'Achievements'),
+  // Achievements is a String[] column; the client sends it as a JSON array
+  // string (multipart form). Parsed + sanitised in the route. (optText was a
+  // latent mismatch — it typed this as a plain string.)
+  achievements: z.string().max(4000).optional(),
   phone:        optStr(30,   'Phone'),
   contactEmail: optStr(100,  'Contact email'),
   // age: integer 1–100, coerced from string (HTML forms send strings)

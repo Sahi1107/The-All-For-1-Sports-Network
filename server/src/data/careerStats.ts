@@ -23,7 +23,7 @@ export type StatSport = 'BASKETBALL' | 'FOOTBALL' | 'CRICKET';
  * storing them, so here we only sum raw counts + the float time columns.
  */
 export const CAREER_STAT_FIELDS = {
-  BASKETBALL: ['points', 'rebounds', 'assists', 'steals', 'blocks', 'threePointers', 'freeThrows', 'turnovers', 'minutesPlayed'],
+  BASKETBALL: ['points', 'rebounds', 'offRebounds', 'defRebounds', 'assists', 'steals', 'blocks', 'twoPointers', 'threePointers', 'freeThrows', 'turnovers', 'personalFouls', 'minutesPlayed'],
   FOOTBALL:   ['goals', 'assists', 'shots', 'passes', 'tackles', 'saves', 'yellowCards', 'redCards', 'minutesPlayed'],
   CRICKET:    ['runs', 'ballsFaced', 'fours', 'sixes', 'wickets', 'runsConceded', 'catches', 'runOuts', 'oversBowled'],
 } as const satisfies Record<StatSport, readonly string[]>;
@@ -97,6 +97,33 @@ export async function careerTotalsForUsers(
     out.set(g.userId, { matches: g._count._all, totals });
   }
   return out;
+}
+
+/**
+ * DB: a player's stat totals grouped BY TOURNAMENT — the "receipts" for the
+ * Performance Card ("15 goals in 8 matches at GPL 2026"). One `groupBy` over the
+ * sport's per-match rows for this user; tournament names are joined by the caller.
+ */
+export async function tournamentTotalsForUser(
+  sport: StatSport,
+  userId: string,
+): Promise<Array<{ tournamentId: string; matches: number; totals: Record<string, number> }>> {
+  const { default: prisma } = await import('../config/db');
+  const fields = CAREER_STAT_FIELDS[sport];
+  const model = (prisma as any)[MODEL_BY_SPORT[sport]];
+
+  const grouped = await model.groupBy({
+    by: ['tournamentId'],
+    where: { userId },
+    _sum: Object.fromEntries(fields.map((f) => [f, true])),
+    _count: { _all: true },
+  });
+
+  return (grouped as Array<{ tournamentId: string; _sum: Record<string, number | null>; _count: { _all: number } }>).map((g) => {
+    const totals: Record<string, number> = {};
+    for (const f of fields) totals[f] = Number(g._sum[f] ?? 0);
+    return { tournamentId: g.tournamentId, matches: g._count._all, totals };
+  });
 }
 
 /**

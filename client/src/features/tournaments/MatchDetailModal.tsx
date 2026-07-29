@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { X, CalendarClock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { X, CalendarClock, Radio, ChevronRight } from 'lucide-react';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
 import { fmtSchedule } from '../statTracker/schedule';
 
 export interface MatchInfo {
   statsMatchId: string | null;   // platform Match id (null → not published / no box score)
+  trackerMatchId?: string | null; // TrackerMatch id (present when a tracker session exists)
   sport: string;
   homeName: string; awayName: string;
   homeScore: number | null; awayScore: number | null;
@@ -21,8 +22,10 @@ const COLS: Record<string, { key: string; label: string }[]> = {
     { key: 'saves', label: 'Sv' }, { key: 'tackles', label: 'Tkl' }, { key: 'minutes', label: 'Min' },
   ],
   BASKETBALL: [
-    { key: 'pts', label: 'PTS' }, { key: 'reb', label: 'REB' }, { key: 'ast', label: 'AST' },
-    { key: 'stl', label: 'STL' }, { key: 'blk', label: 'BLK' }, { key: 'tp', label: '3P' },
+    { key: 'pts', label: 'PTS' }, { key: 'reb', label: 'REB' }, { key: 'oreb', label: 'OR' }, { key: 'dreb', label: 'DR' },
+    { key: 'ast', label: 'AST' }, { key: 'stl', label: 'STL' }, { key: 'blk', label: 'BLK' },
+    { key: 'tp2', label: '2P' }, { key: 'tp', label: '3P' }, { key: 'ft', label: 'FT' },
+    { key: 'to', label: 'TO' }, { key: 'pf', label: 'PF' }, { key: 'min', label: 'MIN' },
   ],
   CRICKET: [
     { key: 'runs', label: 'Runs' }, { key: 'wickets', label: 'Wkts' }, { key: 'fours', label: '4s' }, { key: 'sixes', label: '6s' },
@@ -31,10 +34,22 @@ const COLS: Record<string, { key: string; label: string }[]> = {
 
 /** Public match detail: scoreline + per-player box score (DB fallback). Player
  *  names link to profiles. Deliberate states for not-played / in-progress / no-stats. */
-export default function MatchDetailModal({ match, onClose }: { match: MatchInfo; onClose: () => void }) {
+export default function MatchDetailModal({
+  match, onClose, canManage = false, tournamentId,
+}: {
+  match: MatchInfo; onClose: () => void; canManage?: boolean; tournamentId?: string;
+}) {
+  const navigate = useNavigate();
   const played = match.status === 'COMPLETED' || match.status === 'PUBLISHED';
   const live = match.status === 'IN_PROGRESS';
   const showScore = played || live;
+  // Managers get a direct path into the live tracker for this fixture — the
+  // natural route that was previously only reachable from the Tracker Dashboard.
+  const canTrack = canManage && !!tournamentId && !!match.trackerMatchId;
+  const trackLabel = match.status === 'PUBLISHED' ? 'Open in tracker to correct'
+    : played ? 'Open stat tracker'
+    : live ? 'Resume live tracking'
+    : 'Track match';
 
   const { data, isLoading } = useQuery<{ sport: string; rows: any[] }>({
     queryKey: ['match-stats', match.statsMatchId],
@@ -119,6 +134,17 @@ export default function MatchDetailModal({ match, onClose }: { match: MatchInfo;
             </div>
           )}
         </div>
+
+        {canTrack && (
+          <div className="px-5 py-3 border-t border-line">
+            <button
+              onClick={() => navigate(`/admin/stat-tracker/${tournamentId}/match/${match.trackerMatchId}`)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary-dark text-on-primary text-sm font-semibold rounded-lg transition-colors"
+            >
+              <Radio size={15} /> {trackLabel} <ChevronRight size={15} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

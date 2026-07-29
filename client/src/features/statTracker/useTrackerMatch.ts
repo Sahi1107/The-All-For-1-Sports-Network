@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { auth } from '../../config/firebase';
 import { getMatch, patchMatch } from './api';
+import { type SaveState, reduceSaveState, retryDelayMs } from './saveState';
 import type {
   TrackerMatch,
   TrackerSession,
@@ -42,12 +43,19 @@ export function useTrackerMatch(matchId: string) {
   const [match, setMatch] = useState<TrackerMatch | null>(null);
   const [session, setSession] = useState<TrackerSession | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  // Honest save state: an operator must never see "Saved" while an edit is
+  // unpersisted (services/saveState). 'saved' ⇔ everything is on the server.
+  const [saveState, setSaveState] = useState<SaveState>('saved');
 
   const matchRef = useRef<TrackerMatch | null>(null);
   const dirtyRef = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryAttempt = useRef(0);
   const socketRef = useRef<Socket | null>(null);
+  // Mirror dirty into a ref-read boolean for the beforeunload guard.
+  const applySave = useCallback((ev: Parameters<typeof reduceSaveState>[1]) => {
+    setSaveState((prev) => reduceSaveState(prev, ev));
+  }, []);
 
   matchRef.current = match;
 
@@ -93,24 +101,36 @@ export function useTrackerMatch(matchId: string) {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
     const cur = matchRef.current;
     if (!cur || !dirtyRef.current) return;
-    setSaving(true);
+    applySave({ type: 'save-start' });
     try {
       await patchMatch(matchId, {
         state: cur.state as AnyState,
         homeScore: cur.homeScore,
         awayScore: cur.awayScore,
       });
+      // Only clear dirty once the server has actually accepted the write.
       dirtyRef.current = false;
-    } finally {
-      setSaving(false);
+      retryAttempt.current = 0;
+      applySave({ type: 'save-ok' });
+    } catch {
+      // Keep dirty=true and tell the truth. Keep retrying on a backoff even if the
+      // operator stops tapping, so a dropped connection self-heals when it returns.
+      const online = typeof navigator === 'undefined' ? true : navigator.onLine;
+      applySave({ type: 'save-fail', online });
+      retryAttempt.current += 1;
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => { void flush(); }, retryDelayMs(retryAttempt.current));
     }
-  }, [matchId]);
+  }, [matchId, applySave]);
 
   const schedule = useCallback(() => {
     dirtyRef.current = true;
+    // An edit is owed a persist — reflect that immediately (never leave "Saved" up
+    // while there are pending edits), then debounce the actual write.
+    applySave({ type: 'edit' });
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => { void flush(); }, 500);
-  }, [flush]);
+  }, [flush, applySave]);
 
   /** Apply a pure mutation to the live state; scores recompute & a save is queued. */
   const updateState = useCallback(
@@ -147,5 +167,28 @@ export function useTrackerMatch(matchId: string) {
   // Flush pending edits on unmount.
   useEffect(() => () => { void flush(); }, [flush]);
 
-  return { match, session, loading, saving, updateState, setStatus, flush, setMatch };
+  // Connectivity recovery + honest offline signal. When the network returns, push
+  // pending edits straight away rather than waiting on the backoff; when it drops
+  // with edits owed, say so immediately instead of after the next failed attempt.
+  useEffect(() => {
+    const onOnline = () => { if (dirtyRef.current) { retryAttempt.current = 0; void flush(); } };
+    const onOffline = () => { if (dirtyRef.current) applySave({ type: 'save-fail', online: false }); };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
+  }, [flush, applySave]);
+
+  // Unsaved-changes guard: warn before the tab closes while edits aren't on the
+  // server. A new operator's game data must not vanish to an accidental close.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!dirtyRef.current) return;
+      e.preventDefault();
+      e.returnValue = ''; // required for the browser's native confirm dialog
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
+
+  return { match, session, loading, saveState, updateState, setStatus, flush, setMatch };
 }

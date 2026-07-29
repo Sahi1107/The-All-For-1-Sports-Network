@@ -9,10 +9,11 @@ import { auth } from '../config/firebase';
 import {
   Send, MessageCircle, Plus, X, Search, ArrowLeft,
   Copy, Trash2, CornerUpRight, MoreHorizontal,
-  Archive, MoreVertical, LogOut, Users, BadgeCheck, Pin, Flag,
+  Archive, MoreVertical, LogOut, Users, Pin, Flag,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ReportModal from '../components/ReportModal';
+import { VerifiedTick } from '../components/feed/FeedBits';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -73,10 +74,6 @@ type RoleFilter = (typeof ROLE_FILTERS)[number]['key'];
 
 const PINNED_STORAGE_KEY = 'af1.pinnedConversations';
 
-/** Small verified check, shown beside a name. */
-function Verified({ className = '' }: { className?: string }) {
-  return <BadgeCheck size={15} className={`shrink-0 text-accent ${className}`} aria-label="Verified" />;
-}
 
 /** Subtle uppercase role pill (e.g. SCOUT) for non-athlete participants. */
 function RoleTag({ role }: { role?: string | null }) {
@@ -730,7 +727,7 @@ export default function Messages() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <span className={`truncate ${unread ? 'font-bold text-foreground' : 'font-semibold'}`}>{title}</span>
-              {!isGroup && other?.verified && <Verified />}
+              {!isGroup && other?.verified && <VerifiedTick />}
               {!compact && !isGroup && !isAthlete && <RoleTag role={other?.role} />}
               {!compact && meta && <span className="truncate text-xs text-gray-custom capitalize">{meta}</span>}
               {lastMsg && <span className="ml-auto shrink-0 text-xs text-gray-custom">{timeAgo(lastMsg.createdAt)}</span>}
@@ -913,7 +910,7 @@ export default function Messages() {
               <div className="min-w-0">
                 <h2 className="font-semibold truncate flex items-center gap-1.5">
                   <span className="truncate">{other?.name ?? 'Unknown'}</span>
-                  {other?.verified && <Verified />}
+                  {other?.verified && <VerifiedTick />}
                 </h2>
                 {headerMeta && (
                   <p className={`text-xs truncate mt-0.5 capitalize ${otherPresence?.online ? 'text-accent' : 'text-gray-custom'}`}>

@@ -96,7 +96,7 @@ function basketballState(
   const fill = (team: RosterTeam, target: number): string[] => {
     const onCourt = team.players.slice(0, Math.min(5, team.players.length)).map((p) => p.userId);
     team.players.forEach((p) => {
-      players[p.userId] = { teamId: team.teamId, secondsPlayed: 0, pts: 0, ast: 0, reb: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, to: 0 };
+      players[p.userId] = { teamId: team.teamId, secondsPlayed: 0, pts: 0, ast: 0, reb: 0, oreb: 0, dreb: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, to: 0, pf: 0 };
     });
     // distribute points across on-court players in 2/3-point chunks
     let remaining = target;
@@ -114,7 +114,8 @@ function basketballState(
     onCourt.forEach((id) => {
       const p = players[id];
       p.secondsPlayed = quarterSeconds * 4;
-      p.reb += rand(8); p.ast += rand(6); p.stl += rand(3); p.blk += rand(2);
+      p.oreb += rand(3); p.dreb += rand(6); p.reb = p.oreb + p.dreb;
+      p.ast += rand(6); p.stl += rand(3); p.blk += rand(2); p.to += rand(3); p.pf += rand(4);
       p.fga += rand(4); // some misses
     });
     return onCourt;
@@ -125,7 +126,7 @@ function basketballState(
 
   return {
     quarter: 4, quarterSeconds, clockSeconds: quarterSeconds, clockRunning: false,
-    onCourtHome, onCourtAway, players, log: [],
+    onCourtHome, onCourtAway, players, teamFoulsHome: [3, 4, 2, 5], teamFoulsAway: [2, 5, 3, 4], log: [],
   };
 }
 

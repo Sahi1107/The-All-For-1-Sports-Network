@@ -28,8 +28,8 @@ interface FootballState {
 
 interface BasketballPlayer {
   secondsPlayed?: number;
-  pts?: number; ast?: number; reb?: number; stl?: number; blk?: number;
-  tp?: number; ft?: number; to?: number;
+  pts?: number; ast?: number; reb?: number; oreb?: number; dreb?: number; stl?: number; blk?: number;
+  fg?: number; tp?: number; ft?: number; to?: number; pf?: number;
 }
 interface BasketballState {
   players?: Record<string, BasketballPlayer>;
@@ -92,13 +92,19 @@ function deriveBasketball(state: BasketballState): PlayerStatEntry[] {
     userId,
     stats: {
       points: p.pts ?? 0,
-      rebounds: p.reb ?? 0,
+      // reb is kept as the total; fall back to off+def if an older blob lacks it.
+      rebounds: p.reb ?? ((p.oreb ?? 0) + (p.dreb ?? 0)),
+      offRebounds: p.oreb ?? 0,
+      defRebounds: p.dreb ?? 0,
       assists: p.ast ?? 0,
       steals: p.stl ?? 0,
       blocks: p.blk ?? 0,
+      // fg is TOTAL field goals (2pt + 3pt); 2-pt makes = fg - tp.
+      twoPointers: Math.max(0, (p.fg ?? 0) - (p.tp ?? 0)),
       threePointers: p.tp ?? 0,
       freeThrows: p.ft ?? 0,
       turnovers: p.to ?? 0,
+      personalFouls: p.pf ?? 0,
       minutesPlayed: Math.round(((p.secondsPlayed ?? 0) / 60) * 10) / 10,
     },
   }));

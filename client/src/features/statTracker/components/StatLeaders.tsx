@@ -1,10 +1,13 @@
 import { Award } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type { LeaderCategory } from '../leaders';
 
 /** Tournament stat leaders, one card per category (sport-aware). Presentational:
  *  the caller supplies `categories` from either the live tracker state
- *  (tournamentLeaders) or the published-stats endpoint (/tournaments/:id/leaders). */
-export default function StatLeaders({ categories }: { categories: LeaderCategory[] }) {
+ *  (tournamentLeaders) or the published-stats endpoint (/tournaments/:id/leaders).
+ *  `linkProfiles` links each name to its profile — on for the public Stats tab
+ *  (real user ids), off in the tracker/demo (which carry synthetic ids). */
+export default function StatLeaders({ categories, linkProfiles = false }: { categories: LeaderCategory[]; linkProfiles?: boolean }) {
   if (categories.length === 0) {
     return (
       <div className="bg-card rounded-xl border border-line p-6 text-center text-sm text-gray-custom">
@@ -29,7 +32,9 @@ export default function StatLeaders({ categories }: { categories: LeaderCategory
                   {i + 1}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="truncate">{r.name}</p>
+                  {linkProfiles
+                    ? <Link to={`/profile/${r.userId}`} className="truncate block hover:text-primary-light hover:underline">{r.name}</Link>
+                    : <p className="truncate">{r.name}</p>}
                   {r.teamName && <p className="text-[11px] text-gray-custom truncate">{r.teamName}</p>}
                 </div>
                 <span className="font-mono font-semibold text-primary-light tabular-nums">{r.value}</span>

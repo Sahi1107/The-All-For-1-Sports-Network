@@ -144,7 +144,7 @@ export default function TournamentDetail() {
 
       {/* Panels */}
       {activeTab === 'about'    && <AboutPanel t={t} teams={teams} myTeams={myTeams} acceptsTeamRegistration={acceptsTeamRegistration} navigate={navigate} onOpenTeam={openTeam} />}
-      {activeTab === 'fixtures' && <TournamentFixtures tournamentId={t.id} sport={t.sport} isAdmin={isAdmin} />}
+      {activeTab === 'fixtures' && <TournamentFixtures tournamentId={t.id} sport={t.sport} canManage={!!t.viewerCanManage || isAdmin} />}
       {activeTab === 'teams'    && <TournamentTeams tournamentId={t.id} focusTeamId={focusTeamId} />}
       {activeTab === 'stats'    && <TournamentStats tournamentId={t.id} sport={t.sport} />}
       {activeTab === 'rankings' && <RankingsPanel sport={t.sport} navigate={navigate} />}

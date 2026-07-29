@@ -700,13 +700,17 @@ model BasketballStats {
   userId        String
   tournamentId  String
   points        Int      @default(0)
-  rebounds      Int      @default(0)
+  rebounds      Int      @default(0) // total (offensive + defensive)
+  offRebounds   Int      @default(0) @map("off_rebounds")
+  defRebounds   Int      @default(0) @map("def_rebounds")
   assists       Int      @default(0)
   steals        Int      @default(0)
   blocks        Int      @default(0)
+  twoPointers   Int      @default(0) @map("two_pointers") // 2-pt field goals made
   threePointers Int      @default(0)
   freeThrows    Int      @default(0)
   turnovers     Int      @default(0)
+  personalFouls Int      @default(0) @map("personal_fouls")
   minutesPlayed Float    @default(0)
   createdAt     DateTime @default(now())
 

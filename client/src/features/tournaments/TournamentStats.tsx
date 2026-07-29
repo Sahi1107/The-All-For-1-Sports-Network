@@ -44,7 +44,7 @@ export default function TournamentStats({ tournamentId, sport }: { tournamentId:
         <h2 className="text-sm font-semibold flex items-center gap-2"><BarChart3 size={15} className="text-primary" /> Tournament leaders</h2>
         <p className="text-xs text-gray-custom mt-0.5">Top performers across every match in this tournament.</p>
       </div>
-      <StatLeaders categories={categories} />
+      <StatLeaders categories={categories} linkProfiles />
     </div>
   );
 }

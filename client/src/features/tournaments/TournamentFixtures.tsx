@@ -40,7 +40,7 @@ const FORMAT_LABEL: Record<string, string> = {
   LEAGUE: 'League', KNOCKOUT: 'Knockout', MIXED: 'Group stage + Knockout',
 };
 
-export default function TournamentFixtures({ tournamentId, sport, isAdmin }: { tournamentId: string; sport: string; isAdmin: boolean }) {
+export default function TournamentFixtures({ tournamentId, sport, canManage }: { tournamentId: string; sport: string; canManage: boolean }) {
   const navigate = useNavigate();
   const [detail, setDetail] = useState<MatchInfo | null>(null);
   const { data, isLoading, isError } = useQuery<FixturesResponse>({
@@ -56,13 +56,20 @@ export default function TournamentFixtures({ tournamentId, sport, isAdmin }: { t
   const teams = data.teams;
   const teamName = (id: string | null) => (id && teams[id] ? teams[id].name : 'TBD');
   const openMatch = (m: BMatch) => setDetail({
-    statsMatchId: m.statsMatchId, sport,
+    statsMatchId: m.statsMatchId,
+    // In the tracker-session case, a fixture's id IS its TrackerMatch id (opens the
+    // live tracker). In the flat/no-session fallback it's a platform Match id, so
+    // there's nothing to track — leave it null.
+    trackerMatchId: data.hasBracket ? m.id : null,
+    sport,
     homeName: teamName(m.homeTeamId), awayName: teamName(m.awayTeamId),
     homeScore: m.homeScore, awayScore: m.awayScore, status: m.status, round: m.round,
     scheduledAt: m.scheduledAt, court: m.court,
   });
-  const detailModal = detail ? <MatchDetailModal match={detail} onClose={() => setDetail(null)} /> : null;
-  const AdminBtn = isAdmin ? (
+  const detailModal = detail
+    ? <MatchDetailModal match={detail} onClose={() => setDetail(null)} canManage={canManage} tournamentId={tournamentId} />
+    : null;
+  const AdminBtn = canManage ? (
     <button
       onClick={() => navigate(`/admin/stat-tracker/${tournamentId}`)}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-surface hover:bg-elevated border border-line text-xs font-medium rounded-lg transition-colors"
@@ -81,7 +88,7 @@ export default function TournamentFixtures({ tournamentId, sport, isAdmin }: { t
           <h3 className="text-base font-semibold mb-1.5">Fixtures not published yet</h3>
           <p className="text-sm text-gray-custom max-w-sm mx-auto mb-5">
             The schedule and bracket for this tournament haven't been set up.
-            {isAdmin ? ' Set up groups and a knockout bracket in the tracker.' : ' Check back soon.'}
+            {canManage ? ' Set up groups and a knockout bracket in the tracker.' : ' Check back soon.'}
           </p>
           {AdminBtn}
         </div>
