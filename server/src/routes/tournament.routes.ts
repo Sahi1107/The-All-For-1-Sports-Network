@@ -15,9 +15,10 @@ import { computeStandings } from '../services/trackerDraw';
 import { getOrCompute } from '../services/tournamentCache';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
-  RegisterTeamBody, CreateMatchBody, MatchResultBody, ProvisionMemberBody,
+  RegisterTeamBody, CreateMatchBody, MatchResultBody, ProvisionMemberBody, PlayerSearchQuery,
 } from '../validation/tournament';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
+import { tournamentPlayerSearchWhere } from '../services/rosterSearch';
 
 const router = Router();
 
@@ -994,6 +995,29 @@ router.post('/:id/teams', authenticate, requireTournamentAccess(fromParamId), wr
     res.status(201).json({ team });
   } catch (error) {
     console.error('Admin create team error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tournaments/:id/player-search?q= — organiser roster "add existing".
+// Gated by requireTournamentAccess (organiser for THIS tournament, or admin).
+// Returns players already ON A TEAM IN THIS TOURNAMENT matching the name — bypassing
+// the public discovery gate so provisioned/minor players are findable, but bounded
+// to this tournament so it can't enumerate any account outside it (services/rosterSearch).
+router.get('/:id/player-search', authenticate, requireTournamentAccess(fromParamId), validate({ query: PlayerSearchQuery }), async (req: AuthRequest, res: Response) => {
+  try {
+    const q = (req.query.q as string) ?? '';
+    if (q.length < 2) { res.json({ players: [] }); return; }
+    const players = await prisma.user.findMany({
+      where: tournamentPlayerSearchWhere(req.params.id as string, q),
+      select: { id: true, name: true, position: true, avatar: true },
+      take: 12,
+      orderBy: { name: 'asc' },
+    });
+    await signMediaDeepAll(players);
+    res.json({ players });
+  } catch (error) {
+    console.error('Roster player search error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

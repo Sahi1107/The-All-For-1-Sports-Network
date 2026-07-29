@@ -5,25 +5,77 @@ import { isSessionRevoked } from '../services/account/sessions';
 
 export interface AuthRequest extends Request {
   user?: {
-    userId:        string; // Prisma user UUID (from Firebase custom claim)
+    userId:        string; // Prisma user UUID (from the Firebase `userId` custom claim)
     email:         string;
-    role:          string;
+    role:          string; // LIVE from the DB row — never the token claim (see decideAuth)
     emailVerified: boolean;
     suspended:     boolean;
   };
 }
 
+/** The DB fields the auth decision needs — role is the source of truth for authz. */
+export interface AuthAccount {
+  id:               string;
+  role:             string;
+  sessionsRevokedAt: Date | null;
+  suspended:        boolean;
+  suspensionReason: string | null;
+  suspendedAt:      Date | null;
+}
+/** The token facts the auth decision needs. */
+export interface AuthClaims {
+  userId?:         string;
+  email?:          string;
+  email_verified?: boolean;
+  auth_time?:      number;
+}
+export type AuthDecision =
+  | { ok: true; user: NonNullable<AuthRequest['user']> }
+  | { ok: false; status: 401 | 403; error: string; code?: string; reason?: string | null; suspendedAt?: Date | null };
+
 /**
- * Core: verify the Firebase ID token, then enforce the per-account gates a
- * stateless token can't express — one indexed PK lookup funds all of them:
- *   • the account still exists,
- *   • the token wasn't invalidated by "sign out of all devices"
- *     (auth_time predates sessionsRevokedAt → 401 SESSION_REVOKED), and
- *   • the account isn't suspended — unless the route opted in via
- *     `authenticateAllowSuspended` (403 ACCOUNT_SUSPENDED otherwise).
- *
- * Suspended users can still authenticate; they're just confined to the appeal
- * routes so they can contest the suspension without being able to use the app.
+ * Pure authorization decision (no I/O), so it unit-tests directly and there's ONE
+ * place the rules live. Key property: `role` comes from the DB `account`, NEVER
+ * from the token — so a role change takes effect on the very next request with no
+ * re-login. And it FAILS CLOSED: a valid token with no matching DB row is a 401,
+ * never a default role.
+ */
+export function decideAuth(claims: AuthClaims, account: AuthAccount | null, allowSuspended: boolean): AuthDecision {
+  // The `userId` claim is the account identifier (immutable) — required to find the
+  // row. The `role` claim is intentionally NOT consulted; role is read from the DB.
+  if (!claims.userId) {
+    return { ok: false, status: 401, code: 'CLAIMS_MISSING', error: 'Account setup incomplete. Call /api/auth/sync first.' };
+  }
+  if (!account) {
+    // Fail closed: a valid token whose account row doesn't exist (deleted, or a
+    // dangling userId claim) gets NO role — a distinct, terminal 401. Distinct so
+    // it's not confused with the other 401s; terminal (own code) so the client
+    // doesn't waste a token-refresh retry that could never conjure a DB row.
+    return { ok: false, status: 401, code: 'ACCOUNT_NOT_FOUND', error: 'Account no longer exists' };
+  }
+  if (isSessionRevoked(claims.auth_time, account.sessionsRevokedAt)) {
+    return { ok: false, status: 401, code: 'SESSION_REVOKED', error: 'Session ended. Please sign in again.' };
+  }
+  if (account.suspended && !allowSuspended) {
+    return { ok: false, status: 403, code: 'ACCOUNT_SUSPENDED', error: 'Your account is suspended.', reason: account.suspensionReason, suspendedAt: account.suspendedAt };
+  }
+  return {
+    ok: true,
+    user: {
+      userId: account.id,
+      email: claims.email ?? '',
+      role: account.role,                       // ← LIVE DB role, not the token claim
+      emailVerified: claims.email_verified ?? false,
+      suspended: account.suspended,
+    },
+  };
+}
+
+/**
+ * Core: verify the Firebase ID token, load the account (one indexed PK lookup),
+ * and apply decideAuth. Role, suspension, and revocation are all read LIVE from
+ * that row so authz never lags a stale token. Suspended users can authenticate but
+ * are confined to the appeal routes unless the route opts in via allowSuspended.
  */
 async function runAuth(req: AuthRequest, res: Response, next: NextFunction, allowSuspended: boolean): Promise<void> {
   const authHeader = req.headers.authorization;
@@ -42,8 +94,8 @@ async function runAuth(req: AuthRequest, res: Response, next: NextFunction, allo
   }
 
   const userId = decoded['userId'] as string | undefined;
-  const role   = decoded['role']   as string | undefined;
-  if (!userId || !role) {
+  if (!userId) {
+    // No account identifier on the token — nothing to look up. Fail closed.
     res.status(401).json({ error: 'Account setup incomplete. Call /api/auth/sync first.', code: 'CLAIMS_MISSING' });
     return;
   }
@@ -51,26 +103,22 @@ async function runAuth(req: AuthRequest, res: Response, next: NextFunction, allo
   try {
     const account = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, sessionsRevokedAt: true, suspended: true, suspensionReason: true, suspendedAt: true },
+      select: { id: true, role: true, sessionsRevokedAt: true, suspended: true, suspensionReason: true, suspendedAt: true },
     });
-    if (!account) {
-      res.status(401).json({ error: 'Account no longer exists' });
+
+    const decision = decideAuth(
+      { userId, email: decoded.email, email_verified: decoded.email_verified, auth_time: decoded.auth_time },
+      account,
+      allowSuspended,
+    );
+    if (!decision.ok) {
+      const body: Record<string, unknown> = { error: decision.error };
+      if (decision.code) body.code = decision.code;
+      if (decision.code === 'ACCOUNT_SUSPENDED') { body.reason = decision.reason ?? null; body.suspendedAt = decision.suspendedAt ?? null; }
+      res.status(decision.status).json(body);
       return;
     }
-    if (isSessionRevoked(decoded.auth_time, account.sessionsRevokedAt)) {
-      res.status(401).json({ error: 'Session ended. Please sign in again.', code: 'SESSION_REVOKED' });
-      return;
-    }
-    if (account.suspended && !allowSuspended) {
-      res.status(403).json({
-        error: 'Your account is suspended.',
-        code: 'ACCOUNT_SUSPENDED',
-        reason: account.suspensionReason ?? null,
-        suspendedAt: account.suspendedAt ?? null,
-      });
-      return;
-    }
-    req.user = { userId, email: decoded.email ?? '', role, emailVerified: decoded.email_verified ?? false, suspended: account.suspended };
+    req.user = decision.user;
   } catch {
     res.status(500).json({ error: 'Auth check failed' });
     return;

@@ -31,10 +31,11 @@ function ageFromDateString(s: string): number | null {
  *  and clearly surface members who haven't accepted — they're excluded from the
  *  draw. */
 export default function RosterEditorModal({
-  tournamentId, team, sport, onClose,
+  tournamentId, team, onClose,
 }: {
   tournamentId: string;
   team: Team;
+  /** Kept for call-site compatibility; the tournament's sport is now applied server-side. */
   sport?: string;
   onClose: () => void;
 }) {
@@ -53,12 +54,13 @@ export default function RosterEditorModal({
 
   const [search, setSearch] = useState('');
   const { data: results } = useQuery({
-    queryKey: ['user-search-roster', sport, search],
+    // Tournament-scoped search: finds players already on a team in THIS tournament
+    // (including provisioned / guardian-managed ones the public search hides), and
+    // cannot reach any account outside it. Gated server-side by tournament access.
+    queryKey: ['roster-player-search', tournamentId, search],
     queryFn: async () => {
-      const p = new URLSearchParams({ role: 'ATHLETE', limit: '8' });
-      if (sport) p.set('sport', sport);
-      if (search.trim()) p.set('search', search.trim());
-      return (await api.get(`/users?${p}`)).data.users as { id: string; name: string; position?: string }[];
+      const p = new URLSearchParams({ q: search.trim() });
+      return (await api.get(`/tournaments/${tournamentId}/player-search?${p}`)).data.players as { id: string; name: string; position?: string }[];
     },
     enabled: search.trim().length > 1,
   });

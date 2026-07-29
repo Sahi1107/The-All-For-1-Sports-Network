@@ -1,5 +1,9 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 import { auth } from '../config/firebase';
+import { shouldRetryWithFreshToken, shouldRedirectToLogin } from './authRetry';
+
+// axios request config, plus our one-retry flag (never retry more than once).
+type RetryConfig = InternalAxiosRequestConfig & { _retried?: boolean };
 
 // In development the Vite dev proxy forwards /api to the server automatically.
 // In production set VITE_API_URL to the public API origin.
@@ -23,22 +27,37 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
-// On 401, redirect to login — Firebase handles token refresh automatically
-// so a 401 means the session is genuinely invalid (account deleted, etc.).
+// On 401: recover a transient failure by refreshing the token and retrying ONCE
+// before giving up. Only a genuinely-unrecoverable 401 (revoked session, or a 401
+// that survives the retry) sends the user to /login — so a token blip never dumps
+// someone mid-task (a scorer mid-match, especially). A 403 (e.g. a revoked
+// tournament role) is NOT handled here — the caller shows it in place.
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Don't redirect on /auth/sync — that endpoint is called pre-login
-      if (!error.config?.url?.includes('/auth/sync')) {
-        // A revoked session ("sign out of all devices" from elsewhere): clear the
-        // Firebase session too so this device doesn't loop back in with a stale
-        // token, then land on login. Other 401s just redirect.
-        if (error.response?.data?.code === 'SESSION_REVOKED') {
-          auth.signOut().catch(() => {}).finally(() => { window.location.href = '/login'; });
-        } else {
-          window.location.href = '/login';
+  async (error) => {
+    const status: number | undefined = error.response?.status;
+    const code: string | undefined = error.response?.data?.code;
+    const config = error.config as RetryConfig | undefined;
+
+    if (config && shouldRetryWithFreshToken(status, code, config.url, config._retried ?? false)) {
+      const firebaseUser = auth.currentUser;
+      if (firebaseUser) {
+        try {
+          await firebaseUser.getIdToken(true); // force a fresh token
+          config._retried = true;              // per-request flag — at most one retry
+          return await api(config);            // the request interceptor attaches the fresh token
+        } catch {
+          /* refresh itself failed — fall through to the redirect decision */
         }
+      }
+    }
+
+    if (shouldRedirectToLogin(status, config?.url)) {
+      if (code === 'SESSION_REVOKED') {
+        // Clear the Firebase session too so this device doesn't loop back in stale.
+        auth.signOut().catch(() => {}).finally(() => { window.location.href = '/login'; });
+      } else {
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
