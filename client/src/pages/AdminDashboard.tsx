@@ -348,7 +348,12 @@ export default function AdminDashboard() {
   const roleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: string }) =>
       api.patch(`/admin/users/${id}/role`, { role }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); toast.success('Role updated'); },
+    // Confirm the role the server actually persisted (it echoes it back), and refetch
+    // so the row reflects live DB state — the admin never has to guess if it took.
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success(`Role updated to ${res.data.role}`);
+    },
     onError: () => toast.error('Failed to update role'),
   });
 

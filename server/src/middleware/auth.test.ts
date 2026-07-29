@@ -34,6 +34,16 @@ test('a demotion is live too: a stale ADMIN token cannot keep access', () => {
   assert.equal(d.ok && d.user.role, 'COACH');
 });
 
+test('EVERY role transition is live from the DB — no role is special-cased to the token', () => {
+  // Same unchanged token; only the DB row's role differs. Each must surface exactly,
+  // so this isn't just "promotion to ADMIN": demotions and lateral moves across
+  // Coach/Scout/Team/Agent/Media/Organizer all take effect on the next request.
+  for (const role of ['ATHLETE', 'COACH', 'SCOUT', 'TEAM', 'AGENT', 'MEDIA', 'ORGANIZER', 'ADMIN'] as const) {
+    const d = decideAuth(claims, account({ role }), false);
+    assert.equal(d.ok && d.user.role, role, `role ${role} must pass through from the DB row`);
+  }
+});
+
 test('SECURITY: a valid token with NO matching DB row fails closed (401, no default role)', () => {
   const d = decideAuth(claims, null, false);
   assert.equal(d.ok, false);
