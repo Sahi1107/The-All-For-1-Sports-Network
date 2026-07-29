@@ -13,6 +13,7 @@ import { recordProfileView } from '../services/notifications/profileViews';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere } from '../services/search/gate';
+import { personSearchOr } from '../services/search/matchQuery';
 import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser } from '../data/careerStats';
 import logger from '../utils/logger';
 
@@ -35,10 +36,10 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
     if (sport) where.sport = sport;
     if (location) where.location = { contains: location as string, mode: 'insensitive' };
     if (search) {
-      where.OR = [
-        { name: { contains: search as string, mode: 'insensitive' } },
-        { bio: { contains: search as string, mode: 'insensitive' } },
-      ];
+      // Match everything a person would reasonably type — name, bio, position,
+      // location, and sport (mapped by keyword). The gate above still applies (AND).
+      const or = personSearchOr(search as string);
+      if (or) where.OR = or;
     }
 
     const [users, total] = await Promise.all([

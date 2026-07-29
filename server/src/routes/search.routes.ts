@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate';
 import { SearchQuery } from '../validation/search';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere, isSearchablePerson } from '../services/search/gate';
+import { personSearchOr } from '../services/search/matchQuery';
 import { rankByRelevance, sanitizeTerm } from '../services/search/rank';
 
 const router = Router();
@@ -40,7 +41,9 @@ router.get('/', authenticate, browseLimiter, validate({ query: SearchQuery }), a
 
     const [peopleRows, teamRows, tournamentRows] = await Promise.all([
       prisma.user.findMany({
-        where: { ...searchablePeopleWhere(excludeIds), name: match },
+        // People typeahead matches name/bio/position/location + sport keyword — the
+        // gate (discoverable, !guardianManaged, roles) still applies (AND).
+        where: { ...searchablePeopleWhere(excludeIds), OR: personSearchOr(term) ?? undefined },
         select: {
           id: true, name: true, role: true, sport: true, position: true,
           state: true, avatar: true, verified: true, discoverable: true, guardianManaged: true,
