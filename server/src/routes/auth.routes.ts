@@ -8,7 +8,8 @@ import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum, GenderEnum } from '../
 import { HandoverConsentBody, HandoverCompleteBody, EmailChangeBody } from '../validation/auth';
 import { reconcileEmail } from '../services/account/emailChange';
 import { generateSecureToken, hashToken } from '../utils/crypto';
-import { sendGuardianConsentEmail, sendAthleteWelcome } from '../services/email';
+import { sendGuardianConsentEmail, sendAthleteWelcome, sendEmailVerification, sendPasswordResetEmail } from '../services/email';
+import { writeLimiter } from '../middleware/rateLimiter';
 import { generateTempPassword } from '../services/provisionAthlete';
 import { decideProviderOutcome } from '../services/providerSignin';
 import { attributeReferral } from '../services/referral';
@@ -442,6 +443,42 @@ router.post('/password-changed', authenticate, async (req: AuthRequest, res: Res
     logger.error('Password changed error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// ─── Branded email verification + password reset ──────────────────────────────
+// We generate the Firebase action link server-side and send it through OUR branded
+// template, instead of letting Firebase send its default unbranded email. Same
+// links, same handler — just our first-impression design.
+
+const authClientOrigin = Array.isArray(env.CLIENT_URL) ? env.CLIENT_URL[0] : env.CLIENT_URL;
+
+// POST /api/auth/email/send-verification — for the signed-in (unverified) user.
+router.post('/email/send-verification', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const email = req.user!.email;
+    const u = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
+    const link = await admin.auth().generateEmailVerificationLink(email, { url: `${authClientOrigin}/login` });
+    await sendEmailVerification(email, u?.name ?? null, link);
+    res.json({ sent: true });
+  } catch (error) {
+    logger.error('auth.send_verification_failed', { error: String(error) });
+    res.status(500).json({ error: 'Could not send the verification email' });
+  }
+});
+
+// POST /api/auth/password-reset — public. Anti-enumeration: always 200, only send
+// if the account exists (generatePasswordResetLink throws for unknown emails).
+router.post('/password-reset', writeLimiter, validate({ body: z.object({ email: z.string().email() }) }), async (req: Request, res: Response) => {
+  const email = String(req.body.email).toLowerCase().trim();
+  try {
+    const link = await admin.auth().generatePasswordResetLink(email, { url: `${authClientOrigin}/login` });
+    const u = await prisma.user.findUnique({ where: { email }, select: { name: true } });
+    await sendPasswordResetEmail(email, u?.name ?? null, link);
+  } catch (error) {
+    // user-not-found (or any error): don't reveal whether the account exists.
+    logger.info('auth.password_reset_no_send', { reason: String((error as { code?: string })?.code ?? 'error') });
+  }
+  res.json({ sent: true });
 });
 
 // ─── Guardian handover (under-13 athletes) ─────────────────────────────────────
