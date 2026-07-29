@@ -13,6 +13,12 @@ import GlobalSearchOverlay from '../components/GlobalSearchOverlay';
 import ProductTour from '../components/ProductTour';
 import AppFooter from '../components/AppFooter';
 
+/** Friendly labels for the fields the profile-completeness nag can mention. */
+const PROFILE_FIELD_LABELS: Record<string, string> = {
+  name: 'your name', bio: 'a short bio', avatar: 'a profile photo', location: 'your location',
+  sport: 'your sport', gender: 'your gender', age: 'your age', position: 'your position',
+};
+
 export default function MainLayout() {
   const logoUrl = useLogo();
   const { user, logout } = useAuth();
@@ -59,8 +65,10 @@ export default function MainLayout() {
   // Completeness comes from the server (role-aware, single source of truth) so a
   // coach/scout/agent/media is never nagged for player-only fields they can't fill.
   const profileIncomplete = user?.profileComplete === false;
-  // Athletes missing gender get a tailored line (gender drives ranking placement).
-  const needsGender = profileIncomplete && user?.role === 'ATHLETE' && !user?.gender;
+  // Name EXACTLY what's still missing, from the server — never a generic list that
+  // could ask a non-athlete for player fields.
+  const missingLabels = (user?.profileMissing ?? []).map((f) => PROFILE_FIELD_LABELS[f] ?? f);
+  const missingText = missingLabels.length ? missingLabels.join(', ') : 'a few details';
 
   const navItems = [
     { to: '/home',          icon: Home,          label: 'Home' },
@@ -306,18 +314,16 @@ export default function MainLayout() {
         <div className="max-w-5xl mx-auto px-4 py-4 md:px-8 md:py-7 pb-24 md:pb-10">
           {profileIncomplete && (
             <Link to="/profile/edit"
-              className="flex items-center gap-3 p-3 mb-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 hover:bg-yellow-500/15 transition-colors"
+              className="flex items-center gap-3 p-3.5 mb-4 rounded-xl bg-amber-400/15 border border-amber-400/50 hover:bg-amber-400/25 transition-colors"
             >
-              <span className="w-8 h-8 bg-yellow-500 text-black rounded-full flex items-center justify-center text-sm font-bold shrink-0">!</span>
+              <span className="w-8 h-8 bg-amber-400 text-black rounded-full flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">!</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-yellow-400">Complete your profile</p>
-                <p className="text-xs text-yellow-400/60 mt-0.5">
-                  {needsGender
-                    ? 'Select your gender to be placed in the rankings, and add your bio, avatar, location, age, and position to get verified'
-                    : 'Add your bio, avatar, location, age, and position to get verified'}
+                <p className="text-sm font-semibold text-amber-100">Complete your profile</p>
+                <p className="text-xs text-amber-100/80 mt-0.5">
+                  Add {missingText} to get verified and be discovered.
                 </p>
               </div>
-              <span className="text-xs text-yellow-400/80 font-medium shrink-0">Edit</span>
+              <span className="text-xs bg-amber-400 text-black px-2.5 py-1 rounded-lg font-semibold shrink-0">Edit</span>
             </Link>
           )}
           <Outlet />

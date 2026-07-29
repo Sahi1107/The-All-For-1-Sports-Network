@@ -38,7 +38,6 @@ export default function Settings() {
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
   // Profile completeness state (for verification checklist)
-  const [profileData, setProfileData] = useState<any>(null);
 
   // ── Guardian handover state ──────────────────────────────
   const [handoverStatus, setHandoverStatus] = useState<'NONE' | 'PENDING' | 'CONSENTED'>(user?.handoverStatus ?? 'NONE');
@@ -100,7 +99,6 @@ export default function Settings() {
     if (typeof user.disableAllComments === 'boolean') setDisableComments(user.disableAllComments);
     if (typeof user.phoneVerified === 'boolean') setPhoneVerified(user.phoneVerified);
     if (user.phone) setCurrentPhone(user.phone);
-    setProfileData(user);
     api.get('/users/blocked').then(({ data }) => setBlocked(data.users ?? [])).catch(() => {});
   }, [user]);
 
