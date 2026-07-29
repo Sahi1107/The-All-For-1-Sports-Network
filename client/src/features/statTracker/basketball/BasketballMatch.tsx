@@ -253,7 +253,8 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
     <>
       {/* Team header — Sahil's row, with a quiet team-fouls / bonus readout appended. */}
       <tr style={{ background: headerBg, color: headerColor }}>
-        <td colSpan={16} style={{ padding: '8px 12px' }}>
+        {/* inline bg so the sticky first-column rule doesn't override the team banner */}
+        <td colSpan={16} style={{ padding: '8px 12px', background: headerBg }}>
           <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
             <strong style={{ fontSize: 16 }}>{teamName}</strong>
             <span style={{ fontSize: 12, fontWeight: 600, color: bonus ? '#fca5a5' : '#9ca3af' }}>
@@ -301,9 +302,11 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
 function Counter({ v, onMinus, onPlus, disabled }: { v: number; onMinus: () => void; onPlus: () => void; disabled: boolean }) {
   return (
     <td>
-      <button onClick={onMinus} disabled={disabled}>-</button>
-      {' '}{v}{' '}
-      <button onClick={onPlus} disabled={disabled}>+</button>
+      <span className="cnt">
+        <button onClick={onMinus} disabled={disabled}>-</button>
+        <span className="v">{v}</span>
+        <button onClick={onPlus} disabled={disabled}>+</button>
+      </span>
     </td>
   );
 }
@@ -315,9 +318,11 @@ function FoulCell({ v, onMinus, onPlus, disabled }: { v: number; onMinus: () => 
   const color = out ? '#f87171' : trouble ? '#fbbf24' : undefined;
   return (
     <td>
-      <button onClick={onMinus} disabled={disabled}>-</button>
-      {' '}<span style={{ color, fontWeight: out || trouble ? 700 : undefined }} title={out ? `Fouled out (${FOUL_OUT_LIMIT})` : undefined}>{v}</span>{' '}
-      <button onClick={onPlus} disabled={disabled}>+</button>
+      <span className="cnt">
+        <button onClick={onMinus} disabled={disabled}>-</button>
+        <span className="v" style={{ color, fontWeight: out || trouble ? 700 : undefined }} title={out ? `Fouled out (${FOUL_OUT_LIMIT})` : undefined}>{v}</span>
+        <button onClick={onPlus} disabled={disabled}>+</button>
+      </span>
     </td>
   );
 }

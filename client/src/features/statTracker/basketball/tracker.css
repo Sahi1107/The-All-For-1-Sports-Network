@@ -19,7 +19,10 @@
   background: #0b1220;
   margin-top: 12px;
 }
-.bball-tracker th, .bball-tracker td { padding: 8px 10px; text-align: left; }
+/* nowrap: a cell must never wrap — the table grows to its natural width and the
+   .bball-scroll container scrolls, instead of squeezing counter cells until the
+   inline −/+ buttons wrap onto stacked lines and overlap. */
+.bball-tracker th, .bball-tracker td { padding: 8px 10px; text-align: left; white-space: nowrap; }
 .bball-tracker table th { background: #0b1220; color: #9ca3af; font-weight: 600; padding: 10px; }
 .bball-tracker table td { color: #e5e7eb; }
 
@@ -32,6 +35,21 @@
   cursor: pointer;
 }
 .bball-tracker button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Counter (−  value  +): a flex row so the two controls always have a clear gap
+   and a proper tap target, at any column width. */
+.bball-tracker .cnt { display: inline-flex; align-items: center; gap: 8px; }
+.bball-tracker .cnt button {
+  min-width: 30px; min-height: 30px; padding: 4px 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 15px; line-height: 1;
+}
+.bball-tracker .cnt .v { min-width: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Keep the player-name column pinned while scrolling to the shooting columns. */
+.bball-tracker th:first-child,
+.bball-tracker td:first-child { position: sticky; left: 0; z-index: 2; background: #0b1220; }
+.bball-tracker thead th:first-child { z-index: 3; }
 
 .bball-tracker select, .bball-tracker .input {
   padding: 8px 10px;
