@@ -370,7 +370,9 @@ export default function Settings() {
 
   // ── Verification checklist ──────────────────────────────
   const emailVerified = !!(user && !unverifiedEmail);
-  const isProfileComplete = !!(profileData?.name && profileData?.bio && profileData?.avatar && profileData?.location && profileData?.age && profileData?.position);
+  // Role-aware, from the server (same source as the nag) — a non-athlete isn't
+  // marked incomplete for player-only fields they don't have.
+  const isProfileComplete = user?.profileComplete === true;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

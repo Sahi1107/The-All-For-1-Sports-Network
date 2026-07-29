@@ -48,6 +48,10 @@ interface User {
   messageNotifications?: boolean;
   showOnlineStatus?: boolean;
   disableAllComments?: boolean;
+  /** Role-aware "profile complete" flag computed server-side (one source of truth). */
+  profileComplete?: boolean;
+  /** Which role-relevant fields are still missing (for tailored prompts). */
+  profileMissing?: string[];
 }
 
 interface RegisterData {

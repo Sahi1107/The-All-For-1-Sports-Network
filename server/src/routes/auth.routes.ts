@@ -12,6 +12,7 @@ import { sendGuardianConsentEmail, sendAthleteWelcome, sendEmailVerification, se
 import { writeLimiter } from '../middleware/rateLimiter';
 import { generateTempPassword } from '../services/provisionAthlete';
 import { decideProviderOutcome } from '../services/providerSignin';
+import { profileCompleteness, isProfileComplete } from '../services/profileCompleteness';
 import { attributeReferral } from '../services/referral';
 import { env } from '../config/env';
 import logger from '../utils/logger';
@@ -289,10 +290,10 @@ const meSelect = {
   disableAllComments: true,
 };
 
-/** A profile is "complete" when these essential fields are all filled in. */
-function isProfileComplete(u: any): boolean {
-  return !!(u.name && u.bio && u.avatar && u.location && u.age && u.position && u.sport);
-}
+// Profile completeness is role-aware and defined once in services/profileCompleteness
+// (imported below as isProfileComplete) so the verified-badge check and the client
+// "Complete your profile" nag can never disagree, and non-athletes are never asked
+// for player-only fields.
 
 /**
  * Recalculate and persist the `verified` flag.
@@ -353,7 +354,10 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     if (updated) user = updated;
 
     await signMediaDeep(user);
-    res.json({ user });
+    // Role-aware completeness so the client nag matches the verified-badge rule
+    // exactly (one source of truth) and never nags a non-athlete for player fields.
+    const pc = profileCompleteness(user);
+    res.json({ user: { ...user, profileComplete: pc.complete, profileMissing: pc.missing } });
   } catch (error) {
     logger.error('Me error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });

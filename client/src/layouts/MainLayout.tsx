@@ -56,9 +56,11 @@ export default function MainLayout() {
   // Profile completeness check for "!" badge
   // Gender is required for everyone except teams (and staff: admins/organisers) so
   // men's/women's rankings stay separate; existing profiles are nagged until set.
-  const isStaff = user?.role === 'ADMIN' || user?.role === 'ORGANIZER';
-  const needsGender = !!(user && !isStaff && user.role !== 'TEAM' && !user.gender);
-  const profileIncomplete = !!(user && !isStaff && (!user.bio || !user.avatar || !user.location || !user.age || !user.position)) || needsGender;
+  // Completeness comes from the server (role-aware, single source of truth) so a
+  // coach/scout/agent/media is never nagged for player-only fields they can't fill.
+  const profileIncomplete = user?.profileComplete === false;
+  // Athletes missing gender get a tailored line (gender drives ranking placement).
+  const needsGender = profileIncomplete && user?.role === 'ATHLETE' && !user?.gender;
 
   const navItems = [
     { to: '/home',          icon: Home,          label: 'Home' },
