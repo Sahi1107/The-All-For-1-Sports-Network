@@ -11,6 +11,7 @@ import NotFound from './pages/NotFound';
 // a new user on a blank screen; keeping it in the main bundle makes it reliable.
 import ForcePasswordReset from './pages/ForcePasswordReset';
 import BallLoader from './components/BallLoader';
+import ScrollManager from './components/ScrollManager';
 import AnalyticsManager from './components/AnalyticsManager';
 import ConsentBanner from './components/ConsentBanner';
 import InstallPrompt from './components/InstallPrompt';
@@ -244,6 +245,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
+            <ScrollManager />
             <AppRoutes />
             <ConsentGate />
             <InstallPrompt />
