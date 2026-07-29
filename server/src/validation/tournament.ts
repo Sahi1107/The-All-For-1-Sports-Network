@@ -136,6 +136,11 @@ export const ProvisionMemberBody = z.object({
     .transform((s) => (s ? s.toLowerCase().trim() : s)),
 });
 
+// Organiser roster search — see services/rosterSearch. `q` is a name fragment.
+export const PlayerSearchQuery = z.object({
+  q: z.string().max(100).optional().transform((v) => (v ? v.trim() : '')),
+});
+
 // ─── Team invite responses ────────────────────────────────────────────────────
 
 // (No body required — both endpoints derive the user from auth and the team from the URL.)
