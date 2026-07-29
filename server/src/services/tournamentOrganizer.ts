@@ -18,6 +18,27 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/**
+ * Pure: decide how an "add organiser" request is fulfilled, WITHOUT ever putting a
+ * role into the plan for an existing account. An existing user — identified by id,
+ * or by an email that matched an account — is only ASSIGNED (a TournamentOrganizer
+ * row via assignOrganizer, which never touches user.role). A role is set solely
+ * when we CREATE a brand-new account (create-new → provisionOrganizerAccount).
+ *
+ * This is the invariant behind "assigning someone to a tournament must not downgrade
+ * their platform role": there is no branch in which an existing ADMIN's role is
+ * written, because `assign-existing` carries only a target id — never a role.
+ */
+export type OrganizerAddPlan =
+  | { action: 'assign-existing'; targetUserId: string }
+  | { action: 'create-new' };
+
+export function planOrganizerAdd(input: { userId?: string | null; existingUserIdByEmail?: string | null }): OrganizerAddPlan {
+  if (input.userId) return { action: 'assign-existing', targetUserId: input.userId };
+  if (input.existingUserIdByEmail) return { action: 'assign-existing', targetUserId: input.existingUserIdByEmail };
+  return { action: 'create-new' };
+}
+
 /** Existing-account lookup — powers the add-organiser case detection (assign vs create). */
 export async function findUserByEmail(email: string) {
   return prisma.user.findUnique({

@@ -21,6 +21,7 @@ import { provisionAthleteAccount, ProvisionError } from '../services/provisionAt
 import {
   findUserByEmail, provisionOrganizerAccount, assignOrganizer,
   revokeOrganizer, listOrganizers, listOrganizerAudit, notifyOrganizerAssigned,
+  planOrganizerAdd,
 } from '../services/tournamentOrganizer';
 import { getIO } from '../config/socket';
 import {
@@ -89,24 +90,49 @@ router.patch('/users/:id/verify', validate({ body: AdminVerifyBody }), async (re
 });
 
 // PATCH /api/admin/users/:id/role
+// The DB row is the source of truth for authorization — `authenticate` reads role
+// live from it every request — so the DB update IS the operation that must succeed
+// or fail the request, and the persisted role is what we report back. The Firebase
+// custom claim is no longer read for authz; it's kept in step best-effort, and a
+// failure to sync it must NEVER turn a role change that already took effect into a
+// reported failure (that false-negative is exactly what left admins guessing).
 router.patch('/users/:id/role', validate({ body: AdminUpdateRoleBody }), async (req: AuthRequest, res: Response) => {
+  const targetId = req.params.id as string;
+  const { role } = req.body;
+
+  let user: { id: string; role: string; firebaseUid: string | null };
   try {
-    const { role } = req.body;
-    const user = await prisma.user.update({
-      where: { id: req.params.id as string },
+    user = await prisma.user.update({
+      where: { id: targetId },
       data: { role, ...(role === 'ADMIN' && { sport: null }) },
+      select: { id: true, role: true, firebaseUid: true },
     });
-
-    // Keep Firebase custom claims in sync so the user's next token has the new role
-    if (user.firebaseUid) {
-      await admin.auth().setCustomUserClaims(user.firebaseUid, { userId: user.id, role: user.role });
-    }
-
-    res.json({ message: 'Role updated', userId: user.id, role: user.role });
   } catch (error) {
-    console.error('Update role error:', error);
+    if ((error as { code?: string })?.code === 'P2025') {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    logger.error('admin.update_role_failed', { targetId, error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
+    return;
   }
+
+  // Best-effort claim parity — surfaced, never fatal.
+  let claimSynced = true;
+  if (user.firebaseUid) {
+    try {
+      await admin.auth().setCustomUserClaims(user.firebaseUid, { userId: user.id, role: user.role });
+    } catch (error) {
+      claimSynced = false;
+      logger.warn('admin.update_role.claim_sync_failed', { targetId, error: String(error) });
+    }
+  }
+
+  // Echo the persisted role so the admin sees exactly what took effect. `effective`
+  // is always true here: the change is live on the target's next request regardless
+  // of whether the cosmetic claim sync happened to succeed.
+  logger.info('admin.role_updated', { actorId: req.user!.userId, targetId, role: user.role, claimSynced });
+  res.json({ message: 'Role updated', userId: user.id, role: user.role, effective: true, claimSynced });
 });
 
 // DELETE /api/admin/users/:id
@@ -1083,22 +1109,28 @@ router.post(
       if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
 
       const { userId, name, email } = req.body as { userId?: string; name?: string; email?: string };
-      let targetUserId: string;
-      let created = false;
 
+      // Resolve whether this maps to an existing account, then let the pure planner
+      // decide assign-vs-create. Crucially, the plan never carries a role for an
+      // existing user, so an existing ADMIN (or anyone) cannot be downgraded here.
+      let existingUserIdByEmail: string | null = null;
       if (userId) {
         const existing = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
         if (!existing) { res.status(404).json({ error: 'User not found' }); return; }
-        targetUserId = userId;
       } else {
         const existing = await findUserByEmail(email!);
-        if (existing) {
-          targetUserId = existing.id;
-        } else {
-          const provisioned = await provisionOrganizerAccount({ name: name!, email: email!, tournamentId, tournamentName: tournament.name });
-          targetUserId = provisioned.userId;
-          created = true;
-        }
+        existingUserIdByEmail = existing?.id ?? null;
+      }
+
+      const plan = planOrganizerAdd({ userId, existingUserIdByEmail });
+      let targetUserId: string;
+      let created = false;
+      if (plan.action === 'assign-existing') {
+        targetUserId = plan.targetUserId;                    // assignment only — role untouched
+      } else {
+        const provisioned = await provisionOrganizerAccount({ name: name!, email: email!, tournamentId, tournamentName: tournament.name });
+        targetUserId = provisioned.userId;                   // brand-new ORGANIZER account
+        created = true;
       }
 
       await assignOrganizer(tournamentId, targetUserId, req.user!.userId, { accountCreated: created });

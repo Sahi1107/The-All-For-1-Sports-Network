@@ -17,6 +17,26 @@ test('ADMIN is allowed on any tournament (unscoped), assigned or not', () => {
   );
 });
 
+// An ADMIN reaches every tournament with NO assignment row at all — the short-circuit
+// that must keep working now role comes from the DB (a freshly-promoted admin included).
+test('an ADMIN reaches every tournament WITHOUT any organiser assignment', () => {
+  for (const tid of ['t1', 't2', 't3']) {
+    assert.deepEqual(
+      decideTournamentAccess({ authenticated: true, role: 'ADMIN', tournamentId: tid, isAssignedOrganizer: false }),
+      { ok: true },
+    );
+  }
+});
+
+// An ADMIN who was ALSO an organiser and then gets revoked (isAssignedOrganizer→false)
+// keeps access, because ADMIN was never relying on the assignment.
+test('SECURITY: an ADMIN revoked from their organiser assignment still has access', () => {
+  assert.deepEqual(
+    decideTournamentAccess({ authenticated: true, role: 'ADMIN', tournamentId: T_A, isAssignedOrganizer: false }),
+    { ok: true },
+  );
+});
+
 // ─── Assigned organiser — allowed on THEIR tournament ─────────────────────────
 test('assigned organiser is allowed on their own tournament', () => {
   assert.deepEqual(
