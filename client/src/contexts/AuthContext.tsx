@@ -4,8 +4,6 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  sendEmailVerification,
-  sendPasswordResetEmail as firebaseSendPasswordResetEmail,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
@@ -300,11 +298,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     track('sign_up', { method: 'password' });
     if (ref) { track('referral_signup', { method: 'password' }); clearRefCode(); }
 
-    // 3. Send Firebase verification email.
-    //    continueUrl brings the user back to login after they click the link.
-    await sendEmailVerification(cred.user, {
-      url: `${window.location.origin}/login`,
-    });
+    // 3. Send the branded verification email (server generates the Firebase link
+    //    and sends it through our template — not Firebase's default).
+    await authedPost(rawToken, '/auth/email/send-verification', {});
 
     // 4. Sign out so the user cannot access the app until they verify their email.
     await signOut(auth);
@@ -384,15 +380,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const resendVerification = async () => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser) throw new Error('No active session');
-    await sendEmailVerification(firebaseUser, { url: `${window.location.origin}/login` });
+    const token = await firebaseUser.getIdToken();
+    await authedPost(token, '/auth/email/send-verification', {});
   };
 
-  // ── Password reset (purely Firebase — no backend involved) ───────────────
+  // ── Password reset (branded email sent by our server) ─────────────────────
 
   const sendPasswordReset = async (email: string) => {
-    await firebaseSendPasswordResetEmail(auth, email, {
-      url: `${window.location.origin}/login`,
-    });
+    await axios.post(`${baseURL}/auth/password-reset`, { email });
   };
 
   const updateUser = (updatedUser: User) => setUser(updatedUser);

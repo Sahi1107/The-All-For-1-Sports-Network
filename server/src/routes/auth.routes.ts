@@ -8,7 +8,8 @@ import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum, GenderEnum } from '../
 import { HandoverConsentBody, HandoverCompleteBody, EmailChangeBody } from '../validation/auth';
 import { reconcileEmail } from '../services/account/emailChange';
 import { generateSecureToken, hashToken } from '../utils/crypto';
-import { sendGuardianConsentEmail, sendAthleteWelcome } from '../services/email';
+import { sendGuardianConsentEmail, sendAthleteWelcome, sendEmailVerification, sendPasswordResetEmail } from '../services/email';
+import { writeLimiter } from '../middleware/rateLimiter';
 import { generateTempPassword } from '../services/provisionAthlete';
 import { decideProviderOutcome } from '../services/providerSignin';
 import { attributeReferral } from '../services/referral';
@@ -442,6 +443,55 @@ router.post('/password-changed', authenticate, async (req: AuthRequest, res: Res
     logger.error('Password changed error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// ─── Branded email verification + password reset ──────────────────────────────
+// We generate the Firebase action link server-side and send it through OUR branded
+// template, instead of letting Firebase send its default unbranded email. Same
+// links, same handler — just our first-impression design.
+
+const authClientOrigin = Array.isArray(env.CLIENT_URL) ? env.CLIENT_URL[0] : env.CLIENT_URL;
+
+// POST /api/auth/email/send-verification — verifies the Firebase ID token directly
+// (NOT the `authenticate` gate, which needs the userId/role claims). This is called
+// right after signup — before /auth/sync sets those claims and before a token
+// refresh — as well as on resend, so it must not depend on the claims being present.
+// The token proves the caller owns this email; the link is only ever for that email.
+router.post('/email/send-verification', writeLimiter, async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) { res.status(401).json({ error: 'No token provided' }); return; }
+  let decoded: admin.auth.DecodedIdToken;
+  try {
+    decoded = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' }); return;
+  }
+  const email = decoded.email;
+  if (!email) { res.status(400).json({ error: 'No email on this account' }); return; }
+  try {
+    const u = await prisma.user.findFirst({ where: { OR: [{ firebaseUid: decoded.uid }, { email }] }, select: { name: true } });
+    const link = await admin.auth().generateEmailVerificationLink(email, { url: `${authClientOrigin}/login` });
+    await sendEmailVerification(email, u?.name ?? (decoded.name as string | undefined) ?? null, link);
+    res.json({ sent: true });
+  } catch (error) {
+    logger.error('auth.send_verification_failed', { error: String(error) });
+    res.status(500).json({ error: 'Could not send the verification email' });
+  }
+});
+
+// POST /api/auth/password-reset — public. Anti-enumeration: always 200, only send
+// if the account exists (generatePasswordResetLink throws for unknown emails).
+router.post('/password-reset', writeLimiter, validate({ body: z.object({ email: z.string().email() }) }), async (req: Request, res: Response) => {
+  const email = String(req.body.email).toLowerCase().trim();
+  try {
+    const link = await admin.auth().generatePasswordResetLink(email, { url: `${authClientOrigin}/login` });
+    const u = await prisma.user.findUnique({ where: { email }, select: { name: true } });
+    await sendPasswordResetEmail(email, u?.name ?? null, link);
+  } catch (error) {
+    // user-not-found (or any error): don't reveal whether the account exists.
+    logger.info('auth.password_reset_no_send', { reason: String((error as { code?: string })?.code ?? 'error') });
+  }
+  res.json({ sent: true });
 });
 
 // ─── Guardian handover (under-13 athletes) ─────────────────────────────────────

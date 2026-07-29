@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth, googleProvider, authResolver } from '../config/firebase';
 import {
-  sendPasswordResetEmail, EmailAuthProvider, reauthenticateWithCredential,
+  EmailAuthProvider, reauthenticateWithCredential,
   PhoneAuthProvider, RecaptchaVerifier, linkWithCredential,
   updatePassword, verifyBeforeUpdateEmail, reauthenticateWithPopup,
 } from 'firebase/auth';
@@ -129,7 +129,7 @@ export default function Settings() {
     if (!user?.email) return;
     setSendingReset(true);
     try {
-      await sendPasswordResetEmail(auth, user.email);
+      await api.post('/auth/password-reset', { email: user.email });
       toast.success('Password reset email sent — check your inbox');
     } catch {
       toast.error('Failed to send reset email');
