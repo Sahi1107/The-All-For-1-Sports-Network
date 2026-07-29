@@ -461,8 +461,8 @@ export async function sendEmailVerification(to: string, name: string | null, ver
 // ─── Render harness (dev/verify only) ────────────────────────────────────────
 // Every template built with sample data, so they can be rendered + eyeballed
 // (scripts/renderEmails) without sending anything.
-export function renderSampleEmails(): Array<{ name: string; subject: string; html: string }> {
-  const s = (name: string, b: Built) => ({ name, subject: b.subject, html: b.html });
+export function renderSampleEmails(): Array<{ name: string; subject: string; html: string; text: string }> {
+  const s = (name: string, b: Built) => ({ name, subject: b.subject, html: b.html, text: b.text });
   const tourn = 'Don Bosco Invitational 2026';
   return [
     s('01-athlete-welcome-13plus', composeAthleteWelcome({ athleteName: 'Priya Rao', loginEmail: 'priya@example.com', tempPassword: 'Xk7-mQ2p-Rt9w', forGuardian: false })),

@@ -452,13 +452,26 @@ router.post('/password-changed', authenticate, async (req: AuthRequest, res: Res
 
 const authClientOrigin = Array.isArray(env.CLIENT_URL) ? env.CLIENT_URL[0] : env.CLIENT_URL;
 
-// POST /api/auth/email/send-verification — for the signed-in (unverified) user.
-router.post('/email/send-verification', authenticate, writeLimiter, async (req: AuthRequest, res: Response) => {
+// POST /api/auth/email/send-verification — verifies the Firebase ID token directly
+// (NOT the `authenticate` gate, which needs the userId/role claims). This is called
+// right after signup — before /auth/sync sets those claims and before a token
+// refresh — as well as on resend, so it must not depend on the claims being present.
+// The token proves the caller owns this email; the link is only ever for that email.
+router.post('/email/send-verification', writeLimiter, async (req: Request, res: Response) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) { res.status(401).json({ error: 'No token provided' }); return; }
+  let decoded: admin.auth.DecodedIdToken;
   try {
-    const email = req.user!.email;
-    const u = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { name: true } });
+    decoded = await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' }); return;
+  }
+  const email = decoded.email;
+  if (!email) { res.status(400).json({ error: 'No email on this account' }); return; }
+  try {
+    const u = await prisma.user.findFirst({ where: { OR: [{ firebaseUid: decoded.uid }, { email }] }, select: { name: true } });
     const link = await admin.auth().generateEmailVerificationLink(email, { url: `${authClientOrigin}/login` });
-    await sendEmailVerification(email, u?.name ?? null, link);
+    await sendEmailVerification(email, u?.name ?? (decoded.name as string | undefined) ?? null, link);
     res.json({ sent: true });
   } catch (error) {
     logger.error('auth.send_verification_failed', { error: String(error) });
