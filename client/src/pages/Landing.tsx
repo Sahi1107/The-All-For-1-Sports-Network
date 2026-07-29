@@ -183,7 +183,7 @@ export default function Landing() {
           <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
         </button>
 
-        <button className={`nav-signup nav-signup--corner ${navBlue ? 'nav-signup--blue' : ''}`} onClick={() => navigate('/login')}>
+        <button className={`nav-signup nav-signup--corner ${navBlue ? 'nav-signup--blue' : ''}`} onClick={() => navigate('/register')}>
           Sign Up
         </button>
 
@@ -216,7 +216,7 @@ export default function Landing() {
           <h1>Performance is the Test. Elite is the Title.</h1>
           <p>India&apos;s First Unified Sports Platform</p>
           <div className="hero-buttons">
-            <button className="btn-primary" onClick={() => navigate('/login')}>
+            <button className="btn-primary" onClick={() => navigate('/register')}>
               Sign Up
             </button>
             <button className="btn-glass" onClick={() => jumpTo('about')}>
@@ -454,7 +454,7 @@ export default function Landing() {
             <button onClick={() => jumpTo('about')}>About</button>
             <button onClick={() => jumpTo('team')}>Team</button>
             <Link to="/challenges">Challenges</Link>
-            <Link to="/login">Sign Up</Link>
+            <Link to="/register">Sign Up</Link>
           </div>
           <div className="l-footer__col">
             <h5>Company</h5>
