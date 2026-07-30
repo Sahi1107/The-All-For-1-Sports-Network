@@ -140,7 +140,7 @@ export default function TournamentManage() {
           )}
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"><UserPlus size={13} /> Add team</button>
-            {isSuperAdmin && (
+            {canManage && (
               <Link to={`/admin/tournaments/${id}/provision`} className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors"><Upload size={13} /> Import CSV</Link>
             )}
           </div>

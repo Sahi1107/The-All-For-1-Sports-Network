@@ -19,6 +19,8 @@ import {
 } from '../validation/tournament';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 import { tournamentPlayerSearchWhere } from '../services/rosterSearch';
+import { buildReport, commitBulkProvision, normalizeEmail, tournamentToContext } from '../services/bulkProvision';
+import { BulkProvisionBody } from '../validation/admin';
 
 const router = Router();
 
@@ -1027,6 +1029,49 @@ router.get('/:id/player-search', authenticate, requireTournamentAccess(fromParam
     res.json({ players });
   } catch (error) {
     console.error('Roster player search error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Load the fields the bulk provisioner needs for THIS tournament.
+async function bulkTournamentContext(id: string) {
+  return prisma.tournament.findUnique({
+    where: { id },
+    select: { id: true, name: true, sport: true, genderCategory: true, minRosterSize: true, maxRosterSize: true },
+  });
+}
+
+// POST /api/tournaments/:id/bulk-provision/preview — organiser CSV import (SCOPED).
+// Same pipeline + minor-safety as the admin bulk import, but gated to the assigned
+// organiser of THIS tournament (requireTournamentAccess) — never platform-wide.
+router.post('/:id/bulk-provision/preview', authenticate, requireTournamentAccess(fromParamId), writeLimiter, validate({ body: BulkProvisionBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const t = await bulkTournamentContext(req.params.id as string);
+    if (!t) { res.status(404).json({ error: 'Tournament not found' }); return; }
+    const rows = req.body.rows as any[];
+    const emails = [...new Set(rows.map((r) => normalizeEmail(r.email)).filter(Boolean))];
+    const existing = await prisma.user.findMany({ where: { email: { in: emails } }, select: { email: true } });
+    const { report } = buildReport(rows, tournamentToContext(t), new Set(existing.map((u) => u.email)));
+    res.json({ report });
+  } catch (error) {
+    console.error('Organiser bulk-provision preview error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/tournaments/:id/bulk-provision/commit — organiser CSV import commit (SCOPED).
+router.post('/:id/bulk-provision/commit', authenticate, requireTournamentAccess(fromParamId), writeLimiter, validate({ body: BulkProvisionBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const t = await bulkTournamentContext(req.params.id as string);
+    if (!t) { res.status(404).json({ error: 'Tournament not found' }); return; }
+    const result = await commitBulkProvision(req.body.rows as any[], tournamentToContext(t));
+    res.json({ result });
+  } catch (error: any) {
+    if (error?.status === 422 && error?.blocking) {
+      res.status(422).json({ error: 'Bulk provision blocked by validation errors', blockingErrors: error.blocking });
+      return;
+    }
+    console.error('Organiser bulk-provision commit error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

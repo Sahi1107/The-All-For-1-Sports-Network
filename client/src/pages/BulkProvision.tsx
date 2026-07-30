@@ -211,7 +211,10 @@ export default function BulkProvision() {
   const [report, setReport] = useState<PreviewReport | null>(null);
   const [result, setResult] = useState<CommitResult | null>(null);
 
-  if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
+  // The STANDALONE (platform-wide) import stays super-admin only. A TOURNAMENT
+  // import is available to that tournament's organiser — the server enforces the
+  // scoping on preview/commit (requireTournamentAccess), so we don't gate on role here.
+  if (standalone && user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
 
   // Name + email are always required. In a tournament import, member_role is
   // required only when a team column is actually mapped — CSVs without a team
@@ -234,7 +237,7 @@ export default function BulkProvision() {
     mutationFn: async (rows: LongRow[]) => {
       const { data } = standalone
         ? await api.post('/admin/bulk-provision/preview', { sport, rows })
-        : await api.post(`/admin/tournaments/${tournamentId}/bulk-provision/preview`, { rows });
+        : await api.post(`/tournaments/${tournamentId}/bulk-provision/preview`, { rows });
       return data.report as PreviewReport;
     },
     onSuccess: (rep) => { setReport(rep); setStep('preview'); },
@@ -245,7 +248,7 @@ export default function BulkProvision() {
     mutationFn: async (rows: LongRow[]) => {
       const { data } = standalone
         ? await api.post('/admin/bulk-provision/commit', { sport, rows })
-        : await api.post(`/admin/tournaments/${tournamentId}/bulk-provision/commit`, { rows });
+        : await api.post(`/tournaments/${tournamentId}/bulk-provision/commit`, { rows });
       return data.result as CommitResult;
     },
     onSuccess: (res) => { setResult(res); setStep('done'); toast.success('Provisioning complete'); },
