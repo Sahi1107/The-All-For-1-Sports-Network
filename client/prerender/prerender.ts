@@ -84,3 +84,22 @@ for (const route of getRoutes()) {
   count++;
 }
 console.log(`[prerender] wrote ${count} static pages.`);
+
+// ── Clean app shell for the SPA fallback ──
+// dist/index.html carries the landing's prerendered body (for crawlers hitting `/`).
+// If that same file backs the `**` SPA rewrite, every app route (/home, /login, …)
+// briefly paints the LANDING content before React mounts — the flash. Instead we
+// emit a shell with an EMPTY #root, which triggers the template's built-in loading
+// state (#root:empty → background + spinner). Firebase's `**` rewrite points here,
+// so app routes show the neutral loader, never the landing. noindex because these
+// routes are auth-gated app surfaces — every indexable page is served from its own
+// prerendered file (/, /terms, …) or the SSR service, never this fallback.
+const appShell = template.replace(
+  '<title>All For 1</title>',
+  '<title>All For 1</title>\n    <meta name="robots" content="noindex" />',
+);
+if (appShell.includes('<div id="root">') && !appShell.includes('<div id="root"></div>')) {
+  throw new Error('[prerender] app shell template unexpectedly has a non-empty #root');
+}
+fs.writeFileSync(path.join(DIST, 'app.html'), appShell, 'utf8');
+console.log('[prerender] app-shell   → dist/app.html (SPA fallback, empty #root)');
