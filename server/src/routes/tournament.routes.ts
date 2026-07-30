@@ -1083,6 +1083,7 @@ router.post(
         position: b.position,
         phone: b.phone,
         guardianEmail: b.guardianEmail,
+        allowDuplicate: b.allowDuplicate,
       });
 
       await prisma.teamMember.upsert({
@@ -1097,7 +1098,11 @@ router.post(
         guardianConsentPending: result.guardianConsentPending,
       });
     } catch (error) {
-      if (error instanceof ProvisionError) { res.status(400).json({ error: error.message }); return; }
+      if (error instanceof ProvisionError) {
+        const status = error.code === 'DUPLICATE_WARNING' ? 409 : 400;
+        res.status(status).json({ error: error.message, code: error.code, ...(error.data as Record<string, unknown> ?? {}) });
+        return;
+      }
       console.error('Provision team member error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }

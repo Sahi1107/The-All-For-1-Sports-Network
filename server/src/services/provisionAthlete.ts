@@ -61,9 +61,15 @@ export function generateTempPassword(): string {
 
 /** Thrown for validation failures the caller should surface as a 400/row error. */
 export class ProvisionError extends Error {
-  constructor(message: string) {
+  /** Machine code so routes can map to a status (e.g. DUPLICATE_WARNING → 409). */
+  code?: string;
+  /** Extra payload for the client (e.g. the matching records for a duplicate). */
+  data?: unknown;
+  constructor(message: string, code?: string, data?: unknown) {
     super(message);
     this.name = 'ProvisionError';
+    this.code = code;
+    this.data = data;
   }
 }
 
@@ -78,6 +84,8 @@ export interface ProvisionAthleteInput {
   position?: string | null;
   phone?: string | null;
   guardianEmail?: string | null;
+  /** Set true to proceed past the name/phone duplicate warning (deliberate create). */
+  allowDuplicate?: boolean;
 }
 
 export interface ProvisionAthleteResult {
@@ -125,6 +133,22 @@ export async function provisionAthleteAccount(input: ProvisionAthleteInput): Pro
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) {
     return { userId: existing.id, created: false, guardianConsentPending: false };
+  }
+
+  // We're about to create a NEW account. Warn on a likely duplicate (same name or
+  // phone, different email) so the organiser doesn't silently add a second row for
+  // the same person — unless they've explicitly chosen to proceed.
+  if (!input.allowDuplicate) {
+    const { duplicateWhere } = await import('./duplicateCheck');
+    const where = duplicateWhere({ name: input.name, phone: input.phone, excludeEmail: email });
+    if (where) {
+      const matches = await prisma.user.findMany({
+        where, select: { id: true, name: true, email: true, role: true, sport: true }, take: 5,
+      });
+      if (matches.length > 0) {
+        throw new ProvisionError('A record with matching details already exists.', 'DUPLICATE_WARNING', { matches });
+      }
+    }
   }
 
   // Create the Firebase auth user (reuse one that already exists for this email).

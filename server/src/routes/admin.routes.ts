@@ -223,6 +223,7 @@ router.post('/athletes', writeLimiter, validate({ body: AdminCreateAthleteBody }
       position: b.position,
       phone: b.phone,
       guardianEmail: b.guardianEmail,
+      allowDuplicate: b.allowDuplicate,
     });
 
     // An existing account by this email was linked, not created — for a single
@@ -240,7 +241,8 @@ router.post('/athletes', writeLimiter, validate({ body: AdminCreateAthleteBody }
     res.status(201).json(result);
   } catch (error: any) {
     if (error?.name === 'ProvisionError') {
-      res.status(400).json({ error: error.message });
+      const status = error.code === 'DUPLICATE_WARNING' ? 409 : 400;
+      res.status(status).json({ error: error.message, code: error.code, ...(error.data ?? {}) });
       return;
     }
     logger.error('Admin create athlete error', { error: String(error) });
@@ -574,7 +576,11 @@ router.post('/teams/compose', writeLimiter, validate({ body: AdminComposeTeamBod
     });
     res.status(201).json({ team, membersAdded: roleByUser.size, accountsCreated, guardianConsentPending });
   } catch (error: any) {
-    if (error?.name === 'ProvisionError') { res.status(400).json({ error: error.message }); return; }
+    if (error?.name === 'ProvisionError') {
+      const status = error.code === 'DUPLICATE_WARNING' ? 409 : 400;
+      res.status(status).json({ error: error.message, code: error.code, ...(error.data ?? {}) });
+      return;
+    }
     logger.error('Admin compose team error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }

@@ -134,6 +134,8 @@ export const ProvisionMemberBody = z.object({
     .max(254)
     .optional()
     .transform((s) => (s ? s.toLowerCase().trim() : s)),
+  // Set by the client after the organiser confirms a duplicate warning.
+  allowDuplicate: z.boolean().optional(),
 });
 
 // Organiser roster search — see services/rosterSearch. `q` is a name fragment.

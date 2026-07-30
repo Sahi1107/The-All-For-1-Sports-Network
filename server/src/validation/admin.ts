@@ -71,6 +71,8 @@ export const AdminCreateAthleteBody = z.object({
     .max(254)
     .optional()
     .transform((s) => (s ? s.toLowerCase().trim() : s)),
+  // Set by the client after the admin confirms a duplicate warning.
+  allowDuplicate: z.boolean().optional(),
 });
 
 // ─── Admin team creation (standalone or tournament) ───────────────────────────

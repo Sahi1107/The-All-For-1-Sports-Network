@@ -47,6 +47,8 @@ export default function RosterEditorModal({
 
   const [mode, setMode] = useState<'search' | 'create'>('search');
   const [np, setNp] = useState<NewPlayer>(EMPTY_NEW);
+  // Matching records returned when the server flags a likely duplicate at creation.
+  const [dupMatches, setDupMatches] = useState<Array<{ id: string; name: string; email: string; role: string }> | null>(null);
   const npAge = ageFromDateString(np.dateOfBirth);
   const npUnder13 = npAge !== null && npAge < 13;
   const npValid = !!(np.name.trim() && np.email.trim() && np.dateOfBirth && np.gender && (!npUnder13 || np.guardianEmail.trim()));
@@ -76,13 +78,14 @@ export default function RosterEditorModal({
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not remove player'),
   });
   const createPlayer = useMutation({
-    mutationFn: () => api.post(`/tournaments/${tournamentId}/teams/${team.id}/members/provision`, {
+    mutationFn: (allowDuplicate: boolean) => api.post(`/tournaments/${tournamentId}/teams/${team.id}/members/provision`, {
       name: np.name.trim(),
       email: np.email.trim(),
       dateOfBirth: np.dateOfBirth,
       gender: np.gender,
       position: np.position.trim() || undefined,
       guardianEmail: npUnder13 ? np.guardianEmail.trim() : undefined,
+      ...(allowDuplicate && { allowDuplicate: true }),
     }),
     onSuccess: (res: any) => {
       const { created, guardianConsentPending } = res.data ?? {};
@@ -91,11 +94,20 @@ export default function RosterEditorModal({
         : created ? 'Player created & added'
         : 'Existing account added to team',
       );
+      setDupMatches(null);
       setNp(EMPTY_NEW);
       setMode('search');
       invalidate();
     },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not create player'),
+    onError: (e: any) => {
+      // A likely-duplicate: surface the matches and let the organiser decide,
+      // rather than silently creating a second row for the same person.
+      if (e.response?.status === 409 && e.response?.data?.code === 'DUPLICATE_WARNING') {
+        setDupMatches(e.response.data.matches ?? []);
+        return;
+      }
+      toast.error(e.response?.data?.error || 'Could not create player');
+    },
   });
 
   const existing = new Set(team.members.map((m) => m.userId));
@@ -237,13 +249,41 @@ export default function RosterEditorModal({
                     </p>
                   </div>
                 )}
+                {dupMatches && (
+                  <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs space-y-2">
+                    <p className="flex items-start gap-1.5 text-amber-200 font-medium">
+                      <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                      A profile with matching details already exists:
+                    </p>
+                    <ul className="space-y-1 pl-5">
+                      {dupMatches.map((m) => (
+                        <li key={m.id} className="text-amber-100/90">
+                          <span className="font-medium">{m.name}</span> · {m.email} · {m.role.toLowerCase()}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-amber-100/70">Add this person again only if they're genuinely a different individual.</p>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => createPlayer.mutate(true)} disabled={createPlayer.isPending}
+                        className="flex-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold disabled:opacity-50">
+                        {createPlayer.isPending ? 'Creating…' : 'Create anyway'}
+                      </button>
+                      <button onClick={() => setDupMatches(null)} disabled={createPlayer.isPending}
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-line text-gray-custom hover:text-foreground">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!dupMatches && (
                 <button
-                  onClick={() => createPlayer.mutate()}
+                  onClick={() => createPlayer.mutate(false)}
                   disabled={!npValid || createPlayer.isPending}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50"
                 >
                   <UserPlus size={14} /> {createPlayer.isPending ? 'Creating…' : 'Create & add to team'}
                 </button>
+                )}
                 <p className="text-[11px] text-gray-custom">Creates an account in this tournament's sport and adds them as accepted — no invite needed. An existing account with this email is added, not duplicated.</p>
               </div>
             )}
