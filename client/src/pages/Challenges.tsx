@@ -384,7 +384,7 @@ export default function Challenges() {
             <Link to="/#about">About</Link>
             <Link to="/#team">Team</Link>
             <Link to="/challenges">Challenges</Link>
-            <Link to="/login">Sign Up</Link>
+            <Link to="/register">Sign Up</Link>
           </div>
           <div className="l-footer__col">
             <h5>Company</h5>
