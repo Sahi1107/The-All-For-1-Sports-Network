@@ -19,6 +19,8 @@ import {
 } from '../validation/tournament';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 import { tournamentPlayerSearchWhere } from '../services/rosterSearch';
+import { buildReport, commitBulkProvision, normalizeEmail, tournamentToContext } from '../services/bulkProvision';
+import { BulkProvisionBody } from '../validation/admin';
 
 const router = Router();
 
@@ -698,7 +700,10 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 // PUT /api/tournaments/:id — update (admin only)
 router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize } = req.body;
+    const {
+      name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize,
+      startDate, endDate, entryFee, category, ageCategory, genderCategory,
+    } = req.body;
     const id = req.params.id as string;
 
     // Validate lifecycle transitions when the status is being changed.
@@ -723,15 +728,41 @@ router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate(
         ...(venue !== undefined && { venue }),
         ...(city !== undefined && { city }),
         ...(prizePool !== undefined && { prizePool: parseFloat(prizePool) }),
+        ...(entryFee !== undefined && { entryFee: parseFloat(entryFee) }),
         ...(maxTeams !== undefined && { maxTeams: parseInt(maxTeams) }),
         ...(minRosterSize !== undefined && { minRosterSize: parseInt(minRosterSize) }),
         ...(maxRosterSize !== undefined && { maxRosterSize: parseInt(maxRosterSize) }),
+        ...(startDate !== undefined && { startDate }),
+        ...(endDate !== undefined && { endDate }),
+        ...(category !== undefined && { category }),
+        ...(ageCategory !== undefined && { ageCategory }),
+        ...(genderCategory !== undefined && { genderCategory }),
       },
     });
 
     res.json({ tournament });
   } catch (error) {
     console.error('Update tournament error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PATCH /api/tournaments/:id/thumbnail — update just the logo/thumbnail.
+// Separate from PUT /:id because a JSON body can't carry a file. Scoped to the
+// tournament's organiser (requireTournamentAccess) — never platform-wide.
+router.patch('/:id/thumbnail', authenticate, requireTournamentAccess(fromParamId), writeLimiter, thumbnailUpload.single('thumbnail'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) { res.status(400).json({ error: 'No image provided' }); return; }
+    if (!validateImageBytes(req.file, res)) return; // sends its own 400 on bad bytes
+    const thumbnailUrl = await uploadToGCS(req.file.buffer, 'tournaments', extFromFile(req.file), req.file.mimetype);
+    const tournament = await prisma.tournament.update({
+      where: { id: req.params.id as string },
+      data: { thumbnailUrl },
+    });
+    await signMediaDeep(tournament);
+    res.json({ tournament });
+  } catch (error) {
+    console.error('Update tournament thumbnail error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -1018,6 +1049,49 @@ router.get('/:id/player-search', authenticate, requireTournamentAccess(fromParam
     res.json({ players });
   } catch (error) {
     console.error('Roster player search error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Load the fields the bulk provisioner needs for THIS tournament.
+async function bulkTournamentContext(id: string) {
+  return prisma.tournament.findUnique({
+    where: { id },
+    select: { id: true, name: true, sport: true, genderCategory: true, minRosterSize: true, maxRosterSize: true },
+  });
+}
+
+// POST /api/tournaments/:id/bulk-provision/preview — organiser CSV import (SCOPED).
+// Same pipeline + minor-safety as the admin bulk import, but gated to the assigned
+// organiser of THIS tournament (requireTournamentAccess) — never platform-wide.
+router.post('/:id/bulk-provision/preview', authenticate, requireTournamentAccess(fromParamId), writeLimiter, validate({ body: BulkProvisionBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const t = await bulkTournamentContext(req.params.id as string);
+    if (!t) { res.status(404).json({ error: 'Tournament not found' }); return; }
+    const rows = req.body.rows as any[];
+    const emails = [...new Set(rows.map((r) => normalizeEmail(r.email)).filter(Boolean))];
+    const existing = await prisma.user.findMany({ where: { email: { in: emails } }, select: { email: true } });
+    const { report } = buildReport(rows, tournamentToContext(t), new Set(existing.map((u) => u.email)));
+    res.json({ report });
+  } catch (error) {
+    console.error('Organiser bulk-provision preview error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/tournaments/:id/bulk-provision/commit — organiser CSV import commit (SCOPED).
+router.post('/:id/bulk-provision/commit', authenticate, requireTournamentAccess(fromParamId), writeLimiter, validate({ body: BulkProvisionBody }), async (req: AuthRequest, res: Response) => {
+  try {
+    const t = await bulkTournamentContext(req.params.id as string);
+    if (!t) { res.status(404).json({ error: 'Tournament not found' }); return; }
+    const result = await commitBulkProvision(req.body.rows as any[], tournamentToContext(t));
+    res.json({ result });
+  } catch (error: any) {
+    if (error?.status === 422 && error?.blocking) {
+      res.status(422).json({ error: 'Bulk provision blocked by validation errors', blockingErrors: error.blocking });
+      return;
+    }
+    console.error('Organiser bulk-provision commit error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -53,22 +53,35 @@ export const CreateTournamentBody = z.object({
   { message: 'Minimum roster size must be ≤ maximum roster size', path: ['minRosterSize'] },
 );
 
+// Everything on the tournament record an organiser may edit for their own
+// tournament. Sport and format are deliberately EXCLUDED: they set the stat
+// schema and entry model, and changing them once teams/matches exist would
+// corrupt data — they stay fixed at creation.
 export const UpdateTournamentBody = z.object({
   name:          optStr(100,  'Tournament name'),
   status:        z.enum(
     ['UPCOMING', 'REGISTRATION_OPEN', 'REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
     { error: 'Invalid tournament status' },
   ).optional(),
-  description:   optStr(1000, 'Description'),
-  venue:         optStr(100,  'Venue'),
-  city:          optStr(100,  'City'),
-  prizePool:     nonNegNum('Prize pool'),
-  maxTeams:      positiveInt('Max teams'),
-  minRosterSize: positiveInt('Minimum roster size'),
-  maxRosterSize: positiveInt('Maximum roster size'),
+  description:    optStr(1000, 'Description'),
+  venue:          optStr(100,  'Venue'),
+  city:           optStr(100,  'City'),
+  startDate:      isoDate('Start date').optional(),
+  endDate:        isoDate('End date').optional(),
+  prizePool:      nonNegNum('Prize pool'),
+  entryFee:       nonNegNum('Entry fee'),
+  maxTeams:       positiveInt('Max teams'),
+  category:       optStr(50, 'Category'),
+  ageCategory:    optStr(30, 'Age category'),
+  genderCategory: optStr(20, 'Gender category'),
+  minRosterSize:  positiveInt('Minimum roster size'),
+  maxRosterSize:  positiveInt('Maximum roster size'),
 }).refine(
   (d) => d.minRosterSize == null || d.maxRosterSize == null || d.minRosterSize <= d.maxRosterSize,
   { message: 'Minimum roster size must be ≤ maximum roster size', path: ['minRosterSize'] },
+).refine(
+  (d) => d.startDate == null || d.endDate == null || d.endDate >= d.startDate,
+  { message: 'End date must be on or after start date', path: ['endDate'] },
 );
 
 export const TournamentListQuery = PaginationQuery.extend({
