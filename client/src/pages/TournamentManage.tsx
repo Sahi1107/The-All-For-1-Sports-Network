@@ -7,11 +7,12 @@ import api from '../api/client';
 import BallLoader from '../components/BallLoader';
 import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
+import TournamentDetailsModal from '../features/tournaments/TournamentDetailsModal';
 import OrganizersModal from '../features/tournaments/OrganizersModal';
 import {
   ArrowLeft, Check, Info, Users, Flag, GitFork, CalendarClock, Radio,
   UserPlus, Upload, AlertTriangle, ChevronRight, MapPin, Calendar, Crown,
-  ShieldCheck,
+  ShieldCheck, Pencil,
 } from 'lucide-react';
 
 const SPORT = (s?: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase().replace('_', ' ') : '');
@@ -39,6 +40,7 @@ export default function TournamentManage() {
   const [editTeam, setEditTeam] = useState<any | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showOrganizers, setShowOrganizers] = useState(false);
+  const [showEditDetails, setShowEditDetails] = useState(false);
 
   if (!user) return <Navigate to="/home" replace />;
   const isSuperAdmin = user.role === 'ADMIN';
@@ -105,6 +107,12 @@ export default function TournamentManage() {
             {t.startDate && <> · {new Date(t.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{t.endDate ? `–${new Date(t.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}</>}
           </p>
           {t.description && <p className="text-sm text-gray-custom mt-1 line-clamp-2">{t.description}</p>}
+          {canManage && (
+            <button onClick={() => setShowEditDetails(true)}
+              className="mt-3 flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors">
+              <Pencil size={13} /> Edit details
+            </button>
+          )}
         </Stage>
 
         {/* 2 · Teams */}
@@ -212,6 +220,7 @@ export default function TournamentManage() {
 
       {editTeam && <RosterEditorModal tournamentId={id!} team={editTeam} sport={t.sport} onClose={() => setEditTeam(null)} />}
       {showAdd && <AddTeamModal tournamentId={id!} sport={t.sport} onClose={() => setShowAdd(false)} />}
+      {showEditDetails && <TournamentDetailsModal tournament={t} onClose={() => setShowEditDetails(false)} />}
       {showOrganizers && <OrganizersModal tournamentId={id!} tournamentName={t.name} onClose={() => setShowOrganizers(false)} />}
     </div>
   );

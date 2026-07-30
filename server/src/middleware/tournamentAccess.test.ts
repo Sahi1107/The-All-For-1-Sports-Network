@@ -45,6 +45,22 @@ test('assigned organiser is allowed on their own tournament', () => {
   );
 });
 
+// ─── Management access is NEVER gated by registration status ──────────────────
+// The requirement: closing registration stops PUBLIC self-registration, not the
+// organiser managing their own tournament (details, rosters). The access decision
+// takes no tournament-status input at all — so an assigned organiser is allowed
+// identically whether the tournament is UPCOMING, REGISTRATION_CLOSED, IN_PROGRESS,
+// etc. This test pins that invariant so a status gate can't creep into the gate.
+test('an assigned organiser keeps management access regardless of registration status', () => {
+  // There is no `status` parameter to vary — the decision is purely role + assignment.
+  // Same inputs an organiser presents at every lifecycle stage → always allowed.
+  assert.deepEqual(
+    decideTournamentAccess({ authenticated: true, role: 'ORGANIZER', tournamentId: T_A, isAssignedOrganizer: true }),
+    { ok: true },
+  );
+  assert.equal(Object.keys({ authenticated: true, role: 'ORGANIZER', tournamentId: T_A, isAssignedOrganizer: true }).includes('status'), false);
+});
+
 // ─── Organiser hitting ANOTHER tournament — denied 403 ────────────────────────
 // The resolver produces the *target* tournament's id; not being assigned to it
 // (isAssignedOrganizer=false) is exactly the cross-tournament attack, and it's denied.

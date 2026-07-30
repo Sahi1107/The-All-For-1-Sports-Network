@@ -698,7 +698,10 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 // PUT /api/tournaments/:id — update (admin only)
 router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate({ body: UpdateTournamentBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize } = req.body;
+    const {
+      name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize,
+      startDate, endDate, entryFee, category, ageCategory, genderCategory,
+    } = req.body;
     const id = req.params.id as string;
 
     // Validate lifecycle transitions when the status is being changed.
@@ -723,9 +726,15 @@ router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate(
         ...(venue !== undefined && { venue }),
         ...(city !== undefined && { city }),
         ...(prizePool !== undefined && { prizePool: parseFloat(prizePool) }),
+        ...(entryFee !== undefined && { entryFee: parseFloat(entryFee) }),
         ...(maxTeams !== undefined && { maxTeams: parseInt(maxTeams) }),
         ...(minRosterSize !== undefined && { minRosterSize: parseInt(minRosterSize) }),
         ...(maxRosterSize !== undefined && { maxRosterSize: parseInt(maxRosterSize) }),
+        ...(startDate !== undefined && { startDate }),
+        ...(endDate !== undefined && { endDate }),
+        ...(category !== undefined && { category }),
+        ...(ageCategory !== undefined && { ageCategory }),
+        ...(genderCategory !== undefined && { genderCategory }),
       },
     });
 
