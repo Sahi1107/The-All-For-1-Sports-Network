@@ -258,6 +258,13 @@ export default function BulkProvision() {
     },
   });
 
+  // A tournament import is only for someone who can manage THIS tournament. Once the
+  // tournament loads, redirect anyone who can't (the server also enforces on
+  // preview/commit) so no one lands on an import form they can't submit.
+  if (!standalone && tournament && tournament.viewerCanManage === false) {
+    return <Navigate to="/home" replace />;
+  }
+
   function handleFile(file: File) {
     if (standalone && !sport) { toast.error('Choose a sport for this batch first'); return; }
     Papa.parse<Record<string, string>>(file, {
