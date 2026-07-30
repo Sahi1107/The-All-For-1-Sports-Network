@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X } from 'lucide-react';
+import { X, ImagePlus } from 'lucide-react';
 import api from '../../api/client';
 
 interface Tournament {
@@ -10,6 +10,7 @@ interface Tournament {
   prizePool?: number | null; entryFee?: number | null; maxTeams?: number | null;
   category?: string | null; ageCategory?: string | null; genderCategory?: string | null;
   minRosterSize?: number | null; maxRosterSize?: number | null;
+  thumbnailUrl?: string | null;
 }
 
 const isoToDateInput = (v?: string | null) => (v ? v.slice(0, 10) : '');
@@ -39,12 +40,28 @@ export default function TournamentDetailsModal({ tournament, onClose }: { tourna
   });
   const set = (patch: Partial<typeof f>) => setF((v) => ({ ...v, ...patch }));
 
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const logoPreview = logoFile ? URL.createObjectURL(logoFile) : (t.thumbnailUrl ?? null);
+  const pickLogo = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Please choose an image file'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5 MB'); return; }
+    setLogoFile(file);
+  };
+
   const datesInvalid = !!(f.startDate && f.endDate && f.endDate < f.startDate);
   const rosterInvalid = !!(f.minRosterSize && f.maxRosterSize && Number(f.minRosterSize) > Number(f.maxRosterSize));
   const valid = f.name.trim().length > 0 && !datesInvalid && !rosterInvalid;
 
   const save = useMutation({
-    mutationFn: () => api.put(`/tournaments/${t.id}`, {
+    mutationFn: async () => {
+      // Logo is a separate multipart PATCH (a JSON body can't carry a file).
+      if (logoFile) {
+        const fd = new FormData();
+        fd.append('thumbnail', logoFile);
+        await api.patch(`/tournaments/${t.id}/thumbnail`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      }
+      return api.put(`/tournaments/${t.id}`, {
       name: f.name.trim(),
       description: f.description.trim(),
       venue: f.venue.trim(),
@@ -59,7 +76,8 @@ export default function TournamentDetailsModal({ tournament, onClose }: { tourna
       genderCategory: f.genderCategory.trim(),
       minRosterSize: numOrUndef(f.minRosterSize),
       maxRosterSize: numOrUndef(f.maxRosterSize),
-    }),
+      });
+    },
     onSuccess: () => {
       toast.success('Tournament updated');
       qc.invalidateQueries({ queryKey: ['manage-tournament', t.id] });
@@ -84,6 +102,20 @@ export default function TournamentDetailsModal({ tournament, onClose }: { tourna
         </div>
 
         <div className="overflow-y-auto p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-xl border border-line bg-surface overflow-hidden flex items-center justify-center shrink-0">
+              {logoPreview
+                ? <img src={logoPreview} alt="Tournament logo" className="w-full h-full object-cover" />
+                : <ImagePlus size={20} className="text-gray-custom" />}
+            </div>
+            <div>
+              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg cursor-pointer transition-colors">
+                <ImagePlus size={13} /> {logoPreview ? 'Change logo' : 'Add logo'}
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => pickLogo(e.target.files?.[0])} />
+              </label>
+              <p className="text-[11px] text-gray-custom mt-1">PNG or JPG, up to 5 MB.</p>
+            </div>
+          </div>
           <div>
             <label className={label}>Name</label>
             <input className={input} value={f.name} onChange={(e) => set({ name: e.target.value })} maxLength={100} />

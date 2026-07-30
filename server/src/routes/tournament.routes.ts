@@ -747,6 +747,26 @@ router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate(
   }
 });
 
+// PATCH /api/tournaments/:id/thumbnail — update just the logo/thumbnail.
+// Separate from PUT /:id because a JSON body can't carry a file. Scoped to the
+// tournament's organiser (requireTournamentAccess) — never platform-wide.
+router.patch('/:id/thumbnail', authenticate, requireTournamentAccess(fromParamId), writeLimiter, thumbnailUpload.single('thumbnail'), async (req: AuthRequest, res: Response) => {
+  try {
+    if (!req.file) { res.status(400).json({ error: 'No image provided' }); return; }
+    if (!validateImageBytes(req.file, res)) return; // sends its own 400 on bad bytes
+    const thumbnailUrl = await uploadToGCS(req.file.buffer, 'tournaments', extFromFile(req.file), req.file.mimetype);
+    const tournament = await prisma.tournament.update({
+      where: { id: req.params.id as string },
+      data: { thumbnailUrl },
+    });
+    await signMediaDeep(tournament);
+    res.json({ tournament });
+  } catch (error) {
+    console.error('Update tournament thumbnail error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/tournaments/:id/register — create a per-tournament team and invite players
 router.post(
   '/:id/register',
