@@ -13,6 +13,20 @@
     <link rel="manifest" href="/manifest.json" />
     <title>All For 1</title>
 
+    <!-- No-flash theme: resolve the saved theme BEFORE first paint so the loading
+         screen and app match the user's choice (no dark→light flash for light users). -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('afn-theme') || 'dark';
+          var light = p === 'light' || (p === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
+          document.documentElement.dataset.theme = light ? 'light' : 'dark';
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', light ? '#f4f5f8' : '#0a0a0a');
+        } catch (e) {}
+      })();
+    </script>
+
     <!-- Open Graph / social preview -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://allfor1.pro/" />
@@ -25,12 +39,14 @@
 
     <style>
       html, body { margin: 0; padding: 0; background: #0a0a0a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+      html[data-theme="light"], html[data-theme="light"] body { background: #f4f5f8; color: #0d1220; }
       #root:empty::before {
         content: "";
         position: fixed; inset: 0;
         display: block;
         background: #0a0a0a;
       }
+      html[data-theme="light"] #root:empty::before { background: #f4f5f8; }
       #root:empty::after {
         content: "";
         position: fixed; top: 50%; left: 50%;

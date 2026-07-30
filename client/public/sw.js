@@ -1,9 +1,11 @@
 /* All For 1 service worker — offline app shell + web push.
    Bump CACHE on shipping changes to this file to roll the cache. */
-const CACHE = 'af1-shell-v1';
+const CACHE = 'af1-shell-v2';
 // Clean URLs: /index.html → /, /offline.html → /offline. Precache the served
 // paths, or cache.addAll rejects on the redirect and the SW never installs.
-const CORE = ['/', '/offline', '/manifest.json', '/icons/icon-192.png', '/favicon.svg'];
+// /app.html is the SPA-fallback shell (empty #root → loading spinner) — the same
+// neutral shell app routes get online, so offline navigations don't flash the landing.
+const CORE = ['/', '/app', '/offline', '/manifest.json', '/icons/icon-192.png', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -27,9 +29,11 @@ self.addEventListener('fetch', (event) => {
   // Never cache dynamic/cross-origin: API, OG cards, share pages, other origins.
   if (url.origin !== location.origin || url.pathname.startsWith('/api') || url.pathname.startsWith('/og') || url.pathname.startsWith('/s/')) return;
 
-  // Navigations: network-first (always fresh online) → cached shell → offline page.
+  // Navigations: network-first (always fresh online) → the neutral app shell →
+  // offline page. Falls back to /app.html (not the landing) so an offline app route
+  // never flashes marketing content.
   if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(() => caches.match('/').then((r) => r || caches.match('/offline'))));
+    event.respondWith(fetch(req).catch(() => caches.match('/app').then((r) => r || caches.match('/offline'))));
     return;
   }
 
