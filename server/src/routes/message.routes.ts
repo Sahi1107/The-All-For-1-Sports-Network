@@ -4,6 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../config/socket';
 import { messageLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { notify } from '../services/notifications/notify';
+import { canInitiateContact, canSendMessage, contactDenialMessage } from '../services/messagePolicy';
 import { validate } from '../middleware/validate';
 import {
   CreateConversationBody,
@@ -18,7 +19,9 @@ const router = Router();
 // ─── Shared select for messages (includes new fields + shared post) ──────
 
 const messageInclude = {
-  sender: { select: { id: true, name: true, avatar: true } },
+  // role + verified so the recipient sees WHO is reaching out (esp. on a cold
+  // first message from a scout/coach/agent/media).
+  sender: { select: { id: true, name: true, avatar: true, role: true, verified: true } },
   sharedPost: {
     select: {
       id: true,
@@ -223,28 +226,37 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
       return;
     }
 
-    // Connections-only policy: DMs are restricted to mutual accepted connections.
-    // Admins (either side) are exempt so support/moderation can reach anyone.
-    const sender = await prisma.user.findUnique({
-      where: { id: req.user!.userId },
-      select: { role: true },
-    });
+    // Contact policy (services/messagePolicy): an accepted connection or admin can
+    // always message; otherwise an outreach role (scout/coach/agent/media) may open
+    // a conversation with a DISCOVERABLE ADULT athlete, honouring their followers-only
+    // setting — and under-13/guardian-managed accounts are never cold-reachable.
+    const sender = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { role: true } });
     const eitherIsAdmin = sender?.role === 'ADMIN' || targetUser.role === 'ADMIN';
-    if (!eitherIsAdmin) {
-      const connection = await prisma.connection.findFirst({
-        where: {
-          status: 'ACCEPTED',
-          OR: [
-            { senderId: req.user!.userId, receiverId: userId },
-            { senderId: userId, receiverId: req.user!.userId },
-          ],
-        },
-        select: { id: true },
-      });
-      if (!connection) {
-        res.status(403).json({ error: 'You can only message your connections' });
-        return;
-      }
+    const connection = await prisma.connection.findFirst({
+      where: {
+        status: 'ACCEPTED',
+        OR: [
+          { senderId: req.user!.userId, receiverId: userId },
+          { senderId: userId, receiverId: req.user!.userId },
+        ],
+      },
+      select: { id: true },
+    });
+    const decision = canInitiateContact({
+      senderRole: sender?.role ?? '',
+      eitherIsAdmin,
+      hasAcceptedConnection: !!connection,
+      target: {
+        role: targetUser.role,
+        discoverable: targetUser.discoverable,
+        guardianManaged: targetUser.guardianManaged,
+        age: targetUser.age,
+        messagingFollowersOnly: targetUser.messagingFollowersOnly,
+      },
+    });
+    if (!decision.ok) {
+      res.status(403).json({ error: contactDenialMessage(decision.reason), code: 'CONTACT_NOT_ALLOWED' });
+      return;
     }
 
     const conversation = await prisma.conversation.create({
@@ -335,6 +347,36 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
 
     // IDOR: verify caller is a member of this conversation
     if (!(await assertMember(conversationId, req.user!.userId, res))) return;
+
+    // Anti-spam: on a COLD conversation (no accepted connection, neither admin) the
+    // initiator gets ONE message and must wait for a reply before sending another.
+    const me = req.user!.userId;
+    const members = await prisma.conversationMember.findMany({
+      where: { conversationId }, select: { userId: true, user: { select: { role: true } } },
+    });
+    const other = members.find((m) => m.userId !== me);
+    if (other) {
+      const eitherIsAdmin = members.some((m) => m.user.role === 'ADMIN');
+      const connection = await prisma.connection.findFirst({
+        where: { status: 'ACCEPTED', OR: [{ senderId: me, receiverId: other.userId }, { senderId: other.userId, receiverId: me }] },
+        select: { id: true },
+      });
+      const [senderMessageCount, otherMessageCount] = await Promise.all([
+        prisma.message.count({ where: { conversationId, senderId: me } }),
+        prisma.message.count({ where: { conversationId, senderId: other.userId } }),
+      ]);
+      const gate = canSendMessage({
+        eitherIsAdmin,
+        hasAcceptedConnection: !!connection,
+        senderIsInitiator: otherMessageCount === 0,
+        targetHasReplied: otherMessageCount > 0,
+        senderMessageCount,
+      });
+      if (!gate.ok) {
+        res.status(403).json({ error: contactDenialMessage(gate.reason), code: 'AWAITING_REPLY' });
+        return;
+      }
+    }
 
     // Validate sharedPostId if provided
     if (sharedPostId) {
