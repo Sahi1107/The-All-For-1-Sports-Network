@@ -71,7 +71,7 @@ export function LegalDocContent({
 
 export default function LegalDoc(props: LegalDocProps) {
   return (
-    <div className="landing-root legal-root">
+    <div className="landing-root legal-root af-fade-in">
       <header className="legal-header">
         <Link to="/" className="l-btn l-btn--outline legal-header__btn">
           <ArrowLeft size={16} /> Back

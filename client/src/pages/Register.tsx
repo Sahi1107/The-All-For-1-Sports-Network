@@ -103,7 +103,7 @@ export default function Register() {
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface p-4">
+      <div className="min-h-screen flex items-center justify-center bg-surface p-4 af-fade-in">
         <div className="w-full max-w-md text-center">
           <img src={logoUrl} alt="All For 1" className="h-20 mx-auto mb-8" />
           <div className="bg-card rounded-2xl p-8 border border-line">
@@ -133,7 +133,7 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface p-4">
+    <div className="min-h-screen flex items-center justify-center bg-surface p-4 af-fade-in">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <img src={logoUrl} alt="All For 1" className="h-20 mx-auto mb-4" />

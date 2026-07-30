@@ -326,7 +326,11 @@ export default function MainLayout() {
               <span className="text-xs bg-amber-400 text-black px-2.5 py-1 rounded-lg font-semibold shrink-0">Edit</span>
             </Link>
           )}
-          <Outlet />
+          {/* Gentle fade between in-app pages — keyed on path so each navigation
+              re-plays it (respects prefers-reduced-motion via .af-fade-in). */}
+          <div key={location.pathname} className="af-fade-in">
+            <Outlet />
+          </div>
 
           {/* Minimal in-app footer on pages that end; skipped on the feed
               (/home) and chat (/messages) — infinite/interactive surfaces. */}
