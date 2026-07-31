@@ -35,11 +35,14 @@ function paletteFor(name: string): readonly [string, string] {
   return PALETTE[Math.abs(h) % PALETTE.length];
 }
 
-/** "Aarav Naik" → "AN", "Radar" → "RA", "" → "•" */
+/** "Aarav Naik" → "AN", "Radar" → "RA", "" → "•".
+ *  Pure-number words are skipped ("Goa Cup 2026" → "GC", not "G2"). */
 export function initialsOf(name?: string | null): string {
   const clean = (name ?? '').trim();
   if (!clean) return '•';
-  const words = clean.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+  let words = clean.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+  const lettered = words.filter((w) => /\p{L}/u.test(w));
+  if (lettered.length > 0) words = lettered;
   if (words.length === 0) return clean.slice(0, 1).toUpperCase();
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
