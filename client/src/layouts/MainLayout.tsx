@@ -309,8 +309,8 @@ export default function MainLayout() {
             >
               <span className="w-8 h-8 bg-amber-400 text-black rounded-full flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">!</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-100">Complete your profile</p>
-                <p className="text-xs text-amber-100/80 mt-0.5">
+                <p className="text-sm font-semibold warn-title">Complete your profile</p>
+                <p className="text-xs warn-text mt-0.5">
                   Add {missingText} to get verified and be discovered.
                 </p>
               </div>

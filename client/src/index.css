@@ -132,6 +132,14 @@ body {
   .af-fade-in { animation: none; }
 }
 
+/* Warning banner text (profile-completeness nag): amber that flips per theme.
+   Fixed amber-100 was near-invisible on the light background — these are the
+   theme-aware equivalents, following the token-override pattern above. */
+.warn-title { color: #fde68a; }                       /* amber-200 on dark */
+.warn-text  { color: rgba(253, 230, 138, 0.82); }
+:root[data-theme="light"] .warn-title { color: #78350f; }             /* amber-900 */
+:root[data-theme="light"] .warn-text  { color: rgba(120, 53, 15, 0.85); }
+
 /* Sport feed backdrops (Home): the court/field line-art is drawn in white for
    the dark theme. In light mode, recolor the strokes/fills to ink so the
    outlines stay visible against the light page, and lift the group opacity a
