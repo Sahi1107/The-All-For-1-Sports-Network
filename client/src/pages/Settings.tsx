@@ -11,6 +11,7 @@ import { User, Lock, Trash2, Edit, Shield, Bell, LogOut, Bookmark, MessageSquare
 import { useTheme, type ThemePreference } from '../contexts/ThemeContext';
 import toast from 'react-hot-toast';
 import api from '../api/client';
+import Avatar from '../components/Avatar';
 
 export default function Settings() {
   const { user, logout, logoutAllDevices, unverifiedEmail, updateUser } = useAuth();
@@ -948,13 +949,7 @@ export default function Settings() {
           <div className="space-y-2">
             {blocked.map((u) => (
               <div key={u.id} className="flex items-center gap-3 p-2 rounded-lg bg-surface border border-line">
-                {u.avatar ? (
-                  <img src={u.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary-light">
-                    {u.name?.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <Avatar name={u.name} src={u.avatar} size={32} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{u.name}</p>
                   <p className="text-xs text-gray-custom capitalize">{u.role?.toLowerCase()} · {u.sport?.toLowerCase()}</p>

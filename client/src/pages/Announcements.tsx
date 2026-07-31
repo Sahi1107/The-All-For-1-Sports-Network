@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -149,12 +150,7 @@ export default function Announcements() {
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-3">
                   <Link to={`/profile/${a.author?.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <div className="w-9 h-9 rounded-full bg-elevated flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
-                      {a.author?.avatar
-                        ? <img src={a.author.avatar} alt={a.author.name} className="w-full h-full object-cover" />
-                        : a.author?.name?.charAt(0)
-                      }
-                    </div>
+                    <Avatar name={a.author?.name} src={a.author?.avatar} size={36} />
                     <div>
                       <p className="text-sm font-medium">{a.author?.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">

@@ -1,3 +1,4 @@
+import AvatarMark from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -97,14 +98,7 @@ function Avatar({ user, size = 10, online }: { user: any; size?: number; online?
   const px = size * 4;
   return (
     <div className="relative shrink-0" style={{ width: px, height: px }}>
-      <div
-        className="rounded-full bg-elevated flex items-center justify-center font-bold overflow-hidden"
-        style={{ width: px, height: px }}
-      >
-        {user?.avatar
-          ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-          : <span className="text-sm">{user?.name?.charAt(0)}</span>}
-      </div>
+      <AvatarMark name={user?.name} src={user?.avatar} size={px} />
       {online === true && (
         <span
           className="absolute bottom-0 right-0 block rounded-full bg-emerald-400 ring-2 ring-line"
@@ -130,11 +124,7 @@ function SharedPostCard({ post }: { post: any }) {
       )}
       <div className="p-2.5">
         <div className="flex items-center gap-2 mb-1">
-          <div className="w-5 h-5 rounded-full bg-elevated overflow-hidden shrink-0">
-            {post.user?.avatar
-              ? <img src={post.user.avatar} alt="" className="w-full h-full object-cover" />
-              : <span className="text-[9px] font-bold flex items-center justify-center w-full h-full text-foreground">{post.user?.name?.charAt(0)}</span>}
-          </div>
+          <AvatarMark name={post.user?.name} src={post.user?.avatar} size={20} />
           <span className="text-xs font-medium truncate text-foreground">{post.user?.name}</span>
         </div>
         {post.title && <p className="text-xs font-semibold truncate text-foreground">{post.title}</p>}
@@ -160,11 +150,7 @@ function SharedProfileCard({ profile }: { profile: any }) {
       onClick={(e) => e.stopPropagation()}
     >
       <div className="p-2.5 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-elevated overflow-hidden shrink-0">
-          {profile.avatar
-            ? <img src={profile.avatar} alt="" className="w-full h-full object-cover" />
-            : <span className="text-sm font-bold flex items-center justify-center w-full h-full text-foreground">{profile.name?.charAt(0)}</span>}
-        </div>
+        <AvatarMark name={profile.name} src={profile.avatar} size={40} />
         <div className="min-w-0">
           <p className="text-xs font-semibold truncate text-foreground">{profile.name}</p>
           {meta && <p className="text-[11px] text-foreground/60 truncate capitalize">{meta}</p>}

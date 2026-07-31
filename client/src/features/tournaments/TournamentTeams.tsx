@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
+import Avatar, { TeamCrest } from '../../components/Avatar';
 import BallLoader from '../../components/BallLoader';
 import { Users, Crown, ChevronDown, Shield } from 'lucide-react';
 
@@ -92,9 +93,7 @@ export default function TournamentTeams({ tournamentId, focusTeamId }: { tournam
         >
           {/* Team header */}
           <div className="flex items-center gap-3 p-4 border-b border-line">
-            {team.logo
-              ? <img src={team.logo} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 border border-line" />
-              : <div className="w-9 h-9 rounded-lg bg-elevated flex items-center justify-center font-bold text-gray-custom shrink-0">{team.name.charAt(0).toUpperCase()}</div>}
+            <TeamCrest name={team.name} src={team.logo} size={36} />
             <div className="min-w-0">
               <h3 className="font-semibold text-sm truncate">{team.name}</h3>
               <p className="text-xs text-gray-custom flex items-center gap-1"><Users size={11} /> {team.players.length} players</p>
@@ -123,9 +122,7 @@ export default function TournamentTeams({ tournamentId, focusTeamId }: { tournam
                         className="flex items-center gap-3 flex-1 min-w-0 -mx-2 px-2 py-1 rounded-lg cursor-pointer hover:bg-surface active:bg-elevated transition-colors"
                         title={`View ${p.name}'s profile`}
                       >
-                        {p.avatar
-                          ? <img src={p.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-line shrink-0" />
-                          : <div className="w-10 h-10 rounded-full bg-elevated flex items-center justify-center text-sm font-bold text-gray-custom shrink-0">{p.name.charAt(0).toUpperCase()}</div>}
+                        <Avatar name={p.name} src={p.avatar} size={40} />
 
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate flex items-center gap-1.5">

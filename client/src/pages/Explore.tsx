@@ -1,3 +1,4 @@
+import Avatar, { TeamCrest, TournamentMark } from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useEffect, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
@@ -184,9 +185,7 @@ function PeopleGrid({ users, query }: { users: any[]; query: string }) {
       {users.map((u) => (
         <Link key={u.id} to={`/profile/${u.id}`} className="bg-card border border-line rounded-xl p-4 hover:border-primary/50 transition-colors">
           <div className="flex items-center gap-4">
-            {u.avatar
-              ? <img src={u.avatar} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" />
-              : <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold text-primary shrink-0">{u.name?.charAt(0).toUpperCase()}</div>}
+            <Avatar name={u.name} src={u.avatar} size={56} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold truncate">{u.name}</h3>
@@ -216,9 +215,7 @@ function TeamsGrid({ teams, query }: { teams: any[]; query: string }) {
       {teams.map((t) => (
         <Link key={t.id} to={`/teams/${t.id}`} className="bg-card border border-line rounded-xl p-4 hover:border-primary/50 transition-colors">
           <div className="flex items-center gap-4">
-            {t.logo
-              ? <img src={t.logo} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
-              : <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center text-lg font-bold text-primary shrink-0">{t.name?.charAt(0).toUpperCase()}</div>}
+            <TeamCrest name={t.name} src={t.logo} size={56} />
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold truncate">{t.name}</h3>
               <p className="text-sm text-gray-custom capitalize">{cap(t.sport)}</p>
@@ -244,9 +241,7 @@ function TournamentsGrid({ tournaments, query }: { tournaments: any[]; query: st
       {tournaments.map((t) => (
         <Link key={t.id} to={`/tournaments/${t.id}`} className="bg-card border border-line rounded-xl p-4 hover:border-primary/50 transition-colors">
           <div className="flex items-center gap-4">
-            {t.thumbnailUrl
-              ? <img src={t.thumbnailUrl} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
-              : <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center text-lg font-bold text-primary shrink-0">{t.name?.charAt(0).toUpperCase()}</div>}
+            <TournamentMark name={t.name} src={t.thumbnailUrl} size={56} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold truncate">{t.name}</h3>

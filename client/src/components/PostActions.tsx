@@ -1,3 +1,4 @@
+import Avatar from './Avatar';
 import BallLoader from './BallLoader';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -56,13 +57,7 @@ function CommentItem({
     <div className={depth > 0 ? 'ml-6 border-l border-ink/5 pl-3' : ''}>
       <div className="flex items-start gap-2 group">
         <Link to={`/profile/${c.user.id}`} className="shrink-0">
-          {c.user.avatar ? (
-            <img src={c.user.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">
-              {c.user.name?.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <Avatar name={c.user.name} src={c.user.avatar} size={24} />
         </Link>
         <div className="flex-1 min-w-0">
           <div className="bg-ink/5 rounded-lg px-2.5 py-1.5">
@@ -403,13 +398,7 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
 
             {/* Comment input */}
             <div className="flex items-center gap-2 mt-2">
-              {user?.avatar ? (
-                <img src={user.avatar} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light shrink-0">
-                  {user?.name?.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <Avatar name={user?.name} src={user?.avatar} size={24} />
               <input
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}

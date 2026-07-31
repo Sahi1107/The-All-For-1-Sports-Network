@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -105,11 +106,7 @@ function PerformanceCard({ r, max }: { r: any; max: number }) {
         </span>
 
         {/* Avatar */}
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-elevated text-sm font-bold text-foreground">
-          {u.avatar
-            ? <img src={u.avatar} alt={u.name} className="h-full w-full object-cover" />
-            : (u.name?.charAt(0) ?? '?')}
-        </div>
+        <Avatar name={u.name} src={u.avatar} size={44} />
 
         {/* Athlete + rating bar */}
         <div className="min-w-0 flex-1">

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { X, Clock } from 'lucide-react';
+import Avatar from './Avatar';
 import ImageCarousel from './ImageCarousel';
 import PostActions from './PostActions';
 import { NameLine, PostMeta, PerformanceCard } from './feed/FeedBits';
@@ -49,13 +50,7 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
         {/* Header */}
         <div className="flex items-center gap-3 p-4 border-b border-line">
           <Link to={`/profile/${post.user?.id}`} onClick={onClose}>
-            {post.user?.avatar ? (
-              <img src={post.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light">
-                {post.user?.name?.charAt(0)?.toUpperCase()}
-              </div>
-            )}
+            <Avatar name={post.user?.name} src={post.user?.avatar} size={40} />
           </Link>
           <div className="flex-1 min-w-0">
             <Link

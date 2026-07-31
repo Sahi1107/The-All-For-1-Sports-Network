@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import BallLoader from '../../components/BallLoader';
+import { TeamCrest } from '../../components/Avatar';
 import { GitFork, Settings, CalendarClock } from 'lucide-react';
 import StandingsTable from '../statTracker/components/StandingsTable';
 import SharedBracket, { type BracketData, type BracketMatchVM } from '../statTracker/components/Bracket';
@@ -161,9 +162,7 @@ function TeamChip({ team, size = 18 }: { team?: TeamLite; size?: number }) {
   if (!team) return <span className="text-gray-custom italic">TBD</span>;
   return (
     <span className="flex items-center gap-2 min-w-0">
-      {team.logo
-        ? <img src={team.logo} alt="" className="rounded object-cover shrink-0 border border-line" style={{ width: size, height: size }} />
-        : <span className="rounded bg-elevated flex items-center justify-center text-[9px] font-bold text-gray-custom shrink-0" style={{ width: size, height: size }}>{team.name.charAt(0).toUpperCase()}</span>}
+      <TeamCrest name={team.name} src={team.logo} size={size} />
       <span className="truncate">{team.name}</span>
     </span>
   );
@@ -214,9 +213,7 @@ function FlatRow({ m, teams, compact, onOpen }: { m: BMatch; teams: Record<strin
           <span className="flex items-center gap-2 min-w-0 flex-row-reverse">
             {teams[m.awayTeamId ?? '']
               ? <>
-                  {teams[m.awayTeamId!].logo
-                    ? <img src={teams[m.awayTeamId!].logo!} alt="" className="w-[18px] h-[18px] rounded object-cover shrink-0 border border-line" />
-                    : <span className="w-[18px] h-[18px] rounded bg-elevated flex items-center justify-center text-[9px] font-bold text-gray-custom shrink-0">{teams[m.awayTeamId!].name.charAt(0).toUpperCase()}</span>}
+                  <TeamCrest name={teams[m.awayTeamId!].name} src={teams[m.awayTeamId!].logo} size={18} />
                   <span className="truncate">{teams[m.awayTeamId!].name}</span>
                 </>
               : <span className="text-gray-custom italic">TBD</span>}

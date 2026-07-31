@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState, useRef, useEffect } from 'react';
 import { track } from '../config/analytics';
@@ -794,13 +795,7 @@ export default function Profile() {
         )}
         <div className="flex flex-col sm:flex-row gap-6 items-start relative z-10">
           {/* Avatar */}
-          <div className="w-24 h-24 rounded-full bg-elevated flex items-center justify-center text-3xl font-bold shrink-0 overflow-hidden border-2 border-line">
-            {profile.avatar ? (
-              <img src={profile.avatar} alt={profile.name} className="w-full h-full object-cover" />
-            ) : (
-              profile.name?.charAt(0).toUpperCase()
-            )}
-          </div>
+          <Avatar name={profile.name} src={profile.avatar} size={96} />
 
           {/* Info */}
           <div className="flex-1 min-w-0">
@@ -1012,13 +1007,7 @@ export default function Profile() {
                 <div className="flex -space-x-2">
                   {mutualData!.users.slice(0, 3).map((u) => (
                     <Link key={u.id} to={`/profile/${u.id}`} title={u.name}>
-                      {u.avatar ? (
-                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-line" />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-primary/20 border-2 border-line flex items-center justify-center text-[10px] font-bold text-primary-light">
-                          {u.name?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <Avatar name={u.name} src={u.avatar} size={24} className="border-2 border-line" />
                     </Link>
                   ))}
                 </div>
@@ -1036,13 +1025,7 @@ export default function Profile() {
                 <div className="flex -space-x-2">
                   {mutualData!.followers!.users.slice(0, 3).map((u) => (
                     <Link key={u.id} to={`/profile/${u.id}`} title={u.name}>
-                      {u.avatar ? (
-                        <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-line" />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full bg-secondary/20 border-2 border-line flex items-center justify-center text-[10px] font-bold text-foreground/80">
-                          {u.name?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <Avatar name={u.name} src={u.avatar} size={24} className="border-2 border-line" />
                     </Link>
                   ))}
                 </div>
@@ -1247,13 +1230,7 @@ export default function Profile() {
                     </div>
                     <div className="flex items-center gap-2 px-3 pt-2">
                       <Link to={`/profile/${p.user?.id}`} className="shrink-0">
-                        {p.user?.avatar ? (
-                          <img src={p.user.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">
-                            {p.user?.name?.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                        <Avatar name={p.user?.name} src={p.user?.avatar} size={24} />
                       </Link>
                       <Link to={`/profile/${p.user?.id}`} className="text-sm font-semibold hover:text-primary-light transition-colors">
                         {p.user?.name}
@@ -1347,13 +1324,7 @@ export default function Profile() {
                   {endorsements.map((e: any) => (
                     <div key={e.id} className="flex gap-3 p-3 bg-surface rounded-lg border border-line">
                       <Link to={`/profile/${e.coach.id}`} className="shrink-0">
-                        {e.coach.avatar ? (
-                          <img src={e.coach.avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-secondary/20 flex items-center justify-center text-sm font-bold text-secondary">
-                            {e.coach.name?.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                        <Avatar name={e.coach.name} src={e.coach.avatar} size={36} />
                       </Link>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
@@ -1472,13 +1443,7 @@ export default function Profile() {
                     onClick={() => setFollowModal(null)}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-ink/5 transition-colors"
                   >
-                    {u.avatar ? (
-                      <img src={u.avatar} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary-light shrink-0">
-                        {u.name?.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    <Avatar name={u.name} src={u.avatar} size={36} />
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{u.name}</p>
                       <p className="text-xs text-foreground/40 capitalize">

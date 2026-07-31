@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Eye, MapPin, Clock, X } from 'lucide-react';
 import api from '../api/client';
+import Avatar from '../components/Avatar';
 import { useEffect, useRef, useState } from 'react';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -220,13 +221,7 @@ export default function Home() {
                   {/* User header — name + verification lead, one disciplined meta line */}
                   <div className="p-4 flex items-center gap-3">
                     <Link to={`/profile/${item.user?.id}`}>
-                      {item.user?.avatar ? (
-                        <img src={item.user.avatar} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-display font-bold text-primary-light">
-                          {item.user?.name?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <Avatar name={item.user?.name} src={item.user?.avatar} size={40} />
                     </Link>
                     <div className="flex-1 min-w-0">
                       <Link

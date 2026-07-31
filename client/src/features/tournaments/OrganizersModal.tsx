@@ -5,6 +5,7 @@ import {
   X, Search, UserPlus, UserMinus, Trash2, ShieldCheck, Mail, Loader2, CheckCircle2, UserCheck, History,
 } from 'lucide-react';
 import api from '../../api/client';
+import Avatar from '../../components/Avatar';
 import { useDebounce } from '../../hooks/useDebounce';
 
 interface LiteUser { id: string; name: string; email: string; avatar?: string | null; role?: string }
@@ -123,7 +124,7 @@ export default function OrganizersModal({
               <ul className="space-y-1.5">
                 {organizers.map((o) => (
                   <li key={o.userId} className="flex items-center gap-2.5 bg-surface border border-line rounded-lg px-3 py-2">
-                    <Avatar name={o.name} avatar={o.avatar} />
+                    <Avatar name={o.name} src={o.avatar} size={28} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{o.name}</p>
                       <p className="text-[11px] text-gray-custom truncate">{o.email}</p>
@@ -170,7 +171,7 @@ export default function OrganizersModal({
                     onClick={() => { setSelected(u); setQuery(''); }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-surface transition-colors"
                   >
-                    <Avatar name={u.name} avatar={u.avatar} />
+                    <Avatar name={u.name} src={u.avatar} size={28} />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm truncate">{u.name}</span>
                       <span className="block text-[11px] text-gray-custom truncate">{u.email}</span>
@@ -199,7 +200,7 @@ export default function OrganizersModal({
                 />
                 {!selected && (
                   <div className="flex items-center gap-2.5 bg-surface border border-line rounded-lg px-3 py-2">
-                    <Avatar name={existingUser.name} avatar={existingUser.avatar} />
+                    <Avatar name={existingUser.name} src={existingUser.avatar} size={28} />
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{existingUser.name}</p>
                       <p className="text-[11px] text-gray-custom truncate">{existingUser.email}</p>
@@ -298,20 +299,10 @@ function formatWhen(iso: string): string {
     ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
-function Avatar({ name, avatar }: { name: string; avatar?: string | null }) {
-  return avatar ? (
-    <img src={avatar} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
-  ) : (
-    <div className="w-7 h-7 rounded-full bg-elevated grid place-items-center text-[11px] font-semibold text-gray-custom shrink-0">
-      {name.charAt(0).toUpperCase()}
-    </div>
-  );
-}
-
 function SelectedChip({ user, onClear }: { user: LiteUser; onClear: () => void }) {
   return (
     <div className="flex items-center gap-2.5 bg-surface border border-primary/40 rounded-lg px-3 py-2">
-      <Avatar name={user.name} avatar={user.avatar} />
+      <Avatar name={user.name} src={user.avatar} size={28} />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium truncate">{user.name}</p>
         <p className="text-[11px] text-gray-custom truncate">{user.email}</p>

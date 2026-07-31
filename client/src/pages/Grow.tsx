@@ -2,6 +2,7 @@ import BallLoader from '../components/BallLoader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
+import Avatar from '../components/Avatar';
 import { UserPlus, UserCheck, UserX, TrendingUp, Handshake } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -96,13 +97,7 @@ export default function Grow() {
                 className="bg-card rounded-xl border border-line p-4 flex items-center gap-4"
               >
                 <Link to={`/profile/${r.sender.id}`} className="shrink-0">
-                  {r.sender.avatar ? (
-                    <img src={r.sender.avatar} alt={r.sender.name} className="w-12 h-12 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light">
-                      {r.sender.name?.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <Avatar name={r.sender.name} src={r.sender.avatar} size={48} />
                 </Link>
                 <div className="flex-1 min-w-0">
                   <Link to={`/profile/${r.sender.id}`} className="font-medium hover:text-primary-light transition-colors">
@@ -160,13 +155,7 @@ export default function Grow() {
                 className="bg-card rounded-xl border border-line p-4 flex items-center gap-3"
               >
                 <Link to={`/profile/${u.id}`} className="shrink-0">
-                  {u.avatar ? (
-                    <img src={u.avatar} alt={u.name} className="w-11 h-11 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-11 h-11 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light text-sm">
-                      {u.name?.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <Avatar name={u.name} src={u.avatar} size={44} />
                 </Link>
                 <div className="flex-1 min-w-0">
                   <Link to={`/profile/${u.id}`} className="text-sm font-medium hover:text-primary-light transition-colors truncate block">

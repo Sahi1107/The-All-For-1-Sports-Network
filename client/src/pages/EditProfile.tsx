@@ -4,6 +4,7 @@ import { track } from '../config/analytics';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
+import Avatar from '../components/Avatar';
 import { Camera, Save, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ImageCropModal from '../components/ImageCropModal';
@@ -153,9 +154,7 @@ export default function EditProfile() {
             {avatarPreview ? (
               <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-gray-custom">
-                {form.name?.charAt(0).toUpperCase()}
-              </div>
+              <Avatar name={form.name} size={96} />
             )}
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               <Camera size={20} className="text-foreground" />

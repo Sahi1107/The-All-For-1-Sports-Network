@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { VerifiedTick } from '../components/feed/FeedBits';
 import { Link } from 'react-router-dom';
@@ -51,19 +52,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
       className="group flex items-start gap-4 p-4 bg-ink/5 hover:bg-ink/8 border border-ink/10 hover:border-primary/30 rounded-xl transition-all"
     >
       {/* Avatar */}
-      <div className="shrink-0">
-        {athlete.avatar ? (
-          <img
-            src={athlete.avatar}
-            alt={athlete.name}
-            className="w-12 h-12 rounded-full object-cover"
-          />
-        ) : (
-          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold text-primary-light">
-            {athlete.name?.charAt(0).toUpperCase()}
-          </div>
-        )}
-      </div>
+      <Avatar name={athlete.name} src={athlete.avatar} size={48} />
 
       {/* Info */}
       <div className="flex-1 min-w-0">

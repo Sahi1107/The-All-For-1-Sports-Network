@@ -1,3 +1,4 @@
+import Avatar, { TeamCrest } from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import ShareButton from '../components/ShareButton';
 import InviteButton from '../components/InviteButton';
@@ -25,20 +26,6 @@ function useDebounced<T>(value: T, delay = 250): T {
     return () => clearTimeout(t)
   }, [value, delay])
   return v
-}
-
-function Avatar({ user, size = 28 }: { user: { name?: string; avatar?: string }; size?: number }) {
-  if (user.avatar) {
-    return <img src={user.avatar} alt={user.name ?? ''} style={{ width: size, height: size }} className="rounded-full object-cover" />
-  }
-  return (
-    <div
-      style={{ width: size, height: size }}
-      className="rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light text-xs shrink-0"
-    >
-      {user.name?.charAt(0).toUpperCase() ?? '?'}
-    </div>
-  )
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -175,9 +162,7 @@ export default function TeamManage() {
       {/* Header */}
       <div className="bg-card rounded-xl border border-line p-5 mb-5">
         <div className="flex items-start gap-4">
-          {team.logo
-            ? <img src={team.logo} alt={team.name} className="w-14 h-14 rounded-lg object-cover" />
-            : <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center font-bold text-primary-light text-xl">{team.name?.charAt(0).toUpperCase()}</div>}
+          <TeamCrest name={team.name} src={team.logo} size={56} />
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <h1 className="text-xl font-bold truncate">{team.name}</h1>
@@ -229,7 +214,7 @@ export default function TeamManage() {
           return (
             <div key={m.id} className="bg-surface rounded-lg">
               <div className="flex items-center gap-3 px-3 py-2.5">
-                <Avatar user={m.user} size={32} />
+                <Avatar name={m.user.name} src={m.user.avatar} size={32} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
                     {m.user.name}{m.userId === user?.id ? ' (you)' : ''}
@@ -314,7 +299,7 @@ export default function TeamManage() {
                               disabled={replaceMutation.isPending}
                               className="w-full flex items-center gap-3 px-3 py-2 bg-card hover:bg-elevated text-left transition-colors disabled:opacity-50"
                             >
-                              <Avatar user={u} size={26} />
+                              <Avatar name={u.name} src={u.avatar} size={26} />
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium truncate">{u.name}</p>
                                 <p className="text-xs text-gray-custom truncate">
@@ -388,7 +373,7 @@ export default function TeamManage() {
                             disabled={inviteMutation.isPending}
                             className="w-full flex items-center gap-3 px-3 py-2 bg-surface hover:bg-elevated text-left transition-colors disabled:opacity-50"
                           >
-                            <Avatar user={u} size={28} />
+                            <Avatar name={u.name} src={u.avatar} size={28} />
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium truncate">{u.name}</p>
                               <p className="text-xs text-gray-custom truncate">

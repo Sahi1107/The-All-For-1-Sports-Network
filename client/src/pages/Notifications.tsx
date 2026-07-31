@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -181,9 +182,7 @@ export default function Notifications() {
               {/* Actor avatar (with a small count badge when collapsed) or a type icon */}
               {n.actor ? (
                 <Link to={`/profile/${n.actor.id}`} className="shrink-0 relative" onClick={(e) => e.stopPropagation()}>
-                  {n.actor.avatar
-                    ? <img src={n.actor.avatar} alt={n.actor.name} className="w-10 h-10 rounded-full object-cover" />
-                    : <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light text-sm">{n.actor.name?.charAt(0).toUpperCase()}</div>}
+                  <Avatar name={n.actor.name} src={n.actor.avatar} size={40} />
                   {n.count > 1 && <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-on-primary text-[10px] font-bold flex items-center justify-center border-2 border-card">{n.count > 9 ? '9+' : n.count}</span>}
                 </Link>
               ) : (
