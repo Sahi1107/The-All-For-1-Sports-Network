@@ -14,6 +14,7 @@ import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
 import PostDetailModal from '../components/PostDetailModal';
 import PerformanceCard from '../components/PerformanceCard';
+import EmptyState from '../components/EmptyState';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -1135,7 +1136,12 @@ export default function Profile() {
             )}
 
             {highlights.length === 0 ? (
-              <p className="text-gray-custom text-sm text-center py-6">No highlights yet</p>
+              <EmptyState
+                compact
+                icon={Video}
+                title="No highlights yet"
+                hint={isOwnProfile ? 'Upload match clips so scouts can see you play.' : 'Match clips and training footage will appear here.'}
+              />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {highlights.slice(0, 4).map((h: any) => (
@@ -1316,9 +1322,14 @@ export default function Profile() {
               )}
 
               {endorsements.length === 0 ? (
-                <p className="text-gray-custom text-sm text-center py-6">
-                  {profile.role === 'ATHLETE' ? 'No endorsements yet' : ''}
-                </p>
+                profile.role === 'ATHLETE' ? (
+                  <EmptyState
+                    compact
+                    icon={Award}
+                    title="No endorsements yet"
+                    hint="Coaches who've worked with this athlete can vouch for them here."
+                  />
+                ) : null
               ) : (
                 <div className="space-y-3">
                   {endorsements.map((e: any) => (

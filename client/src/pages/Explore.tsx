@@ -7,6 +7,7 @@ import { Search, MapPin, Users, Shield, Trophy, Calendar } from 'lucide-react';
 import api from '../api/client';
 import { VerifiedTick } from '../components/feed/FeedBits';
 import PullToRefresh from '../components/PullToRefresh';
+import EmptyState from '../components/EmptyState';
 import { useDebounce } from '../hooks/useDebounce';
 import { SPORTS as ALL_SPORTS } from '../data/sports';
 
@@ -167,12 +168,13 @@ export default function Explore() {
 }
 
 // ── Empty state ──────────────────────────────────────────────────────────────
-function Empty({ icon: Icon, kind, query }: { icon: typeof Users; kind: string; query: string }) {
+function Empty({ icon, kind, query }: { icon: typeof Users; kind: string; query: string }) {
   return (
-    <div className="text-center py-14 text-gray-custom">
-      <Icon size={26} className="mx-auto mb-2 opacity-70" />
-      <p className="text-sm">{query ? `No ${kind} match "${query}"` : `No ${kind} yet`}</p>
-    </div>
+    <EmptyState
+      icon={icon}
+      title={query ? `No ${kind} match “${query}”` : `No ${kind} yet`}
+      hint={query ? 'Try a different name or spelling.' : `New ${kind} appear here as they join.`}
+    />
   );
 }
 

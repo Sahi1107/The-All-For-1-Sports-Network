@@ -7,6 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { track } from '../config/analytics';
 import { Search, MapPin, User, Zap, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../api/client';
+import EmptyState from '../components/EmptyState';
 import toast from 'react-hot-toast';
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -339,19 +340,19 @@ export default function Radar() {
 
           {/* Athlete list */}
           {mutation.data.results.length === 0 ? (
-            <div className="py-12 text-center">
-              <User size={32} className="text-foreground/10 mx-auto mb-3" />
-              <p className="text-foreground/40 text-sm">
-                {mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
-                  ? `No ${mutation.data.filters.sport.toLowerCase()} athletes on All For 1 yet.`
-                  : 'No athletes found.'}
-              </p>
-              <p className="text-foreground/25 text-xs mt-1">
-                {mutation.data.emptyReason === 'no-athletes-in-sport'
+            <EmptyState
+              icon={User}
+              title={
+                mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
+                  ? `No ${mutation.data.filters.sport.toLowerCase()} athletes on All For 1 yet`
+                  : 'No athletes found'
+              }
+              hint={
+                mutation.data.emptyReason === 'no-athletes-in-sport'
                   ? 'As more athletes join, they’ll appear here.'
-                  : 'Try broader criteria or a different location.'}
-              </p>
-            </div>
+                  : 'Try broader criteria or a different location.'
+              }
+            />
           ) : (
             <div className="space-y-2">
               {mutation.data.results.map((athlete: any) => (

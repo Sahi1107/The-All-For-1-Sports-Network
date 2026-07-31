@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import PullToRefresh from '../components/PullToRefresh';
+import EmptyState from '../components/EmptyState';
 import {
   Bell, Check, CheckCheck, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2,
   MessageSquare as CommentIcon, Users, Award, Eye, BadgeCheck, TrendingUp, Clock,
@@ -167,9 +168,12 @@ export default function Notifications() {
       {isLoading ? (
         <div className="flex justify-center py-16"><BallLoader /></div>
       ) : allNotifs.length === 0 ? (
-        <div className="bg-card rounded-xl border border-line p-16 text-center">
-          <Bell size={32} className="mx-auto mb-3 text-gray-custom" />
-          <p className="text-gray-custom">No notifications yet.</p>
+        <div className="bg-card rounded-xl border border-line">
+          <EmptyState
+            icon={Bell}
+            title="No notifications yet"
+            hint="Follows, connection requests, ranking moves and match updates land here."
+          />
         </div>
       ) : (
         <div className="bg-card rounded-xl border border-line divide-y divide-line overflow-hidden">

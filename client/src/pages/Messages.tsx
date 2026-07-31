@@ -15,6 +15,7 @@ import {
 import toast from 'react-hot-toast';
 import ReportModal from '../components/ReportModal';
 import { VerifiedTick } from '../components/feed/FeedBits';
+import EmptyState from '../components/EmptyState';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -270,7 +271,7 @@ function ForwardModal({
               <BallLoader />
             </div>
           ) : convs.length === 0 ? (
-            <p className="text-sm text-gray-custom text-center py-6">No conversations</p>
+            <EmptyState compact icon={MessageCircle} title="No conversations" hint="Start one with the New button above." />
           ) : (
             convs.map((c: any) => {
               const other = c.members?.find((m: any) => m.userId !== user?.id)?.user;
@@ -808,13 +809,22 @@ export default function Messages() {
   const InboxList = (
     <div className="flex-1 overflow-y-auto px-2 pb-4">
       {!hasAnyVisible ? (
-        <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8 py-16">
-          <MessageCircle size={32} className="text-gray-custom" />
-          <p className="text-sm text-gray-custom">
-            {convSearch || roleFilter !== 'ALL'
-              ? 'No conversations match your filters.'
-              : `No ${showArchived ? 'archived ' : ''}conversations yet.`}
-          </p>
+        <div className="flex items-center justify-center h-full">
+          <EmptyState
+            icon={MessageCircle}
+            title={
+              convSearch || roleFilter !== 'ALL'
+                ? 'No conversations match your filters'
+                : `No ${showArchived ? 'archived ' : ''}conversations yet`
+            }
+            hint={convSearch || roleFilter !== 'ALL' ? 'Try clearing the search or filters.' : 'Reach out — connections and replies land here.'}
+            action={!showArchived && !convSearch && roleFilter === 'ALL' ? (
+              <button onClick={() => setShowNewConv(true)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors">
+                Start a conversation
+              </button>
+            ) : undefined}
+          />
         </div>
       ) : activeConvId ? (
         <div className="space-y-0.5 pt-2">

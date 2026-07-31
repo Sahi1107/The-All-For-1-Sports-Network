@@ -14,6 +14,7 @@ import { SPORT_BACKDROP } from '../components/SportBackdrop';
 import { NameLine, PostMeta, PerformanceCard } from '../components/feed/FeedBits';
 import SearchTypeahead from '../components/SearchTypeahead';
 import PullToRefresh from '../components/PullToRefresh';
+import EmptyState from '../components/EmptyState';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -188,26 +189,36 @@ export default function Home() {
           </div>
         ) : feedItems.length === 0 ? (
           allItems.length > 0 ? (
-            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center">
-              <p className="text-gray-custom text-lg">Nothing here yet</p>
-              <p className="text-sm text-gray-custom mt-2">No {filter} in your feed right now.</p>
-              <button
-                onClick={() => setFilter('all')}
-                className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
-              >
-                Show all
-              </button>
+            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl">
+              <EmptyState
+                icon={Search}
+                title={`No ${filter} in your feed right now`}
+                hint="They'll show up here as the people you follow post."
+                action={
+                  <button
+                    onClick={() => setFilter('all')}
+                    className="px-5 py-2 bg-primary hover:bg-primary-dark text-on-primary text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Show all
+                  </button>
+                }
+              />
             </div>
           ) : (
-            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center shadow-xl">
-              <p className="text-gray-custom text-lg">Your feed is empty</p>
-              <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their posts here</p>
-              <Link
-                to="/explore"
-                className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
-              >
-                Explore Athletes
-              </Link>
+            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl shadow-xl">
+              <EmptyState
+                icon={Users}
+                title="Your feed is empty"
+                hint="Follow athletes and coaches to see their posts here."
+                action={
+                  <Link
+                    to="/explore"
+                    className="inline-block px-5 py-2 bg-primary hover:bg-primary-dark text-on-primary text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Explore athletes
+                  </Link>
+                }
+              />
             </div>
           )
         ) : (
