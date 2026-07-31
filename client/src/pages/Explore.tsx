@@ -3,7 +3,7 @@ import BallLoader from '../components/BallLoader';
 import { useEffect, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, MapPin, Users, Shield, Trophy, Calendar } from 'lucide-react';
+import { Search, MapPin, Users, Shield, Trophy, Calendar, ChevronDown } from 'lucide-react';
 import api from '../api/client';
 import { VerifiedTick } from '../components/feed/FeedBits';
 import PullToRefresh from '../components/PullToRefresh';
@@ -123,17 +123,25 @@ export default function Explore() {
             ))}
           </div>
         )}
-        <select value={sport} onChange={(e) => setSport(e.target.value)}
-          className={`px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${sport === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
-          {SPORTS.map((s) => <option key={s.value} value={s.value} className="bg-card text-foreground">{s.emoji ? `${s.emoji} ${s.label}` : s.label}</option>)}
-        </select>
-        {tab === 'tournaments' && (
-          <select value={status} onChange={(e) => setStatus(e.target.value)}
-            className={`px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${status === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
-            {['ALL', 'UPCOMING', 'REGISTRATION_OPEN', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
-              <option key={s} value={s} className="bg-card text-foreground">{s === 'ALL' ? 'Any status' : cap(s.replace(/_/g, ' '))}</option>
-            ))}
+        {/* Styled selects: appearance-none + our own chevron, so the native OS
+            dropdown chrome never clashes with the pill system. */}
+        <span className="relative inline-flex">
+          <select value={sport} onChange={(e) => setSport(e.target.value)}
+            className={`appearance-none px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${sport === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
+            {SPORTS.map((s) => <option key={s.value} value={s.value} className="bg-card text-foreground">{s.emoji ? `${s.emoji} ${s.label}` : s.label}</option>)}
           </select>
+          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-custom" />
+        </span>
+        {tab === 'tournaments' && (
+          <span className="relative inline-flex">
+            <select value={status} onChange={(e) => setStatus(e.target.value)}
+              className={`appearance-none px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${status === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
+              {['ALL', 'UPCOMING', 'REGISTRATION_OPEN', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
+                <option key={s} value={s} className="bg-card text-foreground">{s === 'ALL' ? 'Any status' : cap(s.replace(/_/g, ' '))}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-custom" />
+          </span>
         )}
       </div>
 
@@ -197,10 +205,13 @@ function PeopleGrid({ users, query }: { users: any[]; query: string }) {
               {u.location && <p className="text-xs text-gray-custom flex items-center gap-1 mt-1"><MapPin size={12} /> {u.location}</p>}
               {u.mutualCount > 0 && <p className="text-xs text-primary mt-1">{u.mutualCount} mutual connection{u.mutualCount === 1 ? '' : 's'}</p>}
             </div>
-            <div className="text-right text-xs text-gray-custom shrink-0">
-              <p>{u._count?.followers || 0} followers</p>
-              <p>{u._count?.highlights || 0} highlights</p>
-            </div>
+            {/* Zero-counts advertise emptiness — only show what's earned. */}
+            {((u._count?.followers ?? 0) > 0 || (u._count?.highlights ?? 0) > 0) && (
+              <div className="text-right text-xs text-gray-custom shrink-0">
+                {(u._count?.followers ?? 0) > 0 && <p>{u._count.followers} follower{u._count.followers === 1 ? '' : 's'}</p>}
+                {(u._count?.highlights ?? 0) > 0 && <p>{u._count.highlights} highlight{u._count.highlights === 1 ? '' : 's'}</p>}
+              </div>
+            )}
           </div>
         </Link>
       ))}

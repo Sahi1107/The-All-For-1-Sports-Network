@@ -102,7 +102,7 @@ function PerformanceCard({ r, max }: { r: any; max: number }) {
             top3 ? 'w-9 text-3xl text-primary' : 'w-9 text-xl text-gray-custom'
           }`}
         >
-          {top3 ? r.rank : String(r.rank).padStart(2, '0')}
+          {String(r.rank).padStart(2, '0')}
         </span>
 
         {/* Avatar */}

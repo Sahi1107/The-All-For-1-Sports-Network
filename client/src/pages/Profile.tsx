@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2, Award } from 'lucide-react';
 import ShareProfileModal from '../components/ShareProfileModal';
-import { VerifiedTick } from '../components/feed/FeedBits';
+import { VerifiedTick, PerformanceCard as PerformancePostCard } from '../components/feed/FeedBits';
 import toast from 'react-hot-toast';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -1191,13 +1191,18 @@ export default function Profile() {
                       {p.mediaUrl && p.type === 'HIGHLIGHT' && (
                         <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
                       )}
+                      {p.type === 'PERFORMANCE' && p.performance && (
+                        <div onClick={() => setOpenPost(postWithUser)} className="px-3 pt-3 cursor-pointer">
+                          <PerformancePostCard performance={p.performance} verified={profile.verified} />
+                        </div>
+                      )}
                       <div className="p-3 flex items-start justify-between gap-2">
                         <div
                           onClick={() => setOpenPost(postWithUser)}
                           className="min-w-0 cursor-pointer"
                         >
                           {p.title && <p className="text-sm font-medium mb-1">{p.title}</p>}
-                          {p.content && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
+                          {p.content && !(p.type === 'PERFORMANCE' && p.performance) && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
                           <p className="text-xs text-gray-custom mt-1">{timeAgo(p.createdAt)}</p>
                         </div>
                         {isOwnProfile && (
@@ -1254,9 +1259,14 @@ export default function Profile() {
                     {p.mediaUrl && p.type === 'HIGHLIGHT' && (
                       <video src={p.mediaUrl} className="w-full aspect-video object-cover" controls preload="metadata" />
                     )}
+                    {p.type === 'PERFORMANCE' && p.performance && (
+                      <div onClick={() => setOpenPost(p)} className="px-3 pt-3 cursor-pointer">
+                        <PerformancePostCard performance={p.performance} verified={p.user?.verified} />
+                      </div>
+                    )}
                     <div onClick={() => setOpenPost(p)} className="p-3 cursor-pointer">
                       {p.title && <p className="text-sm font-medium mb-1">{p.title}</p>}
-                      {p.content && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
+                      {p.content && !(p.type === 'PERFORMANCE' && p.performance) && <p className="text-sm text-gray-custom leading-relaxed">{p.content}</p>}
                       <p className="text-xs text-gray-custom mt-1">{timeAgo(p.createdAt)}</p>
                     </div>
                     <PostActions

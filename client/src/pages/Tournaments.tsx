@@ -1,4 +1,6 @@
 import BallLoader from '../components/BallLoader';
+import { TournamentMark } from '../components/Avatar';
+import EmptyState from '../components/EmptyState';
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -15,10 +17,18 @@ const SPORT_LABELS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, label }) => [value, label]),
 )
 
+// One entry per real TournamentStatus — a raw enum must never reach the UI.
 const STATUS_COLORS: Record<string, string> = {
-  UPCOMING: 'bg-blue-500/20 text-blue-400',
-  ONGOING: 'bg-accent/20 text-accent',
-  COMPLETED: 'bg-gray-500/20 text-gray-custom',
+  UPCOMING:            'bg-blue-500/20 text-blue-400',
+  REGISTRATION_OPEN:   'bg-accent/20 text-accent',
+  REGISTRATION_CLOSED: 'bg-amber-500/20 text-amber-300',
+  IN_PROGRESS:         'bg-accent/20 text-accent',
+  COMPLETED:           'bg-gray-500/20 text-gray-custom',
+  CANCELLED:           'bg-red-500/20 text-red-400',
+}
+const humanStatus = (s: string) => {
+  const t = s.replace(/_/g, ' ').toLowerCase()
+  return t.charAt(0).toUpperCase() + t.slice(1)
 }
 
 function formatDate(d: string) {
@@ -68,9 +78,8 @@ export default function Tournaments() {
           <BallLoader />
         </div>
       ) : tournaments.length === 0 ? (
-        <div className="bg-card rounded-xl border border-line p-16 text-center">
-          <Trophy size={32} className="mx-auto mb-3 text-gray-custom" />
-          <p className="text-gray-custom">No tournaments found.</p>
+        <div className="bg-card rounded-xl border border-line">
+          <EmptyState icon={Trophy} title="No tournaments found" hint="Try another sport, or check back soon." />
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -82,16 +91,14 @@ export default function Tournaments() {
             >
               <div className="flex items-start justify-between mb-3 gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  {t.thumbnailUrl && (
-                    <img src={t.thumbnailUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0 border border-line" />
-                  )}
+                  <TournamentMark name={t.name} src={t.thumbnailUrl} size={40} />
                   <div className="min-w-0">
-                    <h3 className="font-semibold leading-tight truncate">{t.name}</h3>
+                    <h3 className="font-semibold leading-tight line-clamp-2">{t.name}</h3>
                     <span className="text-xs text-gray-custom">{SPORT_ICONS[t.sport]} {SPORT_LABELS[t.sport] ?? t.sport}</span>
                   </div>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[t.status] ?? ''}`}>
-                  {t.status}
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_COLORS[t.status] ?? 'bg-elevated text-gray-custom'}`}>
+                  {humanStatus(t.status)}
                 </span>
               </div>
 

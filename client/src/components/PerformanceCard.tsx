@@ -75,7 +75,7 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
             {topRank && (
               <div>
                 <p className="font-numeric font-bold tabular-nums text-3xl leading-none text-primary-light">#{topRank.rank}</p>
-                <p className="text-[11px] uppercase tracking-wide text-gray-custom mt-1">{topRank.category ? `${topRank.category.toLowerCase()} rank` : 'Rank'}</p>
+                <p className="text-[11px] uppercase tracking-wide text-gray-custom mt-1">{topRank.category ? `${topRank.category.toLowerCase().replace(/^men$/i, "men's").replace(/^women$/i, "women's")} rank` : 'Rank'}</p>
               </div>
             )}
           </div>

@@ -2,7 +2,7 @@ import BallLoader from '../components/BallLoader';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, MapPin, Clock, X } from 'lucide-react';
+import { Eye, MapPin, Clock, X, Search, Users } from 'lucide-react';
 import api from '../api/client';
 import Avatar from '../components/Avatar';
 import { useEffect, useRef, useState } from 'react';
@@ -304,7 +304,8 @@ export default function Home() {
                       </div>
                     )}
                     {item.title && <h3 className="font-display font-bold text-[15px] leading-snug">{item.title}</h3>}
-                    {(item.content || item.description) && (
+                    {/* A performance post's content duplicates the card — show one, not both. */}
+                    {(item.content || item.description) && !(item.kind === 'post' && item.type === 'PERFORMANCE' && item.performance) && (
                       <p className="text-sm text-foreground/80 mt-1 leading-relaxed">{item.content || item.description}</p>
                     )}
                     {item.tournament && (
