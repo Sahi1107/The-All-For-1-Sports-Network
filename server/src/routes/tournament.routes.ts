@@ -1032,9 +1032,11 @@ router.post('/:id/teams', authenticate, requireTournamentAccess(fromParamId), wr
 
 // GET /api/tournaments/:id/player-search?q= — organiser roster "add existing".
 // Gated by requireTournamentAccess (organiser for THIS tournament, or admin).
-// Returns players already ON A TEAM IN THIS TOURNAMENT matching the name — bypassing
-// the public discovery gate so provisioned/minor players are findable, but bounded
-// to this tournament so it can't enumerate any account outside it (services/rosterSearch).
+// Returns players matching the name that are either already ON A TEAM IN THIS
+// TOURNAMENT or an admin/organiser-provisioned profile that hasn't signed in yet
+// (so freshly imported players are addable before they log in) — bypassing the
+// public discovery gate but staying bounded so it can't enumerate real private
+// accounts outside this tournament (see services/rosterSearch).
 router.get('/:id/player-search', authenticate, requireTournamentAccess(fromParamId), validate({ query: PlayerSearchQuery }), async (req: AuthRequest, res: Response) => {
   try {
     const q = (req.query.q as string) ?? '';
