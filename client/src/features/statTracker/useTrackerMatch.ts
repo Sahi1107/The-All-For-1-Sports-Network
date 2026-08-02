@@ -190,5 +190,5 @@ export function useTrackerMatch(matchId: string) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
-  return { match, session, loading, saveState, updateState, setStatus, flush, setMatch };
+  return { match, session, loading, saveState, updateState, setStatus, flush, setMatch, setSession };
 }

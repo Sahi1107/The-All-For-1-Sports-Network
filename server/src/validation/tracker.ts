@@ -66,5 +66,19 @@ export const GroupsBody = z.object({
 // Withdraw a team from the tournament (clean removal pre-start, else walkovers).
 export const WithdrawBody = z.object({ teamId: z.string().uuid() });
 
+// Jersey numbers for the session roster, set pre-match by the scorer. 0–99 is
+// every numbering convention in play (FIBA restricts to 0–99; 00 is stored as
+// 0). null clears a number back to unset rather than forcing a placeholder.
+export const JerseysBody = z.object({
+  numbers: z
+    .array(
+      z.object({
+        userId: z.string().uuid(),
+        number: z.coerce.number().int().min(0).max(99).nullable(),
+      }),
+    )
+    .max(1000),
+});
+
 export const IdParam = z.object({ id: uuidParam });
 export const TournamentIdParam = z.object({ tournamentId: uuidParam });

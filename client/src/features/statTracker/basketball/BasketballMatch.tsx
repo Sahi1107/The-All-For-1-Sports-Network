@@ -4,12 +4,71 @@ import type { useTrackerMatch } from '../useTrackerMatch';
 import type {
   BasketballState, BasketballPlayer, BasketballActionKind, RosterTeam,
 } from '../types';
+import { saveJerseyNumbers } from '../api';
 import {
   bumpTeamFoul, teamFoulsInQuarter, teamInBonus, isFouledOut, inFoulTrouble, FOUL_OUT_LIMIT,
 } from './rules';
 
 type Ctrl = ReturnType<typeof useTrackerMatch>;
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+
+// Column titles live in ONE place so the <thead> and the copy repeated above the
+// second team's rows can never drift apart when a column is added or renamed.
+// NOTE (Sahil): the FG%/3P%/FT% columns are intentionally NOT on the live
+// tracker. The tracker is an ENTRY surface — a scorer only taps makes/misses;
+// percentages are derived, read-only values nobody enters mid-game. They still
+// render on the public box score (MatchDetailModal) and the Performance Card.
+// Dropping them here reclaims ~150px so the 16→13 columns fit a landscape
+// tablet with far less horizontal scroll. Attempts stay (FGM/FGA etc.).
+// `kind` drives the <colgroup> below, which is what makes the grid fit a laptop
+// without horizontal scroll: the table is table-layout:fixed, so these classes
+// (not the content) decide each column's width, and the name column absorbs
+// the slack on wider screens.
+const COLUMNS: { label: string; kind: 'player' | 'num' | 'cnt' | 'shot' }[] = [
+  { label: 'Player', kind: 'player' },
+  { label: 'MIN', kind: 'num' },
+  { label: 'PTS', kind: 'num' },
+  { label: 'OREB', kind: 'cnt' },
+  { label: 'DREB', kind: 'cnt' },
+  { label: 'AST', kind: 'cnt' },
+  { label: 'STL', kind: 'cnt' },
+  { label: 'BLK', kind: 'cnt' },
+  { label: 'TO', kind: 'cnt' },
+  { label: 'PF', kind: 'cnt' },
+  { label: 'FGM / FGA', kind: 'shot' },
+  { label: '3PM / 3PA', kind: 'shot' },
+  { label: 'FTM / FTA', kind: 'shot' },
+];
+const COL_COUNT = COLUMNS.length;
+
+function ColGroup() {
+  return <colgroup>{COLUMNS.map((c) => <col key={c.label} className={`col-${c.kind}`} />)}</colgroup>;
+}
+
+function ColumnHeaderRow({ repeat = false }: { repeat?: boolean }) {
+  return (
+    <tr className={repeat ? 'bball-colhead' : undefined}>
+      {COLUMNS.map((c) => <th key={c.label} scope="col">{c.label}</th>)}
+    </tr>
+  );
+}
+
+// Keyboard entry: select a player row, then hit a key. Ordered to match the
+// table's columns so the legend reads left-to-right like the grid does.
+// Makes only — a miss is ambiguous from one keystroke and the −/+ / M buttons
+// stay the way to enter those, along with FT and PF (PF must also move the
+// team-foul count, which is why it deliberately has no shortcut).
+const SHORTCUTS: { key: string; kind: BasketballActionKind; label: string }[] = [
+  { key: '2', kind: 'FG_MADE', label: 'FGM' },
+  { key: '3', kind: '3PT_MADE', label: '3PM' },
+  { key: 'O', kind: 'OREB', label: 'OREB' },
+  { key: 'D', kind: 'DREB', label: 'DREB' },
+  { key: 'A', kind: 'AST', label: 'AST' },
+  { key: 'S', kind: 'STL', label: 'STL' },
+  { key: 'B', kind: 'BLK', label: 'BLK' },
+  { key: 'T', kind: 'TO', label: 'TO' },
+];
+const SHORTCUT_BY_KEY = new Map(SHORTCUTS.map((s) => [s.key.toLowerCase(), s]));
 
 function emptyPlayer(teamId: string): BasketballPlayer {
   return { teamId, secondsPlayed: 0, pts: 0, ast: 0, reb: 0, oreb: 0, dreb: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, to: 0, pf: 0 };
@@ -56,8 +115,19 @@ function fmtRemaining(elapsed: number, quarterSeconds: number) {
 }
 
 export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
-  const { match, session, updateState, setStatus } = ctrl;
+  const { match, session, updateState, setStatus, setSession } = ctrl;
   const [, force] = useState(0);
+  // Jersey check is the first pre-match step: numbers are how a scorer picks a
+  // player out on court, so they get confirmed before the starting five, not
+  // after. `done` is per-visit — a reload before tip-off shows it again, which
+  // is the intended "check" rather than a nag, since saved numbers prefill.
+  const [jerseysDone, setJerseysDone] = useState(false);
+  const [jerseyOpen, setJerseyOpen] = useState(false);
+  // The player a keyboard entry lands on. Clicking anywhere in a row selects it.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Transient "what did I just record" confirmation — a scorer's hands are on the
+  // keys and their eyes are on the court, so a keystroke must say what it did.
+  const [flash, setFlash] = useState<{ text: string; n: number; tone: 'ok' | 'hint' } | null>(null);
 
   const homeTeam = (session?.roster ?? []).find((t) => t.teamId === match?.homeTeamId);
   const awayTeam = (session?.roster ?? []).find((t) => t.teamId === match?.awayTeamId);
@@ -97,6 +167,58 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
     return () => { clearInterval(tick); clearInterval(commit); };
   }, [state?.clockRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Shortcuts are dead while the match is published (read-only) or while a
+  // pre-match modal owns the screen — a stray keypress behind a modal must not
+  // silently write a stat the scorer can't see happening.
+  const preMatch = !!state && state.onCourtHome.length + state.onCourtAway.length === 0;
+  const keysBlocked = !state || match?.status === 'PUBLISHED' || preMatch || jerseyOpen;
+
+  // ── Keyboard stat entry ───────────────────────────────────
+  // Bound on window rather than a row handler so the keys work no matter where
+  // focus ended up after the click. Writes through updateState directly (not
+  // adjust()) because adjust is declared below the early returns.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Leave browser/OS chords alone.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Never steal a keystroke aimed at a form control (the sub selects, the
+      // starters checkboxes) — typing "s" in a dropdown must jump to an option.
+      const el = e.target as HTMLElement | null;
+      if (el?.closest('input, select, textarea, [contenteditable="true"]')) return;
+      if (e.key === 'Escape') { setSelectedId(null); return; }
+      const hit = SHORTCUT_BY_KEY.get(e.key.toLowerCase());
+      if (!hit || keysBlocked) return;
+      e.preventDefault();
+      // A live shortcut with no player armed is the easy mistake to make. Say so
+      // rather than swallowing the keystroke and leaving the scorer to wonder
+      // whether it landed somewhere.
+      if (!selectedId) { setFlash({ text: 'Select a player first', n: Date.now(), tone: 'hint' }); return; }
+      updateState((s) => {
+        const bs = s as BasketballState;
+        const p = bs.players[selectedId];
+        if (!p) return bs;
+        return {
+          ...bs,
+          players: { ...bs.players, [selectedId]: applyAction(p, hit.kind, 1) },
+          log: [...bs.log, { id: uid(), playerId: selectedId, kind: hit.kind }],
+        };
+      });
+      const who = [...(homeTeam?.players ?? []), ...(awayTeam?.players ?? [])]
+        .find((p) => p.userId === selectedId);
+      setFlash({ text: `${who?.name ?? 'Player'} +1 ${hit.label}`, n: Date.now(), tone: 'ok' });
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedId, keysBlocked, updateState, homeTeam, awayTeam]);
+
+  // Clear the confirmation after a beat. Keyed on `n` so repeat entries of the
+  // same stat restart the timer instead of the pill vanishing mid-run.
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 1600);
+    return () => clearTimeout(t);
+  }, [flash]);
+
   if (!match || !session || !homeTeam || !awayTeam) {
     return <div className="card" style={{ background: '#0f172a' }}>Teams not assigned yet.</div>;
   }
@@ -106,6 +228,10 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
   const locked = match.status === 'PUBLISHED';
   const onCourt = new Set([...state.onCourtHome, ...state.onCourtAway]);
   const noneOnCourt = onCourt.size === 0;
+  // Pre-match order: jerseys first, then the starting five. Reopening jerseys
+  // mid-match (the header button) takes precedence over both.
+  const showJerseys = jerseyOpen || (noneOnCourt && !jerseysDone);
+  const showStarters = noneOnCourt && !showJerseys;
 
   function commitClock(s: BasketballState): BasketballState {
     if (!s.clockRunning || !s.clockLastStartMs) return s;
@@ -160,6 +286,9 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
   }
 
   const getTeamName = (id: string) => (id === home ? homeTeam!.name : awayTeam!.name);
+  const selectedName = selectedId
+    ? [...homeTeam.players, ...awayTeam.players].find((p) => p.userId === selectedId)?.name ?? null
+    : null;
 
   return (
     <div className="bball-tracker">
@@ -183,37 +312,68 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
           <SubControls homeTeam={homeTeam} awayTeam={awayTeam} state={state} disabled={locked}
             onSub={(side, outId, inId) => updateState((s) => sub(s as BasketballState, side, outId, inId))} />
           <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn secondary" onClick={() => setJerseyOpen(true)}>Jersey #s</button>
             <button onClick={endMatch}>End Match</button>
           </div>
         </div>
       </div>
 
-      {noneOnCourt && (
+      {showJerseys && (
+        <JerseyModal
+          tournamentId={session.tournamentId}
+          homeTeam={homeTeam} awayTeam={awayTeam}
+          // Mid-match reopen is a correction, so it can be dismissed. The
+          // pre-match pass can be skipped too — unknown numbers must not wall
+          // off a game that's about to tip.
+          onClose={() => { setJerseyOpen(false); setJerseysDone(true); }}
+          onSaved={(roster) => {
+            setSession((prev) => (prev ? { ...prev, roster } : prev));
+            setJerseyOpen(false);
+            setJerseysDone(true);
+          }}
+        />
+      )}
+
+      {showStarters && (
         <StartersModal homeTeam={homeTeam} awayTeam={awayTeam}
+          onBack={() => setJerseyOpen(true)}
           onSave={(h, a) => updateState((s) => ({ ...(s as BasketballState), onCourtHome: h, onCourtAway: a }))} />
       )}
 
+      <div className="bball-keybar">
+        <div className="bball-keybar-who">
+          {selectedName
+            ? <>Entering for <strong>{selectedName}</strong> <button className="bball-keybar-clear" onClick={() => setSelectedId(null)}>clear (Esc)</button></>
+            : <span style={{ color: '#9ca3af' }}>Click a player row, then press a key</span>}
+        </div>
+        <div className={`bball-keybar-keys${flash ? ' dimmed' : ''}`}>
+          {SHORTCUTS.map((s) => (
+            <span key={s.key} className="bball-key"><kbd>{s.key}</kbd>{s.label}</span>
+          ))}
+        </div>
+        {/* Overlaid, not inserted, so a confirmation never reflows the legend
+            out from under the scorer mid-entry. */}
+        {flash && <div className={`bball-keybar-flash ${flash.tone}`} role="status">{flash.text}</div>}
+      </div>
+
       <div className="bball-scroll">
         <table>
+          <ColGroup />
           <thead>
-            <tr>
-              <th>Player</th><th>MIN</th><th>PTS</th><th>OREB</th><th>DREB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th>
-              {/* NOTE (Sahil): the FG%/3P%/FT% columns are intentionally NOT on the
-                  live tracker. The tracker is an ENTRY surface — a scorer only taps
-                  makes/misses; percentages are derived, read-only values nobody
-                  enters mid-game. They still render on the public box score
-                  (MatchDetailModal) and the Performance Card. Dropping them here
-                  reclaims ~150px so the 16→13 columns fit a landscape tablet with
-                  far less horizontal scroll. Attempts stay (FGM/FGA etc.). */}
-              <th>FGM / FGA</th><th>3PM / 3PA</th><th>FTM / FTA</th>
-            </tr>
+            <ColumnHeaderRow />
           </thead>
           <tbody>
             <TeamBlock side="home" teamName={getTeamName(home)} headerBg="#061528" headerColor="#e6eef6"
               team={homeTeam} state={state} disabled={locked} adjust={adjust} foul={foul}
+              selectedId={selectedId} onSelect={setSelectedId}
               teamFouls={teamFoulsInQuarter(state.teamFoulsHome, state.quarter)} />
-            <TeamBlock side="away" teamName={getTeamName(away)} headerBg="#24060a" headerColor="#ffe4e6"
+            {/* The away block repeats the column titles under its banner — by the
+                time a scorer scrolls to the second team the <thead> is long gone
+                off the top, and entering into an unlabelled grid of −/+ buttons
+                is how stats land in the wrong column. */}
+            <TeamBlock side="away" repeatHeader teamName={getTeamName(away)} headerBg="#24060a" headerColor="#ffe4e6"
               team={awayTeam} state={state} disabled={locked} adjust={adjust} foul={foul}
+              selectedId={selectedId} onSelect={setSelectedId}
               teamFouls={teamFoulsInQuarter(state.teamFoulsAway, state.quarter)} />
           </tbody>
         </table>
@@ -238,12 +398,16 @@ function teamTotals(team: RosterTeam, state: BasketballState) {
   return t;
 }
 
-function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disabled, adjust, foul, teamFouls }: {
+function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disabled, adjust, foul, teamFouls, repeatHeader = false, selectedId, onSelect }: {
   side: 'home' | 'away'; teamName: string; headerBg: string; headerColor: string;
   team: RosterTeam; state: BasketballState; disabled: boolean;
   adjust: (playerId: string, kind: BasketballActionKind, dir: 1 | -1) => void;
   foul: (playerId: string, dir: 1 | -1) => void;
   teamFouls: number;
+  /** Re-print the column titles under this team's banner (the <thead> only covers the first block). */
+  repeatHeader?: boolean;
+  selectedId: string | null;
+  onSelect: (playerId: string) => void;
 }) {
   const onCourtSet = new Set(side === 'home' ? state.onCourtHome : state.onCourtAway);
   const t = teamTotals(team, state);
@@ -257,7 +421,7 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
       {/* Team header — Sahil's row, with a quiet team-fouls / bonus readout appended. */}
       <tr style={{ background: headerBg, color: headerColor }}>
         {/* inline bg so the sticky first-column rule doesn't override the team banner */}
-        <td colSpan={13} style={{ padding: '8px 12px', background: headerBg }}>
+        <td colSpan={COL_COUNT} style={{ padding: '8px 12px', background: headerBg }}>
           <span style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
             <strong style={{ fontSize: 16 }}>{teamName}</strong>
             <span style={{ fontSize: 12, fontWeight: 600, color: bonus ? '#fca5a5' : '#9ca3af' }}>
@@ -266,18 +430,31 @@ function TeamBlock({ side, teamName, headerBg, headerColor, team, state, disable
           </span>
         </td>
       </tr>
+      {repeatHeader && <ColumnHeaderRow repeat />}
       <tr style={{ background: 'rgba(255,255,255,0.02)', fontWeight: 700, color: '#e6eef6' }}>
         <td>Team Totals</td><td>-</td><td>{t.pts}</td><td>{t.oreb}</td><td>{t.dreb}</td><td>{t.ast}</td><td>{t.stl}</td><td>{t.blk}</td><td>{t.to}</td><td>{t.pf}</td>
         <td>{t.fg} / {t.fga}</td><td>{t.tp} / {t.tpa}</td><td>{t.ft} / {t.fta}</td>
       </tr>
       {rows.map((r) => {
         const fouledOut = isFouledOut(r.pf ?? 0);
+        const selected = r.userId === selectedId;
         return (
-        <tr key={r.userId} style={{ borderTop: '1px solid rgba(255,255,255,0.03)' }}>
-          <td>
-            #{r.jersey ?? '-'} {r.name}
-            {r.onCourt ? <span className="badge-on">ON</span> : <span className="badge-bench">BENCH</span>}
-            {fouledOut && <span className="badge-bench" style={{ background: '#7f1d1d', color: '#fecaca' }}>OUT</span>}
+        // Clicking anywhere in the row — including on a −/+ button — arms this
+        // player for keyboard entry, which is what a scorer means by "I'm on
+        // this player now". Keys are handled on window, not here.
+        <tr key={r.userId} className={selected ? 'bball-row-sel' : undefined}
+          onClick={() => onSelect(r.userId)}
+          aria-selected={selected}
+          style={{ borderTop: '1px solid rgba(255,255,255,0.03)', cursor: 'pointer' }}>
+          {/* Name truncates, badges never do — under a fixed layout the status
+              flags are what a scorer scans for, so they hold their width. */}
+          <td className="pcell">
+            <span className="pcell-in">
+              <span className="pnum">#{r.jersey ?? '-'}</span>
+              <span className="pname" title={r.name}>{r.name}</span>
+              {r.onCourt ? <span className="badge-on">ON</span> : <span className="badge-bench">BENCH</span>}
+              {fouledOut && <span className="badge-bench badge-out">OUT</span>}
+            </span>
           </td>
           <td style={{ fontVariantNumeric: 'tabular-nums' }}>{(r.secondsPlayed / 60).toFixed(1)}</td>
           <td>{r.pts}</td>
@@ -332,17 +509,17 @@ function ShotCell({ made, att, kind, missKind, pid, adjust, disabled }: {
 }) {
   return (
     <td>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button title="Remove make" disabled={disabled} onClick={() => adjust(pid, kind, -1)} style={{ background: '#ef4444' }}>−</button>
-          <button title="Add make" disabled={disabled} onClick={() => adjust(pid, kind, 1)} style={{ background: '#10b981' }}>+</button>
-        </div>
-        <div style={{ padding: '0 8px' }}>{made} / {att}</div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button title="Remove miss" disabled={disabled} onClick={() => adjust(pid, missKind, -1)} style={{ background: '#b91c1c' }}>−</button>
-          <button title="Add miss" disabled={disabled} onClick={() => adjust(pid, missKind, 1)} style={{ background: '#065f46' }}>M</button>
-        </div>
-      </div>
+      <span className="shot">
+        <span className="shot-grp">
+          <button className="sb-mk-minus" title="Remove make" disabled={disabled} onClick={() => adjust(pid, kind, -1)}>−</button>
+          <button className="sb-mk-plus" title="Add make" disabled={disabled} onClick={() => adjust(pid, kind, 1)}>+</button>
+        </span>
+        <span className="shot-v">{made} / {att}</span>
+        <span className="shot-grp">
+          <button className="sb-ms-minus" title="Remove miss" disabled={disabled} onClick={() => adjust(pid, missKind, -1)}>−</button>
+          <button className="sb-ms-plus" title="Add miss" disabled={disabled} onClick={() => adjust(pid, missKind, 1)}>M</button>
+        </span>
+      </span>
     </td>
   );
 }
@@ -378,8 +555,121 @@ function SubControls({ homeTeam, awayTeam, state, disabled, onSub }: {
   );
 }
 
-function StartersModal({ homeTeam, awayTeam, onSave }: {
+/** One team's column of number inputs. Declared at module scope on purpose — a
+ *  component defined inside JerseyModal would be a new type every render, so
+ *  React would remount these inputs and the field would lose focus after each
+ *  keystroke. */
+function JerseyCol({ team, draft, clashing, setNum }: {
+  team: RosterTeam; draft: Record<string, string>; clashing: Set<string>;
+  setNum: (userId: string, raw: string) => void;
+}) {
+  return (
+    <div className="card" style={{ minHeight: 0 }}>
+      <strong>{team.name}</strong>
+      <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
+        {team.players.map((p) => (
+          <label key={p.userId} className="jersey-row">
+            <input
+              className={`jersey-input${clashing.has(p.userId) ? ' bad' : ''}`}
+              value={draft[p.userId] ?? ''}
+              onChange={(e) => setNum(p.userId, e.target.value)}
+              inputMode="numeric" maxLength={2} placeholder="–"
+              aria-label={`Jersey number for ${p.name}`}
+              aria-invalid={clashing.has(p.userId)}
+            />
+            <span className="jersey-name">{p.name}</span>
+            <span style={{ color: '#9ca3af', fontSize: 12 }}>{p.position ?? '—'}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Pre-match jersey check. Prefilled from the saved roster, so the common case
+ *  is a glance and Save; a first run is data entry. Numbers persist on the
+ *  session roster, not the match, so they carry to every later fixture. */
+function JerseyModal({ tournamentId, homeTeam, awayTeam, onSaved, onClose }: {
+  tournamentId: string; homeTeam: RosterTeam; awayTeam: RosterTeam;
+  onSaved: (roster: RosterTeam[]) => void; onClose: () => void;
+}) {
+  const all = [...homeTeam.players, ...awayTeam.players];
+  const [draft, setDraft] = useState<Record<string, string>>(() =>
+    Object.fromEntries(all.map((p) => [p.userId, p.number == null ? '' : String(p.number)])));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A number repeated inside ONE team is the failure that matters — it makes the
+  // scorer's shorthand ambiguous. The same number across opposing teams is
+  // normal and is left alone.
+  const clashing = new Set<string>();
+  for (const team of [homeTeam, awayTeam]) {
+    const byNumber = new Map<string, string[]>();
+    for (const p of team.players) {
+      const v = (draft[p.userId] ?? '').trim();
+      if (!v) continue;
+      byNumber.set(v, [...(byNumber.get(v) ?? []), p.userId]);
+    }
+    for (const ids of byNumber.values()) if (ids.length > 1) ids.forEach((id) => clashing.add(id));
+  }
+
+  const setNum = (userId: string, raw: string) => {
+    // Digits only, max two — matches what the server accepts (0–99).
+    const v = raw.replace(/\D/g, '').slice(0, 2);
+    setDraft((d) => ({ ...d, [userId]: v }));
+    setError(null);
+  };
+
+  async function save() {
+    if (clashing.size) { setError('Two players on the same team share a number — fix the highlighted rows.'); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const numbers = all.map((p) => {
+        const v = (draft[p.userId] ?? '').trim();
+        return { userId: p.userId, number: v === '' ? null : Number(v) };
+      });
+      onSaved(await saveJerseyNumbers(tournamentId, numbers));
+    } catch (e) {
+      const msg = (e as { response?: { data?: { error?: string } } }).response?.data?.error;
+      setError(msg || 'Could not save jersey numbers. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const filled = all.filter((p) => (draft[p.userId] ?? '').trim() !== '').length;
+
+  return (
+    <div className="bball-modal-backdrop">
+      <div className="bball-modal" style={{ width: 720, maxWidth: '92vw' }}>
+        <h3 style={{ marginTop: 0 }}>Jersey Numbers</h3>
+        <div style={{ color: '#9ca3af', marginTop: 4 }}>
+          Check or add each player's number, then save. Leave blank if unknown — you can
+          come back to this any time with the <strong>Jersey #s</strong> button.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
+          <JerseyCol team={homeTeam} draft={draft} clashing={clashing} setNum={setNum} />
+          <JerseyCol team={awayTeam} draft={draft} clashing={clashing} setNum={setNum} />
+        </div>
+        {error && <div className="jersey-error" role="alert">{error}</div>}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 14 }}>
+          <span style={{ color: '#9ca3af', fontSize: 12 }}>{filled} of {all.length} numbered</span>
+          <span style={{ display: 'flex', gap: 10 }}>
+            <button className="btn secondary" onClick={onClose} disabled={saving}>Skip for now</button>
+            <button className="btn" onClick={save} disabled={saving || clashing.size > 0}>
+              {saving ? 'Saving…' : 'Save & continue'}
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StartersModal({ homeTeam, awayTeam, onSave, onBack }: {
   homeTeam: RosterTeam; awayTeam: RosterTeam; onSave: (home: string[], away: string[]) => void;
+  onBack: () => void;
 }) {
   const needH = Math.min(5, homeTeam.players.length);
   const needA = Math.min(5, awayTeam.players.length);
@@ -420,11 +710,14 @@ function StartersModal({ homeTeam, awayTeam, onSave }: {
           <Col team={homeTeam} sel={h} set={setH} need={needH} />
           <Col team={awayTeam} sel={a} set={setA} need={needA} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-          <button className="btn secondary" onClick={() => { if (!h.length) setH(homeTeam.players.slice(0, needH).map((p) => p.userId)); if (!a.length) setA(awayTeam.players.slice(0, needA).map((p) => p.userId)); }}>
-            Auto-pick first {needH}
-          </button>
-          <button className="btn" disabled={h.length !== needH || a.length !== needA} onClick={() => onSave(h, a)}>Save Starters</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 14 }}>
+          <button className="btn secondary" onClick={onBack}>← Jersey numbers</button>
+          <span style={{ display: 'flex', gap: 10 }}>
+            <button className="btn secondary" onClick={() => { if (!h.length) setH(homeTeam.players.slice(0, needH).map((p) => p.userId)); if (!a.length) setA(awayTeam.players.slice(0, needA).map((p) => p.userId)); }}>
+              Auto-pick first {needH}
+            </button>
+            <button className="btn" disabled={h.length !== needH || a.length !== needA} onClick={() => onSave(h, a)}>Save Starters</button>
+          </span>
         </div>
       </div>
     </div>

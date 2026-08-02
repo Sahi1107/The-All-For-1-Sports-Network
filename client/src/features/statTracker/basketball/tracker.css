@@ -9,22 +9,43 @@
   border-radius: 12px;
 }
 .bball-scroll { overflow-x: auto; }
-.bball-tracker table { min-width: 920px; }
 
 .bball-tracker h2 { margin: 0; color: #fff; }
 
+/* Fixed layout + <colgroup>: column widths come from the col-* rules below, not
+   from content, so the total table width is a number we choose rather than one
+   that emerges from the longest player name. `width:100%` lets it fill a wide
+   screen (the slack lands in the name column, which is the only auto one) while
+   `min-width` is the floor below which .bball-scroll starts scrolling. */
 .bball-tracker table {
   width: 100%;
+  min-width: 1678px;
+  table-layout: fixed;
   border-collapse: collapse;
   background: #0b1220;
   margin-top: 12px;
 }
-/* nowrap: a cell must never wrap — the table grows to its natural width and the
-   .bball-scroll container scrolls, instead of squeezing counter cells until the
-   inline −/+ buttons wrap onto stacked lines and overlap. */
+.bball-tracker col.col-num { width: 62px; }
+.bball-tracker col.col-cnt { width: 112px; }
+.bball-tracker col.col-shot { width: 190px; }
+/* col-player is intentionally width-less — under table-layout:fixed it takes
+   whatever is left, so a wide display gives the names more room, not the grid. */
+
+/* nowrap: a cell must never wrap — squeezed counter cells would stack their
+   inline −/+ buttons onto separate lines and overlap. */
 .bball-tracker th, .bball-tracker td { padding: 8px 10px; text-align: left; white-space: nowrap; }
 .bball-tracker table th { background: #0b1220; color: #9ca3af; font-weight: 600; padding: 10px; }
 .bball-tracker table td { color: #e5e7eb; }
+
+/* Player cell: the name is the only part allowed to truncate. The flex row is an
+   inner span, NOT the <td> — display:flex on a table-cell drops it out of table
+   layout and the column widths stop being honoured. */
+.bball-tracker td.pcell { overflow: hidden; }
+.bball-tracker .pcell-in { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bball-tracker .pnum { flex: none; color: #9ca3af; font-variant-numeric: tabular-nums; }
+.bball-tracker .pname { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bball-tracker .badge-on, .bball-tracker .badge-bench { flex: none; }
+.bball-tracker .badge-out { background: #7f1d1d; color: #fecaca; }
 
 .bball-tracker button {
   background: #2563eb;
@@ -46,10 +67,121 @@
 }
 .bball-tracker .cnt .v { min-width: 16px; text-align: center; font-variant-numeric: tabular-nums; }
 
+/* Shot cell: [− +] made/att [− M]. Sized in CSS (not inline) so the compact
+   pointer:fine block below can shrink it to fit a laptop. */
+.bball-tracker .shot { display: inline-flex; align-items: center; gap: 6px; }
+.bball-tracker .shot-grp { display: inline-flex; gap: 4px; }
+.bball-tracker .shot-v {
+  padding: 0 8px; min-width: 46px; text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.bball-tracker .shot button {
+  min-width: 26px; min-height: 30px; padding: 4px 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1;
+}
+.bball-tracker .sb-mk-minus { background: #ef4444; }
+.bball-tracker .sb-mk-plus  { background: #10b981; }
+.bball-tracker .sb-ms-minus { background: #b91c1c; }
+.bball-tracker .sb-ms-plus  { background: #065f46; }
+
+/* ── Compact density for precise pointers ─────────────────────
+   A 14" MacBook Pro is 1512pt wide; the tracker shell spends 80pt on the rail
+   and 16pt on the right gutter, and .bball-tracker another 24pt of padding,
+   leaving ~1392pt for the table. The roomy metrics above total ~1678pt, so the
+   grid scrolls sideways — and a scorer entering stats mid-play cannot scroll.
+   These numbers bring the floor to ~1306pt, which fits with ~86pt to spare for
+   a visible scrollbar or slightly wider font metrics.
+
+   Gated on pointer:fine so it only applies to trackpad/mouse. A tablet reports
+   pointer:coarse and keeps the larger touch targets above, scrolling as before
+   — shrinking a touch target to 24pt to win horizontal space is a bad trade
+   when the input is a fingertip. */
+@media (pointer: fine) {
+  /* 1116px of that is the fixed stat columns, which never shrink — the floor
+     only decides how early the NAME column starts truncating. Set below the
+     14" target on purpose: a 1440-wide window (or a slightly zoomed 1512 one)
+     then stops scrolling too, trading a shortened name — jersey number first,
+     full name on hover — for a grid that stays entirely on screen. */
+  .bball-tracker table { min-width: 1240px; }
+  .bball-tracker col.col-num { width: 48px; }
+  .bball-tracker col.col-cnt { width: 84px; }
+  .bball-tracker col.col-shot { width: 144px; }
+
+  .bball-tracker th, .bball-tracker td { padding: 5px 6px; }
+  .bball-tracker table th { padding: 7px 6px; font-size: 12px; }
+
+  .bball-tracker .cnt { gap: 4px; }
+  .bball-tracker .cnt button { min-width: 24px; min-height: 26px; font-size: 14px; }
+  .bball-tracker .cnt .v { min-width: 14px; }
+
+  .bball-tracker .shot { gap: 3px; }
+  .bball-tracker .shot-grp { gap: 2px; }
+  .bball-tracker .shot-v { padding: 0 3px; min-width: 40px; font-size: 12px; }
+  .bball-tracker .shot button { min-width: 20px; min-height: 26px; font-size: 13px; }
+
+  .bball-tracker .badge-on, .bball-tracker .badge-bench { margin-left: 2px; padding: 2px 5px; font-size: 9px; }
+}
+
 /* Keep the player-name column pinned while scrolling to the shooting columns. */
 .bball-tracker th:first-child,
 .bball-tracker td:first-child { position: sticky; left: 0; z-index: 2; background: #0b1220; }
 .bball-tracker thead th:first-child { z-index: 3; }
+
+/* Column titles reprinted inside the body above the second team's rows. Ruled
+   top and bottom so it reads as a header band and not as another stat row. */
+.bball-tracker tbody tr.bball-colhead th {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ── Keyboard entry ──────────────────────────────────────── */
+
+.bball-keybar {
+  position: relative; /* anchors the overlaid confirmation pill */
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px;
+  margin-top: 12px; padding: 8px 12px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+}
+.bball-keybar-who { min-width: 220px; }
+.bball-keybar-clear {
+  background: none !important; border: none; padding: 0 0 0 6px;
+  color: #93c5fd; font-size: 12px; text-decoration: underline; cursor: pointer;
+}
+.bball-keybar-keys { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto; }
+.bball-keybar-keys.dimmed { opacity: 0.2; }
+.bball-key { display: inline-flex; align-items: center; gap: 5px; color: #9ca3af; font-size: 12px; }
+.bball-key kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; line-height: 1; min-width: 18px; text-align: center;
+  padding: 3px 5px; border-radius: 4px; color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+.bball-keybar-flash {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  padding: 5px 12px; border-radius: 999px;
+  font-weight: 700; font-size: 12px; white-space: nowrap;
+}
+.bball-keybar-flash.ok { background: #065f46; color: #d1fae5; }
+.bball-keybar-flash.hint { background: #78350f; color: #fde68a; }
+
+/* Selected row — the target of the next keystroke. The first cell needs its own
+   rule because the sticky-column background above would otherwise paint over
+   the row tint and hide the selection exactly where the name is. */
+.bball-tracker tbody tr.bball-row-sel td { background: #12233f; }
+.bball-tracker tbody tr.bball-row-sel td:first-child {
+  background: #12233f;
+  box-shadow: inset 3px 0 0 #3b82f6;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bball-tracker tbody tr td { transition: background 120ms ease; }
+}
 
 .bball-tracker select, .bball-tracker .input {
   padding: 8px 10px;
@@ -78,6 +210,26 @@
 .bball-tracker .badge-bench {
   margin-left: 6px; padding: 2px 6px; border-radius: 999px; font-size: 10px;
   background: #f9731633; color: #fed7aa;
+}
+
+/* Jersey number editor */
+.bball-tracker .jersey-row,
+.bball-modal .jersey-row {
+  display: grid; grid-template-columns: 46px 1fr auto;
+  align-items: center; gap: 10px;
+}
+.bball-modal .jersey-input {
+  width: 46px; padding: 6px 4px; text-align: center;
+  border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06); color: #e5e7eb;
+  font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.bball-modal .jersey-input:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
+.bball-modal .jersey-input.bad { border-color: #ef4444; background: rgba(239, 68, 68, 0.12); }
+.bball-modal .jersey-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bball-modal .jersey-error {
+  margin-top: 12px; padding: 8px 10px; border-radius: 6px; font-size: 13px;
+  background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); color: #fecaca;
 }
 
 /* Modal (starters) */

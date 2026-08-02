@@ -7,6 +7,7 @@ import type {
   TrackerMatchStatus,
   FootballState,
   BasketballState,
+  RosterTeam,
 } from './types';
 
 export async function getSession(tournamentId: string): Promise<TrackerSession | null> {
@@ -41,6 +42,17 @@ export async function patchMatch(
 ): Promise<TrackerMatch> {
   const { data } = await api.patch(`/tracker/matches/${matchId}`, body);
   return data.match;
+}
+
+/** Save jersey numbers onto the session roster. Returns the updated roster so
+ *  the caller can reflect it without a refetch. Rejects (400) on a duplicate
+ *  number within a team. */
+export async function saveJerseyNumbers(
+  tournamentId: string,
+  numbers: { userId: string; number: number | null }[],
+): Promise<RosterTeam[]> {
+  const { data } = await api.patch(`/tracker/sessions/${tournamentId}/jerseys`, { numbers });
+  return data.roster;
 }
 
 export async function publishMatch(matchId: string): Promise<{ matchId: string; playerCount: number }> {

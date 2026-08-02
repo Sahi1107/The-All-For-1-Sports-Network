@@ -25,16 +25,36 @@ import {
   ScheduleBody,
   GroupsBody,
   WithdrawBody,
+  JerseysBody,
   IdParam,
   TournamentIdParam,
 } from '../validation/tracker';
 
 const DONE_STATUS = (s: string) => s === 'COMPLETED' || s === 'PUBLISHED';
 
+type RosterSnapshot = {
+  teamId: string;
+  name: string;
+  players: { userId: string; name: string; position: string | null; number: number | null }[];
+};
+
+/** Jersey numbers a scorer has already entered, keyed by userId. */
+function jerseyMap(prev: unknown): Map<string, number | null> {
+  const out = new Map<string, number | null>();
+  for (const team of (prev as RosterSnapshot[] | null) ?? []) {
+    for (const p of team?.players ?? []) {
+      if (p?.userId && p.number !== null && p.number !== undefined) out.set(p.userId, p.number);
+    }
+  }
+  return out;
+}
+
 /** Snapshot roster for the session from the tournament's current registrations
  *  (accepted members). Rebuilt on structure edits so late entries + roster
- *  changes are reflected. */
-async function buildRosterSnapshot(tournamentId: string) {
+ *  changes are reflected. Jersey numbers already entered for a player are
+ *  carried across the rebuild — they're hand-keyed by the scorer and are not
+ *  recoverable from the registrations, so a group edit must not blank them. */
+async function buildRosterSnapshot(tournamentId: string, prevRoster?: unknown): Promise<RosterSnapshot[]> {
   const regs = await prisma.tournamentTeam.findMany({
     where: { tournamentId },
     include: {
@@ -48,11 +68,15 @@ async function buildRosterSnapshot(tournamentId: string) {
       },
     },
   });
+  const keep = jerseyMap(prevRoster);
   return regs.map((r) => ({
     teamId: r.team.id,
     name: r.team.name,
     players: r.team.members.map((m) => ({
-      userId: m.user.id, name: m.user.name, position: m.user.position ?? null, number: null as number | null,
+      userId: m.user.id,
+      name: m.user.name,
+      position: m.user.position ?? null,
+      number: keep.get(m.user.id) ?? null,
     })),
   }));
 }
@@ -472,7 +496,7 @@ router.patch(
         if (hasResults(rid)) { res.status(400).json({ error: 'A removed group already has results — reset the draw instead' }); return; }
       }
 
-      const roster = await buildRosterSnapshot(tournamentId);
+      const roster = await buildRosterSnapshot(tournamentId, session.roster);
       let nextOrder = Math.max(0, ...session.matches.map((m) => m.orderIndex)) + 1;
 
       await prisma.$transaction(async (tx) => {
@@ -501,6 +525,52 @@ router.patch(
       res.json({ ok: true });
     } catch (err) {
       console.error('Edit groups error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Save jersey numbers ─────────────────────────────────────
+// Scorers set these on the roster snapshot before tipping off. Numbers are how
+// a scorer identifies a player on court, so a duplicate inside one team is a
+// real scoring hazard, not a cosmetic issue — it's rejected rather than saved.
+router.patch(
+  '/sessions/:tournamentId/jerseys',
+  requireTournamentAccess(fromParamTournamentId),
+  validate({ params: TournamentIdParam, body: JerseysBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.tournamentId as string;
+      const numbers = req.body.numbers as { userId: string; number: number | null }[];
+
+      const session = await prisma.trackerSession.findUnique({ where: { tournamentId } });
+      if (!session) { res.status(404).json({ error: 'No draw for this tournament' }); return; }
+
+      const incoming = new Map(numbers.map((n) => [n.userId, n.number]));
+      const roster = ((session.roster as RosterSnapshot[] | null) ?? []).map((team) => ({
+        ...team,
+        players: (team.players ?? []).map((p) => (
+          incoming.has(p.userId) ? { ...p, number: incoming.get(p.userId) ?? null } : p
+        )),
+      }));
+
+      for (const team of roster) {
+        const seen = new Map<number, string>();
+        for (const p of team.players) {
+          if (p.number === null || p.number === undefined) continue;
+          const clash = seen.get(p.number);
+          if (clash) {
+            res.status(400).json({ error: `${team.name}: #${p.number} is assigned to both ${clash} and ${p.name}` });
+            return;
+          }
+          seen.set(p.number, p.name);
+        }
+      }
+
+      await prisma.trackerSession.update({ where: { id: session.id }, data: { roster: roster as object } });
+      res.json({ roster });
+    } catch (err) {
+      console.error('Save jersey numbers error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   },
