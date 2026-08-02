@@ -14,7 +14,7 @@ import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere } from '../services/search/gate';
 import { personSearchOr } from '../services/search/matchQuery';
-import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser } from '../data/careerStats';
+import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser, matchStatLinesForUser, type MatchStatLine } from '../data/careerStats';
 import logger from '../utils/logger';
 
 const router = Router();
@@ -360,7 +360,11 @@ router.get('/:id/performance-card', authenticate, async (req: AuthRequest, res: 
 
     // ── Career totals + per-tournament receipts (stat sports only) ──
     let career: { matches: number; totals: Record<string, number>; averages: Record<string, number> } | null = null;
-    let tournaments: Array<{ id: string; name: string; startDate: Date; matches: number; totals: Record<string, number> }> = [];
+    let tournaments: Array<{ id: string; name: string; startDate: Date; matches: number; totals: Record<string, number>; averages: Record<string, number> }> = [];
+    // Per-match detail. Tournament leaderboards show averages only, so the full
+    // total and every individual match line have to be reachable somewhere —
+    // that somewhere is here, on the player's own profile.
+    let matchLines: MatchStatLine[] = [];
     if (statSport && sport) {
       const t = (await careerTotalsForUsers(sport, [id])).get(id);
       if (t && t.matches > 0) {
@@ -376,10 +380,21 @@ router.get('/:id/performance-card', authenticate, async (req: AuthRequest, res: 
           });
           const byId = new Map(tourns.map((tt) => [tt.id, tt]));
           tournaments = perTourn
-            .map((p) => { const tt = byId.get(p.tournamentId); return tt ? { id: tt.id, name: tt.name, startDate: tt.startDate, matches: p.matches, totals: p.totals } : null; })
+            .map((p) => {
+              const tt = byId.get(p.tournamentId);
+              if (!tt) return null;
+              // Averages alongside totals so the profile can explain a leaderboard
+              // figure without the reader doing the division themselves.
+              const averages: Record<string, number> = {};
+              for (const [k, v] of Object.entries(p.totals)) {
+                averages[k] = p.matches ? Math.round((v / p.matches) * 10) / 10 : 0;
+              }
+              return { id: tt.id, name: tt.name, startDate: tt.startDate, matches: p.matches, totals: p.totals, averages };
+            })
             .filter((x): x is NonNullable<typeof x> => x !== null)
             .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
         }
+        matchLines = await matchStatLinesForUser(sport, id);
       }
     }
 
@@ -439,7 +454,7 @@ router.get('/:id/performance-card', authenticate, async (req: AuthRequest, res: 
 
     res.json({
       sport, isStatSport: statSport,
-      career, tournaments, competition, rankings, endorsementCount,
+      career, tournaments, matchLines, competition, rankings, endorsementCount,
       achievements: user.achievements ?? [],
       athleticsEvents: user.athleticsEvents ?? [],
     });

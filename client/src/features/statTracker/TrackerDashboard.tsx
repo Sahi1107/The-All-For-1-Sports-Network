@@ -66,7 +66,7 @@ export default function TrackerDashboard() {
               onClick={() => exportTournamentExcel(session, tournament?.name ?? 'tournament')}
               className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-primary rounded-lg text-xs transition-colors"
             >
-              <Download size={14} /> Tournament totals
+              <Download size={14} /> Full stats workbook
             </button>
             <button
               onClick={() => setShowReset(true)}

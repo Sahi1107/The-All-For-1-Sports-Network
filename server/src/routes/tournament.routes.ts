@@ -566,13 +566,18 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
     const sumFields = Array.from(new Set(cats.flatMap((c) => c.fields)));
 
     const model = (prisma as any)[STAT_MODEL[sport]];
+    // _count gives games played per player — the divisor for the per-game
+    // averages below. A stat row only exists for a match the player featured in,
+    // so the count is already "games played", not squad size.
     const grouped = await model.groupBy({
       by: ['userId'],
       where: { tournamentId },
       _sum: Object.fromEntries(sumFields.map((f) => [f, true])),
+      _count: { _all: true },
     });
-    const sums = (grouped as Array<{ userId: string; _sum: Record<string, number | null> }>).map((g) => ({
+    const sums = (grouped as Array<{ userId: string; _sum: Record<string, number | null>; _count: { _all: number } }>).map((g) => ({
       userId: g.userId,
+      games: Number(g._count?._all ?? 0),
       vals: Object.fromEntries(sumFields.map((f) => [f, Number(g._sum[f] ?? 0)])),
     }));
 
@@ -582,33 +587,72 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
       include: {
         team: {
           select: {
+            id: true, // needed to map a player to their team's game count
             name: true,
             members: { where: { status: 'ACCEPTED' }, select: { userId: true, user: { select: { name: true } } } },
           },
         },
       },
     });
-    const meta = new Map<string, { name: string; teamName: string }>();
+    const meta = new Map<string, { name: string; teamName: string; teamId: string }>();
     regs.forEach((r) => r.team.members.forEach((m) => {
-      if (!meta.has(m.userId)) meta.set(m.userId, { name: m.user.name, teamName: r.team.name });
+      if (!meta.has(m.userId)) meta.set(m.userId, { name: m.user.name, teamName: r.team.name, teamId: r.team.id });
     }));
     const missing = sums.map((s) => s.userId).filter((id) => !meta.has(id));
     if (missing.length > 0) {
       const users = await prisma.user.findMany({ where: { id: { in: missing } }, select: { id: true, name: true } });
-      users.forEach((u) => meta.set(u.id, { name: u.name, teamName: '' }));
+      users.forEach((u) => meta.set(u.id, { name: u.name, teamName: '', teamId: '' }));
     }
+
+    // Games each team played — the denominator for the qualifying threshold.
+    const teamGames = new Map<string, number>();
+    const playedMatches = await prisma.match.findMany({
+      where: { tournamentId },
+      select: { homeTeamId: true, awayTeamId: true },
+    });
+    playedMatches.forEach((m) => {
+      [m.homeTeamId, m.awayTeamId].forEach((id) => {
+        if (id) teamGames.set(id, (teamGames.get(id) ?? 0) + 1);
+      });
+    });
+
+    // Basketball switches to per-game once the tournament runs past a single
+    // game — totals otherwise rank whoever played most, not who played best.
+    // Kept in step with the tracker's client-side leaders.ts.
+    const perGame = sport === 'BASKETBALL' && sums.some((s) => s.games > 1);
+
+    // Qualifying appearances for an averaged board, as a share of the player's
+    // OWN team's games — team-relative so a side eliminated in round one isn't
+    // wiped off the leaderboard for having played only once. Kept in step with
+    // the tracker's client-side leaders.ts (QUALIFY_SHARE).
+    const QUALIFY_SHARE = 0.5;
+    const minFor = (userId: string) => {
+      const tid = meta.get(userId)?.teamId ?? '';
+      const games = teamGames.get(tid) ?? sums.find((s) => s.userId === userId)?.games ?? 1;
+      return Math.max(1, Math.ceil(games * QUALIFY_SHARE));
+    };
+    const minGames = perGame
+      ? Math.max(1, ...[...teamGames.values()].map((g) => Math.max(1, Math.ceil(g * QUALIFY_SHARE))))
+      : undefined;
 
     const categories = cats
       .map((c) => ({
         key: c.key,
-        label: c.label,
+        label: perGame ? `${c.label} per game` : c.label,
+        perGame,
+        minGames,
         rows: sums
-          .map((s) => ({
-            userId: s.userId,
-            name: meta.get(s.userId)?.name ?? 'Unknown',
-            teamName: meta.get(s.userId)?.teamName ?? '',
-            value: c.fields.reduce((t, f) => t + (s.vals[f] ?? 0), 0),
-          }))
+          .filter((s) => !perGame || s.games >= minFor(s.userId))
+          .map((s) => {
+            const total = c.fields.reduce((t, f) => t + (s.vals[f] ?? 0), 0);
+            return {
+              userId: s.userId,
+              name: meta.get(s.userId)?.name ?? 'Unknown',
+              teamName: meta.get(s.userId)?.teamName ?? '',
+              value: perGame && s.games > 0 ? Math.round((total / s.games) * 10) / 10 : total,
+              games: s.games,
+            };
+          })
           .filter((r) => r.value > 0)
           .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
           .slice(0, 10),

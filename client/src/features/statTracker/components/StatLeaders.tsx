@@ -24,6 +24,16 @@ export default function StatLeaders({ categories, linkProfiles = false }: { cate
           <div className="px-4 py-2.5 border-b border-line flex items-center gap-2">
             <Award size={14} className="text-primary" />
             <h4 className="text-sm font-semibold">{cat.label}</h4>
+            {/* Averaged boards hide players below the appearance threshold —
+                say so, or a missing name reads as a bug. */}
+            {cat.perGame && !!cat.minGames && (
+              <span
+                className="ml-auto text-[10px] text-gray-custom"
+                title={`Players must appear in at least half their team's games (${cat.minGames}+ here) to qualify for a per-game leaderboard.`}
+              >
+                min {cat.minGames} {cat.minGames === 1 ? 'game' : 'games'}
+              </span>
+            )}
           </div>
           <div className="divide-y divide-line">
             {cat.rows.map((r, i) => (
@@ -35,9 +45,18 @@ export default function StatLeaders({ categories, linkProfiles = false }: { cate
                   {linkProfiles
                     ? <Link to={`/profile/${r.userId}`} className="truncate block hover:text-primary-light hover:underline">{r.name}</Link>
                     : <p className="truncate">{r.name}</p>}
-                  {r.teamName && <p className="text-[11px] text-gray-custom truncate">{r.teamName}</p>}
+                  {/* Games played rides alongside the team on averaged boards —
+                      an average is unreadable without knowing the divisor. */}
+                  {(r.teamName || (cat.perGame && r.games > 0)) && (
+                    <p className="text-[11px] text-gray-custom truncate">
+                      {r.teamName}
+                      {cat.perGame && r.games > 0 && `${r.teamName ? ' · ' : ''}${r.games} GP`}
+                    </p>
+                  )}
                 </div>
-                <span className="font-mono font-semibold text-primary-light tabular-nums">{r.value}</span>
+                <span className="font-mono font-semibold text-primary-light tabular-nums">
+                  {cat.perGame ? r.value.toFixed(1) : r.value}
+                </span>
               </div>
             ))}
           </div>

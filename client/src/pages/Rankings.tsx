@@ -3,12 +3,18 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp, Trophy } from 'lucide-react';
 import { VerifiedTick } from '../components/feed/FeedBits';
 import { SPORTS, ATHLETICS_EVENTS } from '../data/sports';
 import SportBackdrop from '../components/SportBackdrop';
 
 type Gender = 'MALE' | 'FEMALE';
+type Tournament = { id: string; name: string; startDate: string };
+type RankingUser = {
+  id?: string; name?: string; avatar?: string | null;
+  position?: string | null; location?: string | null; verified?: boolean;
+};
+type RankingRow = { id: string; rank: number; score: number; sport: string; user?: RankingUser };
 
 const SPORT_ICONS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, emoji }) => [value, emoji]),
@@ -78,8 +84,8 @@ function RatingBar({ value, max }: { value: number; max: number }) {
 
 /** Option C — Performance Card: rank numeral, athlete, rating bar, faint
  *  sport-specific court watermark, and the rating as the hero number. */
-function PerformanceCard({ r, max }: { r: any; max: number }) {
-  const u = r.user ?? {};
+function PerformanceCard({ r, max }: { r: RankingRow; max: number }) {
+  const u: RankingUser = r.user ?? {};
   const top3 = r.rank <= 3;
   const [intPart, decPart] = Number(r.score ?? 0).toFixed(1).split('.');
 
@@ -140,6 +146,7 @@ export default function Rankings() {
   const [sport, setSport] = useState('BASKETBALL');
   const [gender, setGender] = useState<Gender>('MALE');
   const [category, setCategory] = useState('OVERALL');
+  const [tournamentId, setTournamentId] = useState<string | null>(null);
 
   const categories = getCategories(sport, gender);
 
@@ -148,32 +155,58 @@ export default function Rankings() {
   const changeSport = (value: string) => {
     setSport(value);
     setCategory(getCategories(value, gender)[0]);
+    setTournamentId(null); // pick up the new sport's most recent tournament
   };
   const changeGender = (next: Gender) => {
     setGender(next);
     setCategory(getCategories(sport, next)[0]);
+    setTournamentId(null);
   };
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['rankings', sport, gender],
+  // Rankings are stored per tournament, so a tournament must be chosen before
+  // there is a meaningful rank column at all.
+  const { data: tData, isLoading: tLoading } = useQuery({
+    queryKey: ['ranking-tournaments', sport, gender],
     queryFn: async () => {
-      const { data } = await api.get(`/rankings?sport=${sport}&gender=${gender}`);
+      const { data } = await api.get(`/rankings/tournaments?sport=${sport}&gender=${gender}`);
+      return data;
+    },
+  });
+  const tournaments: Tournament[] = tData?.tournaments ?? [];
+  // Default to the most recent ranked tournament; `tournamentId` is only ever a
+  // deliberate user choice, so a sport/gender change resets it to this default.
+  const activeTournament = tournaments.find((t) => t.id === tournamentId) ?? tournaments[0] ?? null;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['rankings', sport, gender, activeTournament?.id],
+    enabled: !!activeTournament,
+    queryFn: async () => {
+      const { data } = await api.get(
+        `/rankings?sport=${sport}&gender=${gender}&tournamentId=${activeTournament!.id}`,
+      );
       return data;
     },
   });
 
-  const allRankings = data?.rankings ?? [];
+  const allRankings: RankingRow[] = data?.rankings ?? [];
   // Position sports can be filtered client-side; other sports show the full list
   // (their per-category data isn't computed yet).
-  const rankings = POSITION_SPORTS.has(sport) && category !== 'OVERALL'
-    ? allRankings.filter((r: any) => {
+  const filtered = POSITION_SPORTS.has(sport) && category !== 'OVERALL'
+    ? allRankings.filter((r) => {
         const pos = (r.user?.position ?? '').toLowerCase();
         return (POSITION_FILTER[category] ?? []).some(kw => pos.includes(kw));
       })
     : allRankings;
 
+  // Re-number within the category. The stored `rank` is the OVERALL placing, so
+  // showing it under a position tab produced gappy lists (3, 4, 6, 10, 13…) and
+  // no #1 guard at all. A position ranking has to start at 1 to be a ranking.
+  const rankings = [...filtered]
+    .sort((a, b) => Number(b.score ?? 0) - Number(a.score ?? 0))
+    .map((r, i) => ({ ...r, rank: i + 1 }));
+
   // The leader's score sets the full width of every rating bar.
-  const maxScore = rankings.reduce((m: number, r: any) => Math.max(m, Number(r.score ?? 0)), 0);
+  const maxScore = rankings.reduce((m, r) => Math.max(m, Number(r.score ?? 0)), 0);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -198,9 +231,28 @@ export default function Rankings() {
       <div className="mb-4">
         <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-custom">
           <span>{SPORT_ICONS[sport]}</span>
-          {SPORT_LABELS[sport]} · National · {gender === 'MALE' ? "Men's" : "Women's"}
+          {SPORT_LABELS[sport]} · {activeTournament?.name ?? 'No tournament'} · {gender === 'MALE' ? "Men's" : "Women's"}
         </p>
         <h1 className="text-3xl font-extrabold tracking-tight">Player Rankings</h1>
+
+        {/* Tournament picker — only meaningful when there's a choice to make. */}
+        {tournaments.length > 1 && (
+          <div className="mt-3 flex items-center gap-2">
+            <Trophy size={15} className="shrink-0 text-gray-custom" />
+            <select
+              value={activeTournament?.id ?? ''}
+              onChange={(e) => setTournamentId(e.target.value)}
+              aria-label="Tournament"
+              className="max-w-full rounded-lg border border-line bg-card px-3 py-1.5 text-sm font-semibold text-foreground"
+            >
+              {tournaments.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}{t.startDate ? ` · ${new Date(t.startDate).getFullYear()}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Men / Women switch */}
         <div className="mt-3 inline-flex rounded-full border border-line bg-card p-0.5">
@@ -236,18 +288,29 @@ export default function Rankings() {
       </div>
 
       {/* Leaderboard */}
-      {isLoading ? (
+      {tLoading || (isLoading && !!activeTournament) ? (
         <div className="flex justify-center py-16">
           <BallLoader />
+        </div>
+      ) : !activeTournament ? (
+        <div className="rounded-2xl border border-line bg-card p-16 text-center">
+          <TrendingUp size={32} className="mx-auto mb-3 text-gray-custom" />
+          <p className="text-gray-custom">
+            No ranked {SPORT_LABELS[sport]?.toLowerCase()} tournaments yet. Rankings appear here once a
+            tournament's matches are published.
+          </p>
         </div>
       ) : rankings.length === 0 ? (
         <div className="rounded-2xl border border-line bg-card p-16 text-center">
           <TrendingUp size={32} className="mx-auto mb-3 text-gray-custom" />
-          <p className="text-gray-custom">No rankings yet. Rankings are calculated after tournaments.</p>
+          <p className="text-gray-custom">
+            No {category === 'OVERALL' ? '' : `${category.replace('_', ' ').toLowerCase()} `}rankings for{' '}
+            {activeTournament.name}.
+          </p>
         </div>
       ) : (
         <div className="space-y-2.5">
-          {rankings.map((r: any) => (
+          {rankings.map((r) => (
             <PerformanceCard key={r.id} r={r} max={maxScore} />
           ))}
         </div>

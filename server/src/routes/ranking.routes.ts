@@ -4,6 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { aiLimiter, browseLimiter } from '../middleware/rateLimiter';
 import { recalculateTournamentRankings } from '../services/rankingService';
+import type { Sport, Gender } from '@prisma/client';
 
 const router = Router();
 
@@ -42,6 +43,40 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     res.json({ rankings, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {
     console.error('Get rankings error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/rankings/tournaments?sport=&gender=
+// The tournaments that actually have rankings for this sport (and, when given,
+// this gender). Rankings are computed and stored PER TOURNAMENT, so the page
+// picks one rather than merging every tournament into a single national board —
+// merged, the rank column is meaningless because each tournament has its own #1.
+router.get('/tournaments', authenticate, browseLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const { sport, gender } = req.query;
+    if (!sport) { res.status(400).json({ error: 'sport is required' }); return; }
+
+    const rows = await prisma.playerRanking.findMany({
+      where: {
+        sport: sport as Sport,
+        user: {
+          discoverable: true,
+          ...(gender === 'MALE' || gender === 'FEMALE' ? { gender: gender as Gender } : {}),
+        },
+      },
+      select: { tournamentId: true, tournament: { select: { id: true, name: true, startDate: true } } },
+      distinct: ['tournamentId'],
+    });
+
+    const tournaments = rows
+      .map((r) => r.tournament)
+      .filter((t): t is NonNullable<typeof t> => !!t)
+      .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+
+    res.json({ tournaments });
+  } catch (error) {
+    console.error('Get ranking tournaments error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

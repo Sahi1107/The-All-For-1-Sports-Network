@@ -126,6 +126,69 @@ export async function tournamentTotalsForUser(
   });
 }
 
+/** One match's stat line for a player, with enough context to read it. */
+export interface MatchStatLine {
+  matchId: string;
+  tournamentId: string;
+  matchDate: Date;
+  round: string | null;
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number | null;
+  awayScore: number | null;
+  stats: Record<string, number>;
+}
+
+/**
+ * DB: every individual match stat line for a player, newest first. The tournament
+ * and career views above are aggregates; this is the underlying detail behind
+ * them — the per-match breakdown the profile shows when a leaderboard sends a
+ * reader here to see how an average was actually built.
+ */
+export async function matchStatLinesForUser(
+  sport: StatSport,
+  userId: string,
+  take = 200,
+): Promise<MatchStatLine[]> {
+  const { default: prisma } = await import('../config/db');
+  const fields = CAREER_STAT_FIELDS[sport];
+  const model = (prisma as any)[MODEL_BY_SPORT[sport]];
+
+  const rows = await model.findMany({
+    where: { userId },
+    select: {
+      matchId: true,
+      tournamentId: true,
+      ...Object.fromEntries(fields.map((f) => [f, true])),
+      match: {
+        select: {
+          matchDate: true, round: true, homeScore: true, awayScore: true,
+          homeTeam: { select: { name: true } },
+          awayTeam: { select: { name: true } },
+        },
+      },
+    },
+    orderBy: { match: { matchDate: 'desc' } },
+    take,
+  });
+
+  return (rows as Array<Record<string, any>>).map((r) => {
+    const stats: Record<string, number> = {};
+    for (const f of fields) stats[f] = Number(r[f] ?? 0);
+    return {
+      matchId: r.matchId,
+      tournamentId: r.tournamentId,
+      matchDate: r.match?.matchDate ?? null,
+      round: r.match?.round ?? null,
+      homeTeam: r.match?.homeTeam?.name ?? '',
+      awayTeam: r.match?.awayTeam?.name ?? '',
+      homeScore: r.match?.homeScore ?? null,
+      awayScore: r.match?.awayScore ?? null,
+      stats,
+    };
+  });
+}
+
 /**
  * DB: the subset of `candidateIds` (or all athletes) whose career totals meet
  * every threshold. This replaces the engine's `take: 200`-then-reduce approach,

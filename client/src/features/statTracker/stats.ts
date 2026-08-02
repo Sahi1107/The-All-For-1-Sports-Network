@@ -27,9 +27,13 @@ export interface FootballPlayerRow {
 export interface BasketballPlayerRow {
   userId: string;
   name: string;
+  teamId: string;
   teamName: string;
   min: number;
   pts: number; ast: number; reb: number; stl: number; blk: number;
+  // The offensive/defensive rebound split and personal fouls are tracked live;
+  // carried here so the Excel export can report everything that was recorded.
+  oreb: number; dreb: number; pf: number;
   fg: number; fga: number; tp: number; tpa: number; ft: number; fta: number; to: number;
 }
 
@@ -108,9 +112,11 @@ export function basketballPlayerRows(
   return Object.entries(state.players).map(([userId, p]) => ({
     userId,
     name: playerName.get(userId) ?? userId,
+    teamId: p.teamId,
     teamName: teamName.get(p.teamId) ?? '',
     min: Math.round((p.secondsPlayed / 60) * 10) / 10,
     pts: p.pts, ast: p.ast, reb: p.reb, stl: p.stl, blk: p.blk,
+    oreb: p.oreb ?? 0, dreb: p.dreb ?? 0, pf: p.pf ?? 0,
     fg: p.fg, fga: p.fga, tp: p.tp, tpa: p.tpa, ft: p.ft, fta: p.fta, to: p.to,
   })).sort((a, b) => b.pts - a.pts);
 }
