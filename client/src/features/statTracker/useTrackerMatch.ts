@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { auth } from '../../config/firebase';
-import { getMatch, patchMatch } from './api';
+import { getMatch, patchMatch, saveJerseyNumbers } from './api';
 import { type SaveState, reduceSaveState, retryDelayMs } from './saveState';
 import type {
   TrackerMatch,
@@ -9,7 +9,10 @@ import type {
   TrackerMatchStatus,
   FootballState,
   BasketballState,
+  RosterTeam,
 } from './types';
+
+export type JerseyEdit = { userId: string; number: number | null };
 
 type AnyState = FootballState | BasketballState;
 
@@ -164,6 +167,19 @@ export function useTrackerMatch(matchId: string) {
     [matchId, flush],
   );
 
+  /** Persist jersey numbers onto the session roster. Lives on the controller
+   *  rather than being called straight from the view so the client-only demo
+   *  can substitute a local implementation and never hit the network. */
+  const saveJerseys = useCallback(
+    async (numbers: JerseyEdit[]): Promise<RosterTeam[]> => {
+      if (!session) return [];
+      const roster = await saveJerseyNumbers(session.tournamentId, numbers);
+      setSession((prev) => (prev ? { ...prev, roster } : prev));
+      return roster;
+    },
+    [session],
+  );
+
   // Flush pending edits on unmount.
   useEffect(() => () => { void flush(); }, [flush]);
 
@@ -190,5 +206,5 @@ export function useTrackerMatch(matchId: string) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
-  return { match, session, loading, saveState, updateState, setStatus, flush, setMatch, setSession };
+  return { match, session, loading, saveState, updateState, setStatus, flush, setMatch, setSession, saveJerseys };
 }

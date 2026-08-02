@@ -3,10 +3,10 @@ import { computeScores } from '../useTrackerMatch';
 import { buildSession, applyResult, progress } from '../engine';
 import { buildDemoTeams, simulatedResult } from './demoData';
 import { DONE, stageSort } from '../components/helpers';
-import type { useTrackerMatch } from '../useTrackerMatch';
+import type { useTrackerMatch, JerseyEdit } from '../useTrackerMatch';
 import type {
   TrackerSession, TrackerMatch, TrackerFormat, TrackerConfig, TrackerSport,
-  TrackerMatchStatus, FootballState, BasketballState,
+  TrackerMatchStatus, FootballState, BasketballState, RosterTeam,
 } from '../types';
 
 type AnyState = FootballState | BasketballState;
@@ -107,6 +107,21 @@ export function useDemoTournament(sport: TrackerSport) {
     }
   }, []);
 
+  // The demo is client-only (tournamentId is the literal 'demo'), so jersey
+  // numbers are applied to the in-memory roster. Hitting the real endpoint
+  // would 400 on the non-UUID id and put a network error in a sandbox.
+  const saveJerseys = useCallback(async (numbers: JerseyEdit[]): Promise<RosterTeam[]> => {
+    const incoming = new Map(numbers.map((n) => [n.userId, n.number]));
+    const roster = (session?.roster ?? []).map((t) => ({
+      ...t,
+      players: t.players.map((p) => (
+        incoming.has(p.userId) ? { ...p, number: incoming.get(p.userId) ?? null } : p
+      )),
+    }));
+    setSession((s) => (s ? { ...s, roster } : s));
+    return roster;
+  }, [session]);
+
   const matchCtrl: Ctrl | null =
     openId && liveMatch
       ? {
@@ -118,6 +133,8 @@ export function useDemoTournament(sport: TrackerSport) {
           setStatus,
           flush: async () => {},
           setMatch: setLiveMatch,
+          setSession,
+          saveJerseys,
         }
       : null;
 

@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import './tracker.css';
-import type { useTrackerMatch } from '../useTrackerMatch';
+import type { useTrackerMatch, JerseyEdit } from '../useTrackerMatch';
 import type {
   BasketballState, BasketballPlayer, BasketballActionKind, RosterTeam,
 } from '../types';
-import { saveJerseyNumbers } from '../api';
 import {
   bumpTeamFoul, teamFoulsInQuarter, teamInBonus, isFouledOut, inFoulTrouble, FOUL_OUT_LIMIT,
 } from './rules';
@@ -115,7 +114,7 @@ function fmtRemaining(elapsed: number, quarterSeconds: number) {
 }
 
 export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
-  const { match, session, updateState, setStatus, setSession } = ctrl;
+  const { match, session, updateState, setStatus, saveJerseys } = ctrl;
   const [, force] = useState(0);
   // Jersey check is the first pre-match step: numbers are how a scorer picks a
   // player out on court, so they get confirmed before the starting five, not
@@ -320,17 +319,13 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
 
       {showJerseys && (
         <JerseyModal
-          tournamentId={session.tournamentId}
+          persist={saveJerseys}
           homeTeam={homeTeam} awayTeam={awayTeam}
           // Mid-match reopen is a correction, so it can be dismissed. The
           // pre-match pass can be skipped too — unknown numbers must not wall
           // off a game that's about to tip.
           onClose={() => { setJerseyOpen(false); setJerseysDone(true); }}
-          onSaved={(roster) => {
-            setSession((prev) => (prev ? { ...prev, roster } : prev));
-            setJerseyOpen(false);
-            setJerseysDone(true);
-          }}
+          onSaved={() => { setJerseyOpen(false); setJerseysDone(true); }}
         />
       )}
 
@@ -589,9 +584,10 @@ function JerseyCol({ team, draft, clashing, setNum }: {
 /** Pre-match jersey check. Prefilled from the saved roster, so the common case
  *  is a glance and Save; a first run is data entry. Numbers persist on the
  *  session roster, not the match, so they carry to every later fixture. */
-function JerseyModal({ tournamentId, homeTeam, awayTeam, onSaved, onClose }: {
-  tournamentId: string; homeTeam: RosterTeam; awayTeam: RosterTeam;
-  onSaved: (roster: RosterTeam[]) => void; onClose: () => void;
+function JerseyModal({ persist, homeTeam, awayTeam, onSaved, onClose }: {
+  persist: (numbers: JerseyEdit[]) => Promise<RosterTeam[]>;
+  homeTeam: RosterTeam; awayTeam: RosterTeam;
+  onSaved: () => void; onClose: () => void;
 }) {
   const all = [...homeTeam.players, ...awayTeam.players];
   const [draft, setDraft] = useState<Record<string, string>>(() =>
@@ -629,7 +625,8 @@ function JerseyModal({ tournamentId, homeTeam, awayTeam, onSaved, onClose }: {
         const v = (draft[p.userId] ?? '').trim();
         return { userId: p.userId, number: v === '' ? null : Number(v) };
       });
-      onSaved(await saveJerseyNumbers(tournamentId, numbers));
+      await persist(numbers);
+      onSaved();
     } catch (e) {
       const msg = (e as { response?: { data?: { error?: string } } }).response?.data?.error;
       setError(msg || 'Could not save jersey numbers. Check your connection and try again.');
