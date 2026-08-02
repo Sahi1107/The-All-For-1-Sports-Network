@@ -42,6 +42,17 @@ const SCORER: Record<RankSport, (s: Record<string, unknown>) => number> = {
 export interface RankedEntry { userId: string; rank: number; score: number }
 
 /**
+ * Floor for being ranked at all. A rostered player who never took the floor
+ * scores exactly 0, and a leaderboard tail of 0.0 entries is a squad list, not a
+ * ranking. The bar is 0.05 rather than 0 because the score is surfaced to one
+ * decimal — anything below that renders as "0.0" and so is indistinguishable
+ * from not having played, however it was arrived at. Negative scores (possible
+ * when turnovers outweigh everything else) fall below it too.
+ */
+export const MIN_RANKED_SCORE = 0.05;
+export const isRankable = (score: number): boolean => score >= MIN_RANKED_SCORE;
+
+/**
  * Pure: per-match stat rows → ranked entries (average score per game, descending).
  * A player across multiple matches is aggregated once; changing a row (a
  * correction) or dropping rows (an un-publish) simply changes the input set, which
@@ -60,6 +71,9 @@ export function rankFromStats(sport: RankSport, rows: Array<Record<string, unkno
   }
   return [...agg.entries()]
     .map(([userId, d]) => ({ userId, score: Math.round((d.total / d.games) * 100) / 100 }))
+    // Drop non-contributors BEFORE numbering, so ranks stay contiguous from 1
+    // rather than leaving gaps where a 0.0 player used to sit.
+    .filter((e) => isRankable(e.score))
     // Stable, deterministic order: score desc, then userId for ties.
     .sort((a, b) => b.score - a.score || a.userId.localeCompare(b.userId))
     .map((e, i) => ({ ...e, rank: i + 1 }));

@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  scoreBasketball, rankFromStats, recalculateTournamentRankings, type RankingDb,
+  scoreBasketball, rankFromStats, recalculateTournamentRankings, isRankable,
+  MIN_RANKED_SCORE, type RankingDb,
 } from './rankingService';
 
 // Rankings are the one link in the stat chain that is DERIVED and PERSISTED (a
@@ -33,6 +34,55 @@ test('multi-match: a player’s rows are aggregated as an AVERAGE per game, not 
 
 test('empty stats (nothing published / all un-published) → no ranked entries', () => {
   assert.deepEqual(rankFromStats('BASKETBALL', []), []);
+});
+
+// ─── The 0.0 floor ────────────────────────────────────────────────────────────
+// A rostered player who never took the floor scores exactly 0. Listing them
+// produced a leaderboard tail of identical "0.0" cards — a squad list, not a
+// ranking.
+
+test('players who did not contribute (score 0) are not ranked at all', () => {
+  const rows = [
+    bball('played', { points: 12 }),
+    bball('dnp', {}),            // rostered, never took the floor
+    bball('alsoDnp', {}),
+  ];
+  const ranked = rankFromStats('BASKETBALL', rows);
+  assert.deepEqual(ranked.map((r) => r.userId), ['played']);
+  assert.equal(ranked.length, 1, 'zero-score players are excluded entirely');
+});
+
+test('ranks stay contiguous from 1 — excluding a 0.0 player leaves no gap', () => {
+  const rows = [
+    bball('a', { points: 30 }), bball('zero', {}),
+    bball('b', { points: 20 }), bball('c', { points: 10 }),
+  ];
+  const ranked = rankFromStats('BASKETBALL', rows);
+  assert.deepEqual(ranked.map((r) => r.userId), ['a', 'b', 'c']);
+  assert.deepEqual(ranked.map((r) => r.rank), [1, 2, 3]);
+});
+
+test('a negative score (turnovers outweighing everything) is not ranked', () => {
+  // No production, three giveaways: (0+0+0+0+0-3) * 0.20 = -0.6
+  const only = bball('sloppy', { turnovers: 3 });
+  assert.equal(scoreBasketball(only) < 0, true);
+  assert.deepEqual(rankFromStats('BASKETBALL', [only]), []);
+});
+
+test('the floor is display precision, not literal zero — sub-0.05 renders as "0.0"', () => {
+  assert.equal(MIN_RANKED_SCORE, 0.05);
+  assert.equal(isRankable(0), false);
+  assert.equal(isRankable(0.04), false, '0.04 shows as 0.0 on the card');
+  assert.equal((0.04).toFixed(1), '0.0');
+  assert.equal(isRankable(0.05), true);
+  assert.equal((0.05).toFixed(1), '0.1');
+});
+
+test('a tournament where nobody contributed persists no rankings', async () => {
+  const { db, created } = fakeDb('BASKETBALL', [[bball('dnp1', {}), bball('dnp2', {})]]);
+  const count = await recalculateTournamentRankings('t1', db);
+  assert.equal(count, 0);
+  assert.equal(created.length, 0, 'no rows written when nobody is rankable');
 });
 
 // ─── Propagation via the persisted recompute (injected fake db) ───────────────

@@ -3,7 +3,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { aiLimiter, browseLimiter } from '../middleware/rateLimiter';
-import { recalculateTournamentRankings } from '../services/rankingService';
+import { recalculateTournamentRankings, MIN_RANKED_SCORE } from '../services/rankingService';
 import type { Sport, Gender } from '@prisma/client';
 
 const router = Router();
@@ -19,6 +19,10 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     if (tournamentId) where.tournamentId = tournamentId;
     if (category) where.category = category;
     if (region) where.region = region;
+    // Filtered on read as well as at derivation: rankings are only recomputed on
+    // publish / correction / un-publish, so rows persisted before the floor
+    // existed would otherwise keep showing until something triggered a rebuild.
+    where.score = { gte: MIN_RANKED_SCORE };
     // Men's and women's rankings are separate — filter on the athlete's gender.
     // Always exclude non-discoverable athletes (under-13 accounts by default).
     where.user = {
@@ -60,6 +64,10 @@ router.get('/tournaments', authenticate, browseLimiter, async (req: AuthRequest,
     const rows = await prisma.playerRanking.findMany({
       where: {
         sport: sport as Sport,
+        // Same floor as the list itself — a tournament whose only rows are
+        // non-contributors has no ranking to show, so it must not be offered
+        // in the picker as though it did.
+        score: { gte: MIN_RANKED_SCORE },
         user: {
           discoverable: true,
           ...(gender === 'MALE' || gender === 'FEMALE' ? { gender: gender as Gender } : {}),
