@@ -61,10 +61,15 @@ router.get('/tournaments', authenticate, browseLimiter, async (req: AuthRequest,
     const { sport, gender } = req.query;
     if (!sport) { res.status(400).json({ error: 'sport is required' }); return; }
 
-    const rows = await prisma.playerRanking.findMany({
+    // Grouped rather than distinct: the card shows how many athletes are ranked,
+    // which is the one number that tells a browser whether a tournament is worth
+    // opening. Counted under the same visibility filters as the list itself, so
+    // the card can't promise 20 players and then show 12.
+    const grouped = await prisma.playerRanking.groupBy({
+      by: ['tournamentId'],
       where: {
         sport: sport as Sport,
-        // Same floor as the list itself — a tournament whose only rows are
+        // Same floor as the list — a tournament whose only rows are
         // non-contributors has no ranking to show, so it must not be offered
         // in the picker as though it did.
         score: { gte: MIN_RANKED_SCORE },
@@ -73,13 +78,20 @@ router.get('/tournaments', authenticate, browseLimiter, async (req: AuthRequest,
           ...(gender === 'MALE' || gender === 'FEMALE' ? { gender: gender as Gender } : {}),
         },
       },
-      select: { tournamentId: true, tournament: { select: { id: true, name: true, startDate: true } } },
-      distinct: ['tournamentId'],
+      _count: { _all: true },
+    });
+
+    const counts = new Map(grouped.map((g) => [g.tournamentId, g._count?._all ?? 0]));
+    const rows = await prisma.tournament.findMany({
+      where: { id: { in: [...counts.keys()] } },
+      select: {
+        id: true, name: true, sport: true, thumbnailUrl: true,
+        city: true, venue: true, startDate: true, endDate: true, status: true,
+      },
     });
 
     const tournaments = rows
-      .map((r) => r.tournament)
-      .filter((t): t is NonNullable<typeof t> => !!t)
+      .map((t) => ({ ...t, playerCount: counts.get(t.id) ?? 0 }))
       .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
 
     res.json({ tournaments });

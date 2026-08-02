@@ -3,13 +3,17 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
-import { TrendingUp, Trophy } from 'lucide-react';
+import { TrendingUp, Trophy, ArrowLeft, MapPin, Users } from 'lucide-react';
 import { VerifiedTick } from '../components/feed/FeedBits';
 import { SPORTS, ATHLETICS_EVENTS } from '../data/sports';
 import SportBackdrop from '../components/SportBackdrop';
 
 type Gender = 'MALE' | 'FEMALE';
-type Tournament = { id: string; name: string; startDate: string };
+type Tournament = {
+  id: string; name: string; sport?: string; startDate: string; endDate?: string;
+  thumbnailUrl?: string | null; city?: string | null; venue?: string | null;
+  status?: string; playerCount?: number;
+};
 type RankingUser = {
   id?: string; name?: string; avatar?: string | null;
   position?: string | null; location?: string | null; verified?: boolean;
@@ -142,6 +146,66 @@ function PerformanceCard({ r, max }: { r: RankingRow; max: number }) {
   );
 }
 
+/** Date range, collapsed when a tournament starts and ends on the same day. */
+function dateRange(start?: string, end?: string): string {
+  if (!start) return '';
+  const f = (d: string) => new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!end || new Date(start).toDateString() === new Date(end).toDateString()) return f(start);
+  return `${new Date(start).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} – ${f(end)}`;
+}
+
+/** Tournament tile on the picker. The thumbnail is what makes this scannable,
+ *  so when one is missing the sport backdrop stands in rather than a grey box. */
+function TournamentTile({ t, sport, onOpen }: { t: Tournament; sport: string; onOpen: () => void }) {
+  const live = t.status === 'ONGOING' || t.status === 'IN_PROGRESS';
+  return (
+    <button
+      onClick={onOpen}
+      className="group overflow-hidden rounded-2xl border border-line bg-card text-left transition-all hover:border-primary hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      <div className="relative h-32 overflow-hidden bg-dark-light">
+        {t.thumbnailUrl ? (
+          <img
+            src={t.thumbnailUrl}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="relative flex h-full w-full items-center justify-center">
+            <div className="sport-backdrop absolute inset-0 opacity-40">
+              <SportBackdrop sport={t.sport ?? sport} />
+            </div>
+            <span className="relative text-4xl">{SPORT_ICONS[t.sport ?? sport]}</span>
+          </div>
+        )}
+        {live && (
+          <span className="absolute left-2 top-2 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+            Live
+          </span>
+        )}
+      </div>
+
+      <div className="p-3.5">
+        <h3 className="truncate font-bold leading-tight" title={t.name}>{t.name}</h3>
+        <p className="mt-1 text-xs text-gray-custom">{dateRange(t.startDate, t.endDate)}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-custom">
+          {(t.city || t.venue) && (
+            <span className="flex min-w-0 items-center gap-1">
+              <MapPin size={12} className="shrink-0" />
+              <span className="truncate">{t.city || t.venue}</span>
+            </span>
+          )}
+          <span className="flex items-center gap-1 font-semibold text-foreground">
+            <Users size={12} className="shrink-0" />
+            {t.playerCount ?? 0} ranked
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function Rankings() {
   const [sport, setSport] = useState('BASKETBALL');
   const [gender, setGender] = useState<Gender>('MALE');
@@ -157,10 +221,12 @@ export default function Rankings() {
     setCategory(getCategories(value, gender)[0]);
     setTournamentId(null); // pick up the new sport's most recent tournament
   };
+  // Gender deliberately KEEPS the open tournament — switching Men/Women inside a
+  // tournament should stay in it. If that tournament has no rankings for the new
+  // gender it drops out of the list, and the picker comes back on its own.
   const changeGender = (next: Gender) => {
     setGender(next);
     setCategory(getCategories(sport, next)[0]);
-    setTournamentId(null);
   };
 
   // Rankings are stored per tournament, so a tournament must be chosen before
@@ -173,9 +239,9 @@ export default function Rankings() {
     },
   });
   const tournaments: Tournament[] = tData?.tournaments ?? [];
-  // Default to the most recent ranked tournament; `tournamentId` is only ever a
-  // deliberate user choice, so a sport/gender change resets it to this default.
-  const activeTournament = tournaments.find((t) => t.id === tournamentId) ?? tournaments[0] ?? null;
+  // No auto-select: the page opens on the picker so the reader always knows
+  // WHICH tournament a rank belongs to. A rank of 1 means nothing without it.
+  const activeTournament = tournaments.find((t) => t.id === tournamentId) ?? null;
 
   const { data, isLoading } = useQuery({
     queryKey: ['rankings', sport, gender, activeTournament?.id],
@@ -208,66 +274,101 @@ export default function Rankings() {
   // The leader's score sets the full width of every rating bar.
   const maxScore = rankings.reduce((m, r) => Math.max(m, Number(r.score ?? 0)), 0);
 
+  const genderSwitch = (
+    <div className="inline-flex rounded-full border border-line bg-card p-0.5">
+      {([['MALE', 'Men'], ['FEMALE', 'Women']] as const).map(([value, label]) => (
+        <button
+          key={value}
+          onClick={() => changeGender(value)}
+          className={`rounded-full px-5 py-1.5 text-sm font-semibold transition-colors ${
+            gender === value ? 'bg-primary text-on-primary' : 'text-gray-custom hover:text-foreground'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // ─── Step 1: pick a tournament ──────────────────────────────
+  if (!activeTournament) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-5 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {SPORTS.map(({ value }) => (
+            <button
+              key={value}
+              onClick={() => changeSport(value)}
+              className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                sport === value
+                  ? 'bg-primary font-semibold text-on-primary'
+                  : 'border border-line bg-card text-gray-custom hover:text-foreground'
+              }`}
+            >
+              {SPORT_ICONS[value]} {SPORT_LABELS[value]}
+            </button>
+          ))}
+        </div>
+
+        <div className="mb-4">
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-custom">
+            <span>{SPORT_ICONS[sport]}</span>
+            {SPORT_LABELS[sport]} · {gender === 'MALE' ? "Men's" : "Women's"}
+          </p>
+          <h1 className="text-3xl font-extrabold tracking-tight">Player Rankings</h1>
+          <p className="mt-1 text-sm text-gray-custom">
+            Rankings are published per tournament. Pick one to see its leaderboard.
+          </p>
+          <div className="mt-3">{genderSwitch}</div>
+        </div>
+
+        {tLoading ? (
+          <div className="flex justify-center py-16"><BallLoader /></div>
+        ) : tournaments.length === 0 ? (
+          <div className="rounded-2xl border border-line bg-card p-16 text-center">
+            <Trophy size={32} className="mx-auto mb-3 text-gray-custom" />
+            <p className="text-gray-custom">
+              No ranked {SPORT_LABELS[sport]?.toLowerCase()} tournaments yet. Rankings appear here once a
+              tournament's matches are published.
+            </p>
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {tournaments.map((t) => (
+              <TournamentTile key={t.id} t={t} sport={sport} onOpen={() => setTournamentId(t.id)} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Step 2: that tournament's rankings ─────────────────────
   return (
     <div className="mx-auto max-w-3xl">
-      {/* Sport picker */}
-      <div className="mb-5 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-        {SPORTS.map(({ value }) => (
-          <button
-            key={value}
-            onClick={() => changeSport(value)}
-            className={`shrink-0 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-              sport === value
-                ? 'bg-primary font-semibold text-on-primary'
-                : 'border border-line bg-card text-gray-custom hover:text-foreground'
-            }`}
-          >
-            {SPORT_ICONS[value]} {SPORT_LABELS[value]}
-          </button>
-        ))}
-      </div>
+      <button
+        onClick={() => setTournamentId(null)}
+        className="mb-4 flex items-center gap-1.5 text-sm text-gray-custom transition-colors hover:text-foreground"
+      >
+        <ArrowLeft size={15} /> All tournaments
+      </button>
 
       {/* Header */}
       <div className="mb-4">
         <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-gray-custom">
           <span>{SPORT_ICONS[sport]}</span>
-          {SPORT_LABELS[sport]} · {activeTournament?.name ?? 'No tournament'} · {gender === 'MALE' ? "Men's" : "Women's"}
+          {SPORT_LABELS[sport]} · {gender === 'MALE' ? "Men's" : "Women's"}
         </p>
-        <h1 className="text-3xl font-extrabold tracking-tight">Player Rankings</h1>
-
-        {/* Tournament picker — only meaningful when there's a choice to make. */}
-        {tournaments.length > 1 && (
-          <div className="mt-3 flex items-center gap-2">
-            <Trophy size={15} className="shrink-0 text-gray-custom" />
-            <select
-              value={activeTournament?.id ?? ''}
-              onChange={(e) => setTournamentId(e.target.value)}
-              aria-label="Tournament"
-              className="max-w-full rounded-lg border border-line bg-card px-3 py-1.5 text-sm font-semibold text-foreground"
-            >
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.startDate ? ` · ${new Date(t.startDate).getFullYear()}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Men / Women switch */}
-        <div className="mt-3 inline-flex rounded-full border border-line bg-card p-0.5">
-          {([['MALE', 'Men'], ['FEMALE', 'Women']] as const).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => changeGender(value)}
-              className={`rounded-full px-5 py-1.5 text-sm font-semibold transition-colors ${
-                gender === value ? 'bg-primary text-on-primary' : 'text-gray-custom hover:text-foreground'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <h1 className="text-3xl font-extrabold tracking-tight">{activeTournament.name}</h1>
+        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-custom">
+          <span>{dateRange(activeTournament.startDate, activeTournament.endDate)}</span>
+          {(activeTournament.city || activeTournament.venue) && (
+            <span className="flex items-center gap-1">
+              <MapPin size={13} /> {activeTournament.city || activeTournament.venue}
+            </span>
+          )}
+        </p>
+        <div className="mt-3">{genderSwitch}</div>
       </div>
 
       {/* Category pills */}
@@ -288,17 +389,9 @@ export default function Rankings() {
       </div>
 
       {/* Leaderboard */}
-      {tLoading || (isLoading && !!activeTournament) ? (
+      {isLoading ? (
         <div className="flex justify-center py-16">
           <BallLoader />
-        </div>
-      ) : !activeTournament ? (
-        <div className="rounded-2xl border border-line bg-card p-16 text-center">
-          <TrendingUp size={32} className="mx-auto mb-3 text-gray-custom" />
-          <p className="text-gray-custom">
-            No ranked {SPORT_LABELS[sport]?.toLowerCase()} tournaments yet. Rankings appear here once a
-            tournament's matches are published.
-          </p>
         </div>
       ) : rankings.length === 0 ? (
         <div className="rounded-2xl border border-line bg-card p-16 text-center">
