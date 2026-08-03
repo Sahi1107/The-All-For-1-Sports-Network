@@ -4,7 +4,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { requireTournamentAccess, fromParamId, fromMatchId } from '../middleware/tournamentAccess';
-import { writeLimiter } from '../middleware/rateLimiter';
+import { writeLimiter, browseLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateImageBytes } from '../middleware/upload';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
@@ -20,7 +20,7 @@ import {
   RegisterTeamBody, CreateMatchBody, MatchResultBody, ProvisionMemberBody, PlayerSearchQuery,
 } from '../validation/tournament';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
-import { tournamentPlayerSearchWhere } from '../services/rosterSearch';
+import { rosterPlayerSearchWhere } from '../services/rosterSearch';
 import { buildReport, commitBulkProvision, normalizeEmail, tournamentToContext } from '../services/bulkProvision';
 import { BulkProvisionBody } from '../validation/admin';
 
@@ -1115,19 +1115,22 @@ router.post('/:id/teams', authenticate, requireTournamentAccess(fromParamId), wr
   }
 });
 
-// GET /api/tournaments/:id/player-search?q= — organiser roster "add existing".
-// Gated by requireTournamentAccess (organiser for THIS tournament, or admin).
-// Returns players matching the name that are either already ON A TEAM IN THIS
-// TOURNAMENT or an admin/organiser-provisioned profile that hasn't signed in yet
-// (so freshly imported players are addable before they log in) — bypassing the
-// public discovery gate but staying bounded so it can't enumerate real private
-// accounts outside this tournament (see services/rosterSearch).
-router.get('/:id/player-search', authenticate, requireTournamentAccess(fromParamId), validate({ query: PlayerSearchQuery }), async (req: AuthRequest, res: Response) => {
+// GET /api/tournaments/:id/player-search?q= — organiser/admin roster "add existing".
+// Finds ANY rosterable person on the platform by name (self-registered or
+// provisioned, signed in or not, discoverable or not, incl. guardian-managed
+// minors) — an organiser is building a roster, not browsing, so the public
+// discovery gate does NOT apply here. Anti-enumeration is enforced on this route
+// (see services/rosterSearch for the full rationale):
+//   • requireTournamentAccess — this tournament's organiser or a platform admin only
+//   • name substring required (≥ 2 chars); results capped + unpaginated
+//   • only id/name/position/avatar returned — no contact PII
+//   • browseLimiter blunts prefix-scraping
+router.get('/:id/player-search', authenticate, requireTournamentAccess(fromParamId), browseLimiter, validate({ query: PlayerSearchQuery }), async (req: AuthRequest, res: Response) => {
   try {
     const q = (req.query.q as string) ?? '';
     if (q.length < 2) { res.json({ players: [] }); return; }
     const players = await prisma.user.findMany({
-      where: tournamentPlayerSearchWhere(req.params.id as string, q),
+      where: rosterPlayerSearchWhere(q),
       select: { id: true, name: true, position: true, avatar: true },
       take: 12,
       orderBy: { name: 'asc' },

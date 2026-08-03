@@ -8,9 +8,10 @@ interface Lite { id: string; name: string; position?: string }
 
 /** Admin: create a team directly with an all-accepted roster (late entry). */
 export default function AddTeamModal({
-  tournamentId, sport, onClose,
+  tournamentId, onClose,
 }: {
   tournamentId: string;
+  /** Accepted for call-site compatibility; roster search is no longer sport-filtered. */
   sport?: string;
   onClose: () => void;
 }) {
@@ -21,12 +22,15 @@ export default function AddTeamModal({
   const [search, setSearch] = useState('');
 
   const { data: results } = useQuery({
-    queryKey: ['user-search-addteam', sport, search],
+    // Same scoped roster search as RosterEditorModal — finds ANY rosterable player
+    // on the platform (provisioned or self-registered, discoverable or not, incl.
+    // minors), gated server-side by tournament access. NOT the public /users
+    // search, whose discovery gate hid provisioned / non-discoverable / minor
+    // players an organiser legitimately needs to roster.
+    queryKey: ['roster-player-search-addteam', tournamentId, search],
     queryFn: async () => {
-      const p = new URLSearchParams({ role: 'ATHLETE', limit: '8' });
-      if (sport) p.set('sport', sport);
-      if (search.trim()) p.set('search', search.trim());
-      return (await api.get(`/users?${p}`)).data.users as Lite[];
+      const p = new URLSearchParams({ q: search.trim() });
+      return (await api.get(`/tournaments/${tournamentId}/player-search?${p}`)).data.players as Lite[];
     },
     enabled: search.trim().length > 1,
   });

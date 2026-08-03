@@ -56,9 +56,10 @@ export default function RosterEditorModal({
 
   const [search, setSearch] = useState('');
   const { data: results } = useQuery({
-    // Tournament-scoped search: finds players already on a team in THIS tournament
-    // (including provisioned / guardian-managed ones the public search hides), and
-    // cannot reach any account outside it. Gated server-side by tournament access.
+    // Roster search: finds ANY rosterable player on the platform by name —
+    // provisioned or self-registered, signed in or not, discoverable or not,
+    // including minors — because an organiser is building a roster, not browsing.
+    // Gated server-side by tournament access (see services/rosterSearch).
     queryKey: ['roster-player-search', tournamentId, search],
     queryFn: async () => {
       const p = new URLSearchParams({ q: search.trim() });
