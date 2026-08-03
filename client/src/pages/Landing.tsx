@@ -118,15 +118,23 @@ export default function Landing() {
   }, [videoSrc]);
 
   useEffect(() => {
-    if (!teamRef.current || !('IntersectionObserver' in window)) return;
+    const el = teamRef.current;
+    if (!el) return;
+    // No IntersectionObserver → reveal immediately rather than leave the founders
+    // block stuck at opacity 0.
+    if (!('IntersectionObserver' in window)) { el.classList.add('visible'); return; }
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) teamRef.current?.classList.add('visible');
+        // A low threshold so a section taller than the viewport still reveals.
+        if (entry.isIntersecting) { el.classList.add('visible'); observer.disconnect(); }
       },
-      { threshold: 0.35 },
+      { threshold: 0.12 },
     );
-    observer.observe(teamRef.current);
-    return () => observer.disconnect();
+    observer.observe(el);
+    // Safety net: if the observer somehow never fires, reveal after a beat so the
+    // section can never be permanently invisible.
+    const failsafe = window.setTimeout(() => el.classList.add('visible'), 2500);
+    return () => { observer.disconnect(); window.clearTimeout(failsafe); };
   }, []);
 
 
@@ -242,9 +250,25 @@ export default function Landing() {
           <div className="about-text">
             <h2>What Is All For One?</h2>
             <p>
-              All For 1 is a professional network designed for the entire Indian sports
-              ecosystem.
+              The professional network for the entire Indian sports ecosystem — where
+              athletes are known by verified performance, not self-reported hype. Stats
+              and rankings are recorded at real tournaments and published to a profile
+              scouts, coaches and academies can trust.
             </p>
+            <div className="about-pillars">
+              <span className="about-pillar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="9" /></svg>
+                Verified data
+              </span>
+              <span className="about-pillar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M8 12h8M12 8v8" /></svg>
+                One platform
+              </span>
+              <span className="about-pillar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8" /><path d="M17 7h4v4" /></svg>
+                Grassroots to pro
+              </span>
+            </div>
           </div>
         </div>
       </section>
