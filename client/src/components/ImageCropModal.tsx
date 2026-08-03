@@ -83,7 +83,7 @@ export default function ImageCropModal({ image, aspect = 1, round = false, onCro
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#111] border border-ink/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+      <div className="bg-card border border-ink/10 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
           <h2 className="font-semibold text-foreground">Crop & Adjust</h2>

@@ -55,7 +55,7 @@ export default function ShareProfileModal({ profileId, onClose }: Props) {
       className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-[#1a1a1a] rounded-t-2xl sm:rounded-2xl border border-ink/10 w-full sm:max-w-md max-h-[75vh] flex flex-col overflow-hidden">
+      <div className="bg-card rounded-t-2xl sm:rounded-2xl border border-ink/10 w-full sm:max-w-md max-h-[75vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
           <h2 className="font-semibold text-foreground text-base">Share to...</h2>
