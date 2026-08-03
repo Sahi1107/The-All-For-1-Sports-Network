@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
 import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
+import DeleteTournamentModal from '../features/tournaments/DeleteTournamentModal';
 
 type Tab = 'users' | 'stats' | 'reports' | 'appeals' | 'new-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
 
@@ -287,6 +288,7 @@ export default function AdminDashboard() {
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const [expandedTournamentId, setExpandedTournamentId] = useState<string | null>(null);
+  const [deleteTournament, setDeleteTournament] = useState<{ id: string; name: string } | null>(null);
 
   // Redirect non-admins at the route level
   if (user?.role !== 'ADMIN') return <Navigate to="/home" replace />;
@@ -558,15 +560,6 @@ export default function AdminDashboard() {
     },
   });
 
-  const deleteTournamentMutation = useMutation({
-    mutationFn: (id: string) => api.delete(`/tournaments/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-tournaments'] });
-      toast.success('Tournament deleted');
-    },
-    onError: () => toast.error('Delete failed'),
-  });
-
   const handleThumbnailPick = (file: File | null) => {
     if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
     setThumbnailFile(file);
@@ -592,6 +585,13 @@ export default function AdminDashboard() {
 
   return (
     <div>
+      {deleteTournament && (
+        <DeleteTournamentModal
+          tournamentId={deleteTournament.id}
+          tournamentName={deleteTournament.name}
+          onClose={() => setDeleteTournament(null)}
+        />
+      )}
       <div className="flex items-center gap-3 mb-6">
         <Shield size={22} className="text-purple-400" />
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
@@ -1342,11 +1342,7 @@ export default function AdminDashboard() {
                           {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Delete ${t.name}? This cannot be undone.`)) {
-                              deleteTournamentMutation.mutate(t.id);
-                            }
-                          }}
+                          onClick={() => setDeleteTournament({ id: t.id, name: t.name })}
                           className="p-1.5 text-gray-custom hover:text-red-400 transition-colors rounded"
                           title="Delete tournament"
                         >

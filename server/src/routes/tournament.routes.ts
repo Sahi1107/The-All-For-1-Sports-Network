@@ -12,7 +12,9 @@ import { writeMatchPlayerStats } from '../services/matchStats';
 import { notify } from '../services/notifications/notify';
 import { isStatSport, CAREER_STAT_FIELDS, type StatSport } from '../data/careerStats';
 import { computeStandings } from '../services/trackerDraw';
-import { getOrCompute } from '../services/tournamentCache';
+import { getOrCompute, bustTournament } from '../services/tournamentCache';
+import { deletionImpact, decideDeletion } from '../services/tournamentDeletion';
+import logger from '../utils/logger';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody, ProvisionMemberBody, PlayerSearchQuery,
@@ -98,14 +100,53 @@ router.post(
   },
 );
 
-// DELETE /api/tournaments/:id — delete (admin only)
+// GET /api/tournaments/:id/delete-impact — what a deletion would destroy (admin only).
+// Powers the confirmation dialog: matches, players affected, stats removed — spelled
+// out before anything is destroyed.
+router.get('/:id/delete-impact', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
+  try {
+    const impact = await deletionImpact(req.params.id as string);
+    if (!impact) { res.status(404).json({ error: 'Tournament not found' }); return; }
+    res.json({ impact });
+  } catch (error) {
+    console.error('Delete impact error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// DELETE /api/tournaments/:id — delete (SUPER-ADMIN only, deliberately).
+// Deleting destroys real athlete records (published stats feed verified
+// Performance Cards), so this is platform-trust surface, not tournament ops —
+// organisers retire a tournament by CANCELLING it instead. A tournament with
+// published data additionally requires the exact name typed as confirmation
+// (body { confirmName }). DB cascades clean up everything derived; the read
+// cache is busted so nothing stale serves afterwards.
 router.delete('/:id', authenticate, requireRole('ADMIN'), async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.tournament.delete({ where: { id: req.params.id as string } });
-    res.json({ message: 'Tournament deleted' });
+    const id = req.params.id as string;
+    const impact = await deletionImpact(id);
+    const decision = decideDeletion({ impact, confirmName: (req.body as { confirmName?: string } | undefined)?.confirmName ?? null });
+    if (!decision.ok) {
+      res.status(decision.status).json({ error: decision.error, ...(decision.code && { code: decision.code }) });
+      return;
+    }
+
+    await prisma.tournament.delete({ where: { id } });
+    bustTournament(id);
+    logger.info('tournament.deleted', {
+      actorId: req.user!.userId, tournamentId: id, name: impact!.name,
+      statRows: impact!.statRows, playersAffected: impact!.playersAffected, matches: impact!.matches,
+    });
+    res.json({ message: 'Tournament deleted', impact });
   } catch (error: any) {
     if (error.code === 'P2025') {
       res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+    if (error.code === 'P2003') {
+      // A relation still restricts the delete — surface it loudly, never a generic 500.
+      console.error('Delete tournament blocked by relation:', error.meta);
+      res.status(409).json({ error: 'Deletion blocked by related data that does not cascade. Report this — it is a schema bug.' });
       return;
     }
     console.error('Delete tournament error:', error);
