@@ -107,6 +107,27 @@ export const HEAD_STYLES = `
       .af-acard__meta{font-size:14px;color:var(--muted);margin-top:2px;text-transform:capitalize}
       .af-acard__go{margin-left:auto;color:var(--muted);flex:none}
 
+      /* ── Featured athletes (root) — a live directory preview ── */
+      .af-chip__n{font-family:var(--font-numeric);font-weight:700;color:var(--primary-light);
+        background:rgba(219,255,90,.14);border-radius:999px;padding:0 7px;font-size:12px}
+      .af-section__head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:28px 0 12px}
+      .af-section__head .af-h2{margin:0}
+      .af-section__count{font-size:13px;color:var(--muted)}
+      .af-fgrid{display:grid;grid-template-columns:1fr;gap:12px}
+      @media(min-width:640px){.af-fgrid{grid-template-columns:1fr 1fr}}
+      @media(min-width:960px){.af-fgrid{grid-template-columns:1fr 1fr 1fr}}
+      .af-fcard{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
+        border-radius:12px;padding:14px;transition:border-color .15s ease,box-shadow .15s ease}
+      .af-fcard:hover{border-color:rgba(219,255,90,.5);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+      .af-fcard__av{position:relative;width:48px;height:48px;border-radius:50%;flex:none;display:flex;
+        align-items:center;justify-content:center;font-size:17px;font-weight:700;color:var(--primary-light);
+        background:rgba(219,255,90,.2)}
+      .af-fcard__body{min-width:0;flex:1}
+      .af-acard__rank{position:absolute;bottom:-4px;right:-4px;min-width:20px;height:20px;padding:0 4px;
+        border-radius:999px;background:var(--primary);color:var(--on-primary);font-family:var(--font-numeric);
+        font-weight:700;font-size:11px;display:flex;align-items:center;justify-content:center;
+        box-shadow:0 0 0 2px var(--card)}
+
       /* page title (hub/root) */
       .af-ptitle{font-size:24px;font-weight:700;margin:0 0 4px}
       .af-lead{color:var(--muted);font-size:15px;margin:0 0 20px}

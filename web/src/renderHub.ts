@@ -62,6 +62,25 @@ function athleteCard(a: PublicAthlete): string {
       </a>`;
 }
 
+/** A featured athlete on the root page: sport-led meta + optional public rank. */
+export type FeaturedAthlete = PublicAthlete & { rank: number | null };
+
+function featuredCard(a: FeaturedAthlete): string {
+  const initial = esc((a.name || '?').charAt(0).toUpperCase());
+  const meta = [a.sport ? sportLabel(a.sport) : null, a.position, a.state]
+    .filter(Boolean).map((x) => esc(String(x))).join(' · ');
+  const rankBadge = a.rank != null
+    ? `<span class="af-acard__rank">#${esc(String(a.rank))}</span>`
+    : '';
+  return `<a class="af-fcard" href="/athletes/${esc(a.slug)}">
+        <span class="af-fcard__av">${initial}${rankBadge}</span>
+        <span class="af-fcard__body">
+          <span class="af-acard__name">${esc(a.name)}${a.verified ? verifiedTick(15) : ''}</span>
+          ${meta ? `<span class="af-acard__meta">${meta}</span>` : ''}
+        </span>
+      </a>`;
+}
+
 function itemListLd(athletes: PublicAthlete[]): object {
   return {
     '@type': 'ItemList',
@@ -84,26 +103,42 @@ function breadcrumbLd(trail: Array<{ name: string; item: string }>): object {
   };
 }
 
-/** /athletes — index of sports that have eligible athletes. */
-export function renderAthletesRoot(sports: Array<{ sport: string; n: number }>): string {
+/** /athletes — index of sports, PLUS a preview of real (eligible) athletes so
+ *  the page reads as a live directory rather than three chips and a button. */
+export function renderAthletesRoot(
+  sports: Array<{ sport: string; n: number }>,
+  featured: FeaturedAthlete[] = [],
+): string {
   const canonical = `${SITE_URL}/athletes`;
   const title = `Athletes | ${SITE_NAME}`;
   const desc = `Discover athletes on All For 1 by sport — verified profiles, positions, teams, and achievements.`;
+  const total = sports.reduce((sum, s) => sum + s.n, 0);
   const links = sports
-    .map((s) => `<a class="af-chip" href="/athletes/${sportSlug(s.sport)}">${esc(sportLabel(s.sport))} · ${s.n}</a>`)
+    .map((s) => `<a class="af-chip" href="/athletes/${sportSlug(s.sport)}">${esc(sportLabel(s.sport))} <span class="af-chip__n">${s.n}</span></a>`)
     .join('');
   const main = `
       <nav aria-label="Breadcrumb"><a href="/">All For 1</a> › Athletes</nav>
       <h1 class="af-ptitle">Athletes</h1>
       <p class="af-lead">Discover verified athletes on All For 1 by sport — profiles, positions, teams, and achievements.</p>
       ${sports.length ? `<div class="af-chips">${links}</div>` : `<p class="af-note">No public athletes yet.</p>`}
+      ${featured.length ? `
+      <section class="af-section">
+        <div class="af-section__head">
+          <h2 class="af-h2">Featured athletes</h2>
+          ${total > featured.length ? `<span class="af-section__count">${total} on All For 1</span>` : ''}
+        </div>
+        <div class="af-fgrid">${featured.map(featuredCard).join('')}</div>
+      </section>` : ''}
       <p class="af-joinrow"><a class="af-btn af-btn--primary af-btn--lg" href="${SITE_URL}/register">Join All For 1</a></p>`;
   return htmlShell({
     title, desc, canonical, indexable: sports.length > 0,
-    ld: {
-      '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, url: canonical,
-      breadcrumb: breadcrumbLd([{ name: 'All For 1', item: `${SITE_URL}/` }, { name: 'Athletes', item: canonical }]),
-    },
+    ld: [
+      {
+        '@context': 'https://schema.org', '@type': 'CollectionPage', name: title, url: canonical,
+        breadcrumb: breadcrumbLd([{ name: 'All For 1', item: `${SITE_URL}/` }, { name: 'Athletes', item: canonical }]),
+      },
+      ...(featured.length ? [itemListLd(featured)] : []),
+    ],
     main,
   });
 }
