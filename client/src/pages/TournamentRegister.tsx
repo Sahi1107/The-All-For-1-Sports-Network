@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -23,20 +24,6 @@ function useDebounced<T>(value: T, delay = 250): T {
     return () => clearTimeout(t)
   }, [value, delay])
   return v
-}
-
-function Avatar({ user, size = 32 }: { user: { name?: string; avatar?: string }; size?: number }) {
-  if (user.avatar) {
-    return <img src={user.avatar} alt={user.name ?? ''} style={{ width: size, height: size }} className="rounded-full object-cover" />
-  }
-  return (
-    <div
-      style={{ width: size, height: size }}
-      className="rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light text-xs shrink-0"
-    >
-      {user.name?.charAt(0).toUpperCase() ?? '?'}
-    </div>
-  )
 }
 
 export default function TournamentRegister() {
@@ -321,7 +308,7 @@ export default function TournamentRegister() {
 
           {isCoachUser ? (
             <div className="flex items-center gap-3 px-3 py-2.5 bg-surface rounded-lg">
-              <Avatar user={user!} size={32} />
+              <Avatar name={user!.name} src={user!.avatar} size={32} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{user!.name} (you)</p>
                 <p className="text-xs text-gray-custom">Registering as coach</p>
@@ -329,7 +316,7 @@ export default function TournamentRegister() {
             </div>
           ) : coachId && coachCache ? (
             <div className="flex items-center gap-3 px-3 py-2.5 bg-surface rounded-lg">
-              <Avatar user={coachCache} size={32} />
+              <Avatar name={coachCache.name} src={coachCache.avatar} size={32} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{coachCache.name}</p>
                 {coachCache.position && <p className="text-xs text-gray-custom">{coachCache.position}</p>}
@@ -363,7 +350,7 @@ export default function TournamentRegister() {
                         onClick={() => pickCoach(u)}
                         className="w-full flex items-center gap-3 px-3 py-2 bg-surface hover:bg-elevated text-left transition-colors"
                       >
-                        <Avatar user={u} size={28} />
+                        <Avatar name={u.name} src={u.avatar} size={28} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{u.name}</p>
                           <p className="text-xs text-gray-custom truncate">{u.sport ?? ''}</p>
@@ -407,7 +394,7 @@ export default function TournamentRegister() {
               disabled={atCap}
               className="w-full flex items-center gap-3 px-3 py-2 mb-3 bg-surface hover:bg-elevated disabled:opacity-40 disabled:cursor-not-allowed rounded-lg border border-dashed border-line transition-colors"
             >
-              <Avatar user={user} size={28} />
+              <Avatar name={user.name} src={user.avatar} size={28} />
               <span className="text-sm">Add me as a player</span>
             </button>
           )}
@@ -445,7 +432,7 @@ export default function TournamentRegister() {
                         onClick={() => addPlayer(u)}
                         className="w-full flex items-center gap-3 px-3 py-2 bg-surface hover:bg-elevated text-left transition-colors"
                       >
-                        <Avatar user={u} size={28} />
+                        <Avatar name={u.name} src={u.avatar} size={28} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{u.name}</p>
                           <p className="text-xs text-gray-custom truncate">
@@ -465,7 +452,7 @@ export default function TournamentRegister() {
             <div className="mt-4 space-y-2">
               {selectedPlayers.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 px-3 py-2 bg-surface rounded-lg">
-                  <Avatar user={p} size={28} />
+                  <Avatar name={p.name} src={p.avatar} size={28} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
                       {p.name}{p.id === user?.id ? ' (you)' : ''}

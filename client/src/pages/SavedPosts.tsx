@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -56,13 +57,7 @@ export default function SavedPosts() {
               {/* User header */}
               <div className="p-4 flex items-center gap-3">
                 <Link to={`/profile/${item.user?.id}`}>
-                  {item.user?.avatar ? (
-                    <img src={item.user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light">
-                      {item.user?.name?.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <Avatar name={item.user?.name} src={item.user?.avatar} size={40} />
                 </Link>
                 <div className="flex-1">
                   <Link

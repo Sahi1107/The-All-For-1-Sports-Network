@@ -4,6 +4,7 @@ import { useLogo } from '../hooks/useLogo';
 import api from '../api/client';
 import { setRefCode } from '../config/referral';
 import { track } from '../config/analytics';
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 
 interface Resolved {
@@ -60,9 +61,7 @@ export default function JoinInvite() {
         {state === 'ok' && data && (
           <div className="bg-card rounded-2xl p-8 border border-line text-center">
             <div className="flex flex-col items-center mb-5">
-              {data.inviter.avatar
-                ? <img src={data.inviter.avatar} alt={data.inviter.name} className="w-20 h-20 rounded-full object-cover border-2 border-primary/40" />
-                : <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center text-2xl font-bold text-primary-light">{data.inviter.name?.charAt(0).toUpperCase()}</div>}
+              <Avatar name={data.inviter.name} src={data.inviter.avatar} size={80} />
             </div>
             <h1 className="text-2xl font-bold leading-tight mb-1">
               {data.inviter.name} invited you

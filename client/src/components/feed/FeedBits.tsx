@@ -124,11 +124,19 @@ export function PerformanceCard({
             {statLabel}
           </span>
         </div>
-        {ratingDelta && (
-          <span className="shrink-0 inline-flex items-center font-numeric font-semibold tabular-nums text-xs px-2.5 py-1 rounded-full bg-green-500/15 text-green-500">
-            {ratingDelta}
-          </span>
-        )}
+        {ratingDelta && (() => {
+          // The sign IS the meaning: always render +/− and a direction marker.
+          const n = parseFloat(String(ratingDelta));
+          const known = !Number.isNaN(n);
+          const neg = known && n < 0;
+          const label = known ? `${neg ? '−' : '+'}${Math.abs(n)}` : String(ratingDelta);
+          return (
+            <span className={`shrink-0 inline-flex items-center gap-1 font-numeric font-semibold tabular-nums text-xs px-2.5 py-1 rounded-full ${neg ? 'bg-red-500/15 text-red-400' : 'bg-green-500/15 text-green-500'}`}>
+              {label}
+              <span aria-hidden className="text-[9px] leading-none">{neg ? '▼' : '▲'}</span>
+            </span>
+          );
+        })()}
       </div>
       {context && (
         <p className="text-xs text-gray-custom mt-2 truncate">{context}</p>

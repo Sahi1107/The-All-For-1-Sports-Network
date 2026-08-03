@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState, useRef } from 'react';
 import { Navigate, Link } from 'react-router-dom';
@@ -225,9 +226,7 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
               {team.members.map((m: any) => (
                 <div key={m.id} className="flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2 min-w-0">
-                    {m.user.avatar
-                      ? <img src={m.user.avatar} alt={m.user.name} className="w-5 h-5 rounded-full object-cover" />
-                      : <div className="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">{m.user.name?.charAt(0).toUpperCase()}</div>}
+                    <Avatar name={m.user.name} src={m.user.avatar} size={20} />
                     <span className="truncate">{m.user.name}</span>
                     <span className="text-gray-custom shrink-0">· {m.role.toLowerCase()}</span>
                   </div>
@@ -687,11 +686,7 @@ export default function AdminDashboard() {
                   <div key={u.id} className="grid grid-cols-12 gap-2 px-5 py-3 items-center hover:bg-surface/20 transition-colors">
                     {/* User */}
                     <div className="col-span-4 flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-elevated flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
-                        {u.avatar
-                          ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                          : u.name?.charAt(0)}
-                      </div>
+                      <Avatar name={u.name} src={u.avatar} size={32} />
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{u.name}</p>
                         <p className="text-xs text-gray-custom truncate">{u.email}</p>
@@ -1858,11 +1853,7 @@ export default function AdminDashboard() {
 
 /** Small round avatar with an initial fallback — used in the captain picker. */
 function CaptainAvatar({ name, avatar }: { name: string; avatar: string | null }) {
-  return (
-    <div className="w-8 h-8 rounded-full bg-elevated flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
-      {avatar ? <img src={avatar} alt={name} className="w-full h-full object-cover" /> : name?.charAt(0)}
-    </div>
-  );
+  return <Avatar name={name} src={avatar} size={32} />;
 }
 
 // ─── Step 4: compose + member management ─────────────────────────────────────

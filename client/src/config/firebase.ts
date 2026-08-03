@@ -5,6 +5,7 @@ import {
   inMemoryPersistence,
   browserPopupRedirectResolver,
   initializeAuth,
+  connectAuthEmulator,
   GoogleAuthProvider,
 } from 'firebase/auth';
 
@@ -43,6 +44,14 @@ export const auth = initializeAuth(app, {
     inMemoryPersistence,
   ],
 });
+
+// Local dev: .env.local points at the Firebase Auth EMULATOR (demo project, no
+// real creds). Wire it up when the var is present — it is never set in prod
+// builds, so this is dead code outside local dev.
+const emulatorHost = import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_HOST as string | undefined;
+if (emulatorHost) {
+  connectAuthEmulator(auth, `http://${emulatorHost}`, { disableWarnings: true });
+}
 
 // The popup/redirect resolver, supplied per sign-in call (see note above).
 export const authResolver = browserPopupRedirectResolver;

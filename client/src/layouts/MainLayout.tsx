@@ -8,6 +8,7 @@ import {
   Bell, MessageSquare, Settings, LogOut, Megaphone, Shield, Plus, X, Menu, Zap, UserPlus,
 } from 'lucide-react';
 import { useLogo } from '../hooks/useLogo';
+import Avatar from '../components/Avatar';
 import CreatePostModal from '../components/CreatePostModal';
 import GlobalSearchOverlay from '../components/GlobalSearchOverlay';
 import ProductTour from '../components/ProductTour';
@@ -175,12 +176,7 @@ export default function MainLayout() {
           <Link to={`/profile/${user?.id}`} title="Profile"
             className="relative w-11 h-11 rounded-2xl flex items-center justify-center hover:bg-ink/10 transition-colors"
           >
-            {user?.avatar
-              ? <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
-              : <div className="w-8 h-8 rounded-full bg-ink/10 border border-ink/20 flex items-center justify-center text-sm font-bold text-primary">
-                  {user?.name?.charAt(0).toUpperCase()}
-                </div>
-            }
+            <Avatar name={user?.name} src={user?.avatar} size={32} />
             {profileIncomplete && (
               <span className="absolute top-0.5 right-0.5 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">!</span>
             )}
@@ -252,12 +248,7 @@ export default function MainLayout() {
               className="flex items-center gap-3 px-5 py-4 border-b border-ink/10 hover:bg-ink/5 transition-colors"
             >
               <span className="relative shrink-0">
-                {user?.avatar
-                  ? <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                  : <div className="w-10 h-10 rounded-full bg-ink/10 border border-ink/20 flex items-center justify-center font-bold text-primary">
-                      {user?.name?.charAt(0).toUpperCase()}
-                    </div>
-                }
+                <Avatar name={user?.name} src={user?.avatar} size={40} />
                 {profileIncomplete && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-surface">!</span>
                 )}
@@ -318,8 +309,8 @@ export default function MainLayout() {
             >
               <span className="w-8 h-8 bg-amber-400 text-black rounded-full flex items-center justify-center text-sm font-bold shrink-0 shadow-sm">!</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-amber-100">Complete your profile</p>
-                <p className="text-xs text-amber-100/80 mt-0.5">
+                <p className="text-sm font-semibold warn-title">Complete your profile</p>
+                <p className="text-xs warn-text mt-0.5">
                   Add {missingText} to get verified and be discovered.
                 </p>
               </div>
@@ -364,12 +355,7 @@ export default function MainLayout() {
               <span className="relative">
                 {Icon
                   ? <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
-                  : (user?.avatar
-                      ? <img src={user.avatar} className={`w-6 h-6 rounded-full object-cover ${active ? 'ring-2 ring-primary' : ''}`} />
-                      : <div className={`w-6 h-6 rounded-full bg-ink/10 flex items-center justify-center text-xs font-bold ${active ? 'ring-2 ring-primary text-primary' : 'text-gray-custom'}`}>
-                          {user?.name?.charAt(0).toUpperCase()}
-                        </div>
-                    )
+                  : <Avatar name={user?.name} src={user?.avatar} size={24} className={active ? 'ring-2 ring-primary' : ''} />
                 }
                 {hasBadge && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface" />}
                 {!Icon && profileIncomplete && (

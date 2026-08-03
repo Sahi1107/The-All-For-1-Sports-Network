@@ -48,8 +48,18 @@ export default function ProductTour() {
   useEffect(() => {
     if (!user) return;
     if (localStorage.getItem(tourKey(user.id))) return;
+    // Staff run the platform — they never need the member onboarding tour.
+    if (user.role === 'ADMIN' || user.role === 'ORGANIZER') {
+      try { localStorage.setItem(tourKey(user.id), '1'); } catch { /* private mode */ }
+      return;
+    }
     const fresh = !user.createdAt || Date.now() - new Date(user.createdAt).getTime() < MAX_ACCOUNT_AGE_DAYS * 86_400_000;
-    if (fresh) { setStep(0); setShow(true); track('tour_started', { role: user.role }); }
+    if (fresh) {
+      setStep(0); setShow(true); track('tour_started', { role: user.role });
+      // Mark seen the moment it's SHOWN, not only on dismissal — an ignored tour
+      // must not re-open on every reload and follow the user page to page.
+      try { localStorage.setItem(tourKey(user.id), '1'); } catch { /* private mode */ }
+    }
     else { try { localStorage.setItem(tourKey(user.id), '1'); } catch { /* private mode */ } } // silently mark old accounts
   }, [user]);
 

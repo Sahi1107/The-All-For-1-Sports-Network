@@ -1,11 +1,13 @@
+import Avatar, { TeamCrest, TournamentMark } from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useEffect, useState } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, MapPin, Users, Shield, Trophy, Calendar } from 'lucide-react';
+import { Search, MapPin, Users, Shield, Trophy, Calendar, ChevronDown } from 'lucide-react';
 import api from '../api/client';
 import { VerifiedTick } from '../components/feed/FeedBits';
 import PullToRefresh from '../components/PullToRefresh';
+import EmptyState from '../components/EmptyState';
 import { useDebounce } from '../hooks/useDebounce';
 import { SPORTS as ALL_SPORTS } from '../data/sports';
 
@@ -121,17 +123,25 @@ export default function Explore() {
             ))}
           </div>
         )}
-        <select value={sport} onChange={(e) => setSport(e.target.value)}
-          className={`px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${sport === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
-          {SPORTS.map((s) => <option key={s.value} value={s.value} className="bg-card text-foreground">{s.emoji ? `${s.emoji} ${s.label}` : s.label}</option>)}
-        </select>
-        {tab === 'tournaments' && (
-          <select value={status} onChange={(e) => setStatus(e.target.value)}
-            className={`px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${status === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
-            {['ALL', 'UPCOMING', 'REGISTRATION_OPEN', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
-              <option key={s} value={s} className="bg-card text-foreground">{s === 'ALL' ? 'Any status' : cap(s.replace(/_/g, ' '))}</option>
-            ))}
+        {/* Styled selects: appearance-none + our own chevron, so the native OS
+            dropdown chrome never clashes with the pill system. */}
+        <span className="relative inline-flex">
+          <select value={sport} onChange={(e) => setSport(e.target.value)}
+            className={`appearance-none px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${sport === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
+            {SPORTS.map((s) => <option key={s.value} value={s.value} className="bg-card text-foreground">{s.emoji ? `${s.emoji} ${s.label}` : s.label}</option>)}
           </select>
+          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-custom" />
+        </span>
+        {tab === 'tournaments' && (
+          <span className="relative inline-flex">
+            <select value={status} onChange={(e) => setStatus(e.target.value)}
+              className={`appearance-none px-3 py-1.5 pr-8 text-sm rounded-full border border-line focus:outline-none focus:border-primary cursor-pointer ${status === 'ALL' ? 'bg-elevated text-foreground' : 'bg-secondary text-white'}`}>
+              {['ALL', 'UPCOMING', 'REGISTRATION_OPEN', 'IN_PROGRESS', 'COMPLETED'].map((s) => (
+                <option key={s} value={s} className="bg-card text-foreground">{s === 'ALL' ? 'Any status' : cap(s.replace(/_/g, ' '))}</option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-custom" />
+          </span>
         )}
       </div>
 
@@ -166,12 +176,13 @@ export default function Explore() {
 }
 
 // ── Empty state ──────────────────────────────────────────────────────────────
-function Empty({ icon: Icon, kind, query }: { icon: typeof Users; kind: string; query: string }) {
+function Empty({ icon, kind, query }: { icon: typeof Users; kind: string; query: string }) {
   return (
-    <div className="text-center py-14 text-gray-custom">
-      <Icon size={26} className="mx-auto mb-2 opacity-70" />
-      <p className="text-sm">{query ? `No ${kind} match "${query}"` : `No ${kind} yet`}</p>
-    </div>
+    <EmptyState
+      icon={icon}
+      title={query ? `No ${kind} match “${query}”` : `No ${kind} yet`}
+      hint={query ? 'Try a different name or spelling.' : `New ${kind} appear here as they join.`}
+    />
   );
 }
 
@@ -184,9 +195,7 @@ function PeopleGrid({ users, query }: { users: any[]; query: string }) {
       {users.map((u) => (
         <Link key={u.id} to={`/profile/${u.id}`} className="bg-card border border-line rounded-xl p-4 hover:border-primary/50 transition-colors">
           <div className="flex items-center gap-4">
-            {u.avatar
-              ? <img src={u.avatar} alt="" className="w-14 h-14 rounded-full object-cover shrink-0" />
-              : <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold text-primary shrink-0">{u.name?.charAt(0).toUpperCase()}</div>}
+            <Avatar name={u.name} src={u.avatar} size={56} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
                 <h3 className="font-semibold truncate">{u.name}</h3>
@@ -196,10 +205,13 @@ function PeopleGrid({ users, query }: { users: any[]; query: string }) {
               {u.location && <p className="text-xs text-gray-custom flex items-center gap-1 mt-1"><MapPin size={12} /> {u.location}</p>}
               {u.mutualCount > 0 && <p className="text-xs text-primary mt-1">{u.mutualCount} mutual connection{u.mutualCount === 1 ? '' : 's'}</p>}
             </div>
-            <div className="text-right text-xs text-gray-custom shrink-0">
-              <p>{u._count?.followers || 0} followers</p>
-              <p>{u._count?.highlights || 0} highlights</p>
-            </div>
+            {/* Zero-counts advertise emptiness — only show what's earned. */}
+            {((u._count?.followers ?? 0) > 0 || (u._count?.highlights ?? 0) > 0) && (
+              <div className="text-right text-xs text-gray-custom shrink-0">
+                {(u._count?.followers ?? 0) > 0 && <p>{u._count.followers} follower{u._count.followers === 1 ? '' : 's'}</p>}
+                {(u._count?.highlights ?? 0) > 0 && <p>{u._count.highlights} highlight{u._count.highlights === 1 ? '' : 's'}</p>}
+              </div>
+            )}
           </div>
         </Link>
       ))}
@@ -216,9 +228,7 @@ function TeamsGrid({ teams, query }: { teams: any[]; query: string }) {
       {teams.map((t) => (
         <Link key={t.id} to={`/teams/${t.id}`} className="bg-card border border-line rounded-xl p-4 hover:border-primary/50 transition-colors">
           <div className="flex items-center gap-4">
-            {t.logo
-              ? <img src={t.logo} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
-              : <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center text-lg font-bold text-primary shrink-0">{t.name?.charAt(0).toUpperCase()}</div>}
+            <TeamCrest name={t.name} src={t.logo} size={56} />
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold truncate">{t.name}</h3>
               <p className="text-sm text-gray-custom capitalize">{cap(t.sport)}</p>
@@ -244,9 +254,7 @@ function TournamentsGrid({ tournaments, query }: { tournaments: any[]; query: st
       {tournaments.map((t) => (
         <Link key={t.id} to={`/tournaments/${t.id}`} className="bg-card border border-line rounded-xl p-4 hover:border-primary/50 transition-colors">
           <div className="flex items-center gap-4">
-            {t.thumbnailUrl
-              ? <img src={t.thumbnailUrl} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
-              : <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center text-lg font-bold text-primary shrink-0">{t.name?.charAt(0).toUpperCase()}</div>}
+            <TournamentMark name={t.name} src={t.thumbnailUrl} size={56} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="font-semibold truncate">{t.name}</h3>

@@ -1,3 +1,4 @@
+import Avatar from './Avatar';
 import BallLoader from './BallLoader';
 import { useState, useEffect } from 'react';
 import { X, Search } from 'lucide-react';
@@ -104,15 +105,7 @@ export default function SharePostModal({ postId, onClose }: Props) {
                     className="flex items-center gap-3 p-2.5 rounded-xl"
                   >
                     {/* Avatar */}
-                    <div className="w-11 h-11 rounded-full overflow-hidden shrink-0 ring-2 ring-ink/10">
-                      {u.avatar ? (
-                        <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary-light">
-                          {u.name?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
+                    <Avatar name={u.name} src={u.avatar} size={44} />
 
                     {/* Name + role */}
                     <div className="flex-1 min-w-0">

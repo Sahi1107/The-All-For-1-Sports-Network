@@ -1,3 +1,4 @@
+import Avatar from './Avatar';
 import BallLoader from './BallLoader';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -56,13 +57,7 @@ function CommentItem({
     <div className={depth > 0 ? 'ml-6 border-l border-ink/5 pl-3' : ''}>
       <div className="flex items-start gap-2 group">
         <Link to={`/profile/${c.user.id}`} className="shrink-0">
-          {c.user.avatar ? (
-            <img src={c.user.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
-          ) : (
-            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light">
-              {c.user.name?.charAt(0).toUpperCase()}
-            </div>
-          )}
+          <Avatar name={c.user.name} src={c.user.avatar} size={24} />
         </Link>
         <div className="flex-1 min-w-0">
           <div className="bg-ink/5 rounded-lg px-2.5 py-1.5">
@@ -299,17 +294,19 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
   return (
     <>
       <div>
-        {/* Action bar */}
+        {/* Action bar — icons big enough to hit, counts always present (a quiet 0
+            beats a bare icon), action-tinted hovers and a small press-scale so the
+            bar feels alive rather than static. */}
         <div className="flex items-center gap-5 px-4 pb-3 pt-1">
-          <div className={`flex items-center gap-1.5 text-sm ${liked ? 'text-red-400' : 'text-foreground/40'}`}>
+          <div className={`flex items-center gap-1.5 text-sm font-numeric tabular-nums ${liked ? 'text-red-400' : 'text-foreground/60'}`}>
             <button
               onClick={() => likeMutation.mutate()}
-              className={`transition-colors ${liked ? '' : 'hover:text-foreground/70'}`}
+              className={`transition-all active:scale-90 ${liked ? '' : 'hover:text-red-400'}`}
               aria-label={liked ? 'Unlike post' : 'Like post'}
             >
-              <Heart size={16} fill={liked ? 'currentColor' : 'none'} />
+              <Heart size={18} fill={liked ? 'currentColor' : 'none'} />
             </button>
-            {likeCount > 0 && (
+            {likeCount > 0 ? (
               <button
                 onClick={() => setShowLikes(true)}
                 className="hover:underline transition-colors"
@@ -317,50 +314,52 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
               >
                 {likeCount}
               </button>
+            ) : (
+              <span className="text-foreground/30">0</span>
             )}
           </div>
           {!commentsDisabled && (
             <button
               onClick={toggleComments}
-              className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-foreground/70 transition-colors"
+              className="flex items-center gap-1.5 text-sm font-numeric tabular-nums text-foreground/60 hover:text-sky-400 transition-all active:scale-95"
             >
-              <MessageCircle size={16} />
-              {commentCount > 0 && <span>{commentCount}</span>}
+              <MessageCircle size={18} />
+              <span className={commentCount > 0 ? '' : 'text-foreground/30'}>{commentCount}</span>
             </button>
           )}
           {commentsDisabled && (
             <span className="flex items-center gap-1.5 text-sm text-foreground/20 cursor-default" title="Comments disabled">
-              <MessageCircle size={16} />
+              <MessageCircle size={18} />
             </span>
           )}
           <button
             onClick={() => repostMutation.mutate()}
-            className={`flex items-center gap-1.5 text-sm transition-colors ${reposted ? 'text-green-400' : 'text-foreground/40 hover:text-foreground/70'}`}
+            className={`flex items-center gap-1.5 text-sm font-numeric tabular-nums transition-all active:scale-95 ${reposted ? 'text-green-400' : 'text-foreground/60 hover:text-green-400'}`}
           >
-            <Repeat2 size={16} />
-            {repostCount > 0 && <span>{repostCount}</span>}
+            <Repeat2 size={18} />
+            <span className={repostCount > 0 ? '' : 'text-foreground/30'}>{repostCount}</span>
           </button>
           <div className="ml-auto flex items-center gap-3">
             <button
               onClick={() => setShowShare(true)}
-              className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-primary transition-colors"
+              className="flex items-center gap-1.5 text-sm text-foreground/60 hover:text-primary transition-all active:scale-95"
               title="Send in message"
             >
-              <CornerUpRight size={16} />
+              <CornerUpRight size={18} />
             </button>
             <button
               onClick={() => saveMutation.mutate()}
-              className={`flex items-center gap-1.5 text-sm transition-colors ${saved ? 'text-yellow-400' : 'text-foreground/40 hover:text-foreground/70'}`}
+              className={`flex items-center gap-1.5 text-sm transition-all active:scale-95 ${saved ? 'text-yellow-400' : 'text-foreground/60 hover:text-yellow-400'}`}
             >
-              <Bookmark size={16} fill={saved ? 'currentColor' : 'none'} />
+              <Bookmark size={18} fill={saved ? 'currentColor' : 'none'} />
             </button>
             {post.user?.id !== user?.id && (
               <button
                 onClick={() => setShowReportPost(true)}
-                className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-red-400 transition-colors"
+                className="flex items-center gap-1.5 text-sm text-foreground/40 hover:text-red-400 transition-all active:scale-95"
                 title="Report post"
               >
-                <Flag size={16} />
+                <Flag size={18} />
               </button>
             )}
           </div>
@@ -403,13 +402,7 @@ export default function PostActions({ post, invalidateKeys = [], defaultExpanded
 
             {/* Comment input */}
             <div className="flex items-center gap-2 mt-2">
-              {user?.avatar ? (
-                <img src={user.avatar} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary-light shrink-0">
-                  {user?.name?.charAt(0).toUpperCase()}
-                </div>
-              )}
+              <Avatar name={user?.name} src={user?.avatar} size={24} />
               <input
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}

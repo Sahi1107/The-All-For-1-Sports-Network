@@ -4,6 +4,7 @@ import { track } from '../config/analytics';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
+import { TeamCrest } from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import ShareButton from '../components/ShareButton';
 import TournamentTeams from '../features/tournaments/TournamentTeams';
@@ -177,9 +178,7 @@ function AboutPanel({ t, teams, myTeams, acceptsTeamRegistration, navigate, onOp
         <div key={team.id} className="bg-card rounded-xl border border-primary/30 p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              {team.logo
-                ? <img src={team.logo} alt={team.name} className="w-10 h-10 rounded-lg object-cover shrink-0" />
-                : <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center font-bold text-primary-light shrink-0">{team.name?.charAt(0).toUpperCase()}</div>}
+              <TeamCrest name={team.name} src={team.logo} size={40} />
               <div className="min-w-0">
                 <p className="text-sm font-semibold truncate">{team.name}</p>
                 <p className="text-xs text-gray-custom">
@@ -222,9 +221,7 @@ function AboutPanel({ t, teams, myTeams, acceptsTeamRegistration, navigate, onOp
                 className="flex items-center gap-3 py-2 px-3 bg-surface rounded-lg border border-line text-left w-full cursor-pointer hover:border-primary/50 hover:bg-elevated active:bg-elevated transition-colors"
                 title={`View ${r.team?.name} roster`}
               >
-                {r.team?.logo
-                  ? <img src={r.team.logo} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
-                  : <div className="w-7 h-7 rounded-md bg-elevated flex items-center justify-center text-xs font-bold text-gray-custom shrink-0">{r.team?.name?.charAt(0).toUpperCase()}</div>}
+                <TeamCrest name={r.team?.name} src={r.team?.logo} size={28} />
                 <span className="text-sm truncate">{r.team?.name}</span>
                 <span className="text-xs text-gray-custom ml-auto shrink-0 flex items-center gap-1">{r.team?._count?.members ?? 0} players <ChevronRight size={13} /></span>
               </button>

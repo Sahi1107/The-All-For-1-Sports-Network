@@ -1,3 +1,4 @@
+import AvatarMark from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +15,7 @@ import {
 import toast from 'react-hot-toast';
 import ReportModal from '../components/ReportModal';
 import { VerifiedTick } from '../components/feed/FeedBits';
+import EmptyState from '../components/EmptyState';
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -97,14 +99,7 @@ function Avatar({ user, size = 10, online }: { user: any; size?: number; online?
   const px = size * 4;
   return (
     <div className="relative shrink-0" style={{ width: px, height: px }}>
-      <div
-        className="rounded-full bg-elevated flex items-center justify-center font-bold overflow-hidden"
-        style={{ width: px, height: px }}
-      >
-        {user?.avatar
-          ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-          : <span className="text-sm">{user?.name?.charAt(0)}</span>}
-      </div>
+      <AvatarMark name={user?.name} src={user?.avatar} size={px} />
       {online === true && (
         <span
           className="absolute bottom-0 right-0 block rounded-full bg-emerald-400 ring-2 ring-line"
@@ -130,11 +125,7 @@ function SharedPostCard({ post }: { post: any }) {
       )}
       <div className="p-2.5">
         <div className="flex items-center gap-2 mb-1">
-          <div className="w-5 h-5 rounded-full bg-elevated overflow-hidden shrink-0">
-            {post.user?.avatar
-              ? <img src={post.user.avatar} alt="" className="w-full h-full object-cover" />
-              : <span className="text-[9px] font-bold flex items-center justify-center w-full h-full text-foreground">{post.user?.name?.charAt(0)}</span>}
-          </div>
+          <AvatarMark name={post.user?.name} src={post.user?.avatar} size={20} />
           <span className="text-xs font-medium truncate text-foreground">{post.user?.name}</span>
         </div>
         {post.title && <p className="text-xs font-semibold truncate text-foreground">{post.title}</p>}
@@ -160,11 +151,7 @@ function SharedProfileCard({ profile }: { profile: any }) {
       onClick={(e) => e.stopPropagation()}
     >
       <div className="p-2.5 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-elevated overflow-hidden shrink-0">
-          {profile.avatar
-            ? <img src={profile.avatar} alt="" className="w-full h-full object-cover" />
-            : <span className="text-sm font-bold flex items-center justify-center w-full h-full text-foreground">{profile.name?.charAt(0)}</span>}
-        </div>
+        <AvatarMark name={profile.name} src={profile.avatar} size={40} />
         <div className="min-w-0">
           <p className="text-xs font-semibold truncate text-foreground">{profile.name}</p>
           {meta && <p className="text-[11px] text-foreground/60 truncate capitalize">{meta}</p>}
@@ -284,7 +271,7 @@ function ForwardModal({
               <BallLoader />
             </div>
           ) : convs.length === 0 ? (
-            <p className="text-sm text-gray-custom text-center py-6">No conversations</p>
+            <EmptyState compact icon={MessageCircle} title="No conversations" hint="Start one with the New button above." />
           ) : (
             convs.map((c: any) => {
               const other = c.members?.find((m: any) => m.userId !== user?.id)?.user;
@@ -822,13 +809,22 @@ export default function Messages() {
   const InboxList = (
     <div className="flex-1 overflow-y-auto px-2 pb-4">
       {!hasAnyVisible ? (
-        <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8 py-16">
-          <MessageCircle size={32} className="text-gray-custom" />
-          <p className="text-sm text-gray-custom">
-            {convSearch || roleFilter !== 'ALL'
-              ? 'No conversations match your filters.'
-              : `No ${showArchived ? 'archived ' : ''}conversations yet.`}
-          </p>
+        <div className="flex items-center justify-center h-full">
+          <EmptyState
+            icon={MessageCircle}
+            title={
+              convSearch || roleFilter !== 'ALL'
+                ? 'No conversations match your filters'
+                : `No ${showArchived ? 'archived ' : ''}conversations yet`
+            }
+            hint={convSearch || roleFilter !== 'ALL' ? 'Try clearing the search or filters.' : 'Reach out — connections and replies land here.'}
+            action={!showArchived && !convSearch && roleFilter === 'ALL' ? (
+              <button onClick={() => setShowNewConv(true)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors">
+                Start a conversation
+              </button>
+            ) : undefined}
+          />
         </div>
       ) : activeConvId ? (
         <div className="space-y-0.5 pt-2">

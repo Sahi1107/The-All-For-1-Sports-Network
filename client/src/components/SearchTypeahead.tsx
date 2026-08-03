@@ -5,6 +5,7 @@ import {
   Search, X, Clock, WifiOff, AlertCircle, Users, Shield, Trophy,
 } from 'lucide-react';
 import api from '../api/client';
+import Avatar, { TeamCrest, TournamentMark } from './Avatar';
 import { track } from '../config/analytics';
 import { VerifiedTick } from './feed/FeedBits';
 import { useDebounce } from '../hooks/useDebounce';
@@ -164,11 +165,13 @@ export default function SearchTypeahead({ className = '', autoFocus = false, onN
   const clearInput = () => { setQ(''); setActive(-1); inputRef.current?.focus(); };
   const clearRecents = () => { setRecents([]); saveRecents([]); };
 
-  // Avatar / crest / logo with monogram fallback.
-  const Thumb = ({ src, name, rounded }: { src?: string | null; name: string; rounded: string }) =>
-    src
-      ? <img src={src} alt="" className={`w-9 h-9 ${rounded} object-cover shrink-0`} />
-      : <div className={`w-9 h-9 ${rounded} bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0`}>{name.charAt(0).toUpperCase()}</div>;
+  // Avatar / crest / logo with monogram fallback — shape follows entity kind.
+  const Thumb = ({ src, name, kind }: { src?: string | null; name: string; kind: Kind }) =>
+    kind === 'athlete'
+      ? <Avatar name={name} src={src} size={36} />
+      : kind === 'team'
+        ? <TeamCrest name={name} src={src} size={36} />
+        : <TournamentMark name={name} src={src} size={36} />;
 
   const GroupHeader = ({ icon: Icon, label }: { icon: typeof Users; label: string }) => (
     <div className="flex items-center gap-1.5 px-3 pt-3 pb-1 text-[11px] font-display font-bold uppercase tracking-wider text-gray-custom">
@@ -248,7 +251,7 @@ export default function SearchTypeahead({ className = '', autoFocus = false, onN
                 <div className="pb-1">
                   {recents.map((r) => (
                     <Row key={`${r.kind}-${r.id}`} idx={-1}
-                      thumb={<Thumb src={r.avatar} name={r.label} rounded={r.kind === 'athlete' ? 'rounded-full' : 'rounded-lg'} />}
+                      thumb={<Thumb src={r.avatar} name={r.label} kind={r.kind} />}
                       title={r.label} sub={r.sub} verified={r.verified}
                       onSelect={() => go(r.to)} />
                   ))}
@@ -274,7 +277,7 @@ export default function SearchTypeahead({ className = '', autoFocus = false, onN
                     {athletes.map((a) => {
                       const idx = flat.findIndex((f) => f.kind === 'athlete' && f.id === a.id);
                       return <Row key={a.id} idx={idx}
-                        thumb={<Thumb src={a.avatar} name={a.name} rounded="rounded-full" />}
+                        thumb={<Thumb src={a.avatar} name={a.name} kind="athlete" />}
                         title={a.name} verified={a.verified}
                         sub={[cap(a.role), cap(a.sport ?? ''), a.position, a.state].filter(Boolean).join(' · ')}
                         onSelect={() => selectAthlete(a)} />;
@@ -287,7 +290,7 @@ export default function SearchTypeahead({ className = '', autoFocus = false, onN
                     {teams.map((t) => {
                       const idx = flat.findIndex((f) => f.kind === 'team' && f.id === t.id);
                       return <Row key={t.id} idx={idx}
-                        thumb={<Thumb src={t.logo} name={t.name} rounded="rounded-lg" />}
+                        thumb={<Thumb src={t.logo} name={t.name} kind="team" />}
                         title={t.name}
                         sub={[cap(t.sport ?? ''), t.tournament?.name].filter(Boolean).join(' · ')}
                         onSelect={() => selectTeam(t)} />;
@@ -300,7 +303,7 @@ export default function SearchTypeahead({ className = '', autoFocus = false, onN
                     {tournaments.map((t) => {
                       const idx = flat.findIndex((f) => f.kind === 'tournament' && f.id === t.id);
                       return <Row key={t.id} idx={idx}
-                        thumb={<Thumb src={t.thumbnailUrl} name={t.name} rounded="rounded-lg" />}
+                        thumb={<Thumb src={t.thumbnailUrl} name={t.name} kind="tournament" />}
                         title={t.name}
                         sub={[cap(t.sport ?? ''), t.city, dateRange(t.startDate, t.endDate)].filter(Boolean).join(' · ')}
                         onSelect={() => selectTournament(t)} />;

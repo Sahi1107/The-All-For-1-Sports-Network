@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { VerifiedTick } from '../components/feed/FeedBits';
 import { Link } from 'react-router-dom';
@@ -6,6 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { track } from '../config/analytics';
 import { Search, MapPin, User, Zap, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../api/client';
+import EmptyState from '../components/EmptyState';
 import toast from 'react-hot-toast';
 
 const SPORT_EMOJI: Record<string, string> = {
@@ -51,19 +53,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
       className="group flex items-start gap-4 p-4 bg-ink/5 hover:bg-ink/8 border border-ink/10 hover:border-primary/30 rounded-xl transition-all"
     >
       {/* Avatar */}
-      <div className="shrink-0">
-        {athlete.avatar ? (
-          <img
-            src={athlete.avatar}
-            alt={athlete.name}
-            className="w-12 h-12 rounded-full object-cover"
-          />
-        ) : (
-          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg font-bold text-primary-light">
-            {athlete.name?.charAt(0).toUpperCase()}
-          </div>
-        )}
-      </div>
+      <Avatar name={athlete.name} src={athlete.avatar} size={48} />
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -350,19 +340,19 @@ export default function Radar() {
 
           {/* Athlete list */}
           {mutation.data.results.length === 0 ? (
-            <div className="py-12 text-center">
-              <User size={32} className="text-foreground/10 mx-auto mb-3" />
-              <p className="text-foreground/40 text-sm">
-                {mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
-                  ? `No ${mutation.data.filters.sport.toLowerCase()} athletes on All For 1 yet.`
-                  : 'No athletes found.'}
-              </p>
-              <p className="text-foreground/25 text-xs mt-1">
-                {mutation.data.emptyReason === 'no-athletes-in-sport'
+            <EmptyState
+              icon={User}
+              title={
+                mutation.data.emptyReason === 'no-athletes-in-sport' && mutation.data.filters?.sport
+                  ? `No ${mutation.data.filters.sport.toLowerCase()} athletes on All For 1 yet`
+                  : 'No athletes found'
+              }
+              hint={
+                mutation.data.emptyReason === 'no-athletes-in-sport'
                   ? 'As more athletes join, they’ll appear here.'
-                  : 'Try broader criteria or a different location.'}
-              </p>
-            </div>
+                  : 'Try broader criteria or a different location.'
+              }
+            />
           ) : (
             <div className="space-y-2">
               {mutation.data.results.map((athlete: any) => (

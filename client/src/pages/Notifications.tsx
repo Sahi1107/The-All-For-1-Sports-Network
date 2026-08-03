@@ -1,3 +1,4 @@
+import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useEffect, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -5,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../api/client';
 import PullToRefresh from '../components/PullToRefresh';
+import EmptyState from '../components/EmptyState';
 import {
   Bell, Check, CheckCheck, UserPlus, Trophy, Megaphone, MessageCircle, Heart, Repeat2,
   MessageSquare as CommentIcon, Users, Award, Eye, BadgeCheck, TrendingUp, Clock,
@@ -166,9 +168,12 @@ export default function Notifications() {
       {isLoading ? (
         <div className="flex justify-center py-16"><BallLoader /></div>
       ) : allNotifs.length === 0 ? (
-        <div className="bg-card rounded-xl border border-line p-16 text-center">
-          <Bell size={32} className="mx-auto mb-3 text-gray-custom" />
-          <p className="text-gray-custom">No notifications yet.</p>
+        <div className="bg-card rounded-xl border border-line">
+          <EmptyState
+            icon={Bell}
+            title="No notifications yet"
+            hint="Follows, connection requests, ranking moves and match updates land here."
+          />
         </div>
       ) : (
         <div className="bg-card rounded-xl border border-line divide-y divide-line overflow-hidden">
@@ -181,9 +186,7 @@ export default function Notifications() {
               {/* Actor avatar (with a small count badge when collapsed) or a type icon */}
               {n.actor ? (
                 <Link to={`/profile/${n.actor.id}`} className="shrink-0 relative" onClick={(e) => e.stopPropagation()}>
-                  {n.actor.avatar
-                    ? <img src={n.actor.avatar} alt={n.actor.name} className="w-10 h-10 rounded-full object-cover" />
-                    : <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary-light text-sm">{n.actor.name?.charAt(0).toUpperCase()}</div>}
+                  <Avatar name={n.actor.name} src={n.actor.avatar} size={40} />
                   {n.count > 1 && <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-on-primary text-[10px] font-bold flex items-center justify-center border-2 border-card">{n.count > 9 ? '9+' : n.count}</span>}
                 </Link>
               ) : (

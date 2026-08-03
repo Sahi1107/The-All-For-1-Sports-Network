@@ -2,8 +2,9 @@ import BallLoader from '../components/BallLoader';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, MapPin, Clock, X } from 'lucide-react';
+import { Eye, MapPin, Clock, X, Search, Users } from 'lucide-react';
 import api from '../api/client';
+import Avatar from '../components/Avatar';
 import { useEffect, useRef, useState } from 'react';
 import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
@@ -13,6 +14,7 @@ import { SPORT_BACKDROP } from '../components/SportBackdrop';
 import { NameLine, PostMeta, PerformanceCard } from '../components/feed/FeedBits';
 import SearchTypeahead from '../components/SearchTypeahead';
 import PullToRefresh from '../components/PullToRefresh';
+import EmptyState from '../components/EmptyState';
 
 function timeAgo(date: string) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
@@ -187,26 +189,36 @@ export default function Home() {
           </div>
         ) : feedItems.length === 0 ? (
           allItems.length > 0 ? (
-            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center">
-              <p className="text-gray-custom text-lg">Nothing here yet</p>
-              <p className="text-sm text-gray-custom mt-2">No {filter} in your feed right now.</p>
-              <button
-                onClick={() => setFilter('all')}
-                className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
-              >
-                Show all
-              </button>
+            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl">
+              <EmptyState
+                icon={Search}
+                title={`No ${filter} in your feed right now`}
+                hint="They'll show up here as the people you follow post."
+                action={
+                  <button
+                    onClick={() => setFilter('all')}
+                    className="px-5 py-2 bg-primary hover:bg-primary-dark text-on-primary text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Show all
+                  </button>
+                }
+              />
             </div>
           ) : (
-            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl p-12 text-center shadow-xl">
-              <p className="text-gray-custom text-lg">Your feed is empty</p>
-              <p className="text-sm text-gray-custom mt-2">Follow athletes and coaches to see their posts here</p>
-              <Link
-                to="/explore"
-                className="inline-block mt-4 px-6 py-2 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors"
-              >
-                Explore Athletes
-              </Link>
+            <div className="bg-ink/5 backdrop-blur-md border border-ink/10 rounded-xl shadow-xl">
+              <EmptyState
+                icon={Users}
+                title="Your feed is empty"
+                hint="Follow athletes and coaches to see their posts here."
+                action={
+                  <Link
+                    to="/explore"
+                    className="inline-block px-5 py-2 bg-primary hover:bg-primary-dark text-on-primary text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Explore athletes
+                  </Link>
+                }
+              />
             </div>
           )
         ) : (
@@ -220,13 +232,7 @@ export default function Home() {
                   {/* User header — name + verification lead, one disciplined meta line */}
                   <div className="p-4 flex items-center gap-3">
                     <Link to={`/profile/${item.user?.id}`}>
-                      {item.user?.avatar ? (
-                        <img src={item.user.avatar} alt="" loading="lazy" decoding="async" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-display font-bold text-primary-light">
-                          {item.user?.name?.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <Avatar name={item.user?.name} src={item.user?.avatar} size={40} />
                     </Link>
                     <div className="flex-1 min-w-0">
                       <Link
@@ -298,7 +304,8 @@ export default function Home() {
                       </div>
                     )}
                     {item.title && <h3 className="font-display font-bold text-[15px] leading-snug">{item.title}</h3>}
-                    {(item.content || item.description) && (
+                    {/* A performance post's content duplicates the card — show one, not both. */}
+                    {(item.content || item.description) && !(item.kind === 'post' && item.type === 'PERFORMANCE' && item.performance) && (
                       <p className="text-sm text-foreground/80 mt-1 leading-relaxed">{item.content || item.description}</p>
                     )}
                     {item.tournament && (
