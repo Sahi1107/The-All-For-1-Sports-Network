@@ -2,7 +2,7 @@ import BallLoader from '../components/BallLoader';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Eye, MapPin, Clock, X, Search, Users } from 'lucide-react';
+import { Eye, MapPin, Clock, X, Search, Users, Plus } from 'lucide-react';
 import api from '../api/client';
 import Avatar from '../components/Avatar';
 import { useEffect, useRef, useState } from 'react';
@@ -12,6 +12,8 @@ import PostDetailModal from '../components/PostDetailModal';
 import { SPORTS } from '../data/sports';
 import { SPORT_BACKDROP } from '../components/SportBackdrop';
 import { NameLine, PostMeta, PerformanceCard } from '../components/feed/FeedBits';
+import FeedRail from '../components/feed/FeedRail';
+import CreatePostModal from '../components/CreatePostModal';
 import SearchTypeahead from '../components/SearchTypeahead';
 import PullToRefresh from '../components/PullToRefresh';
 import EmptyState from '../components/EmptyState';
@@ -55,6 +57,7 @@ export default function Home() {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [openPost, setOpenPost] = useState<any | null>(null);
   const [filter, setFilter] = useState<FilterValue>('all');
+  const [showCreate, setShowCreate] = useState(false);
 
   const {
     data,
@@ -122,7 +125,9 @@ export default function Home() {
         </div>
       )}
 
-      <div className="relative z-10">
+      <div className="relative z-10 lg:flex lg:gap-6 lg:justify-center">
+       {/* ── Main feed column ──────────────────────────────────── */}
+       <div className="w-full lg:max-w-2xl min-w-0">
         {/* ── Page header ─────────────────────────────────────── */}
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
           <div>
@@ -131,6 +136,18 @@ export default function Home() {
           </div>
           <SearchTypeahead className="lg:w-72 shrink-0" />
         </div>
+
+        {/* ── Composer prompt — turns a read-only feed into a place you post ── */}
+        <button
+          onClick={() => setShowCreate(true)}
+          className="w-full mb-5 flex items-center gap-3 bg-ink/5 hover:bg-ink/[0.08] border border-ink/10 hover:border-primary/30 rounded-xl px-4 py-3 text-left transition-colors"
+        >
+          <Avatar name={user?.name} src={user?.avatar} size={38} />
+          <span className="flex-1 text-sm text-foreground/40">Share a highlight, result or update…</span>
+          <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-on-primary text-xs font-semibold">
+            <Plus size={13} /> Post
+          </span>
+        </button>
 
         {/* ── Filter chips ────────────────────────────────────── */}
         <div className="flex items-center gap-2 mb-6 overflow-x-auto no-scrollbar">
@@ -330,6 +347,10 @@ export default function Home() {
             )}
           </div>
         )}
+       </div>{/* /main feed column */}
+
+        {/* ── Desktop right rail ─────────────────────────────── */}
+        <FeedRail />
       </div>
 
       {openPost && (
@@ -339,6 +360,7 @@ export default function Home() {
           invalidateKeys={[['feed']]}
         />
       )}
+      {showCreate && <CreatePostModal onClose={() => setShowCreate(false)} />}
     </div>
     </PullToRefresh>
   );
