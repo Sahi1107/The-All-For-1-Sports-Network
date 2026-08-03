@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { X, UserMinus, Plus } from 'lucide-react';
 import api from '../../../api/client';
 import type { TrackerSession } from '../types';
+import { unassignedTeamIds } from '../../tournaments/manageGate';
 
 interface G { id: string; name: string; teamIds: string[] }
 
@@ -26,8 +27,10 @@ export default function GroupEditor({ session, onClose }: { session: TrackerSess
     (session.groups ?? []).map((g) => ({ id: g.id, name: g.name, teamIds: [...g.teamIds] })),
   );
 
-  const assigned = new Set(groups.flatMap((g) => g.teamIds));
-  const unassigned = registered.filter((t) => !assigned.has(t.id));
+  // Registered teams not in any group — the late entries that must stay
+  // actionable (add to a group here, or reset the draw). One shared definition.
+  const unassignedIds = new Set(unassignedTeamIds(registered.map((t) => t.id), groups));
+  const unassigned = registered.filter((t) => unassignedIds.has(t.id));
 
   const rename = (gid: string, name: string) => setGroups((gs) => gs.map((g) => (g.id === gid ? { ...g, name } : g)));
   const moveTo = (teamId: string, toGid: string) =>

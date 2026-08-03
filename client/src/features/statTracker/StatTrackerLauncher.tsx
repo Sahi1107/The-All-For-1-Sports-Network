@@ -6,14 +6,12 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api/client';
 import { Activity, ChevronRight, Trophy, FlaskConical } from 'lucide-react';
 import type { TrackerSport } from './types';
+import { canManageDraw } from '../tournaments/manageGate';
 
 const SPORTS: { value: TrackerSport; label: string; emoji: string }[] = [
   { value: 'BASKETBALL', label: 'Basketball', emoji: '🏀' },
   { value: 'FOOTBALL', label: 'Football', emoji: '⚽' },
 ];
-
-// Tournaments worth tracking are those that have closed registration or are live.
-const TRACKABLE = new Set(['REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED']);
 
 export default function StatTrackerLauncher() {
   const { user } = useAuth();
@@ -30,7 +28,9 @@ export default function StatTrackerLauncher() {
     },
   });
 
-  const tournaments: any[] = (data?.tournaments ?? []).filter((t: any) => TRACKABLE.has(t.status));
+  // Every non-cancelled tournament can be set up — registration needn't be closed
+  // first (draw generation is a management action, not a public one).
+  const tournaments: any[] = (data?.tournaments ?? []).filter((t: any) => canManageDraw(t.status));
 
   return (
     <div>

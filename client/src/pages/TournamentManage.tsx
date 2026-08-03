@@ -9,6 +9,7 @@ import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
 import TournamentDetailsModal from '../features/tournaments/TournamentDetailsModal';
 import OrganizersModal from '../features/tournaments/OrganizersModal';
+import { canManageDraw, isRegistrationOpen, TRACKER_SPORTS, LATE_ENTRY_WARNING } from '../features/tournaments/manageGate';
 import {
   ArrowLeft, Check, Info, Users, Flag, GitFork, CalendarClock, Radio,
   UserPlus, Upload, AlertTriangle, ChevronRight, MapPin, Calendar, Crown,
@@ -29,8 +30,6 @@ const STATUS_STYLE: Record<string, string> = {
   REGISTRATION_CLOSED: 'bg-amber-500/20 text-amber-300', IN_PROGRESS: 'bg-accent/20 text-accent',
   COMPLETED: 'bg-gray-500/20 text-gray-custom', CANCELLED: 'bg-red-500/20 text-red-400',
 };
-const TRACKABLE = new Set(['REGISTRATION_CLOSED', 'IN_PROGRESS', 'COMPLETED']);
-const TRACKER_SPORTS = new Set(['FOOTBALL', 'BASKETBALL']);
 
 export default function TournamentManage() {
   const { id } = useParams<{ id: string }>();
@@ -59,7 +58,7 @@ export default function TournamentManage() {
   const { data: session } = useQuery({
     queryKey: ['tracker-session', id],
     queryFn: async () => (await api.get(`/tracker/sessions/${id}`)).data.session,
-    enabled: !!t && canManage && TRACKABLE.has(t?.status ?? ''),
+    enabled: !!t && canManage && canManageDraw(t?.status),
   });
 
   const statusMutation = useMutation({
@@ -74,7 +73,11 @@ export default function TournamentManage() {
 
   const registrations: any[] = regData?.registrations ?? [];
   const pendingTeams = registrations.filter((r) => r.summary.pending > 0).length;
-  const trackable = TRACKABLE.has(t.status);
+  // Draw & tracking are MANAGEMENT actions — available in every non-cancelled
+  // state, including while registration is open (see manageGate). Registration
+  // closing only stops the public from self-registering.
+  const trackable = canManageDraw(t.status);
+  const regOpen = isRegistrationOpen(t.status);
   const sportTrackable = TRACKER_SPORTS.has(t.sport);
   const hasDraw = !!session;
   const scheduledCount = (session?.matches ?? []).filter((m: any) => m.scheduledAt).length;
@@ -160,7 +163,7 @@ export default function TournamentManage() {
                 className="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface hover:bg-elevated border border-line text-red-400 disabled:opacity-50">Cancel</button>
             )}
           </div>
-          {!trackable && <p className="text-[11px] text-gray-custom mt-2">Close registration to enable the draw &amp; live tracking.</p>}
+          {regOpen && <p className="text-[11px] text-gray-custom mt-2">Registration is open — the public can still self-register. You can set up the draw now regardless; closing registration only stops new public entries.</p>}
         </Stage>
 
         {/* 4 · Draw */}
@@ -168,11 +171,19 @@ export default function TournamentManage() {
           {!sportTrackable ? (
             <p className="text-sm text-gray-custom">Automatic draws &amp; live tracking support Football and Basketball. For {SPORT(t.sport)}, add fixtures/results manually.</p>
           ) : !trackable ? (
-            <p className="text-sm text-gray-custom">Available once registration is closed.</p>
+            <p className="text-sm text-gray-custom">This tournament is cancelled.</p>
           ) : (
-            <Link to={`/admin/stat-tracker/${id}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary text-xs font-semibold rounded-lg transition-colors">
-              {hasDraw ? 'Open draw' : 'Generate draw'} <ChevronRight size={14} />
-            </Link>
+            <div className="space-y-2">
+              {regOpen && !hasDraw && (
+                <div className="flex items-start gap-2 p-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-200">
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  <span>{LATE_ENTRY_WARNING}</span>
+                </div>
+              )}
+              <Link to={`/admin/stat-tracker/${id}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary text-xs font-semibold rounded-lg transition-colors">
+                {hasDraw ? 'Open draw' : 'Generate draw'} <ChevronRight size={14} />
+              </Link>
+            </div>
           )}
         </Stage>
 

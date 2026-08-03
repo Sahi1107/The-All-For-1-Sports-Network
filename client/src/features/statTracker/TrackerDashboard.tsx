@@ -12,6 +12,7 @@ import { exportTournamentExcel } from './excel';
 import TournamentView from './TournamentView';
 import type { TrackerFormat, TrackerSession } from './types';
 import { Download, Trophy, RotateCcw, AlertTriangle, GraduationCap } from 'lucide-react';
+import { isRegistrationOpen, LATE_ENTRY_WARNING } from '../tournaments/manageGate';
 
 export default function TrackerDashboard() {
   const { tournamentId } = useParams();
@@ -94,6 +95,7 @@ export default function TrackerDashboard() {
           tournamentId={tournamentId!}
           sport={tournament?.sport}
           teamCount={tournament?.teams?.length ?? 0}
+          registrationOpen={isRegistrationOpen(tournament?.status)}
           onCreated={() => qc.invalidateQueries({ queryKey: ['tracker-session', tournamentId] })}
         />
       ) : (
@@ -160,11 +162,13 @@ function CreateSessionForm({
   tournamentId,
   sport,
   teamCount,
+  registrationOpen,
   onCreated,
 }: {
   tournamentId: string;
   sport?: string;
   teamCount: number;
+  registrationOpen: boolean;
   onCreated: () => void;
 }) {
   const [format, setFormat] = useState<TrackerFormat>('MIXED');
@@ -245,6 +249,13 @@ function CreateSessionForm({
       </div>
 
       <DrawPreviewPanel preview={preview} />
+
+      {registrationOpen && (
+        <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs text-amber-200">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{LATE_ENTRY_WARNING}</span>
+        </div>
+      )}
 
       <button
         onClick={() => mutation.mutate()}

@@ -16,7 +16,8 @@ import MatchDetails from './components/MatchDetails';
 import MatchAdminModal from './components/MatchAdminModal';
 import AutoScheduleModal from './components/AutoScheduleModal';
 import GroupEditor from './components/GroupEditor';
-import { Pencil } from 'lucide-react';
+import { Pencil, AlertTriangle } from 'lucide-react';
+import { unassignedTeamIds } from '../tournaments/manageGate';
 
 /** Adapt a live TrackerSession's bracket into the shared Bracket's plain props. */
 function bracketDataFromSession(session: TrackerSession): BracketData {
@@ -71,6 +72,19 @@ export default function TournamentView({
   const [showSchedule, setShowSchedule] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
 
+  // Late entries: teams registered AFTER this draw was generated. They aren't in
+  // any group yet, so surface them here (not just buried in the group editor) so
+  // an organiser is never unaware a registered team is unplaced. Group formats
+  // fix it in the editor; a group-less draw needs a reset to include them.
+  const hasGroups = (session.groups ?? []).length > 0;
+  const { data: liveTeams } = useQuery({
+    queryKey: ['tournament-teams-live', session.tournamentId],
+    queryFn: async () => (await api.get(`/tournaments/${session.tournamentId}`)).data.tournament?.teams ?? [],
+    enabled: !demo,
+  });
+  const registeredIds: string[] = (liveTeams ?? []).map((t: any) => t.team.id);
+  const lateTeamIds = demo ? [] : unassignedTeamIds(registeredIds, session.groups as Array<{ teamIds: string[] }> | null);
+
   // Stat leaders: prefer live tracker state; for published/imported tournaments
   // whose matches carry no live state (state === null), fall back to the DB
   // endpoint. The offline demo never hits the server (its matches carry state).
@@ -115,6 +129,24 @@ export default function TournamentView({
           >
             <RotateCcw size={13} /> Reset
           </button>
+        </div>
+      )}
+
+      {lateTeamIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10">
+          <AlertTriangle size={14} className="text-amber-300 shrink-0" />
+          <span className="text-xs text-amber-200 mr-auto">
+            {lateTeamIds.length} team{lateTeamIds.length === 1 ? '' : 's'} registered after the draw and {lateTeamIds.length === 1 ? "isn't" : "aren't"} placed yet.
+            {hasGroups ? ' Add them to a group, or reset the draw.' : ' Reset the draw to include them.'}
+          </span>
+          {hasGroups && (
+            <button
+              onClick={() => setShowGroups(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-elevated border border-line hover:border-amber-400 text-amber-200 text-xs rounded-lg transition-colors"
+            >
+              <Pencil size={13} /> Place teams
+            </button>
+          )}
         </div>
       )}
 
