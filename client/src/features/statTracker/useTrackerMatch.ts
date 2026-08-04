@@ -46,6 +46,9 @@ export function useTrackerMatch(matchId: string) {
   const [match, setMatch] = useState<TrackerMatch | null>(null);
   const [session, setSession] = useState<TrackerSession | null>(null);
   const [loading, setLoading] = useState(true);
+  // The initial load's failure — surfaced so the route can show a real error
+  // state (and log why) instead of silently bouncing out of a live-scoring page.
+  const [loadError, setLoadError] = useState<unknown>(null);
   // Honest save state: an operator must never see "Saved" while an edit is
   // unpersisted (services/saveState). 'saved' ⇔ everything is on the server.
   const [saveState, setSaveState] = useState<SaveState>('saved');
@@ -66,11 +69,19 @@ export function useTrackerMatch(matchId: string) {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setLoadError(null);
     getMatch(matchId)
       .then(({ match, session }) => {
         if (!mounted) return;
         setMatch(match);
         setSession(session);
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        // Log the real reason (status, message) so a failed live-scoring load is
+        // diagnosable — it must never just vanish to a redirect.
+        console.error(`[tracker] failed to load match ${matchId}:`, err?.response?.status ?? '', err?.response?.data ?? err?.message ?? err);
+        setLoadError(err);
       })
       .finally(() => mounted && setLoading(false));
     return () => { mounted = false; };
@@ -206,5 +217,5 @@ export function useTrackerMatch(matchId: string) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
-  return { match, session, loading, saveState, updateState, setStatus, flush, setMatch, setSession, saveJerseys };
+  return { match, session, loading, loadError, saveState, updateState, setStatus, flush, setMatch, setSession, saveJerseys };
 }

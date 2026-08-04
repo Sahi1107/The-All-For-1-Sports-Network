@@ -1,6 +1,6 @@
 import BallLoader from '../../components/BallLoader';
 import { useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTrackerMatch } from './useTrackerMatch';
@@ -10,7 +10,7 @@ import FullscreenShell from './FullscreenShell';
 import FootballMatch from './football/FootballMatch';
 import BasketballMatch from './basketball/BasketballMatch';
 import { saveDisplay } from './saveState';
-import { Download, Loader2, UploadCloud, CheckCircle2, CloudOff, AlertTriangle } from 'lucide-react';
+import { Download, Loader2, UploadCloud, CheckCircle2, CloudOff, AlertTriangle, ListOrdered } from 'lucide-react';
 
 export default function MatchRoute() {
   const { tournamentId, matchId } = useParams();
@@ -22,7 +22,7 @@ export default function MatchRoute() {
   // server-gated per tournament, so a denied organiser simply gets no data below.
   if (user?.role !== 'ADMIN' && user?.role !== 'ORGANIZER') return <Navigate to="/home" replace />;
 
-  const { match, session, loading, saveState } = ctrl;
+  const { match, session, loading, loadError, saveState } = ctrl;
 
   if (loading) {
     return (
@@ -34,8 +34,34 @@ export default function MatchRoute() {
     );
   }
 
-  // No data after loading = server withheld it (not assigned) or it's gone.
-  if (!match || !session) return <Navigate to="/home" replace />;
+  // Load failed (server withheld it, it's gone, or an error) — during live scoring
+  // a silent bounce to /home is the worst failure, so show a clear message with a
+  // way back to fixtures. The underlying error is logged in useTrackerMatch.
+  // NOTE (Sahil): this is in the live-scoring path — the root cause was the initial
+  // load having no .catch, so any getMatch() failure vanished into a redirect.
+  if (!match || !session) {
+    return (
+      <FullscreenShell backTo={`/admin/stat-tracker/${tournamentId}`}>
+        <div className="flex flex-col items-center justify-center text-center px-6 py-24">
+          <span className="w-14 h-14 rounded-full bg-red-500/15 flex items-center justify-center mb-4">
+            <AlertTriangle size={24} className="text-red-400" />
+          </span>
+          <h2 className="text-lg font-semibold text-foreground">This match couldn&apos;t be loaded</h2>
+          <p className="text-sm text-gray-custom mt-1.5 max-w-sm">
+            {(loadError as any)?.response?.status === 403
+              ? "You don't have access to this match."
+              : "It may have been removed, or the tracker couldn't reach it. The error has been logged."}
+          </p>
+          <Link
+            to={`/admin/stat-tracker/${tournamentId}`}
+            className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors"
+          >
+            <ListOrdered size={15} /> Back to fixtures
+          </Link>
+        </div>
+      </FullscreenShell>
+    );
+  }
 
   const isPublished = match.status === 'PUBLISHED';
   const canPublish = match.status === 'COMPLETED' || isPublished;
