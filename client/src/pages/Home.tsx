@@ -13,6 +13,7 @@ import { SPORTS } from '../data/sports';
 import { SPORT_BACKDROP } from '../components/SportBackdrop';
 import { NameLine, PostMeta, PerformanceCard } from '../components/feed/FeedBits';
 import FeedRail from '../components/feed/FeedRail';
+import FeedVideo from '../components/feed/FeedVideo';
 import CreatePostModal from '../components/CreatePostModal';
 import SearchTypeahead from '../components/SearchTypeahead';
 import PullToRefresh from '../components/PullToRefresh';
@@ -269,13 +270,7 @@ export default function Home() {
                   {/* Media content — varies by type */}
                   {item.kind === 'highlight' && item.videoUrl && (
                     <div className="relative bg-black aspect-video">
-                      <video
-                        src={item.videoUrl}
-                        controls
-                        preload="metadata"
-                        className="w-full h-full object-contain"
-                        poster={item.thumbnailUrl}
-                      />
+                      <FeedVideo src={item.videoUrl} poster={item.thumbnailUrl} />
                       {/* Verified rating + views surfaced on the frame */}
                       {typeof item.views === 'number' && (
                         <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/55 backdrop-blur-sm px-2 py-1 text-[11px] text-white/90 pointer-events-none">
@@ -287,12 +282,7 @@ export default function Home() {
 
                   {item.kind === 'post' && item.type === 'HIGHLIGHT' && item.mediaUrl && (
                     <div className="relative bg-black aspect-video">
-                      <video
-                        src={item.mediaUrl}
-                        controls
-                        preload="metadata"
-                        className="w-full h-full object-contain"
-                      />
+                      <FeedVideo src={item.mediaUrl} />
                     </div>
                   )}
 

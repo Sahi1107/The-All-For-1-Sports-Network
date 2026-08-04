@@ -14,6 +14,7 @@ import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
 import PostDetailModal from '../components/PostDetailModal';
 import PerformanceCard from '../components/PerformanceCard';
+import ProfileViewsCard from '../components/profile/ProfileViewsCard';
 import EmptyState from '../components/EmptyState';
 
 function timeAgo(date: string) {
@@ -1063,6 +1064,9 @@ export default function Profile() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Posts & Highlights */}
         <div className="lg:col-span-2 space-y-4">
+          {isOwnProfile && profile.role === 'ATHLETE' && profile.profileViews && (
+            <ProfileViewsCard summary={profile.profileViews} onShare={() => setShareDmOpen(true)} />
+          )}
           {profile.role === 'ATHLETE' && <PerformanceCard id={profile.id} />}
           {/* Highlights */}
           <div className="bg-card rounded-xl border border-line p-5">
