@@ -69,6 +69,57 @@ export async function recordProfileView(viewer: Viewer, target: Target): Promise
   }
 }
 
+export interface ProfileViewsSummary {
+  total7: number;               // all views in the last 7 days
+  prev7: number;                // the 7 days before that (for the trend)
+  deltaPct: number | null;      // % change vs prev week; null when no baseline
+  notable7: number;             // scouts/coaches/agents/clubs this week
+  byRole: { scout: number; coach: number; agent: number; team: number };
+  daily: number[];              // 7 daily counts, oldest → today (sparkline)
+}
+
+/**
+ * Anonymised profile-views summary for the profile OWNER — the "someone is
+ * watching" moment. Counts and roles only: viewer identities are never returned
+ * (same rule as the notification). Private-browsing viewers were never recorded,
+ * so they're already excluded. Never throws — returns zeros on any failure.
+ */
+export async function profileViewsSummary(targetId: string): Promise<ProfileViewsSummary> {
+  const empty: ProfileViewsSummary = {
+    total7: 0, prev7: 0, deltaPct: null, notable7: 0,
+    byRole: { scout: 0, coach: 0, agent: 0, team: 0 }, daily: [0, 0, 0, 0, 0, 0, 0],
+  };
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  try {
+    const rows = await prisma.profileView.findMany({
+      where: { targetId, createdAt: { gte: new Date(now - 14 * DAY) } },
+      select: { createdAt: true, viewer: { select: { role: true } } },
+    });
+    const s = { ...empty, byRole: { ...empty.byRole }, daily: [0, 0, 0, 0, 0, 0, 0] };
+    for (const r of rows) {
+      const ageDays = (now - r.createdAt.getTime()) / DAY;
+      if (ageDays < 7) {
+        s.total7++;
+        const idx = 6 - Math.floor(ageDays); // 0 = 6 days ago … 6 = today
+        if (idx >= 0 && idx < 7) s.daily[idx]++;
+        const role = r.viewer?.role;
+        if (role === 'SCOUT') s.byRole.scout++;
+        else if (role === 'COACH') s.byRole.coach++;
+        else if (role === 'AGENT') s.byRole.agent++;
+        else if (role === 'TEAM') s.byRole.team++;
+      } else if (ageDays < 14) {
+        s.prev7++;
+      }
+    }
+    s.notable7 = s.byRole.scout + s.byRole.coach + s.byRole.agent + s.byRole.team;
+    s.deltaPct = s.prev7 === 0 ? null : Math.round(((s.total7 - s.prev7) / s.prev7) * 100);
+    return s;
+  } catch {
+    return empty;
+  }
+}
+
 /** Distinct scout/coach viewer-days for a user over the last `days` days. */
 export async function profileViewCount(targetId: string, days = 7): Promise<number> {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { CalendarClock, BarChart3, UserPlus, ChevronRight, MapPin } from 'lucide-react';
+import { CalendarClock, BarChart3, UserPlus, ChevronRight, MapPin, Newspaper, ExternalLink } from 'lucide-react';
 import api from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import Avatar from '../Avatar';
@@ -34,6 +34,42 @@ function RailCard({
 function shortDay(iso?: string | null) {
   if (!iso) return 'TBC';
   return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+interface NewsItem { id: string; title: string; source: string; url: string; category: string }
+
+/** Curated sports-news module (editorial-controlled server source). Links out to
+ *  the original articles; opens in a new tab. */
+function SportsNews() {
+  const { data } = useQuery({
+    queryKey: ['rail-news'],
+    // Curated + slow-moving — refetch rarely.
+    queryFn: async () => (await api.get('/news')).data.items as NewsItem[],
+    staleTime: 30 * 60_000,
+  });
+  if (!data || data.length === 0) return null;
+  return (
+    <RailCard icon={Newspaper} title="Sports news">
+      <div className="divide-y divide-ink/[0.06]">
+        {data.map((n) => (
+          <a
+            key={n.id}
+            href={n.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group block px-2 py-2 rounded-lg hover:bg-ink/5 transition-colors"
+          >
+            <p className="text-sm font-medium leading-snug group-hover:text-primary-light transition-colors">{n.title}</p>
+            <p className="mt-1 text-[11px] text-foreground/40 flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1"><ExternalLink size={10} /> {n.source}</span>
+              <span className="w-1 h-1 rounded-full bg-foreground/20 shrink-0" />
+              <span className="truncate">{n.category}</span>
+            </p>
+          </a>
+        ))}
+      </div>
+    </RailCard>
+  );
 }
 
 function UpcomingFixtures() {
@@ -133,6 +169,7 @@ function SuggestedFollows() {
 export default function FeedRail() {
   return (
     <aside className="hidden lg:flex lg:flex-col gap-4 w-[300px] shrink-0">
+      <SportsNews />
       <UpcomingFixtures />
       <TopRanked />
       <SuggestedFollows />

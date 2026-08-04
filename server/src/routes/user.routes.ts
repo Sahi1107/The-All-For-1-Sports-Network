@@ -9,7 +9,7 @@ import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { deleteUserCompletely } from '../services/userDeletion';
 import { buildUserExport } from '../services/dataExport';
-import { recordProfileView } from '../services/notifications/profileViews';
+import { recordProfileView, profileViewsSummary } from '../services/notifications/profileViews';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere } from '../services/search/gate';
@@ -508,6 +508,11 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         (user as any).disableAllComments = extra?.disableAllComments ?? false;
       } catch {
         (user as any).disableAllComments = false;
+      }
+      // Owner-only "who's watching" summary — anonymised counts + roles, never
+      // viewer identities. Only athletes accrue views. Never breaks the profile.
+      if (user.role === 'ATHLETE') {
+        (user as any).profileViews = await profileViewsSummary(user.id).catch(() => null);
       }
     }
 

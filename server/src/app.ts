@@ -30,6 +30,7 @@ import ogRoutes           from './routes/og.routes';
 import shareRoutes        from './routes/share.routes';
 import searchRoutes       from './routes/search.routes';
 import appealRoutes       from './routes/appeal.routes';
+import newsRoutes         from './routes/news.routes';
 
 const app = express();
 
@@ -98,6 +99,7 @@ app.use('/api/endorsements',  endorsementRoutes);
 app.use('/api/support',       supportRoutes);
 app.use('/api/invite',        inviteRoutes);
 app.use('/api/push',          pushRoutes);
+app.use('/api/news',          newsRoutes);
 
 // ─── Public share surface (top-level, outside /api so images stay cacheable) ──
 // Reached via Firebase Hosting run: rewrites (/og/**, /s/**). Serves OG card
