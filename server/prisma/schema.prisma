@@ -521,7 +521,7 @@ model Team {
   id           String   @id @default(uuid())
   name         String
   sport        Sport
-  captainId    String
+  captainId    String?  // nullable: a team can register by name and add a captain/roster later
   coachId      String?
   tournamentId String?
   logo         String?
@@ -529,7 +529,7 @@ model Team {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  captain                 User             @relation("TeamCaptain", fields: [captainId], references: [id])
+  captain                 User?            @relation("TeamCaptain", fields: [captainId], references: [id])
   coach                   User?            @relation("TeamCoach", fields: [coachId], references: [id])
   tournament              Tournament?      @relation("TeamTournament", fields: [tournamentId], references: [id], onDelete: Cascade)
   members                 TeamMember[]

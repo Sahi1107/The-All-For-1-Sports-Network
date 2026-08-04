@@ -12,7 +12,7 @@ import OrganizersModal from '../features/tournaments/OrganizersModal';
 import { canManageDraw, isRegistrationOpen, TRACKER_SPORTS, LATE_ENTRY_WARNING } from '../features/tournaments/manageGate';
 import {
   ArrowLeft, Check, Info, Users, Flag, GitFork, CalendarClock, Radio,
-  UserPlus, Upload, AlertTriangle, ChevronRight, MapPin, Calendar, Crown,
+  UserPlus, Upload, AlertTriangle, ChevronRight, MapPin, Calendar, Crown, Lock,
   ShieldCheck, Pencil,
 } from 'lucide-react';
 
@@ -133,10 +133,20 @@ export default function TournamentManage() {
                   <span className="flex-1 min-w-0 truncate flex items-center gap-1.5">
                     {r.team.captain && <Crown size={11} className="text-primary shrink-0" />}{r.team.name}
                   </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${r.summary.isComplete ? 'bg-accent/20 text-accent' : 'bg-amber-500/20 text-amber-300'}`}>
+                  {r.summary.rosterLocked && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full shrink-0 bg-ink/10 text-gray-custom flex items-center gap-1"><Lock size={9} /> Locked</span>
+                  )}
+                  {r.summary.needsAttention && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full shrink-0 bg-amber-500/20 text-amber-300">
+                      {r.summary.accepted === 0 ? 'Needs players' : 'Below minimum'}
+                    </span>
+                  )}
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${r.summary.accepted === 0 ? 'bg-ink/10 text-gray-custom' : r.summary.isComplete ? 'bg-accent/20 text-accent' : 'bg-amber-500/20 text-amber-300'}`}>
                     {r.summary.accepted}/{r.summary.total}
                   </span>
-                  <button onClick={() => setEditTeam(r.team)} className="text-xs text-primary-light hover:underline shrink-0">Edit</button>
+                  <button onClick={() => setEditTeam({ ...r.team, _locked: r.summary.rosterLocked })} className="text-xs text-primary-light hover:underline shrink-0">
+                    {r.summary.rosterLocked ? 'View' : 'Edit'}
+                  </button>
                 </li>
               ))}
             </ul>

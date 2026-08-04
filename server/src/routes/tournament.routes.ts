@@ -21,6 +21,11 @@ import {
 } from '../validation/tournament';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 import { rosterPlayerSearchWhere } from '../services/rosterSearch';
+import { teamRosterIsLocked, ROSTER_LOCK_STATUSES, rosterNeedsAttention, rosterMeetsMinimum } from '../services/rosterLifecycle';
+
+// Shown wherever a roster edit is refused because the team has already played.
+const ROSTER_LOCKED_MESSAGE =
+  'This team has already played a match, so its roster is locked — stats are recorded against it. Corrections go through the match-correction tools.';
 import { buildReport, commitBulkProvision, normalizeEmail, tournamentToContext } from '../services/bulkProvision';
 import { BulkProvisionBody } from '../validation/admin';
 
@@ -926,11 +931,10 @@ router.post(
       return;
     }
 
-    // Roster size validation
-    if (tournament.minRosterSize != null && playerUserIds.length < tournament.minRosterSize) {
-      res.status(400).json({ error: `At least ${tournament.minRosterSize} players are required` });
-      return;
-    }
+    // Roster MINIMUM is NOT enforced at registration — entries come in first and
+    // squads get finalised later; the minimum is a first-match concern
+    // (rosterMeetsMinimum), surfaced to the organiser as "needs attention" until
+    // then. The maximum is still enforced so a roster can't be over-filled.
     if (tournament.maxRosterSize != null && playerUserIds.length > tournament.maxRosterSize) {
       res.status(400).json({ error: `At most ${tournament.maxRosterSize} players are allowed` });
       return;
@@ -1091,14 +1095,38 @@ router.get('/:id/registrations', authenticate, requireTournamentAccess(fromParam
       orderBy: { registeredAt: 'desc' },
     });
 
+    // Which teams have already played (roster now locked)? One query, not N.
+    const playedMatches = await prisma.trackerMatch.findMany({
+      where: {
+        status: { in: [...ROSTER_LOCK_STATUSES] },
+        session: { tournamentId },
+      },
+      select: { homeTeamId: true, awayTeamId: true },
+    });
+    const lockedTeamIds = new Set<string>();
+    for (const m of playedMatches) {
+      if (m.homeTeamId) lockedTeamIds.add(m.homeTeamId);
+      if (m.awayTeamId) lockedTeamIds.add(m.awayTeamId);
+    }
+
     const enriched = registrations.map((r) => {
       const total    = r.team.members.length;
       const accepted = r.team.members.filter((m) => m.status === 'ACCEPTED').length;
       const pending  = r.team.members.filter((m) => m.status === 'PENDING').length;
       const declined = r.team.members.filter((m) => m.status === 'DECLINED').length;
+      const rosterLocked = lockedTeamIds.has(r.team.id);
+      // Surface teams the organiser still needs to finish: an accepted roster that
+      // is empty or below the minimum, and that hasn't locked yet.
+      const needsAttention = !rosterLocked && rosterNeedsAttention(accepted, tournament.minRosterSize);
       return {
         ...r,
-        summary: { total, accepted, pending, declined, isComplete: pending === 0 && declined === 0 },
+        summary: {
+          total, accepted, pending, declined,
+          isComplete: pending === 0 && declined === 0,
+          rosterLocked,
+          needsAttention,
+          belowMinimum: !rosterMeetsMinimum(accepted, tournament.minRosterSize),
+        },
       };
     });
 
@@ -1118,33 +1146,41 @@ router.post('/:id/teams', authenticate, requireTournamentAccess(fromParamId), wr
     const { teamName, captainUserId, playerUserIds, coachUserId } = req.body as {
       teamName?: string; captainUserId?: string; playerUserIds?: string[]; coachUserId?: string;
     };
-    if (!teamName?.trim() || !captainUserId || !Array.isArray(playerUserIds) || playerUserIds.length === 0) {
-      res.status(400).json({ error: 'Team name, captain and at least one player are required' });
+    // Name-only registration: a team can enter with just a name and fill its
+    // squad later (real tournaments take entries first, finalise rosters later).
+    // Only the name is required; captain + players are optional.
+    const players = Array.isArray(playerUserIds) ? playerUserIds : [];
+    if (!teamName?.trim()) {
+      res.status(400).json({ error: 'A team name is required' });
       return;
     }
-    if (!playerUserIds.includes(captainUserId)) {
+    if (captainUserId && players.length > 0 && !players.includes(captainUserId)) {
       res.status(400).json({ error: 'The captain must be one of the players' });
       return;
     }
     const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { id: true, sport: true } });
     if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
 
-    const ids = Array.from(new Set([...playerUserIds, ...(coachUserId ? [coachUserId] : [])]));
-    const found = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true } });
-    if (found.length !== ids.length) { res.status(400).json({ error: 'One or more selected users were not found' }); return; }
+    const ids = Array.from(new Set([...players, ...(captainUserId ? [captainUserId] : []), ...(coachUserId ? [coachUserId] : [])]));
+    if (ids.length > 0) {
+      const found = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true } });
+      if (found.length !== ids.length) { res.status(400).json({ error: 'One or more selected users were not found' }); return; }
+    }
 
     const now = new Date();
     const team = await prisma.$transaction(async (tx) => {
       const team = await tx.team.create({
-        data: { name: teamName.trim(), sport: tournament.sport, captainId: captainUserId, coachId: coachUserId ?? null, tournamentId },
+        data: { name: teamName.trim(), sport: tournament.sport, captainId: captainUserId ?? null, coachId: coachUserId ?? null, tournamentId },
       });
-      await tx.teamMember.createMany({
-        data: playerUserIds.map((uid) => ({
-          teamId: team.id, userId: uid, role: uid === captainUserId ? 'CAPTAIN' as const : 'PLAYER' as const,
-          status: 'ACCEPTED' as const, respondedAt: now,
-        })),
-      });
-      if (coachUserId && !playerUserIds.includes(coachUserId)) {
+      if (players.length > 0) {
+        await tx.teamMember.createMany({
+          data: players.map((uid) => ({
+            teamId: team.id, userId: uid, role: uid === captainUserId ? 'CAPTAIN' as const : 'PLAYER' as const,
+            status: 'ACCEPTED' as const, respondedAt: now,
+          })),
+        });
+      }
+      if (coachUserId && !players.includes(coachUserId)) {
         await tx.teamMember.create({ data: { teamId: team.id, userId: coachUserId, role: 'COACH', status: 'ACCEPTED', respondedAt: now } });
       }
       await tx.tournamentTeam.create({ data: { tournamentId, teamId: team.id } });
@@ -1235,6 +1271,10 @@ router.post('/:id/teams/:teamId/members', authenticate, requireTournamentAccess(
     if (!userId) { res.status(400).json({ error: 'userId is required' }); return; }
     const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
     if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+    if (await teamRosterIsLocked(team.id)) {
+      res.status(409).json({ error: ROSTER_LOCKED_MESSAGE, code: 'ROSTER_LOCKED' });
+      return;
+    }
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
     if (!user) { res.status(400).json({ error: 'User not found' }); return; }
     await prisma.teamMember.upsert({
@@ -1273,6 +1313,10 @@ router.post(
         select: { id: true },
       });
       if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+      if (await teamRosterIsLocked(team.id)) {
+        res.status(409).json({ error: ROSTER_LOCKED_MESSAGE, code: 'ROSTER_LOCKED' });
+        return;
+      }
 
       const tournament = await prisma.tournament.findUnique({ where: { id: tournamentId }, select: { sport: true } });
       if (!tournament) { res.status(404).json({ error: 'Tournament not found' }); return; }
@@ -1320,6 +1364,10 @@ router.delete('/:id/teams/:teamId/members/:userId', authenticate, requireTournam
   try {
     const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
     if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+    if (await teamRosterIsLocked(team.id)) {
+      res.status(409).json({ error: ROSTER_LOCKED_MESSAGE, code: 'ROSTER_LOCKED' });
+      return;
+    }
     if (team.captainId === req.params.userId) {
       res.status(400).json({ error: 'Reassign the captain before removing them' });
       return;
