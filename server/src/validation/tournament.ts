@@ -76,6 +76,11 @@ export const UpdateTournamentBody = z.object({
   genderCategory: optStr(20, 'Gender category'),
   minRosterSize:  positiveInt('Minimum roster size'),
   maxRosterSize:  positiveInt('Maximum roster size'),
+  // Knockout third-place playoff toggle. When a draw exists, flipping this
+  // adds/removes the actual fixture; confirmThirdPlaceRemoval acknowledges that
+  // disabling it will delete an already-played third-place result.
+  thirdPlace:               z.boolean().optional(),
+  confirmThirdPlaceRemoval: z.boolean().optional(),
 }).refine(
   (d) => d.minRosterSize == null || d.maxRosterSize == null || d.minRosterSize <= d.maxRosterSize,
   { message: 'Minimum roster size must be ≤ maximum roster size', path: ['minRosterSize'] },

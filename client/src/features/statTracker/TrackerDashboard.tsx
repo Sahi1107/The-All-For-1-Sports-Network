@@ -106,6 +106,7 @@ export default function TrackerDashboard() {
           sport={tournament?.sport}
           teamCount={tournament?.teams?.length ?? 0}
           registrationOpen={isRegistrationOpen(tournament?.status)}
+          defaultThirdPlace={tournament?.thirdPlace ?? true}
           onCreated={() => qc.invalidateQueries({ queryKey: ['tracker-session', tournamentId] })}
         />
       ) : (
@@ -175,18 +176,20 @@ function CreateSessionForm({
   sport,
   teamCount,
   registrationOpen,
+  defaultThirdPlace,
   onCreated,
 }: {
   tournamentId: string;
   sport?: string;
   teamCount: number;
   registrationOpen: boolean;
+  defaultThirdPlace: boolean;
   onCreated: () => void;
 }) {
   const [format, setFormat] = useState<TrackerFormat>('MIXED');
   const [groupsCount, setGroupsCount] = useState(2);
   const [advancePerGroup, setAdvancePerGroup] = useState(2);
-  const [thirdPlace, setThirdPlace] = useState(true);
+  const [thirdPlace, setThirdPlace] = useState(defaultThirdPlace);
   const [periodMinutes, setPeriodMinutes] = useState(sport === 'BASKETBALL' ? 12 : 45);
   const preview = describeDraw(format, teamCount, { groupsCount, advancePerGroup });
 

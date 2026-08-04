@@ -584,6 +584,10 @@ model Tournament {
   format         TournamentFormat @default(TEAM)
   minRosterSize  Int?
   maxRosterSize  Int?
+  // Knockout third-place playoff. The stored default (used at draw generation and
+  // shown in the details editor); once a draw exists the session bracket is the
+  // structural truth and this is kept in sync with it. See services/thirdPlace.ts.
+  thirdPlace     Boolean          @default(true)
   createdById    String
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
