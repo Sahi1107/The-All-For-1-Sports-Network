@@ -111,6 +111,29 @@ export async function fetchAthletesBySport(
   return rows.map(mapRow);
 }
 
+// Featured athletes for the /athletes root — a cross-sport preview so the page
+// shows real people, not just sport chips. Same GATE_SQL as everywhere (no
+// relaxation); `best_rank` is a DISPLAY-ONLY correlated subquery (a ranking is
+// public data and never affects eligibility). Verified + ranked athletes surface
+// first so the page reads as alive.
+const FEATURED_SQL = `
+  SELECT ${ATHLETE_COLS}, ${TEAM_AGG},
+    (SELECT MIN(pr.rank) FROM "PlayerRanking" pr WHERE pr."userId" = u.id) AS best_rank
+  FROM "User" u ${TEAM_JOINS}
+  WHERE ${GATE_SQL.replace('$CUTOFF', '$1')}
+  GROUP BY u.id
+  ORDER BY u.verified DESC, best_rank ASC NULLS LAST, u."updatedAt" DESC NULLS LAST, u.name ASC
+  LIMIT $2`;
+
+/** A gated athlete row + its best public ranking (display only). */
+export type FeaturedRow = AthleteRowWithMeta & { bestRank: number | null };
+
+/** A cross-sport set of eligible athletes for the /athletes root. Re-gated per row upstream. */
+export async function fetchFeaturedAthletes(now: Date, limit = 12): Promise<FeaturedRow[]> {
+  const { rows } = await pool.query(FEATURED_SQL, [minAgeCutoff(now), limit]);
+  return rows.map((r) => ({ ...mapRow(r), bestRank: r.best_rank != null ? Number(r.best_rank) : null }));
+}
+
 const SITEMAP_SQL = `
   SELECT u.id, u.name, u.role::text AS role, u.discoverable,
          u.guardian_managed AS "guardianManaged", u.date_of_birth AS "dateOfBirth",

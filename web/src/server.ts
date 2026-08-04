@@ -7,10 +7,11 @@
 import http from 'node:http';
 import {
   fetchAthleteRow, fetchAthletesBySport, fetchEligibleForSitemap, fetchSportsWithCounts,
+  fetchFeaturedAthletes,
 } from './db.js';
 import { gateAndSerialize, parseSlugId, kebab, type PublicAthlete } from './publicAthlete.js';
 import { renderProfile, renderNotFound } from './render.js';
-import { renderSportHub, renderAthletesRoot, renderSitemap } from './renderHub.js';
+import { renderSportHub, renderAthletesRoot, renderSitemap, type FeaturedAthlete } from './renderHub.js';
 import { renderFaq } from './renderFaq.js';
 import { renderAbout, renderSafety, renderCommunityGuidelines } from './renderPages.js';
 import { renderLearnIndex, renderLearnArticle } from './renderLearn.js';
@@ -69,12 +70,23 @@ async function handleProfile(res: http.ServerResponse, method: string, requested
   return send(res, method, 200, renderProfile(athlete), { 'Cache-Control': PROFILE_CACHE });
 }
 
-/** GET/HEAD /athletes — index of sports with eligible athletes. */
+/** GET/HEAD /athletes — index of sports with eligible athletes + a featured preview. */
 async function handleRoot(res: http.ServerResponse, method: string, now: Date) {
-  const sports = await fetchSportsWithCounts(now);
+  const [sports, featuredRows] = await Promise.all([
+    fetchSportsWithCounts(now),
+    fetchFeaturedAthletes(now, 12),
+  ]);
+  // Re-gate EVERY featured row independently (same guarantee as a profile), then
+  // attach the display-only rank. A row that fails the re-check is dropped.
+  const featured = featuredRows
+    .map((r) => {
+      const pub = gateAndSerialize(r, now);
+      return pub ? { ...pub, rank: r.bestRank } : null;
+    })
+    .filter((a): a is FeaturedAthlete => a !== null);
   const headers: Record<string, string> = { 'Cache-Control': HUB_CACHE };
   if (sports.length === 0) headers['X-Robots-Tag'] = 'noindex';
-  return send(res, method, 200, renderAthletesRoot(sports), headers);
+  return send(res, method, 200, renderAthletesRoot(sports, featured), headers);
 }
 
 /** GET/HEAD /athletes/:sport and /athletes/:sport/:state. */
