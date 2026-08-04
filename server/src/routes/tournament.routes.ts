@@ -205,6 +205,48 @@ router.get('/mine/organizing', authenticate, async (req: AuthRequest, res: Respo
   }
 });
 
+// GET /api/tournaments/upcoming-fixtures — the next few scheduled matches across
+// all tournaments, for the feed's right rail. Read-only, tiny, cached-friendly.
+// Team names resolve from the session roster snapshot (matches store only IDs).
+// Declared BEFORE '/:id' so the literal path isn't swallowed as an id.
+router.get('/upcoming-fixtures', authenticate, browseLimiter, async (_req: AuthRequest, res: Response) => {
+  try {
+    const now = new Date();
+    const matches = await prisma.trackerMatch.findMany({
+      where: {
+        scheduledAt: { gte: now },
+        status: 'SCHEDULED',
+        homeTeamId: { not: null },
+        awayTeamId: { not: null },
+      },
+      orderBy: { scheduledAt: 'asc' },
+      take: 5,
+      include: { session: { select: { roster: true, tournament: { select: { id: true, name: true, sport: true } } } } },
+    });
+
+    const fixtures = matches.map((m) => {
+      const roster = (m.session.roster as Array<{ teamId: string; name: string }> | null) ?? [];
+      const nameOf = (id: string | null) => roster.find((r) => r.teamId === id)?.name ?? 'TBC';
+      return {
+        id: m.id,
+        tournamentId: m.session.tournament.id,
+        tournamentName: m.session.tournament.name,
+        sport: m.session.tournament.sport,
+        round: m.round,
+        court: m.court,
+        scheduledAt: m.scheduledAt,
+        homeTeam: nameOf(m.homeTeamId),
+        awayTeam: nameOf(m.awayTeamId),
+      };
+    });
+
+    res.json({ fixtures });
+  } catch (error) {
+    console.error('Upcoming fixtures error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/tournaments/:id
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   try {
