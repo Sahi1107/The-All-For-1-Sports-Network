@@ -107,6 +107,10 @@ interface AuthContextType {
   sendPasswordReset: (email: string) => Promise<void>;
   updateUser: (user: User) => void;
   resendVerification: () => Promise<void>;
+  /** Re-check email verification after the user follows the verify link: reloads
+   *  the Firebase user, and if now verified clears the gate + re-syncs the DB
+   *  record. Resolves to whether the account is now verified. */
+  refreshVerification: () => Promise<boolean>;
   // ── Google sign-in ──
   /** True when a Google session exists but its profile isn't complete yet. */
   needsOnboarding: boolean;
@@ -388,6 +392,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authedPost(token, '/auth/email/send-verification', {});
   };
 
+  // After the user follows the verification link, their signed-in session still
+  // holds a stale token (emailVerified=false) — so the post gate stays shut even
+  // though Firebase now says verified. Reload the user, and if verified: mint a
+  // fresh token (email_verified=true), clear unverifiedEmail so the gate opens,
+  // and hit /auth/me so the server recomputes the DB `verified` flag. Returns the
+  // new verified state.
+  const refreshVerification = async (): Promise<boolean> => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser) return false;
+    await firebaseUser.reload();
+    const verified = firebaseUser.emailVerified;
+    setUnverifiedEmail(verified ? null : firebaseUser.email);
+    if (verified) {
+      const token = await firebaseUser.getIdToken(true);
+      try {
+        const { data } = await authedGet(token, '/auth/me');
+        setUser(data.user);
+      } catch { /* non-fatal: the gate already opened via unverifiedEmail=null */ }
+    }
+    return verified;
+  };
+
   // ── Password reset (branded email sent by our server) ─────────────────────
 
   const sendPasswordReset = async (email: string) => {
@@ -491,7 +517,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{
-      user, loading, suspension, unverifiedEmail, login, register, logout, logoutAllDevices, sendPasswordReset, updateUser, resendVerification,
+      user, loading, suspension, unverifiedEmail, login, register, logout, logoutAllDevices, sendPasswordReset, updateUser, resendVerification, refreshVerification,
       needsOnboarding, onboardingPrefill, linkEmail,
       signInWithGoogle, completeGoogleOnboarding, linkGoogleToPassword, cancelGoogleLink,
     }}>
