@@ -113,25 +113,28 @@ export async function fetchAthletesBySport(
 
 // Featured athletes for the /athletes root — a cross-sport preview so the page
 // shows real people, not just sport chips. Same GATE_SQL as everywhere (no
-// relaxation); `best_rank` is a DISPLAY-ONLY correlated subquery (a ranking is
-// public data and never affects eligibility). Verified + ranked athletes surface
-// first so the page reads as alive.
+// relaxation) and — critically — touches ONLY the tables this read-only service
+// is granted (User / TeamMember / Team). It deliberately does NOT read
+// "PlayerRanking": the RO role (DATABASE_URL_RO) has no grant on it, so querying
+// it 503s the whole route. The rank badge is therefore off until the RO role is
+// granted SELECT on "PlayerRanking"; the renderer keeps the plumbing so
+// re-enabling is a one-line change (restore the best_rank subquery + order-by).
 const FEATURED_SQL = `
-  SELECT ${ATHLETE_COLS}, ${TEAM_AGG},
-    (SELECT MIN(pr.rank) FROM "PlayerRanking" pr WHERE pr."userId" = u.id) AS best_rank
+  SELECT ${ATHLETE_COLS}, ${TEAM_AGG}
   FROM "User" u ${TEAM_JOINS}
   WHERE ${GATE_SQL.replace('$CUTOFF', '$1')}
   GROUP BY u.id
-  ORDER BY u.verified DESC, best_rank ASC NULLS LAST, u."updatedAt" DESC NULLS LAST, u.name ASC
+  ORDER BY u.verified DESC, u."updatedAt" DESC NULLS LAST, u.name ASC
   LIMIT $2`;
 
-/** A gated athlete row + its best public ranking (display only). */
+/** A gated athlete row + its best public ranking (display only; null until the
+ *  RO role can read "PlayerRanking"). */
 export type FeaturedRow = AthleteRowWithMeta & { bestRank: number | null };
 
 /** A cross-sport set of eligible athletes for the /athletes root. Re-gated per row upstream. */
 export async function fetchFeaturedAthletes(now: Date, limit = 12): Promise<FeaturedRow[]> {
   const { rows } = await pool.query(FEATURED_SQL, [minAgeCutoff(now), limit]);
-  return rows.map((r) => ({ ...mapRow(r), bestRank: r.best_rank != null ? Number(r.best_rank) : null }));
+  return rows.map((r) => ({ ...mapRow(r), bestRank: null }));
 }
 
 const SITEMAP_SQL = `
