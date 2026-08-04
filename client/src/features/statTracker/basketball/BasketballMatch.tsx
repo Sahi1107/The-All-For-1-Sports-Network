@@ -309,7 +309,8 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
             <button className="btn secondary" onClick={nextQuarter} style={{ padding: '6px 10px' }}>Next Q</button>
           </div>
           <SubControls homeTeam={homeTeam} awayTeam={awayTeam} state={state} disabled={locked}
-            onSub={(side, outId, inId) => updateState((s) => sub(s as BasketballState, side, outId, inId))} />
+            onSub={(side, outId, inId) => updateState((s) => sub(s as BasketballState, side, outId, inId))}
+            onBulkSub={(side, pairs) => updateState((s) => bulkSub(s as BasketballState, side, pairs))} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn secondary" onClick={() => setJerseyOpen(true)}>Jersey #s</button>
             <button onClick={endMatch}>End Match</button>
@@ -380,6 +381,17 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
 function sub(s: BasketballState, side: 'home' | 'away', outId: string, inId: string): BasketballState {
   const key = side === 'home' ? 'onCourtHome' : 'onCourtAway';
   return { ...s, [key]: s[key].map((id) => (id === outId ? inId : id)) };
+}
+
+// Bulk substitution: swap several out→in in a single state update. Identical in
+// effect to applying `sub` N times at the same instant — the on-court array keeps
+// its size, so minutes accrual (commitClock, keyed on array membership) and every
+// per-player stat are untouched. Pairing is by index; since the on-court array is
+// an unordered five, any valid pairing yields the same final set.
+function bulkSub(s: BasketballState, side: 'home' | 'away', pairs: [string, string][]): BasketballState {
+  const key = side === 'home' ? 'onCourtHome' : 'onCourtAway';
+  const swap = new Map(pairs);
+  return { ...s, [key]: s[key].map((id) => swap.get(id) ?? id) };
 }
 
 function teamTotals(team: RosterTeam, state: BasketballState) {
@@ -519,33 +531,94 @@ function ShotCell({ made, att, kind, missKind, pid, adjust, disabled }: {
   );
 }
 
-function SubControls({ homeTeam, awayTeam, state, disabled, onSub }: {
+// One coming-off / coming-on chip. Tap to toggle; red = pulling, green = sending on.
+function SubChip({ label, selected, tone, disabled, onClick }: {
+  label: string; selected: boolean; tone: 'out' | 'in'; disabled: boolean; onClick: () => void;
+}) {
+  const hue = tone === 'out' ? '248,113,113' : '74,222,128';
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        padding: '3px 8px', borderRadius: 999, fontSize: 12, lineHeight: 1.3, cursor: disabled ? 'default' : 'pointer',
+        whiteSpace: 'nowrap', fontWeight: selected ? 700 : 500,
+        color: selected ? '#fff' : '#cbd5e1',
+        border: `1px solid ${selected ? `rgb(${hue})` : 'rgba(255,255,255,0.15)'}`,
+        background: selected ? `rgba(${hue},0.18)` : 'transparent',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function SubControls({ homeTeam, awayTeam, state, disabled, onSub, onBulkSub }: {
   homeTeam: RosterTeam; awayTeam: RosterTeam; state: BasketballState; disabled: boolean;
   onSub: (side: 'home' | 'away', outId: string, inId: string) => void;
+  onBulkSub: (side: 'home' | 'away', pairs: [string, string][]) => void;
 }) {
   const [subTeam, setSubTeam] = useState<'home' | 'away'>('home');
   const [out, setOut] = useState('');
   const [inn, setInn] = useState('');
+  // Bulk selection: players tapped to come off / come on this round.
+  const [offIds, setOffIds] = useState<Set<string>>(new Set());
+  const [onIds, setOnIds] = useState<Set<string>>(new Set());
   const team = subTeam === 'home' ? homeTeam : awayTeam;
   const onCourtIds = subTeam === 'home' ? state.onCourtHome : state.onCourtAway;
   const onCourt = team.players.filter((p) => onCourtIds.includes(p.userId));
   const bench = team.players.filter((p) => !onCourtIds.includes(p.userId));
 
+  const clearBulk = () => { setOffIds(new Set()); setOnIds(new Set()); };
+  const toggle = (setFn: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) =>
+    setFn((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const short = (name: string) => name.split(' ')[0];
+  const balanced = offIds.size > 0 && offIds.size === onIds.size;
+
+  const applyBulk = () => {
+    // Pair off→on by selection order; the final on-court set is identical regardless.
+    const offs = [...offIds], ons = [...onIds];
+    onBulkSub(subTeam, offs.map((o, i) => [o, ons[i]] as [string, string]));
+    clearBulk();
+  };
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <select value={subTeam} onChange={(e) => { setSubTeam(e.target.value as 'home' | 'away'); setOut(''); setInn(''); }}>
-        <option value="home">{homeTeam.name}</option>
-        <option value="away">{awayTeam.name}</option>
-      </select>
-      <select value={out} onChange={(e) => setOut(e.target.value)}>
-        <option value="">Out</option>
-        {onCourt.map((p) => <option key={p.userId} value={p.userId}>#{p.number ?? '-'} {p.name}</option>)}
-      </select>
-      <select value={inn} onChange={(e) => setInn(e.target.value)}>
-        <option value="">In</option>
-        {bench.map((p) => <option key={p.userId} value={p.userId}>#{p.number ?? '-'} {p.name}</option>)}
-      </select>
-      <button className="btn secondary" disabled={disabled || !out || !inn} onClick={() => { onSub(subTeam, out, inn); setOut(''); setInn(''); }}>Sub</button>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+      {/* Single sub — unchanged. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <select value={subTeam} onChange={(e) => { setSubTeam(e.target.value as 'home' | 'away'); setOut(''); setInn(''); clearBulk(); }}>
+          <option value="home">{homeTeam.name}</option>
+          <option value="away">{awayTeam.name}</option>
+        </select>
+        <select value={out} onChange={(e) => setOut(e.target.value)}>
+          <option value="">Out</option>
+          {onCourt.map((p) => <option key={p.userId} value={p.userId}>#{p.number ?? '-'} {p.name}</option>)}
+        </select>
+        <select value={inn} onChange={(e) => setInn(e.target.value)}>
+          <option value="">In</option>
+          {bench.map((p) => <option key={p.userId} value={p.userId}>#{p.number ?? '-'} {p.name}</option>)}
+        </select>
+        <button className="btn secondary" disabled={disabled || !out || !inn} onClick={() => { onSub(subTeam, out, inn); setOut(''); setInn(''); }}>Sub</button>
+      </div>
+
+      {/* Bulk sub — tap several off + several on, one press. Same team as above. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 640 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#f87171' }}>OFF</span>
+        {onCourt.map((p) => (
+          <SubChip key={p.userId} tone="out" disabled={disabled} selected={offIds.has(p.userId)}
+            onClick={() => toggle(setOffIds, p.userId)} label={`#${p.number ?? '-'} ${short(p.name)}`} />
+        ))}
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80', marginLeft: 4 }}>ON</span>
+        {bench.map((p) => (
+          <SubChip key={p.userId} tone="in" disabled={disabled} selected={onIds.has(p.userId)}
+            onClick={() => toggle(setOnIds, p.userId)} label={`#${p.number ?? '-'} ${short(p.name)}`} />
+        ))}
+        <button className="btn" disabled={disabled || !balanced} onClick={applyBulk} title="Swap all selected at once"
+          style={{ padding: '4px 10px' }}>
+          {offIds.size || onIds.size ? `Sub ${offIds.size} ⇄ ${onIds.size}` : 'Bulk sub'}
+        </button>
+      </div>
     </div>
   );
 }
