@@ -7,6 +7,15 @@
   --font-display: 'Archivo', system-ui, sans-serif;
   --font-numeric: 'Saira Semi Condensed', 'Inter', sans-serif;
 
+  /* THE brand-colour rule (one system, no drift between themes):
+     `--color-primary` is the single adaptive brand + interactive + data accent.
+     It is VOLT on dark (the default, signature look) and INDIGO on light (volt
+     fails contrast on light grounds) — see the [data-theme="light"] override.
+     Everything brand-coloured routes through this token (bg-primary / text-
+     primary / primary/N); no surface hardcodes a raw volt hex. Semantic colours
+     (green up, red down/likes, amber warnings) are theme-stable and are NOT the
+     accent. The logo mark stays volt everywhere — it's the brand mark, not a UI
+     accent (this is why the PWA install icon is volt on both themes). */
   --color-primary: #dbff5a;
   --color-primary-light: #e8ff8a;
   --color-primary-dark: #b8d940;

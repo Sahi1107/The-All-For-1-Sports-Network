@@ -166,7 +166,7 @@ export default function CreatePostModal({ onClose }: Props) {
   if (unverifiedEmail) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="bg-[#111] border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl p-8 text-center">
+        <div className="bg-card border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl p-8 text-center">
           <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <Mail size={28} className="text-primary" />
           </div>
@@ -194,7 +194,7 @@ export default function CreatePostModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#111] border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-card border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
           <h2 className="font-semibold text-foreground">Create Post</h2>
