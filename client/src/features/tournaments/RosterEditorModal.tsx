@@ -5,7 +5,7 @@ import { X, Crown, UserPlus, Trash2, AlertTriangle, Search, Lock } from 'lucide-
 import api from '../../api/client';
 
 interface Member { userId: string; role: string; status: string; user: { id: string; name: string; position?: string | null } }
-interface Team { id: string; name: string; captainId: string; members: Member[] }
+interface Team { id: string; name: string; captainId: string | null; members: Member[] }
 
 const STATUS = {
   ACCEPTED: 'bg-accent/20 text-accent',
@@ -78,6 +78,11 @@ export default function RosterEditorModal({
     onSuccess: () => { toast.success('Player removed'); invalidate(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not remove player'),
   });
+  const setCaptain = useMutation({
+    mutationFn: (userId: string) => api.put(`/tournaments/${tournamentId}/teams/${team.id}/captain`, { userId }),
+    onSuccess: () => { toast.success('Captain updated'); invalidate(); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not set captain'),
+  });
   const createPlayer = useMutation({
     mutationFn: (allowDuplicate: boolean) => api.post(`/tournaments/${tournamentId}/teams/${team.id}/members/provision`, {
       name: np.name.trim(),
@@ -111,12 +116,24 @@ export default function RosterEditorModal({
     },
   });
 
-  const existing = new Set(team.members.map((m) => m.userId));
-  const pending = team.members.filter((m) => m.status !== 'ACCEPTED');
+  // Read the LIVE roster from the shared registrations cache (same query key the
+  // parent uses), so an add / remove / captain change reflects immediately here
+  // instead of showing the stale snapshot passed in at open time. Falls back to
+  // the passed-in team before the query resolves.
+  const { data: regData } = useQuery({
+    queryKey: ['admin-tournament-registrations', tournamentId],
+    queryFn: async () => (await api.get(`/tournaments/${tournamentId}/registrations`)).data,
+  });
+  const liveReg = regData?.registrations?.find((r: any) => r.team.id === team.id);
+  const members: Member[] = liveReg?.team.members ?? team.members;
+  const captainId: string | null = liveReg ? liveReg.team.captainId : team.captainId;
   // The team has played its first match — the roster is locked (stats recorded
   // against it). Say so clearly and hide the edit controls rather than letting a
   // click fail. Genuine fixes go through the match-correction tools.
-  const locked = (team as Team & { _locked?: boolean })._locked === true;
+  const locked = liveReg ? liveReg.summary.rosterLocked === true : (team as Team & { _locked?: boolean })._locked === true;
+
+  const existing = new Set(members.map((m) => m.userId));
+  const pending = members.filter((m) => m.status !== 'ACCEPTED');
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
@@ -136,6 +153,12 @@ export default function RosterEditorModal({
               <span>This roster is <span className="font-semibold text-foreground">locked</span> — the team has already played a match, and stats are recorded against this exact roster. Corrections go through the match-correction tools in the Stat Tracker.</span>
             </div>
           )}
+          {!locked && !captainId && members.some((m) => m.status === 'ACCEPTED') && (
+            <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-amber-300">
+              <Crown size={14} className="mt-0.5 shrink-0" />
+              <span>No captain set — tap the crown next to a player to make them captain.</span>
+            </div>
+          )}
           {!locked && pending.length > 0 && (
             <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-amber-300">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -144,21 +167,39 @@ export default function RosterEditorModal({
           )}
 
           <ul className="space-y-2">
-            {team.members.map((m) => (
+            {members.map((m) => {
+              const isCaptain = m.userId === captainId;
+              const canBeCaptain = m.status === 'ACCEPTED';
+              return (
               <li key={m.userId} className="flex items-center gap-2">
-                <span className="text-sm flex-1 min-w-0 truncate flex items-center gap-1.5">
-                  {m.userId === team.captainId && <Crown size={12} className="text-primary shrink-0" />}
+                {/* Captain: filled crown = current captain; ghost crown = tap to make captain */}
+                {!locked && canBeCaptain ? (
+                  <button
+                    onClick={() => { if (!isCaptain) setCaptain.mutate(m.userId); }}
+                    disabled={setCaptain.isPending || isCaptain}
+                    title={isCaptain ? 'Captain' : 'Make captain'}
+                    className={`p-0.5 rounded shrink-0 transition-colors ${isCaptain ? 'text-primary cursor-default' : 'text-gray-custom/40 hover:text-primary'}`}
+                  >
+                    <Crown size={13} />
+                  </button>
+                ) : isCaptain ? (
+                  <Crown size={13} className="text-primary shrink-0" />
+                ) : (
+                  <span className="w-[13px] shrink-0" />
+                )}
+                <span className="text-sm flex-1 min-w-0 truncate">
                   {m.user.name}
                   {m.user.position && <span className="text-xs text-gray-custom">· {m.user.position}</span>}
                 </span>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS[m.status] ?? 'bg-elevated text-gray-custom'}`}>{m.status}</span>
-                {!locked && m.userId !== team.captainId && (
-                  <button onClick={() => remove.mutate(m.userId)} disabled={remove.isPending} className="p-1.5 rounded-lg text-gray-custom hover:text-red-400 hover:bg-elevated transition-colors disabled:opacity-50" title="Remove">
+                {!locked && (
+                  <button onClick={() => remove.mutate(m.userId)} disabled={remove.isPending} className="p-1.5 rounded-lg text-gray-custom hover:text-red-400 hover:bg-elevated transition-colors disabled:opacity-50" title={isCaptain ? 'Remove captain (team will have no captain)' : 'Remove'}>
                     <Trash2 size={13} />
                   </button>
                 )}
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           {/* Add player — search an existing user, or create a brand-new one.

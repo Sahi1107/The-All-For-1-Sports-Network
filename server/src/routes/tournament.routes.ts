@@ -1360,22 +1360,56 @@ router.post(
 );
 
 // DELETE /api/tournaments/:id/teams/:teamId/members/:userId — admin: remove a member.
+// Any player can be removed — including the captain. Removing the captain simply
+// clears the team's captainId (nullable), leaving the team captainless until one
+// is set again; no dead-end where the captain can't be edited.
 router.delete('/:id/teams/:teamId/members/:userId', authenticate, requireTournamentAccess(fromParamId), async (req: AuthRequest, res: Response) => {
   try {
+    const userId = req.params.userId as string;
     const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
     if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
     if (await teamRosterIsLocked(team.id)) {
       res.status(409).json({ error: ROSTER_LOCKED_MESSAGE, code: 'ROSTER_LOCKED' });
       return;
     }
-    if (team.captainId === req.params.userId) {
-      res.status(400).json({ error: 'Reassign the captain before removing them' });
-      return;
-    }
-    await prisma.teamMember.deleteMany({ where: { teamId: team.id, userId: req.params.userId as string } });
+    await prisma.$transaction(async (tx) => {
+      if (team.captainId === userId) {
+        await tx.team.update({ where: { id: team.id }, data: { captainId: null } });
+      }
+      await tx.teamMember.deleteMany({ where: { teamId: team.id, userId } });
+    });
     res.json({ ok: true });
   } catch (error) {
     console.error('Admin remove member error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/tournaments/:id/teams/:teamId/captain — admin: set/reassign the captain.
+// The captain must already be an ACCEPTED member of the team (designation only —
+// it doesn't change the player set), so it's allowed even after the roster locks.
+router.put('/:id/teams/:teamId/captain', authenticate, requireTournamentAccess(fromParamId), writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const { userId } = req.body as { userId?: string };
+    if (!userId) { res.status(400).json({ error: 'userId is required' }); return; }
+    const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
+    if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+    const member = await prisma.teamMember.findUnique({ where: { teamId_userId: { teamId: team.id, userId } }, select: { status: true } });
+    if (!member || member.status !== 'ACCEPTED') {
+      res.status(400).json({ error: 'The captain must be an accepted member of the team' });
+      return;
+    }
+    await prisma.$transaction(async (tx) => {
+      // Demote the previous captain's member role, promote the new one.
+      if (team.captainId && team.captainId !== userId) {
+        await tx.teamMember.updateMany({ where: { teamId: team.id, userId: team.captainId }, data: { role: 'PLAYER' } });
+      }
+      await tx.teamMember.update({ where: { teamId_userId: { teamId: team.id, userId } }, data: { role: 'CAPTAIN' } });
+      await tx.team.update({ where: { id: team.id }, data: { captainId: userId } });
+    });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Set captain error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
