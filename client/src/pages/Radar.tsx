@@ -5,7 +5,7 @@ import { VerifiedTick } from '../components/feed/FeedBits';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { track } from '../config/analytics';
-import { Search, MapPin, User, Zap, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, MapPin, User, Zap, ChevronRight, Loader2, Clock, MessageSquareText, SlidersHorizontal, BadgeCheck } from 'lucide-react';
 import api from '../api/client';
 import EmptyState from '../components/EmptyState';
 import toast from 'react-hot-toast';
@@ -23,13 +23,43 @@ const TIER_LABEL: Record<string, string> = {
   country: 'elsewhere in India',
 };
 
-const EXAMPLE_QUERIES = [
-  'Show me left-footed strikers under 19 in Maharashtra with 10+ goals',
-  'Find basketball point guards in Delhi between ages 20–25',
-  'Cricket fast bowlers in Tamil Nadu with 20+ wickets',
-  'Football goalkeepers under 22 in Goa',
-  'Basketball forwards in Karnataka with 15+ points',
+// Short, scannable chip labels that expand to a full natural-language query — a
+// flagship search should invite a tap, not present a wall of quoted sentences.
+const EXAMPLES: { chip: string; emoji: string; query: string }[] = [
+  { chip: 'Left-footed strikers, U19', emoji: '⚽', query: 'Show me left-footed strikers under 19 in Maharashtra with 10+ goals' },
+  { chip: 'Delhi point guards, 20–25', emoji: '🏀', query: 'Find basketball point guards in Delhi between ages 20–25' },
+  { chip: 'TN fast bowlers, 20+ wickets', emoji: '🏏', query: 'Cricket fast bowlers in Tamil Nadu with 20+ wickets' },
+  { chip: 'Goa keepers, under 22', emoji: '⚽', query: 'Football goalkeepers under 22 in Goa' },
+  { chip: 'Karnataka forwards, 15+ pts', emoji: '🏀', query: 'Basketball forwards in Karnataka with 15+ points' },
 ];
+
+// One-tap starters by sport — the fastest way in for someone who just wants to browse.
+const SPORT_STARTERS: { label: string; emoji: string; query: string }[] = [
+  { label: 'Basketball', emoji: '🏀', query: 'basketball players' },
+  { label: 'Football', emoji: '⚽', query: 'football players' },
+  { label: 'Cricket', emoji: '🏏', query: 'cricket players' },
+];
+
+const HOW_IT_WORKS: { icon: typeof MessageSquareText; title: string; body: string }[] = [
+  { icon: MessageSquareText, title: 'Describe who you want', body: 'Type it in plain English — sport, position, age, location, stats. No filters to fiddle with.' },
+  { icon: SlidersHorizontal, title: 'Radar reads the query', body: 'It parses your words into precise criteria and finds the athletes that fit — widening only if it must.' },
+  { icon: BadgeCheck, title: 'Get verified matches', body: 'Every result is a real athlete with performance recorded at All For 1 tournaments — not self-reported.' },
+];
+
+// ── Recent searches (per-device, localStorage) ──────────────────────────────
+const RECENT_KEY = 'af1:radar-recent';
+const RECENT_MAX = 6;
+function loadRecent(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    return Array.isArray(v) ? v.slice(0, RECENT_MAX) : [];
+  } catch { return []; }
+}
+function pushRecent(q: string, prev: string[]): string[] {
+  const next = [q, ...prev.filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, RECENT_MAX);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+  return next;
+}
 
 function FilterTag({ label, value }: { label: string; value: string }) {
   return (
@@ -50,10 +80,17 @@ function AthleteCard({ athlete }: { athlete: any }) {
   return (
     <Link
       to={`/profile/${athlete.id}`}
-      className="group flex items-start gap-4 p-4 bg-ink/5 hover:bg-ink/8 border border-ink/10 hover:border-primary/30 rounded-xl transition-all"
+      className="group relative flex items-start gap-4 p-4 bg-ink/5 hover:bg-ink/[0.08] border border-ink/10 hover:border-primary/40 rounded-xl transition-all hover:shadow-lg hover:shadow-primary/5"
     >
-      {/* Avatar */}
-      <Avatar name={athlete.name} src={athlete.avatar} size={48} />
+      {/* Avatar + rank badge (when the athlete is ranked in their category) */}
+      <div className="relative shrink-0">
+        <Avatar name={athlete.name} src={athlete.avatar} size={48} />
+        {athlete.rank != null && athlete.rank <= 999 && (
+          <span className="absolute -bottom-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-primary text-on-primary text-[10px] font-numeric font-bold tabular-nums flex items-center justify-center ring-2 ring-surface">
+            #{athlete.rank}
+          </span>
+        )}
+      </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -64,7 +101,9 @@ function AthleteCard({ athlete }: { athlete: any }) {
             </p>
             {athlete.verified && <VerifiedTick size={14} />}
           </span>
-          <ChevronRight size={14} className="shrink-0 text-foreground/30 group-hover:text-primary transition-colors" />
+          <span className="shrink-0 flex items-center gap-0.5 text-[11px] font-semibold text-foreground/30 group-hover:text-primary transition-colors">
+            View <ChevronRight size={13} />
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-foreground/50">
@@ -101,14 +140,14 @@ function AthleteCard({ athlete }: { athlete: any }) {
           </p>
         )}
 
-        {/* Aggregated stats */}
+        {/* Aggregated stats — verified, as compact stat pills */}
         {statEntries.length > 0 && (
-          <div className="flex flex-wrap gap-3 mt-2">
+          <div className="flex flex-wrap gap-1.5 mt-2">
             {statEntries.map(([key, val]) => (
-              <div key={key} className="text-center">
-                <p className="text-sm font-bold text-primary-light">{val}</p>
-                <p className="text-[10px] text-foreground/40 capitalize">{key}</p>
-              </div>
+              <span key={key} className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded-md bg-primary/10 border border-primary/15">
+                <span className="text-xs font-numeric font-bold tabular-nums text-primary-light">{val}</span>
+                <span className="text-[10px] text-foreground/50 capitalize">{key}</span>
+              </span>
             ))}
           </div>
         )}
@@ -211,6 +250,7 @@ function RadarLoadingQuote() {
 
 export default function Radar() {
   const [query, setQuery] = useState('');
+  const [recent, setRecent] = useState<string[]>(() => loadRecent());
   const inputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
@@ -228,31 +268,45 @@ export default function Radar() {
     if (!trimmed) return;
     track('radar_search');
     setQuery(trimmed);
+    setRecent((prev) => pushRecent(trimmed, prev));
     mutation.mutate(trimmed);
+  };
+
+  const clearRecent = () => {
+    try { localStorage.removeItem(RECENT_KEY); } catch { /* noop */ }
+    setRecent([]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSubmit(query);
   };
 
+  const showLanding = !mutation.data && !mutation.isPending;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <Zap size={18} className="text-primary" />
-          <h1 className="text-xl font-bold">Radar</h1>
+    <div className="max-w-3xl mx-auto space-y-6">
+      {/* Header — flagship framing so a recruiter gets it at a glance */}
+      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[0.10] via-ink/[0.04] to-transparent px-5 py-5 sm:px-7 sm:py-6">
+        <div className="absolute -top-16 -right-10 w-56 h-56 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+        <div className="relative">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/15 text-primary">
+              <Zap size={17} />
+            </span>
+            <h1 className="text-2xl font-display font-bold tracking-tight">Radar</h1>
+          </div>
+          <p className="text-sm sm:text-[15px] text-foreground/60 max-w-xl leading-relaxed">
+            Scout any athlete in plain English. Describe who you&apos;re looking for — sport, position,
+            age, location, stats — and Radar returns <span className="text-foreground/80 font-medium">verified</span> matches.
+          </p>
         </div>
-        <p className="text-sm text-foreground/50">
-          Search athletes in plain English. Ask anything about sport, position, age, location, or stats.
-        </p>
       </div>
 
       {/* Search bar */}
       <div className="relative">
         <Search
-          size={16}
-          className="absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none"
+          size={17}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none"
         />
         <input
           ref={inputRef}
@@ -260,14 +314,14 @@ export default function Radar() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="e.g. left-footed strikers under 19 in Maharashtra with 10+ goals"
-          className="w-full pl-9 pr-28 py-3 bg-ink/5 border border-ink/10 focus:border-primary rounded-xl text-sm text-foreground placeholder-ink/25 focus:outline-none transition-colors"
+          className="w-full pl-11 pr-32 py-3.5 bg-ink/5 border border-ink/10 focus:border-primary focus:ring-2 focus:ring-primary/15 rounded-xl text-sm text-foreground placeholder-ink/25 focus:outline-none transition-all"
           maxLength={500}
           autoFocus
         />
         <button
           onClick={() => handleSubmit(query)}
           disabled={mutation.isPending || !query.trim()}
-          className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-1.5 bg-primary hover:bg-primary-dark disabled:bg-primary/30 text-on-primary font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+          className="absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 bg-primary hover:bg-primary-dark disabled:bg-primary/30 text-on-primary font-semibold text-xs rounded-lg transition-colors flex items-center gap-1.5"
         >
           {mutation.isPending ? (
             <Loader2 size={13} className="animate-spin" />
@@ -278,23 +332,86 @@ export default function Radar() {
         </button>
       </div>
 
-      {/* Example queries — shown before first search */}
-      {!mutation.data && !mutation.isPending && (
-        <div className="space-y-2">
-          <p className="text-xs text-foreground/30 font-medium uppercase tracking-wide">Try asking</p>
-          <div className="space-y-1.5">
-            {EXAMPLE_QUERIES.map((ex) => (
-              <button
-                key={ex}
-                onClick={() => {
-                  setQuery(ex);
-                  handleSubmit(ex);
-                }}
-                className="w-full text-left text-sm text-foreground/50 hover:text-foreground px-3 py-2 rounded-lg hover:bg-ink/5 transition-colors border border-transparent hover:border-ink/10"
-              >
-                "{ex}"
-              </button>
-            ))}
+      {/* ── Pre-search landing: recent, examples, starters, how-it-works ── */}
+      {showLanding && (
+        <div className="space-y-7">
+          {/* Recent searches */}
+          {recent.length > 0 && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-foreground/35 font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock size={12} /> Recent
+                </p>
+                <button onClick={clearRecent} className="text-[11px] text-foreground/30 hover:text-foreground/60 transition-colors">Clear</button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {recent.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => handleSubmit(r)}
+                    className="group inline-flex items-center gap-1.5 max-w-full pl-3 pr-2.5 py-1.5 rounded-full bg-ink/5 hover:bg-ink/[0.09] border border-ink/10 hover:border-primary/30 text-xs text-foreground/70 transition-colors"
+                  >
+                    <Clock size={11} className="shrink-0 text-foreground/30" />
+                    <span className="truncate max-w-[240px]">{r}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Example chips */}
+          <div className="space-y-2.5">
+            <p className="text-[11px] text-foreground/35 font-semibold uppercase tracking-wider">Try a search</p>
+            <div className="flex flex-wrap gap-2">
+              {EXAMPLES.map((ex) => (
+                <button
+                  key={ex.chip}
+                  onClick={() => handleSubmit(ex.query)}
+                  title={ex.query}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/[0.07] hover:bg-primary/[0.14] border border-primary/20 hover:border-primary/40 text-xs font-medium text-foreground/80 hover:text-foreground transition-colors"
+                >
+                  <span aria-hidden>{ex.emoji}</span>
+                  {ex.chip}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Browse by sport — one-tap starters */}
+          <div className="space-y-2.5">
+            <p className="text-[11px] text-foreground/35 font-semibold uppercase tracking-wider">Browse by sport</p>
+            <div className="grid grid-cols-3 gap-2.5">
+              {SPORT_STARTERS.map((s) => (
+                <button
+                  key={s.label}
+                  onClick={() => handleSubmit(s.query)}
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl bg-ink/5 hover:bg-ink/[0.09] border border-ink/10 hover:border-primary/30 transition-colors"
+                >
+                  <span className="text-xl" aria-hidden>{s.emoji}</span>
+                  <span className="text-sm font-semibold">{s.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* How Radar works — fills the below-the-fold space with something that
+              teaches a first-time recruiter what the tool actually does. */}
+          <div className="space-y-3 pt-1">
+            <p className="text-[11px] text-foreground/35 font-semibold uppercase tracking-wider">How Radar works</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {HOW_IT_WORKS.map((step, i) => (
+                <div key={step.title} className="relative rounded-xl border border-ink/10 bg-ink/[0.03] p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/12 text-primary">
+                      <step.icon size={15} />
+                    </span>
+                    <span className="font-numeric text-xs font-bold text-foreground/25 tabular-nums">0{i + 1}</span>
+                  </div>
+                  <p className="text-sm font-semibold mb-1">{step.title}</p>
+                  <p className="text-xs text-foreground/50 leading-relaxed">{step.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
