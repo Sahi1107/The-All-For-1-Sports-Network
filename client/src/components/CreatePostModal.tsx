@@ -1,8 +1,7 @@
 import { useState, useRef } from 'react';
 import axios from 'axios';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { X, Type, Image, Video, Upload, Plus, Trash2, Mail, Trophy } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { X, Type, Image, Video, Upload, Plus, Trash2, Mail, Trophy, RefreshCw, CheckCircle2 } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import ImageCropModal from './ImageCropModal';
@@ -24,7 +23,15 @@ interface Props {
 }
 
 export default function CreatePostModal({ onClose }: Props) {
-  const { unverifiedEmail, user } = useAuth();
+  const { unverifiedEmail, user, resendVerification } = useAuth();
+  // Inline resend state for the "verify to post" gate — so a blocked user can
+  // actually resolve it here (send + clear feedback) instead of a dead-end.
+  const [resend, setResend] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const doResend = async () => {
+    setResend('sending');
+    try { await resendVerification(); setResend('sent'); }
+    catch { setResend('error'); }
+  };
   const verified = user?.verified ?? false;
   const qc = useQueryClient();
   const [type, setType] = useState<PostType>('TEXT');
@@ -171,19 +178,32 @@ export default function CreatePostModal({ onClose }: Props) {
             <Mail size={28} className="text-primary" />
           </div>
           <h2 className="font-semibold text-foreground text-lg mb-2">Verify your email to post</h2>
-          <p className="text-foreground/50 text-sm mb-1">
-            A verification link was sent to <span className="text-foreground/80">{unverifiedEmail}</span>.
+          <p className="text-foreground/60 text-sm mb-1">
+            Posting opens once you confirm <span className="text-foreground/85 break-all">{unverifiedEmail}</span>. Tap the link in the email we sent you.
           </p>
-          <p className="text-yellow-400/70 text-xs mb-6">
-            Can't find it? Check your <span className="font-semibold">spam or junk folder</span>.
+          <p className="text-foreground/45 text-xs mb-6">
+            Not there? Check your <span className="font-semibold">spam or junk folder</span>, or resend it below.
           </p>
-          <Link
-            to="/verify-pending"
-            onClick={onClose}
-            className="block w-full py-2.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors text-sm mb-3"
-          >
-            Resend verification email
-          </Link>
+
+          {resend === 'sent' ? (
+            <div className="w-full py-2.5 mb-1.5 rounded-lg bg-primary/10 text-primary-light text-sm font-medium flex items-center justify-center gap-2">
+              <CheckCircle2 size={16} /> Sent — check your inbox and spam
+            </div>
+          ) : (
+            <button
+              onClick={doResend}
+              disabled={resend === 'sending'}
+              className="w-full py-2.5 mb-1.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors text-sm disabled:opacity-60 flex items-center justify-center gap-2"
+            >
+              {resend === 'sending'
+                ? <><span className="w-4 h-4 border-2 border-on-primary/40 border-t-transparent rounded-full animate-spin" /> Sending…</>
+                : <><RefreshCw size={15} /> Resend verification email</>}
+            </button>
+          )}
+          {resend === 'error' && (
+            <p className="text-red-400 text-xs mb-1.5">Couldn't send just now — please try again in a moment.</p>
+          )}
+
           <button onClick={onClose} className="w-full py-2 text-sm text-foreground/40 hover:text-foreground transition-colors">
             Close
           </button>
