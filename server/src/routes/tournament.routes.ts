@@ -11,7 +11,12 @@ import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storag
 import { writeMatchPlayerStats } from '../services/matchStats';
 import { notify } from '../services/notifications/notify';
 import { isStatSport, CAREER_STAT_FIELDS, type StatSport } from '../data/careerStats';
-import { computeStandings } from '../services/trackerDraw';
+import { computeStandings, type BracketDef } from '../services/trackerDraw';
+import {
+  bracketHasSemis, thirdPlaceMatch, thirdPlaceRemovalNeedsConfirm, applyThirdPlaceChange,
+} from '../services/thirdPlace';
+import { recalculateTournamentRankings } from '../services/rankingService';
+import { captureException } from '../config/sentry';
 import { getOrCompute, bustTournament } from '../services/tournamentCache';
 import { deletionImpact, decideDeletion } from '../services/tournamentDeletion';
 import logger from '../utils/logger';
@@ -280,6 +285,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
             orderBy: { rank: 'asc' },
             take: 50,
           },
+          // Just the bracket, to reflect the third-place toggle's ACTUAL state
+          // once a draw exists (the bracket is the structural truth then).
+          trackerSession: { select: { bracket: true } },
         },
       });
       if (!t) return null;
@@ -340,8 +348,17 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         select: { id: true },
       }));
 
+    // Once a knockout draw exists, the bracket — not the stored default — is the
+    // truth about whether a third-place playoff is on. Reflect it so the details
+    // editor's toggle is honest even for tournaments drawn before this setting.
+    const tsBracket = (tournament as { trackerSession?: { bracket?: { slots?: { stage: string }[]; includesThirdPlace?: boolean } | null } }).trackerSession?.bracket ?? null;
+    const effectiveThirdPlace = tsBracket?.slots?.some((s) => s.stage === 'sf')
+      ? tsBracket.includesThirdPlace === true
+      : (tournament as { thirdPlace?: boolean }).thirdPlace;
+    const { trackerSession: _ts, ...tournamentBase } = tournament as Record<string, unknown>;
+
     // Spread so the per-viewer myTeams is never written back into the shared cache entry.
-    res.json({ tournament: { ...tournament, myTeams, viewerCanManage } });
+    res.json({ tournament: { ...tournamentBase, thirdPlace: effectiveThirdPlace, myTeams, viewerCanManage } });
   } catch (error) {
     console.error('Get tournament error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -835,6 +852,7 @@ router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate(
     const {
       name, status, description, venue, city, prizePool, maxTeams, minRosterSize, maxRosterSize,
       startDate, endDate, entryFee, category, ageCategory, genderCategory,
+      thirdPlace, confirmThirdPlaceRemoval,
     } = req.body;
     const id = req.params.id as string;
 
@@ -848,6 +866,36 @@ router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate(
       if (status !== current.status && !(STATUS_TRANSITIONS[current.status] ?? []).includes(status)) {
         res.status(400).json({ error: `Cannot move a ${current.status.replace(/_/g, ' ').toLowerCase()} tournament to ${status.replace(/_/g, ' ').toLowerCase()}` });
         return;
+      }
+    }
+
+    // Third-place playoff toggle. When a draw already exists, flipping this must
+    // add/remove the actual fixture (fed by the losing semifinalists) — not just
+    // store a flag. Removing a PLAYED third-place match destroys a result, so
+    // that case is gated behind an explicit confirmation (409) here, BEFORE any
+    // write, so a rejected save leaves everything untouched.
+    let thirdPlacePlan: { session: { id: string; bracket: unknown; config: unknown }; matches: any[]; enabled: boolean } | null = null;
+    if (thirdPlace !== undefined) {
+      const current = await prisma.tournament.findUnique({ where: { id }, select: { thirdPlace: true } });
+      if (current && current.thirdPlace !== thirdPlace) {
+        const session = await prisma.trackerSession.findUnique({
+          where: { tournamentId: id },
+          include: { matches: true },
+        });
+        if (session && bracketHasSemis(session.bracket as BracketDef | null)) {
+          const existing = thirdPlaceMatch(session.matches);
+          if (!thirdPlace && thirdPlaceRemovalNeedsConfirm(existing) && !confirmThirdPlaceRemoval) {
+            res.status(409).json({
+              code: 'THIRD_PLACE_HAS_RESULT',
+              published: existing!.status === 'PUBLISHED',
+              error:
+                'The third-place match already has a result. Removing it deletes that match' +
+                (existing!.status === 'PUBLISHED' ? ' and the published player stats it wrote to profiles.' : '.'),
+            });
+            return;
+          }
+          thirdPlacePlan = { session, matches: session.matches, enabled: thirdPlace };
+        }
       }
     }
 
@@ -869,8 +917,24 @@ router.put('/:id', authenticate, requireTournamentAccess(fromParamId), validate(
         ...(category !== undefined && { category }),
         ...(ageCategory !== undefined && { ageCategory }),
         ...(genderCategory !== undefined && { genderCategory }),
+        ...(thirdPlace !== undefined && { thirdPlace }),
       },
     });
+
+    // Apply the structural bracket change (add/remove the fixture) after the
+    // record is saved. If a published third-place result was removed, its stats
+    // must drop out of the rankings too.
+    if (thirdPlacePlan) {
+      const { removedPublishedMatchId } = await applyThirdPlaceChange(
+        thirdPlacePlan.session, thirdPlacePlan.matches, thirdPlacePlan.enabled,
+      );
+      if (removedPublishedMatchId) {
+        void recalculateTournamentRankings(id).catch((e) => {
+          console.error('ranking recompute (third-place removal) failed', e);
+          captureException(e, { where: 'ranking.recompute', phase: 'thirdPlace', tournamentId: id });
+        });
+      }
+    }
 
     res.json({ tournament });
   } catch (error) {
