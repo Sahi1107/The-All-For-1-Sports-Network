@@ -276,17 +276,33 @@ export default function Landing() {
       <section className="info-hub" ref={infoHubRef}>
         <div className="hub-cards">
           <FlipCard
-            img="/trophy.png"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 4h12v3a6 6 0 0 1-12 0V4Z" />
+                <path d="M6 5H4a2 2 0 0 0 2 3M18 5h2a2 2 0 0 1-2 3" />
+                <path d="M12 13v3M9 20h6M10 20a2 2 0 0 1 4 0" />
+              </svg>
+            }
             title="Tournaments That Matter"
             back="Competitive events designed to highlight real talent under pressure and reward performance."
           />
           <FlipCard
-            img="/graph.png"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19V5M4 19h16" />
+                <path d="M8 16v-4M12 16V8M16 16v-6" />
+              </svg>
+            }
             title="Performance-Based Rankings"
             back="Rankings built from real match data and statistics - not opinions or popularity."
           />
           <FlipCard
-            img="/eye.png"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            }
             title="Clear Visibility"
             back="Players can track where they stand at city, state, and national levels."
           />
@@ -506,7 +522,7 @@ export default function Landing() {
   );
 }
 
-function FlipCard({ img, title, back }: { img: string; title: string; back: string }) {
+function FlipCard({ icon, title, back }: { icon: React.ReactNode; title: string; back: string }) {
   const [flipped, setFlipped] = useState(false);
   return (
     <button
@@ -518,9 +534,7 @@ function FlipCard({ img, title, back }: { img: string; title: string; back: stri
     >
       <div className="flip-inner">
         <div className="flip-front">
-          <div className="hub-icon">
-            <img src={img} alt="" aria-hidden />
-          </div>
+          <div className="hub-icon" aria-hidden>{icon}</div>
           <h3>{title}</h3>
         </div>
         <div className="flip-back">
