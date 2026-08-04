@@ -48,10 +48,13 @@ export default function AddTeamModal({
 
   const create = useMutation({
     mutationFn: () => api.post(`/tournaments/${tournamentId}/teams`, {
-      teamName: teamName.trim(), captainUserId: captainId, playerUserIds: players.map((p) => p.id),
+      // Name-only entry is allowed — captain/players are sent only if chosen now.
+      teamName: teamName.trim(),
+      ...(captainId ? { captainUserId: captainId } : {}),
+      playerUserIds: players.map((p) => p.id),
     }),
     onSuccess: () => {
-      toast.success('Team added');
+      toast.success(players.length > 0 ? 'Team added' : 'Team added — add players any time before its first match');
       qc.invalidateQueries({ queryKey: ['admin-tournament-registrations', tournamentId] });
       qc.invalidateQueries({ queryKey: ['admin-tournaments'] });
       onClose();
@@ -59,7 +62,8 @@ export default function AddTeamModal({
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not create team'),
   });
 
-  const valid = teamName.trim() && players.length > 0 && captainId;
+  // A team can register with just a name; the squad is finalised later.
+  const valid = !!teamName.trim();
   const existing = new Set(players.map((p) => p.id));
 
   return (
@@ -110,7 +114,7 @@ export default function AddTeamModal({
                 ))}
               </div>
             )}
-            <p className="text-[11px] text-gray-custom">Players are added as accepted — no invite needed. Tap the crown to set the captain.</p>
+            <p className="text-[11px] text-gray-custom">Players are optional — you can register with just a name and add the squad any time before the team's first match. Added players are accepted immediately; tap the crown to set the captain.</p>
           </div>
         </div>
 

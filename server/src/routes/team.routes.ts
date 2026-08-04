@@ -182,7 +182,7 @@ router.post('/:teamId/members/me/decline', authenticate, writeLimiter, async (re
       where: { id: userId },
       select: { name: true },
     });
-    if (team && decliningUser && team.captainId !== userId) {
+    if (team && decliningUser && team.captainId && team.captainId !== userId) {
       await notify({
         recipientId: team.captainId,
         type: 'TEAM_INVITE',

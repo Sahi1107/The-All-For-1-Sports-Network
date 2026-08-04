@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Crown, UserPlus, Trash2, AlertTriangle, Search } from 'lucide-react';
+import { X, Crown, UserPlus, Trash2, AlertTriangle, Search, Lock } from 'lucide-react';
 import api from '../../api/client';
 
 interface Member { userId: string; role: string; status: string; user: { id: string; name: string; position?: string | null } }
@@ -113,20 +113,30 @@ export default function RosterEditorModal({
 
   const existing = new Set(team.members.map((m) => m.userId));
   const pending = team.members.filter((m) => m.status !== 'ACCEPTED');
+  // The team has played its first match — the roster is locked (stats recorded
+  // against it). Say so clearly and hide the edit controls rather than letting a
+  // click fail. Genuine fixes go through the match-correction tools.
+  const locked = (team as Team & { _locked?: boolean })._locked === true;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-card border border-line rounded-2xl w-full max-w-md max-h-[88vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-line">
           <div>
-            <p className="text-[11px] uppercase tracking-wide text-gray-custom">Roster</p>
+            <p className="text-[11px] uppercase tracking-wide text-gray-custom">Roster{locked ? ' · locked' : ''}</p>
             <h3 className="font-semibold truncate">{team.name}</h3>
           </div>
           <button onClick={onClose} className="text-gray-custom hover:text-foreground"><X size={18} /></button>
         </div>
 
         <div className="overflow-y-auto p-5 space-y-4">
-          {pending.length > 0 && (
+          {locked && (
+            <div className="flex items-start gap-2 p-3 rounded-lg border border-line bg-ink/5 text-xs text-foreground/70">
+              <Lock size={14} className="mt-0.5 shrink-0 text-gray-custom" />
+              <span>This roster is <span className="font-semibold text-foreground">locked</span> — the team has already played a match, and stats are recorded against this exact roster. Corrections go through the match-correction tools in the Stat Tracker.</span>
+            </div>
+          )}
+          {!locked && pending.length > 0 && (
             <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/5 text-xs text-amber-300">
               <AlertTriangle size={14} className="mt-0.5 shrink-0" />
               <span>{pending.length} player{pending.length > 1 ? 's' : ''} haven't accepted yet — they <span className="font-semibold">won't be included</span> when you generate the draw. Add them directly below to accept on their behalf.</span>
@@ -142,7 +152,7 @@ export default function RosterEditorModal({
                   {m.user.position && <span className="text-xs text-gray-custom">· {m.user.position}</span>}
                 </span>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS[m.status] ?? 'bg-elevated text-gray-custom'}`}>{m.status}</span>
-                {m.userId !== team.captainId && (
+                {!locked && m.userId !== team.captainId && (
                   <button onClick={() => remove.mutate(m.userId)} disabled={remove.isPending} className="p-1.5 rounded-lg text-gray-custom hover:text-red-400 hover:bg-elevated transition-colors disabled:opacity-50" title="Remove">
                     <Trash2 size={13} />
                   </button>
@@ -151,7 +161,9 @@ export default function RosterEditorModal({
             ))}
           </ul>
 
-          {/* Add player — search an existing user, or create a brand-new one */}
+          {/* Add player — search an existing user, or create a brand-new one.
+              Hidden once the roster locks (the team has played). */}
+          {!locked && (
           <div className="space-y-3 pt-2 border-t border-line">
             <p className="text-xs uppercase tracking-wide text-gray-custom flex items-center gap-1.5"><UserPlus size={13} /> Add a player</p>
 
@@ -289,6 +301,7 @@ export default function RosterEditorModal({
               </div>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex justify-end px-5 py-3 border-t border-line">
