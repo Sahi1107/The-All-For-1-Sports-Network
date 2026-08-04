@@ -16,8 +16,9 @@ import MatchDetails from './components/MatchDetails';
 import MatchAdminModal from './components/MatchAdminModal';
 import AutoScheduleModal from './components/AutoScheduleModal';
 import GroupEditor from './components/GroupEditor';
-import { Pencil, AlertTriangle } from 'lucide-react';
-import { unassignedTeamIds } from '../tournaments/manageGate';
+import { Pencil, AlertTriangle, Crown, Lock } from 'lucide-react';
+import { TeamCrest } from '../../components/Avatar';
+import RosterEditorModal from '../tournaments/RosterEditorModal';
 
 /** Adapt a live TrackerSession's bracket into the shared Bracket's plain props. */
 function bracketDataFromSession(session: TrackerSession): BracketData {
@@ -71,6 +72,18 @@ export default function TournamentView({
   const [manage, setManage] = useState<TrackerMatch | null>(null);
   const [showSchedule, setShowSchedule] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
+  const [editTeam, setEditTeam] = useState<any | null>(null);
+
+  // Registered teams + roster status — so an organiser can manage rosters right
+  // here on the tracker, without bouncing back to the manage hub. Same endpoint
+  // + summary flags (rosterLocked / needsAttention) the manage page uses; edits
+  // reuse the one RosterEditorModal and are server-enforced by tournament access.
+  const { data: regData } = useQuery({
+    queryKey: ['admin-tournament-registrations', session.tournamentId],
+    queryFn: async () => (await api.get(`/tournaments/${session.tournamentId}/registrations`)).data,
+    enabled: !demo,
+  });
+  const registrations: any[] = regData?.registrations ?? [];
 
   // Late entries: teams registered AFTER this draw was generated. They aren't in
   // any group yet, so surface them here (not just buried in the group editor) so
@@ -83,7 +96,18 @@ export default function TournamentView({
     enabled: !demo,
   });
   const registeredIds: string[] = (liveTeams ?? []).map((t: any) => t.team.id);
-  const lateTeamIds = demo ? [] : unassignedTeamIds(registeredIds, session.groups as Array<{ teamIds: string[] }> | null);
+  // A team is PLACED if it sits in a group OR appears in any match (home/away).
+  // Checking groups alone falsely flagged every team in a group-less draw
+  // (knockout) as "unplaced". Late entries are the registered teams in neither.
+  const placedTeamIds = new Set<string>();
+  for (const g of (session.groups ?? []) as Array<{ teamIds: string[] }>) {
+    for (const id of g.teamIds ?? []) placedTeamIds.add(id);
+  }
+  for (const m of session.matches ?? []) {
+    if (m.homeTeamId) placedTeamIds.add(m.homeTeamId);
+    if (m.awayTeamId) placedTeamIds.add(m.awayTeamId);
+  }
+  const lateTeamIds = demo ? [] : registeredIds.filter((id) => !placedTeamIds.has(id));
 
   // Stat leaders: prefer live tracker state; for published/imported tournaments
   // whose matches carry no live state (state === null), fall back to the DB
@@ -172,6 +196,44 @@ export default function TournamentView({
       {activeTab === 'overview' && (
         <div className="space-y-6">
           <ProgressSummary session={session} />
+
+          {/* Registered teams — manage rosters without leaving the tracker */}
+          {!demo && registrations.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom">Registered teams</h3>
+                <span className="text-xs text-gray-custom">{registrations.length}</span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {registrations.map((r) => (
+                  <div key={r.id} className="flex items-center gap-2.5 p-3 rounded-xl border border-line bg-ink/[0.03]">
+                    <TeamCrest name={r.team.name} src={r.team.logo} size={34} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate flex items-center gap-1.5">
+                        {r.team.captain && <Crown size={11} className="text-primary shrink-0" />}{r.team.name}
+                      </p>
+                      <p className="text-[11px] text-gray-custom">{r.summary.accepted} player{r.summary.accepted === 1 ? '' : 's'}</p>
+                    </div>
+                    {r.summary.rosterLocked && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full shrink-0 bg-ink/10 text-gray-custom flex items-center gap-1"><Lock size={9} /> Locked</span>
+                    )}
+                    {r.summary.needsAttention && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full shrink-0 bg-amber-500/20 text-amber-300">
+                        {r.summary.accepted === 0 ? 'Needs players' : 'Below min'}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setEditTeam({ ...r.team, _locked: r.summary.rosterLocked })}
+                      className="text-xs font-medium text-primary-light hover:underline shrink-0"
+                    >
+                      {r.summary.rosterLocked ? 'View' : 'Edit'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-custom mb-3">Stat leaders</h3>
             <StatLeaders categories={leaderCategories} />
@@ -204,6 +266,7 @@ export default function TournamentView({
       {manage && <MatchAdminModal session={session} match={manage} onClose={() => setManage(null)} />}
       {showSchedule && <AutoScheduleModal tournamentId={session.tournamentId} sport={session.sport} onClose={() => setShowSchedule(false)} />}
       {showGroups && <GroupEditor session={session} onClose={() => setShowGroups(false)} />}
+      {editTeam && <RosterEditorModal tournamentId={session.tournamentId} team={editTeam} onClose={() => setEditTeam(null)} />}
     </div>
   );
 }
