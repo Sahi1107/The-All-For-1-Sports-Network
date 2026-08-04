@@ -11,7 +11,7 @@ import DrawPreviewPanel from './DrawPreviewPanel';
 import { exportTournamentExcel } from './excel';
 import TournamentView from './TournamentView';
 import type { TrackerFormat, TrackerSession } from './types';
-import { Download, Trophy, RotateCcw, AlertTriangle, GraduationCap } from 'lucide-react';
+import { Download, Trophy, RotateCcw, AlertTriangle, GraduationCap, Settings } from 'lucide-react';
 import { isRegistrationOpen, LATE_ENTRY_WARNING } from '../tournaments/manageGate';
 
 export default function TrackerDashboard() {
@@ -61,8 +61,17 @@ export default function TrackerDashboard() {
     <div>
       <div className="flex items-center justify-between gap-3 mb-1">
         <h1 className="text-2xl font-bold truncate">{tournament?.name ?? 'Tournament'}</h1>
-        {session && (
-          <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Jump back to the manage hub — details, status, teams — without the
+              multi-hop through the tournaments list. */}
+          <Link
+            to={`/admin/tournaments/${tournamentId}/manage`}
+            className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-primary rounded-lg text-xs transition-colors"
+          >
+            <Settings size={14} /> Manage
+          </Link>
+          {session && (
+            <>
             <button
               onClick={() => exportTournamentExcel(session, tournament?.name ?? 'tournament')}
               className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-primary rounded-lg text-xs transition-colors"
@@ -76,8 +85,9 @@ export default function TrackerDashboard() {
             >
               <RotateCcw size={14} /> Reset draw
             </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
       <p className="text-sm text-gray-custom mb-2">
         {tournament?.sport} · {session ? `${session.format} format` : 'Not yet set up'}
@@ -106,7 +116,9 @@ export default function TrackerDashboard() {
       )}
 
       <div className="mt-6">
-        <Link to="/admin/stat-tracker" className="text-xs text-gray-custom hover:text-foreground">← All tournaments</Link>
+        {/* Admins get the all-tournaments launcher; organisers get THEIR tournaments
+            (the launcher is admin-only and would bounce an organiser to /home). */}
+        <Link to={user?.role === 'ADMIN' ? '/admin/stat-tracker' : '/my-tournaments'} className="text-xs text-gray-custom hover:text-foreground">← All tournaments</Link>
       </div>
 
       {showReset && session && (

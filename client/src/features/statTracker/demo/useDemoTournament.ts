@@ -128,6 +128,7 @@ export function useDemoTournament(sport: TrackerSport) {
           match: liveMatch,
           session,
           loading: false,
+          loadError: null, // demo never fails to load — it's fully client-side
           saveState: 'saved', // demo is client-only — nothing to persist
           updateState,
           setStatus,
