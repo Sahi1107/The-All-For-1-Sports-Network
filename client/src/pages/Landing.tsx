@@ -118,15 +118,23 @@ export default function Landing() {
   }, [videoSrc]);
 
   useEffect(() => {
-    if (!teamRef.current || !('IntersectionObserver' in window)) return;
+    const el = teamRef.current;
+    if (!el) return;
+    // No IntersectionObserver → reveal immediately rather than leave the founders
+    // block stuck at opacity 0.
+    if (!('IntersectionObserver' in window)) { el.classList.add('visible'); return; }
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) teamRef.current?.classList.add('visible');
+        // A low threshold so a section taller than the viewport still reveals.
+        if (entry.isIntersecting) { el.classList.add('visible'); observer.disconnect(); }
       },
-      { threshold: 0.35 },
+      { threshold: 0.12 },
     );
-    observer.observe(teamRef.current);
-    return () => observer.disconnect();
+    observer.observe(el);
+    // Safety net: if the observer somehow never fires, reveal after a beat so the
+    // section can never be permanently invisible.
+    const failsafe = window.setTimeout(() => el.classList.add('visible'), 2500);
+    return () => { observer.disconnect(); window.clearTimeout(failsafe); };
   }, []);
 
 
@@ -242,9 +250,25 @@ export default function Landing() {
           <div className="about-text">
             <h2>What Is All For One?</h2>
             <p>
-              All For 1 is a professional network designed for the entire Indian sports
-              ecosystem.
+              The professional network for the entire Indian sports ecosystem — where
+              athletes are known by verified performance, not self-reported hype. Stats
+              and rankings are recorded at real tournaments and published to a profile
+              scouts, coaches and academies can trust.
             </p>
+            <div className="about-pillars">
+              <span className="about-pillar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="9" /></svg>
+                Verified data
+              </span>
+              <span className="about-pillar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="4" /><path d="M8 12h8M12 8v8" /></svg>
+                One platform
+              </span>
+              <span className="about-pillar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8" /><path d="M17 7h4v4" /></svg>
+                Grassroots to pro
+              </span>
+            </div>
           </div>
         </div>
       </section>
@@ -252,17 +276,33 @@ export default function Landing() {
       <section className="info-hub" ref={infoHubRef}>
         <div className="hub-cards">
           <FlipCard
-            img="/trophy.png"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 4h12v3a6 6 0 0 1-12 0V4Z" />
+                <path d="M6 5H4a2 2 0 0 0 2 3M18 5h2a2 2 0 0 1-2 3" />
+                <path d="M12 13v3M9 20h6M10 20a2 2 0 0 1 4 0" />
+              </svg>
+            }
             title="Tournaments That Matter"
             back="Competitive events designed to highlight real talent under pressure and reward performance."
           />
           <FlipCard
-            img="/graph.png"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19V5M4 19h16" />
+                <path d="M8 16v-4M12 16V8M16 16v-6" />
+              </svg>
+            }
             title="Performance-Based Rankings"
             back="Rankings built from real match data and statistics - not opinions or popularity."
           />
           <FlipCard
-            img="/eye.png"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            }
             title="Clear Visibility"
             back="Players can track where they stand at city, state, and national levels."
           />
@@ -482,7 +522,7 @@ export default function Landing() {
   );
 }
 
-function FlipCard({ img, title, back }: { img: string; title: string; back: string }) {
+function FlipCard({ icon, title, back }: { icon: React.ReactNode; title: string; back: string }) {
   const [flipped, setFlipped] = useState(false);
   return (
     <button
@@ -494,9 +534,7 @@ function FlipCard({ img, title, back }: { img: string; title: string; back: stri
     >
       <div className="flip-inner">
         <div className="flip-front">
-          <div className="hub-icon">
-            <img src={img} alt="" aria-hidden />
-          </div>
+          <div className="hub-icon" aria-hidden>{icon}</div>
           <h3>{title}</h3>
         </div>
         <div className="flip-back">
