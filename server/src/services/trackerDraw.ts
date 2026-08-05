@@ -428,3 +428,89 @@ export function bracketAdvancements(
   }
   return out;
 }
+
+// ─── Group fixture reconciliation ────────────────────────────────────────────
+// Editing a group used to mean deleting every fixture in it and regenerating —
+// which threw away results that had already been played. A group edit should
+// only ever touch fixtures that HAVEN'T happened yet.
+
+/** A match has been played once it is no longer merely SCHEDULED. */
+export const PLAYED_MATCH_STATUSES = ['IN_PROGRESS', 'COMPLETED', 'PUBLISHED'] as const;
+export const isPlayed = (status: string | null | undefined): boolean =>
+  (PLAYED_MATCH_STATUSES as readonly string[]).includes(status ?? '');
+
+export interface ExistingGroupMatch {
+  id: string;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  status: string;
+}
+
+export interface GroupFixturePlan {
+  /** Untouched: already played, or a still-valid pairing. */
+  keep: string[];
+  /** Unplayed fixtures whose pairing no longer exists in the group. */
+  remove: string[];
+  /** Pairings the new composition needs that don't exist yet. */
+  create: FixtureDescriptor[];
+  /** Teams that have already played here — they cannot be moved out. */
+  playedTeamIds: string[];
+}
+
+/** Unordered pair identity — home/away order is arbitrary for a round robin. */
+const pairKey = (a: string | null, b: string | null) => [a ?? '', b ?? ''].sort().join('|');
+
+/**
+ * Reconcile ONE group's fixtures against a new composition.
+ *
+ * Played matches are untouchable — they are the record of something that
+ * happened. Unplayed fixtures are disposable: any whose pairing is no longer in
+ * the group is dropped, and any missing pairing is created. The result is that
+ * adding or removing a team re-plans only the fixtures still to come.
+ */
+export function planGroupFixtures(
+  group: GroupDef,
+  existing: ExistingGroupMatch[],
+  startOrder: number,
+): GroupFixturePlan {
+  const inGroup = new Set(group.teamIds);
+  const keep: string[] = [];
+  const remove: string[] = [];
+  const covered = new Set<string>();
+  const playedTeams = new Set<string>();
+
+  for (const m of existing) {
+    const key = pairKey(m.homeTeamId, m.awayTeamId);
+    if (isPlayed(m.status)) {
+      keep.push(m.id);
+      covered.add(key);
+      if (m.homeTeamId) playedTeams.add(m.homeTeamId);
+      if (m.awayTeamId) playedTeams.add(m.awayTeamId);
+      continue;
+    }
+    const bothStillInGroup =
+      !!m.homeTeamId && !!m.awayTeamId && inGroup.has(m.homeTeamId) && inGroup.has(m.awayTeamId);
+    if (bothStillInGroup) {
+      keep.push(m.id);
+      covered.add(key);
+    } else {
+      remove.push(m.id);
+    }
+  }
+
+  const create: FixtureDescriptor[] = [];
+  let order = startOrder;
+  for (let i = 0; i < group.teamIds.length; i++) {
+    for (let j = i + 1; j < group.teamIds.length; j++) {
+      const key = pairKey(group.teamIds[i], group.teamIds[j]);
+      if (covered.has(key)) continue;
+      covered.add(key);
+      create.push({
+        stage: 'group', round: group.name, groupId: group.id,
+        homeTeamId: group.teamIds[i], awayTeamId: group.teamIds[j], orderIndex: order++,
+      });
+    }
+  }
+
+  return { keep, remove, create, playedTeamIds: [...playedTeams] };
+}

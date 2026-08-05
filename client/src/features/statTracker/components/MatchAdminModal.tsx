@@ -26,6 +26,11 @@ export default function MatchAdminModal({
   const [sched, setSched] = useState<string>(toLocalInput(match.scheduledAt));
   const [court, setCourt] = useState<string>(match.court ?? '');
   const published = match.status === 'PUBLISHED';
+  // Teams lock the moment a match is played: its stats are recorded against
+  // THESE teams, so swapping them would reassign a real performance to a side
+  // that never played it. The server enforces this too — mirrored here so the
+  // control is visibly disabled rather than failing on save.
+  const played = ['IN_PROGRESS', 'COMPLETED', 'PUBLISHED'].includes(match.status);
 
   const patch = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.patch(`/tracker/matches/${match.id}`, body),
@@ -111,13 +116,18 @@ export default function MatchAdminModal({
             {/* Reassign teams */}
             <div className="space-y-3 pt-1 border-t border-line">
               <h4 className="text-xs uppercase tracking-wide text-gray-custom flex items-center gap-1.5 pt-4"><Users size={13} /> Teams</h4>
+              {played && (
+                <p className="text-[11px] text-amber-300">
+                  This match has been played — its teams are fixed. Correct the result, or un-publish and reset it.
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                <TeamSelect label="Home" value={home} teams={teams} exclude={away} onChange={setHome} />
-                <TeamSelect label="Away" value={away} teams={teams} exclude={home} onChange={setAway} />
+                <TeamSelect label="Home" value={home} teams={teams} exclude={away} onChange={setHome} disabled={played} />
+                <TeamSelect label="Away" value={away} teams={teams} exclude={home} onChange={setAway} disabled={played} />
               </div>
               <button
                 onClick={saveTeams}
-                disabled={busy || (home === (match.homeTeamId ?? '') && away === (match.awayTeamId ?? ''))}
+                disabled={busy || played || (home === (match.homeTeamId ?? '') && away === (match.awayTeamId ?? ''))}
                 className="w-full py-2 rounded-lg bg-primary hover:bg-primary-dark text-on-primary text-sm font-semibold transition-colors disabled:opacity-50"
               >
                 Save teams
@@ -151,13 +161,14 @@ export default function MatchAdminModal({
 }
 
 function TeamSelect({
-  label, value, teams, exclude, onChange,
-}: { label: string; value: string; teams: { id: string; name: string }[]; exclude: string; onChange: (v: string) => void }) {
+  label, value, teams, exclude, onChange, disabled = false,
+}: { label: string; value: string; teams: { id: string; name: string }[]; exclude: string; onChange: (v: string) => void; disabled?: boolean }) {
   return (
     <label className="block">
       <span className="block text-[11px] text-gray-custom mb-1">{label}</span>
       <select
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
       >

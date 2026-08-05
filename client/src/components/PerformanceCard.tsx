@@ -46,11 +46,41 @@ const METRIC_LABEL: Record<string, string> = {
 };
 const yr = (d: string) => (d ? String(new Date(d).getFullYear()) : '');
 
+// Metrics that must not appear as their own tile in the full record. Minutes
+// aren't a performance figure a scout reads off a card, and the raw attempt
+// counts are shown as the denominator of the shooting percentages below rather
+// than as three more bare numbers.
+const HIDDEN_METRICS = new Set([
+  'minutesPlayed', 'fieldGoalAttempts', 'threePointAttempts', 'freeThrowAttempts',
+]);
+
+/** made/attempted as a percentage, or "—" when nothing was attempted. Never 0%:
+ *  a player who took no shots didn't shoot 0%, and stats published before
+ *  attempts were persisted have none — both must read as "no data". */
+function shootingPct(made: number, attempts: number): string {
+  if (!attempts || attempts <= 0) return '—';
+  return `${Math.round((made / attempts) * 1000) / 10}%`;
+}
+
+/** Shooting tiles for the full record. Percentages are RATIOS — averaging one
+ *  per match is meaningless, so these carry makes/attempts underneath instead of
+ *  the "/match" line every counting stat gets. */
+function shootingTiles(totals: Record<string, number>) {
+  const fgm = (totals.twoPointers ?? 0) + (totals.threePointers ?? 0);
+  const fga = totals.fieldGoalAttempts ?? 0;
+  const tpm = totals.threePointers ?? 0;
+  const tpa = totals.threePointAttempts ?? 0;
+  return [
+    { key: 'fgPct', label: 'FG%', value: shootingPct(fgm, fga), detail: `${fgm} / ${fga}` },
+    { key: 'tpPct', label: '3PT%', value: shootingPct(tpm, tpa), detail: `${tpm} / ${tpa}` },
+  ];
+}
+
 // Per-match box-score columns. Tournament leaderboards deliberately show only
 // averages, so this is where the raw per-game numbers behind them live.
 const MATCH_COLS: Record<string, { key: string; label: string }[]> = {
   BASKETBALL: [
-    { key: 'minutesPlayed', label: 'MIN' }, { key: 'points', label: 'PTS' },
+    { key: 'points', label: 'PTS' },
     { key: 'rebounds', label: 'REB' }, { key: 'assists', label: 'AST' },
     { key: 'steals', label: 'STL' }, { key: 'blocks', label: 'BLK' },
     { key: 'turnovers', label: 'TO' },
@@ -240,11 +270,20 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
           </button>
           {open && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {Object.entries(career.totals).map(([k, v]) => (
-                <div key={k} className="bg-surface rounded-lg px-3 py-2">
-                  <p className="font-numeric font-bold tabular-nums text-lg leading-none text-foreground">{v}</p>
-                  <p className="text-[10px] uppercase tracking-wide text-gray-custom mt-0.5">{METRIC_LABEL[k] ?? k}</p>
-                  <p className="text-[10px] text-gray-custom/70">{career.averages[k]}/match</p>
+              {Object.entries(career.totals)
+                .filter(([k]) => !HIDDEN_METRICS.has(k))
+                .map(([k, v]) => (
+                  <div key={k} className="bg-surface rounded-lg px-3 py-2">
+                    <p className="font-numeric font-bold tabular-nums text-lg leading-none text-foreground">{v}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-custom mt-0.5">{METRIC_LABEL[k] ?? k}</p>
+                    <p className="text-[10px] text-gray-custom/70">{career.averages[k]}/match</p>
+                  </div>
+                ))}
+              {sport === 'BASKETBALL' && shootingTiles(career.totals).map((t) => (
+                <div key={t.key} className="bg-surface rounded-lg px-3 py-2">
+                  <p className="font-numeric font-bold tabular-nums text-lg leading-none text-foreground">{t.value}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-custom mt-0.5">{t.label}</p>
+                  <p className="text-[10px] text-gray-custom/70">{t.detail}</p>
                 </div>
               ))}
             </div>

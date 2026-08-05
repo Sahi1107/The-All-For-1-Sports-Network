@@ -29,7 +29,9 @@ interface FootballState {
 interface BasketballPlayer {
   secondsPlayed?: number;
   pts?: number; ast?: number; reb?: number; oreb?: number; dreb?: number; stl?: number; blk?: number;
+  // Makes: fg is TOTAL field goals (2pt + 3pt). Attempts: fga likewise totals.
   fg?: number; tp?: number; ft?: number; to?: number; pf?: number;
+  fga?: number; tpa?: number; fta?: number;
 }
 interface BasketballState {
   players?: Record<string, BasketballPlayer>;
@@ -103,6 +105,12 @@ function deriveBasketball(state: BasketballState): PlayerStatEntry[] {
       twoPointers: Math.max(0, (p.fg ?? 0) - (p.tp ?? 0)),
       threePointers: p.tp ?? 0,
       freeThrows: p.ft ?? 0,
+      // Attempts carried through so shooting percentages are derivable from
+      // published stats. The scorer records these; dropping them here was why
+      // FG%/3P% could only ever be shown inside the live tracker.
+      fieldGoalAttempts: p.fga ?? 0,
+      threePointAttempts: p.tpa ?? 0,
+      freeThrowAttempts: p.fta ?? 0,
       turnovers: p.to ?? 0,
       personalFouls: p.pf ?? 0,
       minutesPlayed: Math.round(((p.secondsPlayed ?? 0) / 60) * 10) / 10,

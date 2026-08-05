@@ -23,7 +23,9 @@ export type StatSport = 'BASKETBALL' | 'FOOTBALL' | 'CRICKET';
  * storing them, so here we only sum raw counts + the float time columns.
  */
 export const CAREER_STAT_FIELDS = {
-  BASKETBALL: ['points', 'rebounds', 'offRebounds', 'defRebounds', 'assists', 'steals', 'blocks', 'twoPointers', 'threePointers', 'freeThrows', 'turnovers', 'personalFouls', 'minutesPlayed'],
+  // Attempts are summed alongside makes so shooting percentages are derivable
+  // wherever totals are (profile card, per-tournament receipts, match lines).
+  BASKETBALL: ['points', 'rebounds', 'offRebounds', 'defRebounds', 'assists', 'steals', 'blocks', 'twoPointers', 'threePointers', 'freeThrows', 'fieldGoalAttempts', 'threePointAttempts', 'freeThrowAttempts', 'turnovers', 'personalFouls', 'minutesPlayed'],
   FOOTBALL:   ['goals', 'assists', 'shots', 'passes', 'tackles', 'saves', 'yellowCards', 'redCards', 'minutesPlayed'],
   CRICKET:    ['runs', 'ballsFaced', 'fours', 'sixes', 'wickets', 'runsConceded', 'catches', 'runOuts', 'oversBowled'],
 } as const satisfies Record<StatSport, readonly string[]>;

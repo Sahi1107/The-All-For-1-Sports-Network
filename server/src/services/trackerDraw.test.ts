@@ -103,3 +103,78 @@ test('groupRoundRobin generates a full single round-robin (C(n,2), each pair onc
   const pairs = new Set(fx.map((f) => [f.homeTeamId, f.awayTeamId].sort().join('-')));
   assert.equal(pairs.size, 6); // every pair exactly once
 });
+
+// ─── Group fixture reconciliation ────────────────────────────────────────────
+// Editing a group must only ever re-plan fixtures that HAVEN'T been played.
+
+import { planGroupFixtures, isPlayed, type ExistingGroupMatch } from './trackerDraw';
+
+const m = (id: string, home: string, away: string, status = 'SCHEDULED'): ExistingGroupMatch =>
+  ({ id, homeTeamId: home, awayTeamId: away, status });
+const grp = (teamIds: string[]) => ({ id: 'g1', name: 'Group A', teamIds });
+
+test('isPlayed: only SCHEDULED is unplayed', () => {
+  assert.equal(isPlayed('SCHEDULED'), false);
+  assert.equal(isPlayed('IN_PROGRESS'), true);
+  assert.equal(isPlayed('COMPLETED'), true);
+  assert.equal(isPlayed('PUBLISHED'), true);
+  assert.equal(isPlayed(null), false);
+});
+
+test('adding a team creates only its NEW pairings, keeping everything else', () => {
+  const existing = [m('ab', 'a', 'b'), m('ac', 'a', 'c'), m('bc', 'b', 'c')];
+  const plan = planGroupFixtures(grp(['a', 'b', 'c', 'd']), existing, 100);
+  assert.deepEqual(plan.remove, [], 'nothing removed — every old pairing is still valid');
+  assert.deepEqual(plan.keep.sort(), ['ab', 'ac', 'bc']);
+  const created = plan.create.map((f) => [f.homeTeamId, f.awayTeamId].sort().join('|')).sort();
+  assert.deepEqual(created, ['a|d', 'b|d', 'c|d'], 'only the new team\'s fixtures are added');
+});
+
+test('a PLAYED fixture is never removed, even when a team leaves the group', () => {
+  const existing = [m('ab', 'a', 'b', 'COMPLETED'), m('ac', 'a', 'c')];
+  // 'b' is moved out; its completed match against 'a' must survive.
+  const plan = planGroupFixtures(grp(['a', 'c']), existing, 10);
+  assert.ok(plan.keep.includes('ab'), 'the played match is kept');
+  assert.deepEqual(plan.remove, [], 'ac is still a valid pairing');
+  assert.deepEqual(plan.playedTeamIds.sort(), ['a', 'b']);
+});
+
+test('an unplayed fixture whose pairing is gone is removed', () => {
+  const existing = [m('ab', 'a', 'b'), m('ac', 'a', 'c'), m('bc', 'b', 'c')];
+  const plan = planGroupFixtures(grp(['a', 'c']), existing, 10);
+  assert.deepEqual(plan.remove.sort(), ['ab', 'bc'], 'both fixtures involving the removed team go');
+  assert.deepEqual(plan.keep, ['ac']);
+  assert.deepEqual(plan.create, [], 'a-c already exists');
+});
+
+test('a played pairing is not recreated as a duplicate', () => {
+  const existing = [m('ab', 'a', 'b', 'PUBLISHED')];
+  const plan = planGroupFixtures(grp(['a', 'b', 'c']), existing, 5);
+  const created = plan.create.map((f) => [f.homeTeamId, f.awayTeamId].sort().join('|')).sort();
+  assert.deepEqual(created, ['a|c', 'b|c'], 'a|b is already covered by the played match');
+});
+
+test('pairing identity ignores home/away order', () => {
+  // Stored as b-vs-a; the round robin would generate a-vs-b. Same fixture.
+  const plan = planGroupFixtures(grp(['a', 'b']), [m('ba', 'b', 'a')], 1);
+  assert.deepEqual(plan.create, [], 'not duplicated in the other orientation');
+  assert.deepEqual(plan.keep, ['ba']);
+});
+
+test('an in-progress match blocks nothing but is preserved', () => {
+  const plan = planGroupFixtures(grp(['a', 'b', 'c']), [m('ab', 'a', 'b', 'IN_PROGRESS')], 1);
+  assert.ok(plan.keep.includes('ab'));
+  assert.equal(plan.remove.length, 0);
+  assert.equal(plan.create.length, 2, 'a|c and b|c still to be scheduled');
+});
+
+test('created fixtures continue the order index from where it was told to start', () => {
+  const plan = planGroupFixtures(grp(['a', 'b', 'c']), [], 42);
+  assert.deepEqual(plan.create.map((f) => f.orderIndex), [42, 43, 44]);
+});
+
+test('an empty group removes its unplayed fixtures and creates none', () => {
+  const plan = planGroupFixtures(grp([]), [m('ab', 'a', 'b')], 1);
+  assert.deepEqual(plan.remove, ['ab']);
+  assert.deepEqual(plan.create, []);
+});

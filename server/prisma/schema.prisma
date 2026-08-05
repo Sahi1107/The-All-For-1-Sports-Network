@@ -713,6 +713,13 @@ model BasketballStats {
   twoPointers   Int      @default(0) @map("two_pointers") // 2-pt field goals made
   threePointers Int      @default(0)
   freeThrows    Int      @default(0)
+  // Attempts. The tracker has always recorded these; they were dropped on
+  // publish, which made shooting percentages underivable from published stats.
+  // Default 0 ⇒ rows published before this existed report no attempts, and the
+  // UI must show "—" for those rather than a fabricated 0%.
+  fieldGoalAttempts   Int @default(0) @map("field_goal_attempts")   // 2pt + 3pt attempts
+  threePointAttempts  Int @default(0) @map("three_point_attempts")
+  freeThrowAttempts   Int @default(0) @map("free_throw_attempts")
   turnovers     Int      @default(0)
   personalFouls Int      @default(0) @map("personal_fouls")
   minutesPlayed Float    @default(0)
