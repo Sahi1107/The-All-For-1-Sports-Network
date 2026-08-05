@@ -19,7 +19,10 @@ type RankingUser = {
   id?: string; name?: string; avatar?: string | null;
   position?: string | null; location?: string | null; verified?: boolean;
 };
-type RankingRow = { id: string; rank: number; score: number; sport: string; user?: RankingUser };
+type RankingRow = {
+  id: string; rank: number; score: number; sport: string;
+  fouledOut?: boolean; user?: RankingUser;
+};
 
 const SPORT_ICONS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, emoji }) => [value, emoji]),
@@ -46,27 +49,38 @@ const WEIGHT_CLASSES: Record<string, Record<Gender, string[]>> = {
 
 const SHOOTING_EVENTS = ['10m Air Rifle', '10m Air Pistol', '25m Pistol', '50m Rifle 3P', 'Trap', 'Skeet'];
 
-// Sports whose tabs are positions we can filter client-side against athlete.position.
-const POSITION_SPORTS = new Set(['BASKETBALL', 'FOOTBALL']);
-
-// Maps a position category to substrings we match against athlete.position
-const POSITION_FILTER: Record<string, string[]> = {
-  GUARD:       ['guard', 'pg', 'sg'],
-  FORWARD:     ['forward', 'sf', 'pf'],
-  CENTER:      ['center', 'centre'],
-  FORWARDS:    ['forward', 'striker', 'winger', 'st', 'cf', 'lw', 'rw'],
-  MIDFIELDERS: ['mid', 'cm', 'cdm', 'cam', 'lm', 'rm'],
-  DEFENDERS:   ['defend', 'back', 'cb', 'lb', 'rb', 'rwb', 'lwb'],
-  GOALKEEPERS: ['keeper', 'gk', 'goalie'],
+// Ranking boards computed server-side (see server/src/services/rankingConfig.ts).
+// The `key` must match a board key the API stores in PlayerRanking.category; the
+// server places each player on a board by their profile position and ranks each
+// board 1..n on its own criteria, so the client just requests `category=<key>`.
+const RANKING_BOARDS: Record<string, { key: string; label: string }[]> = {
+  BASKETBALL: [
+    { key: 'OVERALL', label: 'Overall' },
+    { key: 'PG',      label: 'Point Guards' },
+    { key: 'WING',    label: 'Wings' },
+    { key: 'BIG',     label: 'Bigs' },
+  ],
+  FOOTBALL: [
+    { key: 'OVERALL', label: 'Overall' },
+    { key: 'FWD',     label: 'Forwards' },
+    { key: 'MID',     label: 'Midfielders' },
+    { key: 'DEF',     label: 'Defenders' },
+    { key: 'GK',      label: 'Goalkeepers' },
+  ],
+  CRICKET: [
+    { key: 'OVERALL', label: 'Overall' },
+    { key: 'BAT',     label: 'Batting' },
+    { key: 'BOWL',    label: 'Bowling' },
+    { key: 'ALL',     label: 'All-rounders' },
+  ],
 };
+const isBoardSport = (sport: string): boolean => sport in RANKING_BOARDS;
 
-/** Category tabs for a sport. OVERALL is dropped for combat/weight and event
- *  sports; weight-class sports get gender-specific divisions. */
+/** Category tabs for a sport. The stat sports use server-computed boards; combat/
+ *  weight and event sports keep event/division tabs (gender-specific for weight). */
 function getCategories(sport: string, gender: Gender): string[] {
+  if (RANKING_BOARDS[sport]) return RANKING_BOARDS[sport].map((b) => b.key);
   switch (sport) {
-    case 'BASKETBALL': return ['OVERALL', 'GUARD', 'FORWARD', 'CENTER'];
-    case 'FOOTBALL':   return ['OVERALL', 'FORWARDS', 'MIDFIELDERS', 'DEFENDERS', 'GOALKEEPERS'];
-    case 'CRICKET':    return ['OVERALL', 'BATTING', 'BOWLING', 'ALL_ROUND'];
     case 'ATHLETICS':  return [...ATHLETICS_EVENTS];
     case 'SHOOTING':   return SHOOTING_EVENTS;
     case 'WRESTLING':
@@ -75,6 +89,11 @@ function getCategories(sport: string, gender: Gender): string[] {
       return WEIGHT_CLASSES[sport][gender];
     default:           return ['OVERALL'];
   }
+}
+
+/** Human label for a category tab — board label for stat sports, else the raw key. */
+function categoryLabel(sport: string, key: string): string {
+  return RANKING_BOARDS[sport]?.find((b) => b.key === key)?.label ?? key.replace('_', ' ');
 }
 
 /** Horizontal rating bar — width is the athlete's score relative to the leader. */
@@ -126,6 +145,14 @@ function PerformanceCard({ r, max }: { r: RankingRow; max: number }) {
             {u.position && (
               <span className="shrink-0 rounded bg-elevated px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-custom">
                 {u.position}
+              </span>
+            )}
+            {r.fouledOut && (
+              <span
+                title="Fouled out of at least one match in this tournament"
+                className="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-500"
+              >
+                Fouled out
               </span>
             )}
           </div>
@@ -240,31 +267,25 @@ export default function Rankings() {
   // WHICH tournament a rank belongs to. A rank of 1 means nothing without it.
   const activeTournament = tournaments.find((t) => t.id === tournamentId) ?? null;
 
+  // Stat sports have a real board per category (server-ranked); request it by key.
+  // Other sports have no server categories, so we don't send one.
+  const boardSport = isBoardSport(sport);
+  const boardCategory = boardSport ? category : 'OVERALL';
   const { data, isLoading } = useQuery({
-    queryKey: ['rankings', sport, gender, activeTournament?.id],
+    queryKey: ['rankings', sport, gender, activeTournament?.id, boardCategory],
     enabled: !!activeTournament,
     queryFn: async () => {
-      const { data } = await api.get(
-        `/rankings?sport=${sport}&gender=${gender}&tournamentId=${activeTournament!.id}`,
-      );
+      const params = new URLSearchParams({ sport, gender, tournamentId: activeTournament!.id });
+      if (boardSport) params.set('category', category);
+      const { data } = await api.get(`/rankings?${params.toString()}`);
       return data;
     },
   });
 
   const allRankings: RankingRow[] = data?.rankings ?? [];
-  // Position sports can be filtered client-side; other sports show the full list
-  // (their per-category data isn't computed yet).
-  const filtered = POSITION_SPORTS.has(sport) && category !== 'OVERALL'
-    ? allRankings.filter((r) => {
-        const pos = (r.user?.position ?? '').toLowerCase();
-        return (POSITION_FILTER[category] ?? []).some(kw => pos.includes(kw));
-      })
-    : allRankings;
-
-  // Re-number within the category. The stored `rank` is the OVERALL placing, so
-  // showing it under a position tab produced gappy lists (3, 4, 6, 10, 13…) and
-  // no #1 guard at all. A position ranking has to start at 1 to be a ranking.
-  const rankings = [...filtered]
+  // The server already ranks each board 1..n by score; sort defensively and number
+  // from 1 so the list is a clean ranking regardless of the API's return order.
+  const rankings = [...allRankings]
     .sort((a, b) => Number(b.score ?? 0) - Number(a.score ?? 0))
     .map((r, i) => ({ ...r, rank: i + 1 }));
 
@@ -380,7 +401,7 @@ export default function Rankings() {
                 : 'border border-line bg-card text-gray-custom hover:text-foreground'
             }`}
           >
-            {c.replace('_', ' ')}
+            {categoryLabel(sport, c)}
           </button>
         ))}
       </div>
@@ -394,7 +415,7 @@ export default function Rankings() {
         <div className="rounded-2xl border border-line bg-card p-16 text-center">
           <TrendingUp size={32} className="mx-auto mb-3 text-gray-custom" />
           <p className="text-gray-custom">
-            No {category === 'OVERALL' ? '' : `${category.replace('_', ' ').toLowerCase()} `}rankings for{' '}
+            No {category === 'OVERALL' ? '' : `${categoryLabel(sport, category).toLowerCase()} `}rankings for{' '}
             {activeTournament.name}.
           </p>
         </div>

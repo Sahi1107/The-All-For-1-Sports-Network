@@ -715,6 +715,13 @@ export default function Profile() {
   const highlights = profile.highlights ?? [];
   const teams = (profile.teamMemberships ?? []).map((m: any) => m.team);
   const rankings = profile.playerRankings ?? [];
+  // Friendly label for a ranking board key (matches server rankingConfig board keys).
+  const RANK_BOARD_LABELS: Record<string, string> = {
+    OVERALL: 'Overall', PG: 'Point Guards', WING: 'Wings', BIG: 'Bigs',
+    FWD: 'Forwards', MID: 'Midfielders', DEF: 'Defenders', GK: 'Goalkeepers',
+    BAT: 'Batting', BOWL: 'Bowling', ALL: 'All-rounders',
+  };
+  const boardLabel = (key?: string) => RANK_BOARD_LABELS[key ?? ''] ?? key ?? 'Overall';
   const posts = postsData?.posts ?? [];
   const reposts = repostsData?.posts ?? [];
   const endorsements = endorseData?.endorsements ?? [];
@@ -1387,13 +1394,26 @@ export default function Profile() {
             <div className="bg-card rounded-xl border border-line p-5">
               <h2 className="font-semibold flex items-center gap-2 mb-4"><Trophy size={16} className="text-secondary" />Rankings</h2>
               <div className="space-y-3">
-                {rankings.slice(0, 3).map((r: any) => (
+                {rankings.slice(0, 4).map((r: any) => (
                   <div key={r.id} className="flex items-center justify-between text-sm">
-                    <div>
-                      <p className="font-medium">{r.tournament?.name ?? 'Overall'}</p>
-                      <p className="text-xs text-gray-custom">{r.category}</p>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{r.tournament?.name ?? 'Overall'}</p>
+                      <p className="flex items-center gap-1.5 text-xs text-gray-custom">
+                        <span>{boardLabel(r.category)}</span>
+                        {r.fouledOut && (
+                          <span
+                            title="Fouled out of at least one match in this tournament"
+                            className="rounded bg-red-500/15 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-500"
+                          >
+                            Fouled out
+                          </span>
+                        )}
+                      </p>
                     </div>
-                    <span className="font-bold text-secondary">#{r.rank}</span>
+                    <div className="shrink-0 text-right">
+                      <span className="font-bold text-secondary">#{r.rank}</span>
+                      <span className="ml-2 tabular-nums text-xs text-gray-custom">{Number(r.score ?? 0).toFixed(1)}</span>
+                    </div>
                   </div>
                 ))}
               </div>

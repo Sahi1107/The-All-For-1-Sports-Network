@@ -790,6 +790,10 @@ model PlayerRanking {
   score        Float
   category     String?
   region       String?
+  // Basketball: the player fouled out in at least one match this tournament. A
+  // visible signal on profile + leaderboard, kept OUT of the score (fouls are a
+  // small weight, per-game floored at 0) so it flags without distorting the rank.
+  fouledOut    Boolean  @default(false)
   calculatedAt DateTime @default(now())
 
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)

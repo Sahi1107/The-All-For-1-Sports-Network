@@ -1,99 +1,112 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  scoreBasketball, rankFromStats, recalculateTournamentRankings, isRankable,
+  scoreBoard, rankBoard, recalculateTournamentRankings, isRankable,
   MIN_RANKED_SCORE, type RankingDb,
 } from './rankingService';
+import { RANKING_CONFIG, normalizeScore } from './rankingConfig';
 
-// Rankings are the one link in the stat chain that is DERIVED and PERSISTED (a
-// PlayerRanking table), so it can go stale. These tests pin the derivation and,
-// crucially, that a correction or an un-publish re-derives correctly — the two
-// propagation cases the chain must handle.
+const BB = RANKING_CONFIG.BASKETBALL;
+const overall = BB.overall;
 
 const bball = (userId: string, o: Partial<Record<string, number>>) => ({
-  userId, points: 0, rebounds: 0, assists: 0, steals: 0, blocks: 0, turnovers: 0, ...o,
+  userId, points: 0, offRebounds: 0, defRebounds: 0, assists: 0, steals: 0, blocks: 0,
+  turnovers: 0, personalFouls: 0, freeThrows: 0, twoPointers: 0, threePointers: 0, ...o,
 });
 
-test('multi-player: ranked by average score, descending, deterministic ties', () => {
-  const rows = [bball('a', { points: 20 }), bball('b', { points: 30 }), bball('c', { points: 10 })];
-  const ranked = rankFromStats('BASKETBALL', rows);
+// ─── Ranking a board ──────────────────────────────────────────────────────────
+
+test('ranked by score, descending, deterministic ties', () => {
+  const ranked = rankBoard(overall, [bball('a', { points: 20 }), bball('b', { points: 30 }), bball('c', { points: 10 })]);
   assert.deepEqual(ranked.map((r) => r.userId), ['b', 'a', 'c']);
   assert.deepEqual(ranked.map((r) => r.rank), [1, 2, 3]);
 });
 
-test('multi-match: a player’s rows are aggregated as an AVERAGE per game, not summed', () => {
-  // Player a: two games averaging 20pts. Player b: one 25pt game.
-  const rows = [bball('a', { points: 30 }), bball('a', { points: 10 }), bball('b', { points: 25 })];
-  const ranked = rankFromStats('BASKETBALL', rows);
-  const a = ranked.find((r) => r.userId === 'a')!;
-  const b = ranked.find((r) => r.userId === 'b')!;
-  // avg(a) = score(30) & score(10) averaged; both single-metric so a's avg = 20-equivalent < b's 25-equivalent.
-  assert.equal(scoreBasketball(bball('a', { points: 30 })) > scoreBasketball(bball('a', { points: 10 })), true);
+test('a player’s rows are averaged per game, not summed', () => {
+  const ranked = rankBoard(overall, [bball('a', { points: 30 }), bball('a', { points: 10 }), bball('b', { points: 25 })]);
+  const a = ranked.find((r) => r.userId === 'a')!, b = ranked.find((r) => r.userId === 'b')!;
   assert.equal(b.rank < a.rank, true, 'the 25-avg player outranks the 20-avg player');
 });
 
-test('empty stats (nothing published / all un-published) → no ranked entries', () => {
-  assert.deepEqual(rankFromStats('BASKETBALL', []), []);
+test('empty stats → no ranked entries', () => {
+  assert.deepEqual(rankBoard(overall, []), []);
 });
 
-// ─── The 0.0 floor ────────────────────────────────────────────────────────────
-// A rostered player who never took the floor scores exactly 0. Listing them
-// produced a leaderboard tail of identical "0.0" cards — a squad list, not a
-// ranking.
-
-test('players who did not contribute (score 0) are not ranked at all', () => {
-  const rows = [
-    bball('played', { points: 12 }),
-    bball('dnp', {}),            // rostered, never took the floor
-    bball('alsoDnp', {}),
-  ];
-  const ranked = rankFromStats('BASKETBALL', rows);
-  assert.deepEqual(ranked.map((r) => r.userId), ['played']);
-  assert.equal(ranked.length, 1, 'zero-score players are excluded entirely');
-});
-
-test('ranks stay contiguous from 1 — excluding a 0.0 player leaves no gap', () => {
-  const rows = [
-    bball('a', { points: 30 }), bball('zero', {}),
-    bball('b', { points: 20 }), bball('c', { points: 10 }),
-  ];
-  const ranked = rankFromStats('BASKETBALL', rows);
+test('non-contributors (score 0) are excluded, ranks stay contiguous from 1', () => {
+  const ranked = rankBoard(overall, [
+    bball('a', { points: 30 }), bball('zero', {}), bball('b', { points: 20 }), bball('c', { points: 10 }),
+  ]);
   assert.deepEqual(ranked.map((r) => r.userId), ['a', 'b', 'c']);
   assert.deepEqual(ranked.map((r) => r.rank), [1, 2, 3]);
 });
 
-test('a negative score (turnovers outweighing everything) is not ranked', () => {
-  // No production, three giveaways: (0+0+0+0+0-3) * 0.20 = -0.6
-  const only = bball('sloppy', { turnovers: 3 });
-  assert.equal(scoreBasketball(only) < 0, true);
-  assert.deepEqual(rankFromStats('BASKETBALL', [only]), []);
+// ─── The per-game floor at 0 (foul-out / turnover safeguard) ───────────────────
+
+test('a game of only negatives floors to 0, not a runaway negative — and is not ranked', () => {
+  const sloppy = bball('sloppy', { turnovers: 5, personalFouls: 5 }); // fouled out, five giveaways
+  assert.equal(scoreBoard(overall, sloppy), 0, 'floored at 0, never negative');
+  assert.deepEqual(rankBoard(overall, [sloppy]), []);
 });
 
-test('the floor is display precision, not literal zero — sub-0.05 renders as "0.0"', () => {
-  assert.equal(MIN_RANKED_SCORE, 0.05);
-  assert.equal(isRankable(0), false);
-  assert.equal(isRankable(0.04), false, '0.04 shows as 0.0 on the card');
-  assert.equal((0.04).toFixed(1), '0.0');
-  assert.equal(isRankable(0.05), true);
-  assert.equal((0.05).toFixed(1), '0.1');
+test('fouls only trim a productive game, never sink it below a quiet one', () => {
+  const clean = scoreBoard(overall, bball('x', { points: 20, defRebounds: 6, assists: 4 }));
+  const fouledOut = scoreBoard(overall, bball('x', { points: 20, defRebounds: 6, assists: 4, personalFouls: 5 }));
+  assert.equal(fouledOut < clean, true, 'fouls reduce the score');
+  assert.equal(fouledOut > 0, true, 'but a 20/6/4 game with a foul-out is still a strong, positive game');
 });
 
-test('a tournament where nobody contributed persists no rankings', async () => {
-  const { db, created } = fakeDb('BASKETBALL', [[bball('dnp1', {}), bball('dnp2', {})]]);
-  const count = await recalculateTournamentRankings('t1', db);
-  assert.equal(count, 0);
-  assert.equal(created.length, 0, 'no rows written when nobody is rankable');
+// ─── 0–100 normalization ──────────────────────────────────────────────────────
+
+test('scores are 0–100, capped, per-board REF', () => {
+  assert.equal(normalizeScore(overall.ref, overall.ref), 90, 'the REF raw score reads as 90');
+  assert.equal(normalizeScore(overall.ref * 2, overall.ref), 100, 'a monster game caps at 100');
+  assert.equal(normalizeScore(0, overall.ref), 0);
+  const ranked = rankBoard(overall, [bball('a', { points: 200, offRebounds: 50 })]);
+  assert.equal(ranked[0].score <= 100, true, 'never exceeds 100');
 });
 
-// ─── Propagation via the persisted recompute (injected fake db) ───────────────
+test('per-board REF makes an 85 comparable across boards (PG vs BIG elite games map alike)', () => {
+  const pg = BB.positions.find((b) => b.key === 'PG')!;
+  const big = BB.positions.find((b) => b.key === 'BIG')!;
+  // An elite game per board (raw ≈ each REF) should land in the same high band.
+  const pgElite = normalizeScore(pg.ref, pg.ref);
+  const bigElite = normalizeScore(big.ref, big.ref);
+  assert.equal(pgElite, bigElite, 'elite-for-the-board games normalize identically regardless of raw magnitude');
+});
 
-function fakeDb(sport: string, statsByCall: Array<Array<Record<string, unknown>>>): {
+// ─── Position grouping ────────────────────────────────────────────────────────
+
+test('position free text maps to the right board group', () => {
+  assert.equal(BB.groupOf('Point Guard'), 'PG');
+  assert.equal(BB.groupOf('pg'), 'PG');
+  assert.equal(BB.groupOf('Shooting Guard'), 'WING');
+  assert.equal(BB.groupOf('Small Forward'), 'WING');
+  assert.equal(BB.groupOf('Power Forward'), 'BIG');
+  assert.equal(BB.groupOf('Center'), 'BIG');
+  assert.equal(BB.groupOf(''), null);
+  assert.equal(BB.groupOf(null), null);
+  assert.equal(RANKING_CONFIG.FOOTBALL.groupOf('Goalkeeper'), 'GK');
+  assert.equal(RANKING_CONFIG.FOOTBALL.groupOf('Striker'), 'FWD');
+  assert.equal(RANKING_CONFIG.CRICKET.groupOf('Bowler'), 'BOWL');
+});
+
+test('wing board scores shot types directly (no points term) — a 3 outweighs a 2', () => {
+  const wing = BB.positions.find((b) => b.key === 'WING')!;
+  const three = scoreBoard(wing, bball('a', { threePointers: 1 }));
+  const two = scoreBoard(wing, bball('a', { twoPointers: 1 }));
+  assert.equal(three > two, true, 'a made 3 is worth more than a made 2');
+});
+
+// ─── Persisted recompute (injected fake db): overall + position + foul-out ────
+
+function fakeDb(sport: string, statsByCall: Array<Array<Record<string, unknown>>>, positions: Record<string, string | null> = {}): {
   db: RankingDb; created: Array<Array<Record<string, unknown>>>;
 } {
   const created: Array<Array<Record<string, unknown>>> = [];
   let call = 0;
   const db: RankingDb = {
     tournament: { findUnique: async () => ({ sport: sport as never }) },
+    user: { findMany: async (a) => a.where.id.in.map((id) => ({ id, position: positions[id] ?? null })) },
     playerRanking: {
       deleteMany: async () => ({}),
       createMany: async (a) => { created.push(a.data as Array<Record<string, unknown>>); return {}; },
@@ -105,45 +118,70 @@ function fakeDb(sport: string, statsByCall: Array<Array<Record<string, unknown>>
   return { db, created };
 }
 
-test('publish → persists ranked rows for the tournament', async () => {
-  const { db, created } = fakeDb('BASKETBALL', [[bball('a', { points: 30 }), bball('b', { points: 10 })]]);
-  const count = await recalculateTournamentRankings('t1', db);
-  assert.equal(count, 2);
-  assert.equal(created.length, 1);
-  const rows = created[0] as Array<{ userId: string; rank: number; tournamentId: string; category: string }>;
-  assert.equal(rows[0].userId, 'a'); // higher scorer ranked #1
-  assert.equal(rows[0].rank, 1);
-  assert.equal(rows[0].tournamentId, 't1');
-  assert.equal(rows[0].category, 'OVERALL');
+test('recompute persists an OVERALL board plus each populated position board', async () => {
+  const { db, created } = fakeDb('BASKETBALL',
+    [[bball('pg', { assists: 10, points: 12 }), bball('big', { offRebounds: 6, defRebounds: 8, points: 18, blocks: 3 })]],
+    { pg: 'Point Guard', big: 'Center' });
+  const overallCount = await recalculateTournamentRankings('t1', db);
+  const rows = created[0] as Array<{ userId: string; category: string; score: number; fouledOut: boolean; rank: number }>;
+  const cats = new Set(rows.map((r) => r.category));
+  assert.equal(overallCount, 2);
+  assert.ok(cats.has('OVERALL') && cats.has('PG') && cats.has('BIG'), 'overall + both position boards written');
+  assert.equal(rows.filter((r) => r.category === 'PG').length, 1, 'only the PG is on the PG board');
+  assert.equal(rows.filter((r) => r.category === 'BIG').length, 1);
+  assert.equal(rows.every((r) => r.score > 0 && r.score <= 100), true, 'all scores on the 0–100 scale');
 });
 
-test('CORRECTION: re-running after a stat change flips the ranking', async () => {
-  // First publish: a ahead of b. Correction lowers a's line below b's → recompute flips.
+test('a positionless player appears on OVERALL only — no position board until assigned', async () => {
+  const { db, created } = fakeDb('BASKETBALL',
+    [[bball('nopos', { points: 25, assists: 5 })]], { nopos: null });
+  await recalculateTournamentRankings('t1', db);
+  const rows = created[0] as Array<{ userId: string; category: string }>;
+  assert.deepEqual([...new Set(rows.map((r) => r.category))], ['OVERALL']);
+});
+
+test('foul-out flag: set when a player hits the limit in any match, else false', async () => {
+  const { db, created } = fakeDb('BASKETBALL',
+    [[bball('fo', { points: 15, personalFouls: 5 }), bball('clean', { points: 20, personalFouls: 3 })]],
+    { fo: 'Point Guard', clean: 'Point Guard' });
+  await recalculateTournamentRankings('t1', db);
+  const rows = created[0] as Array<{ userId: string; fouledOut: boolean }>;
+  assert.equal(rows.filter((r) => r.userId === 'fo').every((r) => r.fouledOut === true), true);
+  assert.equal(rows.filter((r) => r.userId === 'clean').every((r) => r.fouledOut === false), true);
+});
+
+test('CORRECTION re-running after a stat change flips the ranking', async () => {
   const { db, created } = fakeDb('BASKETBALL', [
-    [bball('a', { points: 30 }), bball('b', { points: 10 })], // before
-    [bball('a', { points: 5 }),  bball('b', { points: 10 })], // after correction
+    [bball('a', { points: 30 }), bball('b', { points: 10 })],
+    [bball('a', { points: 5 }),  bball('b', { points: 10 })],
   ]);
-  await recalculateTournamentRankings('t1', db); // publish
-  await recalculateTournamentRankings('t1', db); // re-publish after correction
-  const first = created[0] as Array<{ userId: string; rank: number }>;
-  const second = created[1] as Array<{ userId: string; rank: number }>;
+  await recalculateTournamentRankings('t1', db);
+  await recalculateTournamentRankings('t1', db);
+  const first = (created[0] as Array<{ userId: string; rank: number; category: string }>).filter((r) => r.category === 'OVERALL');
+  const second = (created[1] as Array<{ userId: string; rank: number; category: string }>).filter((r) => r.category === 'OVERALL');
   assert.equal(first.find((r) => r.rank === 1)!.userId, 'a');
-  assert.equal(second.find((r) => r.rank === 1)!.userId, 'b'); // flipped after correction
+  assert.equal(second.find((r) => r.rank === 1)!.userId, 'b');
 });
 
-test('UN-PUBLISH: when the stats are gone, rankings are cleared (delete, no recreate)', async () => {
-  const { db, created } = fakeDb('BASKETBALL', [[]]); // no stats remain after un-publish
-  const count = await recalculateTournamentRankings('t1', db);
-  assert.equal(count, 0);
-  assert.equal(created.length, 0, 'nothing recreated when there are no stats');
+test('UN-PUBLISH (no stats remain) clears rankings, recreates nothing', async () => {
+  const { db, created } = fakeDb('BASKETBALL', [[]]);
+  assert.equal(await recalculateTournamentRankings('t1', db), 0);
+  assert.equal(created.length, 0);
 });
 
 test('a non-stat sport clears any stale rankings and stops', async () => {
   const db: RankingDb = {
     tournament: { findUnique: async () => ({ sport: 'TENNIS' as never }) },
+    user: { findMany: async () => [] },
     playerRanking: { deleteMany: async () => ({}), createMany: async () => { throw new Error('should not create'); } },
     basketballStats: { findMany: async () => [] }, footballStats: { findMany: async () => [] }, cricketStats: { findMany: async () => [] },
   };
-  const count = await recalculateTournamentRankings('t1', db);
-  assert.equal(count, 0);
+  assert.equal(await recalculateTournamentRankings('t1', db), 0);
+});
+
+test('the raw floor is 0.05 (a sub-floor average renders as ~0)', () => {
+  assert.equal(MIN_RANKED_SCORE, 0.05);
+  assert.equal(isRankable(0), false);
+  assert.equal(isRankable(0.04), false);
+  assert.equal(isRankable(0.05), true);
 });
