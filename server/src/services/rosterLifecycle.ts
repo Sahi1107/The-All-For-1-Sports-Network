@@ -58,3 +58,59 @@ export async function teamRosterIsLocked(
   });
   return played !== null;
 }
+
+// ─── Roster snapshot reconciliation ──────────────────────────────────────────
+// The tracker scores from TrackerSession.roster, a JSON snapshot frozen when the
+// draw was generated. A player added to a team afterwards was therefore invisible
+// to the scorer, and the only fix was regenerating the whole draw. These pure
+// helpers let the tracker reconcile that snapshot on match load instead.
+
+export type RosterSnapshotTeam = {
+  teamId: string;
+  name: string;
+  players: { userId: string; name: string; position: string | null; number: number | null }[];
+};
+
+/** Stable signature of a roster snapshot — lets the caller write (and bust
+ *  caches) only when something actually changed, not on every match open. */
+export function rosterSignature(r: unknown): string {
+  return JSON.stringify(
+    ((r as RosterSnapshotTeam[] | null) ?? [])
+      .map((t) => ({
+        id: t.teamId,
+        name: t.name,
+        p: (t.players ?? []).map((x) => `${x.userId}:${x.number ?? ''}:${x.name}:${x.position ?? ''}`).sort(),
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  );
+}
+
+/**
+ * Merge freshly-read team members INTO the stored snapshot.
+ *
+ * ADDITIVE ON PURPOSE. Replacing the snapshot with a straight rebuild would drop
+ * anyone no longer an ACCEPTED member — and if that player had already played,
+ * their recorded stats live in TrackerMatch.state keyed by userId, so their row
+ * would vanish from the tracker while the numbers stayed stranded in the state
+ * blob, still counted in scores and exports. Keeping a departed player visible is
+ * a far better failure than orphaning what they recorded. Deliberate removal goes
+ * through the withdraw / correction tools, which clean up properly.
+ */
+export function mergeRoster(
+  prev: RosterSnapshotTeam[],
+  fresh: RosterSnapshotTeam[],
+): RosterSnapshotTeam[] {
+  const prevByTeam = new Map(prev.map((t) => [t.teamId, t]));
+  const merged = fresh.map((t) => {
+    const old = prevByTeam.get(t.teamId);
+    if (!old) return t;
+    const present = new Set(t.players.map((p) => p.userId));
+    const carried = (old.players ?? []).filter((p) => !present.has(p.userId));
+    return { ...t, players: [...t.players, ...carried] };
+  });
+  // A team that has left the registrations keeps its snapshot entry for the same
+  // reason — its played matches still reference these players.
+  const freshTeams = new Set(fresh.map((t) => t.teamId));
+  for (const t of prev) if (!freshTeams.has(t.teamId)) merged.push(t);
+  return merged;
+}

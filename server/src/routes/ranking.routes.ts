@@ -8,6 +8,23 @@ import type { Sport, Gender } from '@prisma/client';
 
 const router = Router();
 
+/**
+ * Gender clause for a rankings query.
+ *
+ * `User.gender` is nullable and is only set when someone supplied it — a
+ * provisioned athlete often has none. A strict equality match therefore dropped
+ * those players from the men's board AND the women's board, so a player could
+ * top the tournament's scoring and appear on no ranking anywhere. Unset gender
+ * is now included on whichever board is being viewed: rankings are scoped to one
+ * tournament, and a tournament is played in a single category, so the tournament
+ * itself is the better evidence of which board a player belongs on than an
+ * unfilled profile field.
+ */
+function genderWhere(gender: unknown): Record<string, unknown> {
+  if (gender !== 'MALE' && gender !== 'FEMALE') return {};
+  return { OR: [{ gender: gender as Gender }, { gender: null }] };
+}
+
 // GET /api/rankings
 router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Response) => {
   try {
@@ -25,10 +42,7 @@ router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Respo
     where.score = { gte: MIN_RANKED_SCORE };
     // Men's and women's rankings are separate — filter on the athlete's gender.
     // Always exclude non-discoverable athletes (under-13 accounts by default).
-    where.user = {
-      discoverable: true,
-      ...(gender === 'MALE' || gender === 'FEMALE' ? { gender } : {}),
-    };
+    where.user = { discoverable: true, ...genderWhere(gender) };
 
     const [rankings, total] = await Promise.all([
       prisma.playerRanking.findMany({
@@ -73,10 +87,7 @@ router.get('/tournaments', authenticate, browseLimiter, async (req: AuthRequest,
         // non-contributors has no ranking to show, so it must not be offered
         // in the picker as though it did.
         score: { gte: MIN_RANKED_SCORE },
-        user: {
-          discoverable: true,
-          ...(gender === 'MALE' || gender === 'FEMALE' ? { gender: gender as Gender } : {}),
-        },
+        user: { discoverable: true, ...genderWhere(gender) },
       },
       _count: { _all: true },
     });

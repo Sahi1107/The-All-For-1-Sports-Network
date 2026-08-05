@@ -1,3 +1,5 @@
+import { normalizePosition } from '../data/positions';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // RANKING CONFIG — the single, tunable source of truth for how tournament
 // rankings are scored. Weights live here as DATA, not scattered through scoring
@@ -65,14 +67,20 @@ export function normalizeScore(raw: number, ref: number): number {
 
 // ─── Position-group matchers (free text → board key) ─────────────────────────
 // Ordered: more specific patterns first (e.g. "shooting guard" before "guard").
+// Three boards — PG and SG are guards, SF and PF are forwards, C is a center.
+// Delegated to the canonical taxonomy in data/positions.ts, which already
+// collapses exactly this way and owns every alias ("pg", "power forward",
+// "centre"). Two copies of that vocabulary would drift, and a position that
+// resolved for search but not for rankings would silently drop a player off a
+// board. `floor general` / `big` aren't in the taxonomy, so they're kept here.
 const bball = (pos?: string | null): string | null => {
+  const canonical = normalizePosition('BASKETBALL', pos);
+  if (canonical) return canonical.toUpperCase(); // Guard → GUARD, etc.
   const p = (pos ?? '').toLowerCase();
   if (!p) return null;
-  if (/point guard|\bpg\b|floor general/.test(p)) return 'PG';
-  if (/shooting guard|\bsg\b|small forward|\bsf\b|\bwing\b/.test(p)) return 'WING';
-  if (/power forward|\bpf\b|cent(er|re)|\bbig\b/.test(p) || /\bc\b/.test(p)) return 'BIG';
-  if (/guard/.test(p)) return 'PG';       // bare "guard" → point-guard board
-  if (/forward/.test(p)) return 'WING';   // bare "forward" → wing board
+  if (/floor general/.test(p)) return 'GUARD';
+  if (/\bwing\b/.test(p)) return 'FORWARD';
+  if (/\bbig\b/.test(p)) return 'CENTER';
   return null;
 };
 const football = (pos?: string | null): string | null => {
@@ -116,21 +124,30 @@ export const RANKING_CONFIG: Record<string, SportRanking> = {
       ],
     },
     positions: [
-      { key: 'PG', label: 'Point Guards', ref: 11, factors: [
-        { field: 'assists', weight: 0.45 },
+      // GUARD covers PG and SG, so it can't lean as hard on assists as a
+      // point-guard-only board did — scoring is weighted alongside creation, or
+      // every shooting guard would rank below every point guard by construction.
+      { key: 'GUARD', label: 'Guards', ref: 12, factors: [
+        { field: 'points', weight: 0.40 },
+        { field: 'assists', weight: 0.35 },
         { field: 'steals', weight: 0.30 },
-        { field: 'points', weight: 0.30 },
         { field: 'freeThrows', weight: 0.10 },
+        { field: 'turnovers', weight: -0.20 },
         { field: 'personalFouls', weight: -0.10 },
       ] },
-      { key: 'WING', label: 'Wings (SG/SF)', ref: 6, factors: [
-        // Shot types scored directly — reconstructs points with a 3-point premium.
-        { field: 'twoPointers', weight: 0.40 },
-        { field: 'threePointers', weight: 0.65 },
-        { field: 'freeThrows', weight: 0.18 },
+      // FORWARD covers SF and PF — scoring and rebounding both count, since the
+      // board spans a perimeter forward and a back-to-the-basket one.
+      { key: 'FORWARD', label: 'Forwards', ref: 13, factors: [
+        { field: 'points', weight: 0.40 },
+        { field: 'offRebounds', weight: 0.40 },
+        { field: 'defRebounds', weight: 0.28 },
+        { field: 'blocks', weight: 0.25 },
+        { field: 'steals', weight: 0.20 },
+        { field: 'freeThrows', weight: 0.10 },
+        { field: 'turnovers', weight: -0.18 },
         { field: 'personalFouls', weight: -0.10 },
       ] },
-      { key: 'BIG', label: 'Bigs (PF/C)', ref: 12, factors: [
+      { key: 'CENTER', label: 'Centers', ref: 12, factors: [
         { field: 'offRebounds', weight: 0.45 },
         { field: 'defRebounds', weight: 0.30 },
         { field: 'points', weight: 0.30 },

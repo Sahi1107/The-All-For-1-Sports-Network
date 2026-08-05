@@ -66,8 +66,8 @@ test('scores are 0–100, capped, per-board REF', () => {
 });
 
 test('per-board REF makes an 85 comparable across boards (PG vs BIG elite games map alike)', () => {
-  const pg = BB.positions.find((b) => b.key === 'PG')!;
-  const big = BB.positions.find((b) => b.key === 'BIG')!;
+  const pg = BB.positions.find((b) => b.key === 'GUARD')!;
+  const big = BB.positions.find((b) => b.key === 'CENTER')!;
   // An elite game per board (raw ≈ each REF) should land in the same high band.
   const pgElite = normalizeScore(pg.ref, pg.ref);
   const bigElite = normalizeScore(big.ref, big.ref);
@@ -77,12 +77,16 @@ test('per-board REF makes an 85 comparable across boards (PG vs BIG elite games 
 // ─── Position grouping ────────────────────────────────────────────────────────
 
 test('position free text maps to the right board group', () => {
-  assert.equal(BB.groupOf('Point Guard'), 'PG');
-  assert.equal(BB.groupOf('pg'), 'PG');
-  assert.equal(BB.groupOf('Shooting Guard'), 'WING');
-  assert.equal(BB.groupOf('Small Forward'), 'WING');
-  assert.equal(BB.groupOf('Power Forward'), 'BIG');
-  assert.equal(BB.groupOf('Center'), 'BIG');
+  // PG and SG are guards; SF and PF are forwards; C is a center.
+  assert.equal(BB.groupOf('Point Guard'), 'GUARD');
+  assert.equal(BB.groupOf('pg'), 'GUARD');
+  assert.equal(BB.groupOf('Shooting Guard'), 'GUARD');
+  assert.equal(BB.groupOf('sg'), 'GUARD');
+  assert.equal(BB.groupOf('Small Forward'), 'FORWARD');
+  assert.equal(BB.groupOf('Power Forward'), 'FORWARD');
+  assert.equal(BB.groupOf('pf'), 'FORWARD');
+  assert.equal(BB.groupOf('Center'), 'CENTER');
+  assert.equal(BB.groupOf('Centre'), 'CENTER');
   assert.equal(BB.groupOf(''), null);
   assert.equal(BB.groupOf(null), null);
   assert.equal(RANKING_CONFIG.FOOTBALL.groupOf('Goalkeeper'), 'GK');
@@ -90,11 +94,23 @@ test('position free text maps to the right board group', () => {
   assert.equal(RANKING_CONFIG.CRICKET.groupOf('Bowler'), 'BOWL');
 });
 
-test('wing board scores shot types directly (no points term) — a 3 outweighs a 2', () => {
-  const wing = BB.positions.find((b) => b.key === 'WING')!;
-  const three = scoreBoard(wing, bball('a', { threePointers: 1 }));
-  const two = scoreBoard(wing, bball('a', { twoPointers: 1 }));
-  assert.equal(three > two, true, 'a made 3 is worth more than a made 2');
+test('each board scores its own position\'s work — creation for guards, the glass for centers', () => {
+  const guard = BB.positions.find((b) => b.key === 'GUARD')!;
+  const center = BB.positions.find((b) => b.key === 'CENTER')!;
+  const playmaking = bball('a', { assists: 8 });
+  const rebounding = bball('a', { offRebounds: 5, defRebounds: 5 });
+  assert.equal(scoreBoard(guard, playmaking) > scoreBoard(center, playmaking), true,
+    'assists count on the guard board, not the center board');
+  assert.equal(scoreBoard(center, rebounding) > scoreBoard(guard, rebounding), true,
+    'rebounds count on the center board, not the guard board');
+});
+
+test('the guard board does not let creation bury a scoring guard (PG and SG share it)', () => {
+  const guard = BB.positions.find((b) => b.key === 'GUARD')!;
+  const scoringSG = scoreBoard(guard, bball('sg', { points: 24, assists: 2 }));
+  const passingPG = scoreBoard(guard, bball('pg', { points: 6, assists: 8 }));
+  assert.equal(scoringSG > passingPG, true,
+    'a 24-point shooting guard outranks a 6-point, 8-assist point guard on a shared board');
 });
 
 // ─── Persisted recompute (injected fake db): overall + position + foul-out ────
@@ -126,9 +142,9 @@ test('recompute persists an OVERALL board plus each populated position board', a
   const rows = created[0] as Array<{ userId: string; category: string; score: number; fouledOut: boolean; rank: number }>;
   const cats = new Set(rows.map((r) => r.category));
   assert.equal(overallCount, 2);
-  assert.ok(cats.has('OVERALL') && cats.has('PG') && cats.has('BIG'), 'overall + both position boards written');
-  assert.equal(rows.filter((r) => r.category === 'PG').length, 1, 'only the PG is on the PG board');
-  assert.equal(rows.filter((r) => r.category === 'BIG').length, 1);
+  assert.ok(cats.has('OVERALL') && cats.has('GUARD') && cats.has('CENTER'), 'overall + both position boards written');
+  assert.equal(rows.filter((r) => r.category === 'GUARD').length, 1, 'only the guard is on the guard board');
+  assert.equal(rows.filter((r) => r.category === 'CENTER').length, 1);
   assert.equal(rows.every((r) => r.score > 0 && r.score <= 100), true, 'all scores on the 0–100 scale');
 });
 

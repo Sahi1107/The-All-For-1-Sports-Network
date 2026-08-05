@@ -79,3 +79,66 @@ test('rosterMeetsMinimum: enforced only against a configured minimum', () => {
   assert.equal(rosterMeetsMinimum(4, 5), false);
   assert.equal(rosterMeetsMinimum(5, 5), true);
 });
+
+// ─── Roster snapshot reconciliation ──────────────────────────────────────────
+// A player added to a team after the draw was invisible to the scorer, because
+// the tracker reads a snapshot frozen at draw time. The fix reconciles on match
+// load — but it MUST be additive, which is what these pin.
+
+import { mergeRoster, rosterSignature, type RosterSnapshotTeam } from './rosterLifecycle';
+
+const p = (userId: string, number: number | null = null) =>
+  ({ userId, name: userId, position: null, number });
+const team = (teamId: string, players: ReturnType<typeof p>[]): RosterSnapshotTeam =>
+  ({ teamId, name: teamId, players });
+
+test('a player added after the draw appears in the reconciled roster', () => {
+  const prev = [team('A', [p('one'), p('two')])];
+  const fresh = [team('A', [p('one'), p('two'), p('late')])];
+  const merged = mergeRoster(prev, fresh);
+  assert.deepEqual(merged[0].players.map((x) => x.userId), ['one', 'two', 'late']);
+});
+
+test('a player who left the squad is KEPT — their recorded stats would otherwise be stranded', () => {
+  const prev = [team('A', [p('one'), p('departed')])];
+  const fresh = [team('A', [p('one')])]; // no longer an accepted member
+  const merged = mergeRoster(prev, fresh);
+  assert.deepEqual(merged[0].players.map((x) => x.userId).sort(), ['departed', 'one']);
+});
+
+test('jersey numbers already entered survive the merge', () => {
+  const prev = [team('A', [p('one', 23)])];
+  // buildRosterSnapshot carries numbers, so fresh already has it; the merge must not clobber.
+  const fresh = [team('A', [p('one', 23), p('late', null)])];
+  const merged = mergeRoster(prev, fresh);
+  assert.equal(merged[0].players.find((x) => x.userId === 'one')!.number, 23);
+});
+
+test('a whole team dropped from registrations keeps its snapshot entry', () => {
+  const prev = [team('A', [p('one')]), team('B', [p('two')])];
+  const fresh = [team('A', [p('one')])];
+  const merged = mergeRoster(prev, fresh);
+  assert.deepEqual(merged.map((t) => t.teamId).sort(), ['A', 'B']);
+});
+
+test('a brand-new team is added wholesale', () => {
+  const merged = mergeRoster([team('A', [p('one')])], [team('A', [p('one')]), team('C', [p('three')])]);
+  assert.deepEqual(merged.map((t) => t.teamId).sort(), ['A', 'C']);
+});
+
+test('signature ignores ordering, so an unchanged roster is not rewritten', () => {
+  const a = [team('A', [p('one'), p('two')]), team('B', [p('three')])];
+  const b = [team('B', [p('three')]), team('A', [p('two'), p('one')])];
+  assert.equal(rosterSignature(a), rosterSignature(b));
+});
+
+test('signature changes when a player joins — that is what triggers the write', () => {
+  const before = [team('A', [p('one')])];
+  const after = [team('A', [p('one'), p('late')])];
+  assert.notEqual(rosterSignature(before), rosterSignature(after));
+});
+
+test('merging an unchanged roster is a no-op by signature', () => {
+  const prev = [team('A', [p('one'), p('two')])];
+  assert.equal(rosterSignature(mergeRoster(prev, prev)), rosterSignature(prev));
+});

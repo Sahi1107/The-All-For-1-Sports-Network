@@ -19,6 +19,7 @@ import { derivePlayerStats } from '../services/trackerStats';
 import { fanoutMatchResult, fanoutDrawPublished, fanoutFixturesScheduled, fanoutStatsVerified, slotLabel } from '../services/notifications/competitionNotify';
 import { writeMatchPlayerStats } from '../services/matchStats';
 import { recalculateTournamentRankings } from '../services/rankingService';
+import { mergeRoster, rosterSignature } from '../services/rosterLifecycle';
 import { captureException } from '../config/sentry';
 import {
   CreateSessionBody,
@@ -80,6 +81,29 @@ async function buildRosterSnapshot(tournamentId: string, prevRoster?: unknown): 
       number: keep.get(m.user.id) ?? null,
     })),
   }));
+}
+
+/**
+ * Bring the session's roster snapshot up to date with the teams' current accepted
+ * members, so a player added after the draw can be scored immediately — no draw
+ * reset. Jersey numbers already entered are preserved (buildRosterSnapshot carries
+ * them), and recorded stats are never touched: they live on TrackerMatch.state.
+ * Non-fatal — any failure serves the stored snapshot unchanged rather than
+ * breaking a live scoring page.
+ */
+async function refreshSessionRoster(session: {
+  id: string; tournamentId: string; roster: unknown;
+}): Promise<unknown> {
+  try {
+    const fresh = await buildRosterSnapshot(session.tournamentId, session.roster);
+    const merged = mergeRoster((session.roster as RosterSnapshot[] | null) ?? [], fresh);
+    if (rosterSignature(merged) === rosterSignature(session.roster)) return session.roster;
+    await prisma.trackerSession.update({ where: { id: session.id }, data: { roster: merged as object } });
+    return merged;
+  } catch (err) {
+    console.error(`[tracker] roster refresh failed for session ${session.id} (keeping stored snapshot):`, err);
+    return session.roster;
+  }
 }
 
 // Stage ordering for sequential scheduling (groups first, then knockout rounds).
@@ -729,7 +753,10 @@ router.get(
         res.status(404).json({ error: 'Match not found' });
         return;
       }
-      res.json({ match, session: match.session });
+      // Reconcile with current team members so a player added after the draw is
+      // scoreable on this match without regenerating the draw.
+      const roster = await refreshSessionRoster(match.session);
+      res.json({ match, session: { ...match.session, roster } });
     } catch (err) {
       console.error('Get tracker match error:', err);
       res.status(500).json({ error: 'Internal server error' });

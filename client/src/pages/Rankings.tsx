@@ -56,9 +56,9 @@ const SHOOTING_EVENTS = ['10m Air Rifle', '10m Air Pistol', '25m Pistol', '50m R
 const RANKING_BOARDS: Record<string, { key: string; label: string }[]> = {
   BASKETBALL: [
     { key: 'OVERALL', label: 'Overall' },
-    { key: 'PG',      label: 'Point Guards' },
-    { key: 'WING',    label: 'Wings' },
-    { key: 'BIG',     label: 'Bigs' },
+    { key: 'GUARD',   label: 'Guards' },
+    { key: 'FORWARD', label: 'Forwards' },
+    { key: 'CENTER',  label: 'Centers' },
   ],
   FOOTBALL: [
     { key: 'OVERALL', label: 'Overall' },
