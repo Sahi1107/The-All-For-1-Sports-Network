@@ -10,9 +10,10 @@ interface G { id: string; name: string; teamIds: string[] }
 
 /** Admin group editor: rename groups, move teams between them, add unassigned
  *  (incl. late-registered) teams, and withdraw a team. A group that already has
- *  results CAN be restructured: the server re-plans only the fixtures that
- *  haven't been played, so results are preserved. A team that has already played
- *  in a group can't be moved out of it — its result belongs to that table. */
+ *  results can be restructured at ANY time: the server re-plans only the
+ *  fixtures that haven't been played, and never deletes a result. A played match
+ *  follows its teams when both land in the same group; when they're split, it
+ *  stays on record but stops counting in either table (reported back). */
 export default function GroupEditor({ session, onClose }: { session: TrackerSession; onClose: () => void }) {
   const qc = useQueryClient();
   const tid = session.tournamentId;
@@ -44,17 +45,27 @@ export default function GroupEditor({ session, onClose }: { session: TrackerSess
 
   const save = useMutation({
     mutationFn: () => api.patch(`/tracker/sessions/${tid}/groups`, { groups }),
-    onSuccess: (res: { data?: { fixturesAdded?: number; fixturesRemoved?: number } }) => {
-      // Nothing played is ever touched, so the only news is what changed in the
-      // fixture list — worth saying, because adding a team silently generates
-      // several new matches.
+    onSuccess: (res: { data?: { fixturesAdded?: number; fixturesRemoved?: number; resultsSplitAcrossGroups?: number } }) => {
+      // No result is ever deleted, so the news is what changed in the fixture
+      // list — worth saying, because adding a team silently generates several
+      // new matches.
       const added = res?.data?.fixturesAdded ?? 0;
       const removed = res?.data?.fixturesRemoved ?? 0;
+      const split = res?.data?.resultsSplitAcrossGroups ?? 0;
       const bits = [
         added ? `${added} fixture${added === 1 ? '' : 's'} added` : '',
         removed ? `${removed} removed` : '',
       ].filter(Boolean);
       toast.success(bits.length ? `Groups updated — ${bits.join(', ')}` : 'Groups updated');
+      // A played match whose two teams are now in different groups still exists
+      // and still counts on the players' profiles, but can't sit in either
+      // table. Say so plainly rather than letting a P column quietly drop.
+      if (split > 0) {
+        toast(
+          `${split} played match${split === 1 ? '' : 'es'} now ${split === 1 ? 'has' : 'have'} its teams in different groups — the result is kept, but no longer counts in either group's standings.`,
+          { icon: '\u26A0\uFE0F', duration: 8000 },
+        );
+      }
       invalidate(); onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not save groups'),
@@ -136,7 +147,7 @@ export default function GroupEditor({ session, onClose }: { session: TrackerSess
         </div>
 
         <div className="flex items-center justify-between gap-2 px-5 py-4 border-t border-line">
-          <p className="text-[11px] text-gray-custom">Only fixtures that haven't been played are re-planned — results are kept.</p>
+          <p className="text-[11px] text-gray-custom">Groups can be edited any time. Played results are always kept; only unplayed fixtures are re-planned.</p>
           <div className="flex gap-2 shrink-0">
             <button onClick={onClose} disabled={busy} className="px-4 py-2 text-sm rounded-lg border border-line hover:bg-elevated transition-colors disabled:opacity-50">Cancel</button>
             <button onClick={() => save.mutate()} disabled={busy} className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50">

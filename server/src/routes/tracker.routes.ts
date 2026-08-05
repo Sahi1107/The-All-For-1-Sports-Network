@@ -550,44 +550,38 @@ router.patch(
       // teams in them stay with them.
       const affectedIds = [...changedIds, ...removedIds];
 
-      // A team that has already played in a group cannot leave it: its result
-      // belongs to that group's standings, and moving the team without the
-      // result (or with it) makes the table a lie. Changing a played fixture is
-      // the match-correction tools' job, not the group editor's.
-      for (const gid of affectedIds) {
-        const old = oldById.get(gid);
-        if (!old) continue;
-        const stillHere = new Set(newGroups.find((g) => g.id === gid)?.teamIds ?? []);
-        const playedHere = new Set<string>();
-        for (const m of groupMatches) {
-          if (m.groupId !== gid || !isPlayed(m.status)) continue;
-          if (m.homeTeamId) playedHere.add(m.homeTeamId);
-          if (m.awayTeamId) playedHere.add(m.awayTeamId);
-        }
-        const moved = [...playedHere].filter((t) => !stillHere.has(t));
-        if (moved.length) {
-          const names = await prisma.team.findMany({ where: { id: { in: moved } }, select: { name: true } });
-          res.status(400).json({
-            error: `${names.map((n) => n.name).join(', ')} already played in "${old.name}" — a team can't leave a group it has results in. Correct the match instead, or reset the draw.`,
-          });
-          return;
+      // An admin can restructure a group at ANY time, including one with results.
+      // Nothing played is ever deleted: a result is the record of a real game, so
+      // it survives the edit regardless of where its teams end up.
+      //
+      // Where BOTH teams of a played match sit in the same group afterwards, the
+      // match moves with them and keeps counting. Where they've been split across
+      // groups, it stays on its original fixture — computeStandings ignores a
+      // match unless both teams are in the table it's building, so the result
+      // remains on record (and on the players' profiles) without corrupting
+      // either group's standings. That count is reported back so the admin knows.
+      const groupOfTeam = new Map<string, string>();
+      newGroups.forEach((g) => g.teamIds.forEach((t) => groupOfTeam.set(t, g.id)));
+      const regroup: { id: string; groupId: string }[] = [];
+      let splitResults = 0;
+      for (const m of groupMatches) {
+        if (!isPlayed(m.status) || !m.homeTeamId || !m.awayTeamId) continue;
+        const gh = groupOfTeam.get(m.homeTeamId);
+        const ga = groupOfTeam.get(m.awayTeamId);
+        if (gh && gh === ga) {
+          if (gh !== m.groupId) regroup.push({ id: m.id, groupId: gh });
+        } else {
+          splitResults++;
         }
       }
 
-      // A knockout seeded from the OLD standings is invalid once groups change,
-      // and maybeSeedKnockout refuses to re-seed a bracket that already has
-      // teams — so a stale seeding would persist forever. Unplayed seeding is
-      // cleared and re-seeds itself; a knockout that has actually been PLAYED
-      // can't be undone here.
+      // A knockout seeded from the OLD standings is stale once groups change, and
+      // maybeSeedKnockout refuses to re-seed a bracket that already has teams — so
+      // clear the seeding to let it re-seed. Only UNPLAYED knockout matches are
+      // cleared; a knockout tie that has actually been played is a result like any
+      // other and is left exactly as it is.
       const knockoutMatches = session.matches.filter((m) => m.stage !== 'group');
-      const playedKnockout = knockoutMatches.filter((m) => isPlayed(m.status));
-      if (affectedIds.length > 0 && playedKnockout.length > 0) {
-        res.status(400).json({
-          error: 'The knockout stage has already been played — changing the groups it was seeded from would invalidate it. Reset the draw instead.',
-        });
-        return;
-      }
-      const seededKnockout = knockoutMatches.filter((m) => m.homeTeamId || m.awayTeamId);
+      const seededKnockout = knockoutMatches.filter((m) => (m.homeTeamId || m.awayTeamId) && !isPlayed(m.status));
       const resetKnockout = affectedIds.length > 0 && seededKnockout.length > 0;
 
       const roster = await buildRosterSnapshot(tournamentId, session.roster);
@@ -622,6 +616,11 @@ router.patch(
         if (toRemove.length) {
           await tx.trackerMatch.deleteMany({ where: { id: { in: toRemove } } });
         }
+        // Played matches whose teams both moved follow them, so the result keeps
+        // counting in the group those teams now sit in.
+        for (const r of regroup) {
+          await tx.trackerMatch.update({ where: { id: r.id }, data: { groupId: r.groupId } });
+        }
         if (toCreate.length) {
           await tx.trackerMatch.createMany({
             data: toCreate.map((f) => ({
@@ -644,6 +643,11 @@ router.patch(
         fixturesAdded: toCreate.length,
         fixturesRemoved: toRemove.length,
         resultsPreserved: groupMatches.filter((m) => isPlayed(m.status)).length,
+        resultsMoved: regroup.length,
+        // Played matches whose two teams now sit in different groups. Still on
+        // record and still on the players' profiles, but no longer counting in
+        // either group's table — worth telling the admin about.
+        resultsSplitAcrossGroups: splitResults,
         knockoutReseeded: resetKnockout ? seededKnockout.length : 0,
       });
     } catch (err) {

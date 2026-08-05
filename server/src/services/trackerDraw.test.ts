@@ -178,3 +178,34 @@ test('an empty group removes its unplayed fixtures and creates none', () => {
   assert.deepEqual(plan.remove, ['ab']);
   assert.deepEqual(plan.create, []);
 });
+
+// An admin may restructure a group at any time, including one with results. The
+// planner must never delete a played match, whatever happens to its teams.
+
+test('a played match survives even when BOTH its teams leave the group', () => {
+  const existing = [m('ab', 'a', 'b', 'PUBLISHED'), m('cd', 'c', 'd')];
+  // a and b both move away; only c and d remain.
+  const plan = planGroupFixtures(grp(['c', 'd']), existing, 1);
+  assert.ok(plan.keep.includes('ab'), 'the published result is never deleted');
+  assert.deepEqual(plan.remove, [], 'cd is still valid');
+});
+
+test('a group emptied of everything except a played match keeps that match', () => {
+  const plan = planGroupFixtures(grp([]), [m('ab', 'a', 'b', 'COMPLETED')], 1);
+  assert.deepEqual(plan.keep, ['ab']);
+  assert.deepEqual(plan.remove, []);
+  assert.deepEqual(plan.create, []);
+});
+
+test('teams swapped between groups: unplayed fixtures re-plan, played ones do not', () => {
+  // Group A had a,b,c,d. b played c. Admin swaps d out for e.
+  const existing = [
+    m('ab', 'a', 'b'), m('ac', 'a', 'c'), m('ad', 'a', 'd'),
+    m('bc', 'b', 'c', 'COMPLETED'), m('bd', 'b', 'd'), m('cd', 'c', 'd'),
+  ];
+  const plan = planGroupFixtures(grp(['a', 'b', 'c', 'e']), existing, 50);
+  assert.ok(plan.keep.includes('bc'), 'the completed b-v-c result stays');
+  assert.deepEqual(plan.remove.sort(), ['ad', 'bd', 'cd'], "d's unplayed fixtures go");
+  const created = plan.create.map((f) => [f.homeTeamId, f.awayTeamId].sort().join('|')).sort();
+  assert.deepEqual(created, ['a|e', 'b|e', 'c|e'], "e's fixtures are added");
+});
