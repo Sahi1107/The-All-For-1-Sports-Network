@@ -25,10 +25,16 @@ test('BUG FIX: non-athlete roles are NOT asked for player fields (position/age/g
   }
 });
 
-test('an ATHLETE missing a player field is incomplete, and says which', () => {
-  const r = profileCompleteness({ role: 'ATHLETE', ...core, sport: 'FOOTBALL', gender: 'MALE', age: 20 }); // no position
+test('an ATHLETE missing a player field (sport/gender/age) is incomplete, and says which', () => {
+  const r = profileCompleteness({ role: 'ATHLETE', ...core, sport: 'FOOTBALL', gender: 'MALE' }); // no age
   assert.equal(r.complete, false);
-  assert.deepEqual(r.missing, ['position']);
+  assert.deepEqual(r.missing, ['age']);
+});
+
+test('an ATHLETE without a position is COMPLETE — position is admin/organiser-assignable, not the athlete\'s own incompleteness', () => {
+  const r = profileCompleteness({ role: 'ATHLETE', ...core, sport: 'FOOTBALL', gender: 'MALE', age: 20 }); // no position
+  assert.equal(r.complete, true);
+  assert.deepEqual(r.missing, []);
 });
 
 test('any role missing a CORE field is incomplete (name/bio/avatar/location)', () => {

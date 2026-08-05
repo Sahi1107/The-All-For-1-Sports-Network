@@ -22,8 +22,12 @@ export interface CompletenessUser {
 
 /** Fields every individual profile needs, regardless of role. */
 const CORE_FIELDS = ['name', 'bio', 'avatar', 'location'] as const;
-/** Extra fields only a ranked player (ATHLETE) needs. */
-const ATHLETE_EXTRA = ['sport', 'gender', 'age', 'position'] as const;
+/** Extra fields only a ranked player (ATHLETE) needs. `position` is deliberately
+ *  NOT here: an admin/organiser can set a player's position at any time (see the
+ *  roster editor), so a missing position is not the athlete's own incompleteness
+ *  to be nagged about — and it must not gate their verified badge or their
+ *  appearance in the rankings. */
+const ATHLETE_EXTRA = ['sport', 'gender', 'age'] as const;
 
 /** Staff accounts have no public profile to complete. */
 const STAFF_ROLES = new Set(['ADMIN', 'ORGANIZER']);

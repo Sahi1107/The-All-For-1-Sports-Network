@@ -1478,6 +1478,30 @@ router.put('/:id/teams/:teamId/captain', authenticate, requireTournamentAccess(f
   }
 });
 
+// PUT /api/tournaments/:id/teams/:teamId/members/:userId/position — set or clear a
+// rostered player's position. Assignable AT ANY TIME, including after matches: the
+// roster lock guards team membership (who's on the squad), not a player's position.
+// Scoped to this tournament's organiser or an admin (requireTournamentAccess).
+// Position lives on the User (a player attribute), so it feeds the position-based
+// ranking views directly; no ranking recompute is needed — position is not a
+// scoring input, so the score never moves.
+router.put('/:id/teams/:teamId/members/:userId/position', authenticate, requireTournamentAccess(fromParamId), writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const raw = (req.body as { position?: unknown })?.position;
+    const position = typeof raw === 'string' && raw.trim() ? raw.trim().slice(0, 60) : null;
+    const userId = req.params.userId as string;
+    const team = await prisma.team.findFirst({ where: { id: req.params.teamId as string, tournamentId: req.params.id as string } });
+    if (!team) { res.status(404).json({ error: 'Team not found in this tournament' }); return; }
+    const member = await prisma.teamMember.findUnique({ where: { teamId_userId: { teamId: team.id, userId } }, select: { userId: true } });
+    if (!member) { res.status(404).json({ error: 'That player is not on this team' }); return; }
+    await prisma.user.update({ where: { id: userId }, data: { position } });
+    res.json({ ok: true, position });
+  } catch (error) {
+    console.error('Set player position error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/tournaments/:id/matches — create match (admin)
 router.post('/:id/matches', authenticate, requireTournamentAccess(fromParamId), validate({ body: CreateMatchBody }), async (req: AuthRequest, res: Response) => {
   try {

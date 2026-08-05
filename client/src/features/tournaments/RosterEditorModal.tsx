@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, Crown, UserPlus, Trash2, AlertTriangle, Search, Lock } from 'lucide-react';
@@ -6,6 +6,40 @@ import api from '../../api/client';
 
 interface Member { userId: string; role: string; status: string; user: { id: string; name: string; position?: string | null } }
 interface Team { id: string; name: string; captainId: string | null; members: Member[] }
+
+// Suggested positions per sport. Free text is still allowed, but these map to the
+// Rankings page's position tabs (e.g. "Point Guard" → Guards), so picking one lands
+// the player in the right positional leaderboard.
+const POSITIONS_BY_SPORT: Record<string, string[]> = {
+  BASKETBALL: ['Point Guard', 'Shooting Guard', 'Small Forward', 'Power Forward', 'Center'],
+  FOOTBALL:   ['Goalkeeper', 'Defender', 'Midfielder', 'Winger', 'Striker'],
+  CRICKET:    ['Batsman', 'Bowler', 'All-rounder', 'Wicketkeeper'],
+};
+
+/** Inline position editor for one player. Free text with a per-sport suggestion
+ *  list; commits on blur/Enter only when the value actually changed. Editable at
+ *  any time — including after the roster locks — because a player's position is a
+ *  profile attribute, not roster membership. */
+function PositionField({ current, listId, disabled, onSave }: {
+  current: string; listId: string; disabled: boolean; onSave: (v: string) => void;
+}) {
+  const [val, setVal] = useState(current);
+  useEffect(() => { setVal(current); }, [current]);
+  const commit = () => { const v = val.trim(); if (v !== current) onSave(v); };
+  return (
+    <input
+      list={listId}
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+      disabled={disabled}
+      placeholder="Add position"
+      aria-label="Player position"
+      className="w-full px-2 py-1 bg-surface border border-line rounded-md text-xs focus:outline-none focus:border-primary placeholder-gray-custom disabled:opacity-50"
+    />
+  );
+}
 
 const STATUS = {
   ACCEPTED: 'bg-accent/20 text-accent',
@@ -83,6 +117,12 @@ export default function RosterEditorModal({
     onSuccess: () => { toast.success('Captain updated'); invalidate(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not set captain'),
   });
+  const setPosition = useMutation({
+    mutationFn: ({ userId, position }: { userId: string; position: string | null }) =>
+      api.put(`/tournaments/${tournamentId}/teams/${team.id}/members/${userId}/position`, { position }),
+    onSuccess: () => { toast.success('Position updated'); invalidate(); },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not update position'),
+  });
   const createPlayer = useMutation({
     mutationFn: (allowDuplicate: boolean) => api.post(`/tournaments/${tournamentId}/teams/${team.id}/members/provision`, {
       name: np.name.trim(),
@@ -131,6 +171,9 @@ export default function RosterEditorModal({
   // against it). Say so clearly and hide the edit controls rather than letting a
   // click fail. Genuine fixes go through the match-correction tools.
   const locked = liveReg ? liveReg.summary.rosterLocked === true : (team as Team & { _locked?: boolean })._locked === true;
+  // Position suggestions for this tournament's sport (free text is still allowed).
+  const sport = regData?.tournament?.sport as string | undefined;
+  const posOptions = (sport && POSITIONS_BY_SPORT[sport]) || [];
 
   const existing = new Set(members.map((m) => m.userId));
   const pending = members.filter((m) => m.status !== 'ACCEPTED');
@@ -150,7 +193,7 @@ export default function RosterEditorModal({
           {locked && (
             <div className="flex items-start gap-2 p-3 rounded-lg border border-line bg-ink/5 text-xs text-foreground/70">
               <Lock size={14} className="mt-0.5 shrink-0 text-gray-custom" />
-              <span>This roster is <span className="font-semibold text-foreground">locked</span> — the team has already played a match, and stats are recorded against this exact roster. Corrections go through the match-correction tools in the Stat Tracker.</span>
+              <span>This roster is <span className="font-semibold text-foreground">locked</span> — the team has already played a match, and stats are recorded against this exact roster. You can still set player <span className="font-semibold text-foreground">positions</span> below; roster changes go through the match-correction tools in the Stat Tracker.</span>
             </div>
           )}
           {!locked && !captainId && members.some((m) => m.status === 'ACCEPTED') && (
@@ -171,29 +214,42 @@ export default function RosterEditorModal({
               const isCaptain = m.userId === captainId;
               const canBeCaptain = m.status === 'ACCEPTED';
               return (
-              <li key={m.userId} className="flex items-center gap-2">
+              <li key={m.userId} className="flex items-start gap-2">
                 {/* Captain: filled crown = current captain; ghost crown = tap to make captain */}
+                <div className="pt-1 shrink-0">
                 {!locked && canBeCaptain ? (
                   <button
                     onClick={() => { if (!isCaptain) setCaptain.mutate(m.userId); }}
                     disabled={setCaptain.isPending || isCaptain}
                     title={isCaptain ? 'Captain' : 'Make captain'}
-                    className={`p-0.5 rounded shrink-0 transition-colors ${isCaptain ? 'text-primary cursor-default' : 'text-gray-custom/40 hover:text-primary'}`}
+                    className={`p-0.5 rounded transition-colors ${isCaptain ? 'text-primary cursor-default' : 'text-gray-custom/40 hover:text-primary'}`}
                   >
                     <Crown size={13} />
                   </button>
                 ) : isCaptain ? (
-                  <Crown size={13} className="text-primary shrink-0" />
+                  <Crown size={13} className="text-primary" />
                 ) : (
-                  <span className="w-[13px] shrink-0" />
+                  <span className="block w-[13px]" />
                 )}
-                <span className="text-sm flex-1 min-w-0 truncate">
-                  {m.user.name}
-                  {m.user.position && <span className="text-xs text-gray-custom">· {m.user.position}</span>}
-                </span>
-                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS[m.status] ?? 'bg-elevated text-gray-custom'}`}>{m.status}</span>
+                </div>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm flex-1 min-w-0 truncate">{m.user.name}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS[m.status] ?? 'bg-elevated text-gray-custom'}`}>{m.status}</span>
+                  </div>
+                  {/* Position — editable ANY time, including after the roster locks. */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-gray-custom shrink-0 w-7">Pos</span>
+                    <PositionField
+                      current={m.user.position ?? ''}
+                      listId="roster-position-options"
+                      disabled={setPosition.isPending}
+                      onSave={(v) => setPosition.mutate({ userId: m.userId, position: v || null })}
+                    />
+                  </div>
+                </div>
                 {!locked && (
-                  <button onClick={() => remove.mutate(m.userId)} disabled={remove.isPending} className="p-1.5 rounded-lg text-gray-custom hover:text-red-400 hover:bg-elevated transition-colors disabled:opacity-50" title={isCaptain ? 'Remove captain (team will have no captain)' : 'Remove'}>
+                  <button onClick={() => remove.mutate(m.userId)} disabled={remove.isPending} className="mt-0.5 p-1.5 rounded-lg text-gray-custom hover:text-red-400 hover:bg-elevated transition-colors disabled:opacity-50 shrink-0" title={isCaptain ? 'Remove captain (team will have no captain)' : 'Remove'}>
                     <Trash2 size={13} />
                   </button>
                 )}
@@ -201,6 +257,9 @@ export default function RosterEditorModal({
               );
             })}
           </ul>
+          <datalist id="roster-position-options">
+            {posOptions.map((o) => <option key={o} value={o} />)}
+          </datalist>
 
           {/* Add player — search an existing user, or create a brand-new one.
               Hidden once the roster locks (the team has played). */}
