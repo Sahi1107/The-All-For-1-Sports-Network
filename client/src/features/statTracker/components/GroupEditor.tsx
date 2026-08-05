@@ -9,8 +9,10 @@ import { unassignedTeamIds } from '../../tournaments/manageGate';
 interface G { id: string; name: string; teamIds: string[] }
 
 /** Admin group editor: rename groups, move teams between them, add unassigned
- *  (incl. late-registered) teams, and withdraw a team. Groups that already have
- *  results can't be restructured (the server rejects it — reset the draw). */
+ *  (incl. late-registered) teams, and withdraw a team. A group that already has
+ *  results CAN be restructured — admins and assigned organisers aren't blocked —
+ *  but its played results can't survive their fixtures being regenerated, so the
+ *  server prices the change first (409) and only acts on a confirmed retry. */
 export default function GroupEditor({ session, onClose }: { session: TrackerSession; onClose: () => void }) {
   const qc = useQueryClient();
   const tid = session.tournamentId;
@@ -39,10 +41,39 @@ export default function GroupEditor({ session, onClose }: { session: TrackerSess
       teamIds: g.id === toGid ? [...g.teamIds.filter((t) => t !== teamId), teamId] : g.teamIds.filter((t) => t !== teamId),
     })));
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tracker-session', tid] });
+
+  /** What restructuring would destroy, phrased so the cost is legible before
+   *  it's paid. Published results are called out separately because those have
+   *  already been written onto players' profiles. */
+  function confirmDiscard(d: {
+    playedResults?: number; publishedResults?: number; knockoutReset?: number; groups?: string[];
+  }): boolean {
+    const lines: string[] = [];
+    if (d.groups?.length) lines.push(`Restructuring: ${d.groups.join(', ')}.`);
+    if (d.playedResults) lines.push(`• ${d.playedResults} played result${d.playedResults === 1 ? '' : 's'} will be deleted and those fixtures regenerated.`);
+    if (d.publishedResults) lines.push(`• ${d.publishedResults} of them ${d.publishedResults === 1 ? 'is' : 'are'} PUBLISHED — those stats will be removed from the players' profiles and the rankings rebuilt.`);
+    if (d.knockoutReset) lines.push(`• The knockout bracket (${d.knockoutReset} match${d.knockoutReset === 1 ? '' : 'es'}) will be cleared and re-seeded from the new group results.`);
+    lines.push('', 'This cannot be undone. Continue?');
+    return confirm(lines.join('\n'));
+  }
+
   const save = useMutation({
-    mutationFn: () => api.patch(`/tracker/sessions/${tid}/groups`, { groups }),
-    onSuccess: () => { toast.success('Groups updated'); invalidate(); onClose(); },
-    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not save groups'),
+    mutationFn: (force?: boolean) => api.patch(`/tracker/sessions/${tid}/groups`, { groups, ...(force ? { force: true } : {}) }),
+    onSuccess: (res: { data?: { discardedResults?: number } }) => {
+      const n = res?.data?.discardedResults ?? 0;
+      toast.success(n > 0 ? `Groups updated — ${n} result${n === 1 ? '' : 's'} discarded` : 'Groups updated');
+      invalidate(); onClose();
+    },
+    onError: (e: any) => {
+      const d = e.response?.data;
+      // 409 = the server is telling us the cost, not refusing. Confirm, then repeat
+      // the same save with force so the destruction is always a deliberate second act.
+      if (e.response?.status === 409 && d?.requiresConfirmation) {
+        if (confirmDiscard(d)) save.mutate(true);
+        return;
+      }
+      toast.error(d?.error || 'Could not save groups');
+    },
   });
   const withdraw = useMutation({
     mutationFn: (teamId: string) => api.post(`/tracker/sessions/${tid}/withdraw`, { teamId }),
@@ -121,10 +152,10 @@ export default function GroupEditor({ session, onClose }: { session: TrackerSess
         </div>
 
         <div className="flex items-center justify-between gap-2 px-5 py-4 border-t border-line">
-          <p className="text-[11px] text-gray-custom">Groups with results can't be restructured — reset the draw instead.</p>
+          <p className="text-[11px] text-gray-custom">Restructuring a group with results discards them — you'll be asked to confirm.</p>
           <div className="flex gap-2 shrink-0">
             <button onClick={onClose} disabled={busy} className="px-4 py-2 text-sm rounded-lg border border-line hover:bg-elevated transition-colors disabled:opacity-50">Cancel</button>
-            <button onClick={() => save.mutate()} disabled={busy} className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50">
+            <button onClick={() => save.mutate(undefined)} disabled={busy} className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50">
               {save.isPending ? 'Saving…' : 'Save groups'}
             </button>
           </div>

@@ -1,4 +1,5 @@
 import { Router, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireTournamentAccess, fromParamTournamentId, fromBodyTournamentId, fromTrackerMatchId } from '../middleware/tournamentAccess';
@@ -447,6 +448,7 @@ router.patch(
     try {
       const tournamentId = req.params.tournamentId as string;
       const newGroups = req.body.groups as GroupDef[];
+      const force = req.body.force === true;
 
       const session = await prisma.trackerSession.findUnique({
         where: { tournamentId },
@@ -484,16 +486,41 @@ router.patch(
       for (const g of newGroups) {
         const old = oldById.get(g.id);
         const compChanged = !old || sortedKey(g.teamIds) !== sortedKey(old.teamIds);
-        if (compChanged) {
-          if (hasResults(g.id)) { res.status(400).json({ error: `Group "${g.name}" already has results — reset the draw to restructure it` }); return; }
-          changedIds.push(g.id);
-        } else if (old.name !== g.name) {
-          renamedOnly.push(g);
-        }
+        if (compChanged) changedIds.push(g.id);
+        else if (old.name !== g.name) renamedOnly.push(g);
       }
       const removedIds = oldGroups.filter((o) => !newGroups.some((g) => g.id === o.id)).map((o) => o.id);
-      for (const rid of removedIds) {
-        if (hasResults(rid)) { res.status(400).json({ error: 'A removed group already has results — reset the draw instead' }); return; }
+
+      // Restructuring regenerates a group's fixtures, so any result already
+      // played in it cannot survive — the fixture it belonged to stops existing.
+      // Admins and organisers may do this, but not by accident: report the cost
+      // first and act only on an explicit `force`.
+      const affectedIds = [...changedIds, ...removedIds];
+      const doomed = groupMatches.filter((m) => affectedIds.includes(m.groupId ?? '') && DONE_STATUS(m.status));
+      const publishedIds = doomed.map((m) => m.publishedMatchId).filter((id): id is string => !!id);
+
+      // A knockout seeded from the OLD standings is invalid once the groups
+      // change, and maybeSeedKnockout refuses to re-seed a bracket that already
+      // has teams — so it would stay wrong forever unless cleared here.
+      const knockoutMatches = session.matches.filter((m) => m.stage !== 'group');
+      const seededKnockout = knockoutMatches.filter((m) => m.homeTeamId || m.awayTeamId || DONE_STATUS(m.status));
+      const resetKnockout = affectedIds.length > 0 && seededKnockout.length > 0;
+      const knockoutPublishedIds = resetKnockout
+        ? seededKnockout.map((m) => m.publishedMatchId).filter((id): id is string => !!id)
+        : [];
+
+      if ((doomed.length > 0 || resetKnockout) && !force) {
+        res.status(409).json({
+          error: 'Restructuring these groups will discard results that have already been played.',
+          requiresConfirmation: true,
+          playedResults: doomed.length,
+          publishedResults: publishedIds.length + knockoutPublishedIds.length,
+          knockoutReset: resetKnockout ? seededKnockout.length : 0,
+          groups: [...new Set(affectedIds)]
+            .map((id) => (newGroups.find((g) => g.id === id) ?? oldById.get(id))?.name)
+            .filter(Boolean),
+        });
+        return;
       }
 
       const roster = await buildRosterSnapshot(tournamentId, session.roster);
@@ -501,6 +528,23 @@ router.patch(
 
       await prisma.$transaction(async (tx) => {
         const toDelete = [...changedIds, ...removedIds];
+        // Published results wrote a platform Match plus per-player stat rows.
+        // Delete those FIRST — dropping the tracker match alone would strand the
+        // stats on players' profiles with no fixture behind them.
+        const allPublished = [...publishedIds, ...knockoutPublishedIds];
+        if (allPublished.length) {
+          await tx.match.deleteMany({ where: { id: { in: allPublished } } });
+        }
+        if (resetKnockout) {
+          // Back to an unseeded bracket so the new group stage can re-seed it.
+          await tx.trackerMatch.updateMany({
+            where: { id: { in: seededKnockout.map((m) => m.id) } },
+            data: {
+              homeTeamId: null, awayTeamId: null, homeScore: 0, awayScore: 0,
+              status: 'SCHEDULED', state: Prisma.DbNull, publishedMatchId: null,
+            },
+          });
+        }
         if (toDelete.length) {
           await tx.trackerMatch.deleteMany({ where: { sessionId: session.id, stage: 'group', groupId: { in: toDelete } } });
         }
@@ -522,7 +566,20 @@ router.patch(
         await tx.trackerSession.update({ where: { id: session.id }, data: { groups: newGroups as object, roster: roster as object } });
       });
 
-      res.json({ ok: true });
+      res.json({
+        ok: true,
+        discardedResults: doomed.length,
+        knockoutReset: resetKnockout ? seededKnockout.length : 0,
+      });
+
+      // Those published stats are off the players' profiles now, so the rankings
+      // derived from them must be rebuilt. Fire-and-forget, like publish/unpublish.
+      if (publishedIds.length || knockoutPublishedIds.length) {
+        void recalculateTournamentRankings(tournamentId).catch((e) => {
+          console.error('ranking recompute (group restructure) failed', e);
+          captureException(e, { where: 'ranking.recompute', phase: 'groups', tournamentId });
+        });
+      }
     } catch (err) {
       console.error('Edit groups error:', err);
       res.status(500).json({ error: 'Internal server error' });

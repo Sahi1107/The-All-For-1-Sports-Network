@@ -61,6 +61,11 @@ export const GroupsBody = z.object({
     name: z.string().trim().min(1).max(60),
     teamIds: z.array(z.string().uuid()),
   })).min(1).max(16),
+  // Restructure a group that already has played results, discarding them.
+  // Absent/false, the route reports what WOULD be lost (409) instead of acting —
+  // the destruction is real (published stats come off player profiles), so it
+  // takes a deliberate second call rather than one careless save.
+  force: z.boolean().optional(),
 });
 
 // Withdraw a team from the tournament (clean removal pre-start, else walkovers).
