@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { minGamesToQualify, tournamentLeaders, QUALIFY_SHARE } from './leaders.ts';
+import { minGamesToQualify, tournamentLeaders, QUALIFY_SHARE, type PublishedMatchStats } from './leaders.ts';
 import type { TrackerSession, TrackerMatch, BasketballPlayer } from './types.ts';
 
 test('qualifying bar is half the team\'s games, rounded up, never below 1', () => {
@@ -93,6 +93,105 @@ test('single-game tournaments stay on totals and apply no qualifier', () => {
   assert.equal(pts.minGames, undefined);
   assert.equal(pts.rows.length, 2);
   assert.equal(pts.rows[0].value, 20);
+});
+
+// ─── Box scores (published rows, no live state) ──────────────────────────────
+
+/** A published match as /tournaments/:id/match-stats sends it. */
+function published(
+  matchId: string, home: string, away: string,
+  lines: { userId: string; teamId: string; pts?: number; blk?: number }[],
+): PublishedMatchStats {
+  return {
+    matchId, homeTeamId: home, awayTeamId: away,
+    rows: lines.map((l) => ({
+      userId: l.userId, name: l.userId, teamId: l.teamId, teamName: `Team ${l.teamId}`,
+      min: 20, pts: l.pts ?? 0, ast: 0, reb: 0, oreb: 0, dreb: 0,
+      stl: 0, blk: l.blk ?? 0, tp2: 0, tp: 0, ft: 0, to: 0, pf: 0,
+    })),
+  };
+}
+
+/** A fixture that was box-scored: PUBLISHED, carrying a score but no live state. */
+function boxScored(id: string, home: string, away: string, publishedMatchId: string): TrackerMatch {
+  return {
+    id, sessionId: 's', stage: 'group', round: id, groupId: null, bracketSlot: null,
+    feedsInto: null, orderIndex: 0, homeTeamId: home, awayTeamId: away,
+    homeScore: 0, awayScore: 0, status: 'PUBLISHED', publishedMatchId,
+    statsSource: 'MANUAL', state: null,
+  } as TrackerMatch;
+}
+
+test('a box-scored game counts as a game played, alongside tracked ones', () => {
+  // g0 was tracked live and published; g1 was never tracked — its result exists
+  // only as a box score typed in afterwards.
+  const tracked = match('g0', 'A', 'B', { star: bb('A', 20), opp: bb('B', 10) });
+  tracked.publishedMatchId = 'm0';
+  const s = session([tracked, boxScored('g1', 'A', 'B', 'm1')], [
+    { teamId: 'A', name: 'Team A', players: ['star'] },
+    { teamId: 'B', name: 'Team B', players: ['opp'] },
+  ]);
+
+  const rows = [
+    published('m0', 'A', 'B', [{ userId: 'star', teamId: 'A', pts: 20 }, { userId: 'opp', teamId: 'B', pts: 10 }]),
+    published('m1', 'A', 'B', [{ userId: 'star', teamId: 'A', pts: 10 }, { userId: 'opp', teamId: 'B', pts: 10 }]),
+  ];
+
+  const pts = tournamentLeaders(s, 5, rows).find((c) => c.key === 'pts')!;
+  const star = pts.rows.find((r) => r.userId === 'star')!;
+  assert.equal(pts.perGame, true);
+  assert.equal(star.games, 2, 'the box-scored game is an appearance like any other');
+  assert.equal(star.value, 15, '(20 + 10) / 2 — not 20 from the tracked game alone');
+});
+
+test('a published fixture is counted once, not twice, when live state survives', () => {
+  // The fixture was tracked AND published: it has live state and a DB row. Only
+  // the published row may count, or every tracked game would double.
+  const tracked = match('g0', 'A', 'B', { star: bb('A', 20), opp: bb('B', 10) });
+  tracked.publishedMatchId = 'm0';
+  const s = session([tracked], [
+    { teamId: 'A', name: 'Team A', players: ['star'] },
+    { teamId: 'B', name: 'Team B', players: ['opp'] },
+  ]);
+
+  const pts = tournamentLeaders(s, 5, [
+    published('m0', 'A', 'B', [{ userId: 'star', teamId: 'A', pts: 20 }, { userId: 'opp', teamId: 'B', pts: 10 }]),
+  ]).find((c) => c.key === 'pts')!;
+
+  const star = pts.rows.find((r) => r.userId === 'star')!;
+  assert.equal(star.games, 1);
+  assert.equal(star.value, 20, 'one game, not 40 over two');
+});
+
+test('a completed-but-unpublished match still counts from live state', () => {
+  const done = match('g0', 'A', 'B', { star: bb('A', 20), opp: bb('B', 10) });
+  done.status = 'COMPLETED';
+  const s = session([done], [
+    { teamId: 'A', name: 'Team A', players: ['star'] },
+    { teamId: 'B', name: 'Team B', players: ['opp'] },
+  ]);
+  // Nothing published yet — the tracker is the only source.
+  const pts = tournamentLeaders(s, 5, []).find((c) => c.key === 'pts')!;
+  assert.equal(pts.rows.find((r) => r.userId === 'star')!.value, 20);
+});
+
+test('blocks are a leaderboard of their own', () => {
+  const s = session([boxScored('g0', 'A', 'B', 'm0'), boxScored('g1', 'A', 'B', 'm1')], [
+    { teamId: 'A', name: 'Team A', players: ['rim'] },
+    { teamId: 'B', name: 'Team B', players: ['opp'] },
+  ]);
+  const rows = ['m0', 'm1'].map((id) =>
+    published(id, 'A', 'B', [
+      { userId: 'rim', teamId: 'A', pts: 8, blk: 3 },
+      { userId: 'opp', teamId: 'B', pts: 8, blk: 1 },
+    ]),
+  );
+
+  const blk = tournamentLeaders(s, 5, rows).find((c) => c.key === 'blk');
+  assert.ok(blk, 'blocks must have their own category');
+  assert.equal(blk!.label, 'Blocks per game');
+  assert.equal(blk!.rows[0].userId, 'rim');
+  assert.equal(blk!.rows[0].value, 3);
 });
 
 test('never-played bench players are excluded from games played', () => {

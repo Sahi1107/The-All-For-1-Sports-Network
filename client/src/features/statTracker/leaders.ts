@@ -1,5 +1,18 @@
 // Tournament-wide stat leaders: fold the per-match aggregators in stats.ts over
 // every finished match in a session and rank players by category.
+//
+// Two sources feed this, per match:
+//
+//   • PUBLISHED rows from the DB (/tournaments/:id/match-stats) — the official
+//     record, and the only source for a result that has no live state: a box
+//     score typed in after the fact, whether against a fixture or standalone.
+//   • the tracker's own LIVE state — the only source for a match that's been
+//     completed but not published yet.
+//
+// A live-tracked match that has since been published appears in both, so the
+// published row wins and its local copy is dropped. That per-match choice is
+// what keeps a box score counting as a game played without ever double-counting
+// a tracked one.
 import type { TrackerSession, FootballState, BasketballState } from './types';
 // Explicit extension: the repo's test runner is `node --experimental-strip-types`,
 // which resolves as native ESM and won't infer one. tsconfig already enables
@@ -34,6 +47,24 @@ export interface LeaderCategory {
  * while everyone from a one-and-done team still qualifies.
  */
 export const QUALIFY_SHARE = 0.5;
+
+/** One player's line in a published match, as /tournaments/:id/match-stats sends
+ *  it — the same field names stats.ts produces from live state. */
+export interface PublishedStatRow {
+  userId: string;
+  name: string;
+  teamId: string;
+  teamName: string;
+  [stat: string]: string | number;
+}
+/** A published match and its per-player rows. Rows exist only for players who
+ *  actually featured (a DNP writes none), so every row IS an appearance. */
+export interface PublishedMatchStats {
+  matchId: string;
+  homeTeamId: string | null;
+  awayTeamId: string | null;
+  rows: PublishedStatRow[];
+}
 
 /** Games needed to qualify, given how many games the player's team played. */
 export function minGamesToQualify(teamGames: number): number {
@@ -83,15 +114,31 @@ function rank(
     .slice(0, limit);
 }
 
-/** Ranked leader categories for the whole tournament (top `limit` each). */
-export function tournamentLeaders(session: TrackerSession, limit = 5): LeaderCategory[] {
-  const finished = session.matches.filter(
-    (m) => DONE(m.status) && m.state && m.homeTeamId && m.awayTeamId,
+const num = (v: string | number | undefined): number => (typeof v === 'number' ? v : 0);
+
+/**
+ * Ranked leader categories for the whole tournament (top `limit` each).
+ *
+ * `published` carries every match the platform holds stats for. Pass it and a
+ * box score counts exactly like a tracked game; omit it (the offline demo) and
+ * this falls back to live state alone.
+ */
+export function tournamentLeaders(
+  session: TrackerSession,
+  limit = 5,
+  published: PublishedMatchStats[] = [],
+): LeaderCategory[] {
+  // A fixture whose result is already published is counted from the DB rows, so
+  // its live copy is skipped — same game, one appearance.
+  const publishedIds = new Set(published.map((p) => p.matchId));
+  const liveOnly = session.matches.filter(
+    (m) => DONE(m.status) && m.state && m.homeTeamId && m.awayTeamId
+      && !(m.publishedMatchId && publishedIds.has(m.publishedMatchId)),
   );
   const totals: Totals = {};
 
   if (session.sport === 'FOOTBALL') {
-    finished.forEach((m) => {
+    liveOnly.forEach((m) => {
       if (!(m.state as FootballState).events) return;
       footballPlayerRows(m, session).forEach((r) =>
         accumulate(totals, r.userId, r.name, r.teamName, {
@@ -102,6 +149,14 @@ export function tournamentLeaders(session: TrackerSession, limit = 5): LeaderCat
         }, r.minutes > 0 || r.goals + r.assists + r.saves + r.tackles + r.shots > 0, ''),
       );
     });
+    published.forEach((p) => p.rows.forEach((r) => {
+      const goals = num(r.goals), assists = num(r.assists);
+      // A published row only exists for a player who featured, so it is always an
+      // appearance — no need for the "did anything happen?" test live state needs.
+      accumulate(totals, r.userId, r.name, r.teamName, {
+        goals, assists, ga: goals + assists, saves: num(r.saves),
+      }, true, r.teamId);
+    }));
     return [
       { key: 'goals', label: 'Top scorers', rows: rank(totals, 'goals', limit, false) },
       { key: 'assists', label: 'Assists', rows: rank(totals, 'assists', limit, false) },
@@ -111,21 +166,27 @@ export function tournamentLeaders(session: TrackerSession, limit = 5): LeaderCat
   }
 
   // Games each TEAM played — the denominator behind the qualifying threshold.
+  // Counted over both sources, or a team whose games were all box-scored would
+  // look like it never played and its squad would be judged against nothing.
   const teamGames = new Map<string, number>();
-  finished.forEach((m) => {
-    [m.homeTeamId, m.awayTeamId].forEach((id) => {
-      if (id) teamGames.set(id, (teamGames.get(id) ?? 0) + 1);
-    });
-  });
+  const countTeamGame = (home: string | null, away: string | null) =>
+    [home, away].forEach((id) => { if (id) teamGames.set(id, (teamGames.get(id) ?? 0) + 1); });
+  liveOnly.forEach((m) => countTeamGame(m.homeTeamId, m.awayTeamId));
+  published.forEach((p) => countTeamGame(p.homeTeamId, p.awayTeamId));
 
-  finished.forEach((m) => {
+  liveOnly.forEach((m) => {
     if (!(m.state as BasketballState).players) return;
     basketballPlayerRows(m, session).forEach((r) =>
       accumulate(totals, r.userId, r.name, r.teamName, {
-        pts: r.pts, reb: r.reb, ast: r.ast, stl: r.stl,
+        pts: r.pts, reb: r.reb, ast: r.ast, stl: r.stl, blk: r.blk,
       }, r.min > 0 || r.pts + r.reb + r.ast + r.stl + r.blk + r.to + r.fga + r.tpa + r.fta > 0, r.teamId),
     );
   });
+  published.forEach((p) => p.rows.forEach((r) =>
+    accumulate(totals, r.userId, r.name, r.teamName, {
+      pts: num(r.pts), reb: num(r.reb), ast: num(r.ast), stl: num(r.stl), blk: num(r.blk),
+    }, true, r.teamId),
+  ));
   // Once the tournament runs to more than one game, totals reward whoever
   // played most rather than who played best, so basketball leaders switch to
   // per-game. A single-game tournament keeps raw totals (they're identical
@@ -142,6 +203,7 @@ export function tournamentLeaders(session: TrackerSession, limit = 5): LeaderCat
     key, label: per(label), rows: rank(totals, key, limit, perGame, teamGames), perGame, minGames,
   });
   return [
-    cat('pts', 'Points'), cat('reb', 'Rebounds'), cat('ast', 'Assists'), cat('stl', 'Steals'),
+    cat('pts', 'Points'), cat('reb', 'Rebounds'), cat('ast', 'Assists'),
+    cat('stl', 'Steals'), cat('blk', 'Blocks'),
   ].filter((c) => c.rows.length > 0);
 }

@@ -779,9 +779,69 @@ router.get('/:id/leaders', authenticate, async (req: AuthRequest, res: Response)
   }
 });
 
+// ─── Published per-player stat rows ──────────────────────────────────────────
+// Two endpoints serve the same row shape from one mapper: ONE match (what
+// MatchDetails renders) and EVERY match in a tournament (what the stat tracker
+// folds into its leaderboards). Sharing the mapper is what lets a hand-entered
+// box score and a live-tracked match read as the same kind of thing downstream.
+
+type TeamRef = { id: string; name: string };
+
+/** userId → the team they're registered with in this tournament. */
+async function teamByUserFor(tournamentId: string): Promise<Map<string, TeamRef>> {
+  const regs = await prisma.tournamentTeam.findMany({
+    where: { tournamentId },
+    include: {
+      team: { select: { id: true, name: true, members: { select: { userId: true, status: true } } } },
+    },
+  });
+  const map = new Map<string, TeamRef>();
+  // ACCEPTED memberships are laid down first so a player carrying a stale
+  // invite elsewhere is attributed to the squad they actually play for. The
+  // second pass still maps the rest: a box score may legitimately name a player
+  // added mid-tournament whose invite never completed, and dropping them here
+  // would leave their leaderboard row team-less — and so outside the qualifying
+  // maths, which is measured against their own team's games.
+  for (const accepted of [true, false]) {
+    regs.forEach((r) => r.team.members.forEach((m) => {
+      if ((m.status === 'ACCEPTED') !== accepted || map.has(m.userId)) return;
+      map.set(m.userId, { id: r.team.id, name: r.team.name });
+    }));
+  }
+  return map;
+}
+
+/** DB stat rows → the shape the client's footballPlayerRows / basketballPlayerRows
+ *  emit, so live-state and published rows render (and aggregate) identically. */
+function mapStatRows(sport: StatSport, statRows: any[], teamOf: Map<string, TeamRef>): any[] {
+  const ident = (s: any) => ({
+    userId: s.userId,
+    name: s.user?.name ?? 'Player',
+    teamId: teamOf.get(s.userId)?.id ?? '',
+    teamName: teamOf.get(s.userId)?.name ?? '',
+  });
+  if (sport === 'FOOTBALL') {
+    return statRows.map((s: any) => ({
+      ...ident(s),
+      goals: s.goals, assists: s.assists, shots: s.shots, shotsOnTarget: 0,
+      saves: s.saves, tackles: s.tackles, passC: s.passes, passI: 0,
+      yellow: s.yellowCards, red: s.redCards, minutes: Math.round(s.minutesPlayed),
+    })).sort((a: any, b: any) => b.goals - a.goals || b.assists - a.assists);
+  }
+  if (sport === 'BASKETBALL') {
+    return statRows.map((s: any) => ({
+      ...ident(s),
+      min: Math.round(s.minutesPlayed), pts: s.points, ast: s.assists,
+      reb: s.rebounds, oreb: s.offRebounds, dreb: s.defRebounds,
+      stl: s.steals, blk: s.blocks, tp2: s.twoPointers, tp: s.threePointers,
+      ft: s.freeThrows, to: s.turnovers, pf: s.personalFouls,
+    })).sort((a: any, b: any) => b.pts - a.pts);
+  }
+  return statRows.map((s: any) => ({ ...ident(s), ...s }));
+}
+
 // GET /api/tournaments/matches/:matchId/stats — per-player stats for ONE published
-// match, from the DB stat tables. Shaped to match the client's footballPlayerRows /
-// basketballPlayerRows output so MatchDetails renders live-state and DB rows the same.
+// match, from the DB stat tables.
 router.get('/matches/:matchId/stats', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const matchId = req.params.matchId as string;
@@ -799,43 +859,82 @@ router.get('/matches/:matchId/stats', authenticate, async (req: AuthRequest, res
       return;
     }
 
-    // userId -> teamName (from the tournament's accepted rosters).
-    const regs = await prisma.tournamentTeam.findMany({
-      where: { tournamentId: match.tournamentId },
-      include: { team: { select: { name: true, members: { where: { status: 'ACCEPTED' }, select: { userId: true } } } } },
-    });
-    const teamByUser = new Map<string, string>();
-    regs.forEach((r) => r.team.members.forEach((m) => { if (!teamByUser.has(m.userId)) teamByUser.set(m.userId, r.team.name); }));
-
+    const teamOf = await teamByUserFor(match.tournamentId);
     const model = (prisma as any)[STAT_MODEL[sport as StatSport]];
     const statRows = await model.findMany({
       where: { matchId },
       include: { user: { select: { name: true } } },
     });
 
-    let rows: any[];
-    if (sport === 'FOOTBALL') {
-      rows = statRows.map((s: any) => ({
-        userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '',
-        goals: s.goals, assists: s.assists, shots: s.shots, shotsOnTarget: 0,
-        saves: s.saves, tackles: s.tackles, passC: s.passes, passI: 0,
-        yellow: s.yellowCards, red: s.redCards, minutes: Math.round(s.minutesPlayed),
-      })).sort((a: any, b: any) => b.goals - a.goals || b.assists - a.assists);
-    } else if (sport === 'BASKETBALL') {
-      rows = statRows.map((s: any) => ({
-        userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '',
-        min: Math.round(s.minutesPlayed), pts: s.points, ast: s.assists,
-        reb: s.rebounds, oreb: s.offRebounds, dreb: s.defRebounds,
-        stl: s.steals, blk: s.blocks, tp2: s.twoPointers, tp: s.threePointers,
-        ft: s.freeThrows, to: s.turnovers, pf: s.personalFouls,
-      })).sort((a: any, b: any) => b.pts - a.pts);
-    } else {
-      rows = statRows.map((s: any) => ({ userId: s.userId, name: s.user?.name ?? 'Player', teamName: teamByUser.get(s.userId) ?? '', ...s }));
-    }
-
-    res.json({ sport, rows });
+    res.json({ sport, rows: mapStatRows(sport as StatSport, statRows, teamOf) });
   } catch (error) {
     console.error('Get match stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tournaments/:id/match-stats — EVERY published match's per-player rows,
+// grouped by match.
+//
+// The stat tracker's leaderboards fold this together with its own live state. It
+// needs the rows per match rather than pre-totalled, because a fixture that was
+// live-tracked appears in BOTH sources and has to be counted once: the tracker
+// keys on matchId to prefer the published row and drop its local copy.
+//
+// This is also the only way a box score that was never a tracker fixture reaches
+// the tracker's boards at all — such a match exists solely in the DB.
+router.get('/:id/match-stats', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      select: { id: true, sport: true },
+    });
+    if (!tournament) {
+      res.status(404).json({ error: 'Tournament not found' });
+      return;
+    }
+
+    const payload = await getOrCompute(tournamentId, 'match-stats', async () => {
+      if (!isStatSport(tournament.sport)) return { sport: tournament.sport, matches: [] };
+      const sport = tournament.sport as StatSport;
+
+      const matches = await prisma.match.findMany({
+        where: { tournamentId },
+        select: { id: true, homeTeamId: true, awayTeamId: true },
+      });
+      if (matches.length === 0) return { sport, matches: [] };
+
+      const teamOf = await teamByUserFor(tournamentId);
+      const model = (prisma as any)[STAT_MODEL[sport]];
+      const statRows: any[] = await model.findMany({
+        where: { tournamentId },
+        include: { user: { select: { name: true } } },
+      });
+
+      const byMatch = new Map<string, any[]>();
+      statRows.forEach((s) => {
+        const arr = byMatch.get(s.matchId);
+        if (arr) arr.push(s); else byMatch.set(s.matchId, [s]);
+      });
+
+      return {
+        sport,
+        // A match with no stat rows carries no result worth counting — leaving it
+        // out keeps it from inflating the games-played denominators downstream.
+        matches: matches
+          .map((m) => ({
+            matchId: m.id,
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+            rows: mapStatRows(sport, byMatch.get(m.id) ?? [], teamOf),
+          }))
+          .filter((m) => m.rows.length > 0),
+      };
+    });
+    res.json(payload);
+  } catch (error) {
+    console.error('Get tournament match stats error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

@@ -7,6 +7,7 @@ import {
   columnsFor, derivedFor, scoreFieldFor, validateRow, impliedPoints,
   type StatColumn,
 } from './boxScoreConfig';
+import { invalidatePublishedStats } from './publishedStats';
 
 /**
  * Enter the box score of a match nobody tracked live.
@@ -202,6 +203,9 @@ export default function BoxScoreModal({
       // The fixtures list shows the new score + PUBLISHED badge straight away.
       qc.invalidateQueries({ queryKey: ['tracker-session'] });
       qc.invalidateQueries({ queryKey: ['fixture-box-score', trackerMatchId] });
+      // Stat leaders and rankings count this game from now on — refresh both, or
+      // they'd sit on cached totals that predate the result just published.
+      invalidatePublishedStats(qc, tournamentId);
       onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not publish the box score'),
@@ -212,6 +216,7 @@ export default function BoxScoreModal({
     onSuccess: () => {
       toast.success('Box score deleted — stats and rankings updated');
       qc.invalidateQueries({ queryKey: ['box-scores', tournamentId] });
+      invalidatePublishedStats(qc, tournamentId);
       onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not delete'),

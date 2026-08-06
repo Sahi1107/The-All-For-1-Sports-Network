@@ -1,10 +1,12 @@
 import BallLoader from '../../components/BallLoader';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTrackerMatch } from './useTrackerMatch';
 import { publishMatch } from './api';
+import { invalidatePublishedStats } from '../tournaments/publishedStats';
 import { exportMatchExcel } from './excel';
 import FullscreenShell from './FullscreenShell';
 import FootballMatch from './football/FootballMatch';
@@ -15,6 +17,7 @@ import { Download, Loader2, UploadCloud, CheckCircle2, CloudOff, AlertTriangle, 
 export default function MatchRoute() {
   const { tournamentId, matchId } = useParams();
   const { user } = useAuth();
+  const qc = useQueryClient();
   const ctrl = useTrackerMatch(matchId!);
   const [publishing, setPublishing] = useState(false);
 
@@ -89,6 +92,9 @@ export default function MatchRoute() {
       await ctrl.flush();
       // reflect new status locally
       ctrl.setMatch((prev) => (prev ? { ...prev, status: 'PUBLISHED', publishedMatchId: res.matchId } : prev));
+      // This match now counts on the tournament's stat leaders and ranking
+      // boards; drop their cached copies so going back shows it, not a stale board.
+      if (tournamentId) invalidatePublishedStats(qc, tournamentId);
     } catch (e: any) {
       toast.error(e.response?.data?.error || 'Publish failed');
     } finally {

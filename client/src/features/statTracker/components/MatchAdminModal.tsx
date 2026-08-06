@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, Users, Flag, Undo2, CalendarClock } from 'lucide-react';
 import api from '../../../api/client';
+import { invalidatePublishedStats } from '../../tournaments/publishedStats';
 import type { TrackerSession, TrackerMatch } from '../types';
 import { toLocalInput } from '../schedule';
 
@@ -18,6 +19,9 @@ export default function MatchAdminModal({
 }) {
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ['tracker-session', session.tournamentId] });
+  // Un-publishing retracts the stats this match wrote, so every board that
+  // counted it has to be recomputed too — not just the fixtures list.
+  const invalidatePublished = () => invalidatePublishedStats(qc, session.tournamentId);
   const teams = (session.roster ?? []).map((t) => ({ id: t.teamId, name: t.name }));
   const nameOf = (id: string | null) => teams.find((t) => t.id === id)?.name ?? 'TBD';
 
@@ -38,7 +42,7 @@ export default function MatchAdminModal({
   });
   const unpublish = useMutation({
     mutationFn: () => api.post(`/tracker/matches/${match.id}/unpublish`),
-    onSuccess: () => { toast.success('Un-published — now editable'); invalidate(); onClose(); },
+    onSuccess: () => { toast.success('Un-published — now editable'); invalidatePublished(); onClose(); },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Un-publish failed'),
   });
 

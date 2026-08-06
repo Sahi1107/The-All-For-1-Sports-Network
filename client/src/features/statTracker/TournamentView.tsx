@@ -4,7 +4,7 @@ import { LayoutDashboard, Table2, GitFork, ListOrdered, Zap, RotateCcw } from 'l
 import api from '../../api/client';
 import type { TrackerSession, TrackerMatch, GroupDef } from './types';
 import { standingsFor } from './stats';
-import { tournamentLeaders, type LeaderCategory } from './leaders';
+import { tournamentLeaders, type PublishedMatchStats } from './leaders';
 import { teamNames } from './components/helpers';
 import { STAGE_LABEL } from './engine';
 import ProgressSummary from './components/ProgressSummary';
@@ -114,17 +114,22 @@ export default function TournamentView({
   }
   const lateTeamIds = demo ? [] : registeredIds.filter((id) => !placedTeamIds.has(id));
 
-  // Stat leaders: prefer live tracker state; for published/imported tournaments
-  // whose matches carry no live state (state === null), fall back to the DB
-  // endpoint. The offline demo never hits the server (its matches carry state).
-  const liveLeaders = useMemo(() => tournamentLeaders(session), [session]);
-  const { data: dbLeaders } = useQuery({
-    queryKey: ['tournament-leaders', session.tournamentId],
+  // Stat leaders come from BOTH sources at once: every published match's stat
+  // rows (tracked publishes, box scores against a fixture, and standalone box
+  // scores that were never fixtures at all) plus the tracker's own live state for
+  // anything completed but not yet published. tournamentLeaders reconciles them
+  // per match, so a published result is counted once and nothing is missed.
+  // The offline demo never hits the server — its matches carry their own state.
+  const { data: publishedStats } = useQuery({
+    queryKey: ['tournament-match-stats', session.tournamentId],
     queryFn: async () =>
-      (await api.get(`/tournaments/${session.tournamentId}/leaders`)).data.categories as LeaderCategory[],
-    enabled: !demo && liveLeaders.length === 0,
+      (await api.get(`/tournaments/${session.tournamentId}/match-stats`)).data.matches as PublishedMatchStats[],
+    enabled: !demo,
   });
-  const leaderCategories = liveLeaders.length > 0 ? liveLeaders : dbLeaders ?? [];
+  const leaderCategories = useMemo(
+    () => tournamentLeaders(session, 5, publishedStats ?? []),
+    [session, publishedStats],
+  );
 
   const tabs = useMemo(
     () =>
