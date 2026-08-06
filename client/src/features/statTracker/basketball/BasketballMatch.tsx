@@ -6,6 +6,7 @@ import type {
 } from '../types';
 import {
   bumpTeamFoul, teamFoulsInQuarter, teamInBonus, isFouledOut, inFoulTrouble, FOUL_OUT_LIMIT,
+  emptyPlayer, rowOrBlank, missingPlayerRows,
 } from './rules';
 
 type Ctrl = ReturnType<typeof useTrackerMatch>;
@@ -69,9 +70,6 @@ const SHORTCUTS: { key: string; kind: BasketballActionKind; label: string }[] = 
 ];
 const SHORTCUT_BY_KEY = new Map(SHORTCUTS.map((s) => [s.key.toLowerCase(), s]));
 
-function emptyPlayer(teamId: string): BasketballPlayer {
-  return { teamId, secondsPlayed: 0, pts: 0, ast: 0, reb: 0, oreb: 0, dreb: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, to: 0, pf: 0 };
-}
 
 function applyAction(p: BasketballPlayer, kind: BasketballActionKind, dir: 1 | -1): BasketballPlayer {
   const n = { ...p };
@@ -146,6 +144,35 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
     void setStatus('IN_PROGRESS');
   }, [match?.id, !!match?.state, homeTeam, awayTeam]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Backfill rows for players added to a roster AFTER this match's state existed.
+  //
+  // The effect above builds `state.players` exactly once, but a roster keeps
+  // moving: an organiser can add a late entry mid-tournament and the server
+  // merges them into the session snapshot (services/rosterLifecycle.mergeRoster),
+  // so they appear in the table here. With no entry in `state.players` they still
+  // RENDER normally — the row falls back to emptyPlayer (see TeamBlock) — while
+  // adjust(), foul() and commitClock() all find nothing and silently drop every
+  // click. The player looks perfectly trackable and records nothing at all.
+  //
+  // Additive only, for the same reason mergeRoster is: a player REMOVED from the
+  // roster keeps their row, because the stats they already recorded are keyed by
+  // userId in this very map and deleting the row would strand them.
+  const rosterKey = [
+    ...(homeTeam?.players ?? []).map((p) => p.userId),
+    ...(awayTeam?.players ?? []).map((p) => p.userId),
+  ].join(',');
+  useEffect(() => {
+    if (!state || !homeTeam || !awayTeam) return;
+    const missing = missingPlayerRows(state, [homeTeam, awayTeam]);
+    if (missing.length === 0) return; // no write ⇒ no save, no re-render loop
+    updateState((s) => {
+      const bs = s as BasketballState;
+      const players = { ...bs.players };
+      for (const { userId, teamId } of missing) if (!players[userId]) players[userId] = emptyPlayer(teamId);
+      return { ...bs, players };
+    });
+  }, [rosterKey, !!state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // On (re)load of a match whose clock was left running, re-anchor clockLastStartMs
   // to now so the time the tab was closed/away is not retroactively credited. The
   // capped delta above is the safety net; this makes the common reload case exact.
@@ -192,9 +219,25 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
       // rather than swallowing the keystroke and leaving the scorer to wonder
       // whether it landed somewhere.
       if (!selectedId) { setFlash({ text: 'Select a player first', n: Date.now(), tone: 'hint' }); return; }
+
+      // Resolve the side up front: it's what lets a late roster addition get a
+      // row created on the spot instead of the keystroke vanishing.
+      const onHome = (homeTeam?.players ?? []).some((p) => p.userId === selectedId);
+      const onAway = (awayTeam?.players ?? []).some((p) => p.userId === selectedId);
+      const teamId = onHome ? homeTeam!.teamId : onAway ? awayTeam!.teamId : null;
+      const who = [...(homeTeam?.players ?? []), ...(awayTeam?.players ?? [])]
+        .find((p) => p.userId === selectedId);
+      if (!teamId) {
+        // Confirming a stat that wasn't recorded is worse than recording nothing:
+        // the row reads 0 either way, so the flash would be the only evidence and
+        // it would be wrong. Say it failed instead.
+        setFlash({ text: 'That player is not on either roster', n: Date.now(), tone: 'hint' });
+        return;
+      }
+
       updateState((s) => {
         const bs = s as BasketballState;
-        const p = bs.players[selectedId];
+        const p = rowOrBlank(bs, selectedId, teamId);
         if (!p) return bs;
         return {
           ...bs,
@@ -202,8 +245,6 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
           log: [...bs.log, { id: uid(), playerId: selectedId, kind: hit.kind }],
         };
       });
-      const who = [...(homeTeam?.players ?? []), ...(awayTeam?.players ?? [])]
-        .find((p) => p.userId === selectedId);
       setFlash({ text: `${who?.name ?? 'Player'} +1 ${hit.label}`, n: Date.now(), tone: 'ok' });
     }
     window.addEventListener('keydown', onKey);
@@ -232,12 +273,29 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
   const showJerseys = jerseyOpen || (noneOnCourt && !jerseysDone);
   const showStarters = noneOnCourt && !showJerseys;
 
+  /** Which side a player is on, so a missing row can be created on demand. */
+  function teamIdOf(playerId: string): string | null {
+    if ((homeTeam?.players ?? []).some((p) => p.userId === playerId)) return homeTeam!.teamId;
+    if ((awayTeam?.players ?? []).some((p) => p.userId === playerId)) return awayTeam!.teamId;
+    return null;
+  }
+
+  /**
+   * The player's stat row, creating one for a late roster addition. Self-healing
+   * on purpose: the backfill effect above normally gets there first, but a scorer
+   * who taps the instant a player appears must not lose the click.
+   */
+  const rowFor = (bs: BasketballState, playerId: string) => rowOrBlank(bs, playerId, teamIdOf(playerId));
+
   function commitClock(s: BasketballState): BasketballState {
     if (!s.clockRunning || !s.clockLastStartMs) return s;
     const delta = elapsedSince(s.clockLastStartMs); // capped — never credits away-time
     const players = { ...s.players };
     [...s.onCourtHome, ...s.onCourtAway].forEach((id) => {
-      if (players[id]) players[id] = { ...players[id], secondsPlayed: players[id].secondsPlayed + delta };
+      // A late addition sent straight onto the court has no row yet; create it or
+      // they'd play the whole game on 0.0 minutes.
+      const cur = players[id] ?? rowFor(s, id);
+      if (cur) players[id] = { ...cur, secondsPlayed: cur.secondsPlayed + delta };
     });
     return { ...s, clockSeconds: s.clockSeconds + delta, clockLastStartMs: Date.now(), players };
   }
@@ -245,7 +303,7 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
     if (locked) return;
     updateState((s) => {
       const bs = s as BasketballState;
-      const p = bs.players[playerId];
+      const p = rowFor(bs, playerId);
       if (!p) return bs;
       return {
         ...bs,
@@ -259,7 +317,7 @@ export default function BasketballMatch({ ctrl }: { ctrl: Ctrl }) {
     if (locked) return;
     updateState((s) => {
       const bs = s as BasketballState;
-      const p = bs.players[playerId];
+      const p = rowFor(bs, playerId);
       if (!p) return bs;
       const isHome = p.teamId === home;
       const key = isHome ? 'teamFoulsHome' : 'teamFoulsAway';
