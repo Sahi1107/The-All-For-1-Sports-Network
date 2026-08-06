@@ -1,3 +1,4 @@
+import { publicProfileWhere } from './profileVisibility';
 import { genderFromCategory } from './bulkProvision';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,4 +65,43 @@ export function tournamentOnBoard(genderCategory: string | null, board: BoardGen
  */
 export function shouldFilterByPlayerGender(genderCategory: string | null): boolean {
   return tournamentBoardGender(genderCategory) === null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE `user` CLAUSE EVERY RANKINGS QUERY MUST USE.
+//
+// Defined here, next to the board rules, so the list, the tournament picker and
+// their counts can never disagree about who is on a board.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Per-player gender clause — the FALLBACK, applied only for a tournament whose
+ * own category makes no claim (MIXED / OPEN / unset).
+ *
+ * `User.gender` is nullable. A strict equality match would drop an unset player
+ * from the men's board AND the women's board, so someone could top an
+ * uncategorised tournament's scoring and appear on no ranking anywhere. Unset is
+ * therefore included on whichever board is being viewed.
+ */
+export function playerGenderWhere(gender: unknown): Record<string, unknown> {
+  if (gender !== 'MALE' && gender !== 'FEMALE') return {};
+  return { OR: [{ gender }, { gender: null }] };
+}
+
+/**
+ * Visibility AND gender, composed.
+ *
+ * Visibility is `publicProfileWhere()` — the SAME rule the profile 404 gate uses
+ * (services/profileVisibility), so a player who ranks always has a profile page
+ * that opens, and vice versa. It deliberately admits UNCLAIMED profiles: a player
+ * an organiser rostered without an email is `discoverable: false` to stay out of
+ * people-search and Radar, but they played the matches, and leaving them off
+ * would misreport the standings of the tournament they played in.
+ *
+ * Composed under an explicit AND because BOTH halves contribute their own `OR`
+ * key — spreading them into one object would silently drop whichever came first,
+ * and the failure mode is a board quietly missing every unclaimed player.
+ */
+export function rankedUserWhere(gender: unknown): Record<string, unknown> {
+  return { AND: [publicProfileWhere(), playerGenderWhere(gender)] };
 }

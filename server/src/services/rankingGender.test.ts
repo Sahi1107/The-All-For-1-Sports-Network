@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   boardGenderFromQuery, tournamentBoardGender, tournamentOnBoard, shouldFilterByPlayerGender,
+  playerGenderWhere, rankedUserWhere,
 } from './rankingGender';
 import { genderFromCategory } from './bulkProvision';
 
@@ -119,4 +120,61 @@ test('every category × board combination resolves consistently', () => {
     assert.equal(tournamentOnBoard(cat, board), appears, `${cat} on ${board} board`);
     assert.equal(shouldFilterByPlayerGender(cat), filters, `${cat} player filter`);
   }
+});
+
+// ── The composed `user` clause ───────────────────────────────────────────────
+// A claim-later player MUST appear on the public boards. They're rostered,
+// tracked and scored like anyone else, so leaving them off misreports the
+// standings of the tournament they actually played in. These evaluate the WHERE
+// by hand against sample rows, because the failure this guards against is silent:
+// the board still renders, just without them.
+
+/** Evaluate a Prisma-shaped WHERE fragment (AND / OR / equality) against a row. */
+function matches(where: any, row: Record<string, unknown>): boolean {
+  if (Array.isArray(where.AND)) return where.AND.every((w: any) => matches(w, row));
+  if (Array.isArray(where.OR)) return where.OR.some((w: any) => matches(w, row));
+  return Object.entries(where).every(([k, v]) => row[k] === v);
+}
+
+const unclaimed  = { discoverable: false, claimStatus: 'UNCLAIMED', guardianManaged: false, gender: 'MALE' };
+const ordinary   = { discoverable: true,  claimStatus: null,        guardianManaged: false, gender: 'MALE' };
+const privateAcc = { discoverable: false, claimStatus: null,        guardianManaged: false, gender: 'MALE' };
+const minorShell = { discoverable: false, claimStatus: 'UNCLAIMED', guardianManaged: true,  gender: 'MALE' };
+
+test('a claim-later player is on the board with no gender filter', () => {
+  assert.equal(matches(rankedUserWhere(undefined), unclaimed), true);
+});
+
+test('a claim-later player is on the board WITH a gender filter applied', () => {
+  // The composition is the fragile part: visibility and gender each contribute
+  // their own OR, so spreading them into one object would drop one silently.
+  assert.equal(matches(rankedUserWhere('MALE'), unclaimed), true);
+});
+
+test('a claim-later player is filtered off the OPPOSITE gender board', () => {
+  assert.equal(matches(rankedUserWhere('FEMALE'), unclaimed), false);
+});
+
+test('an unset-gender claim-later player appears on whichever board is viewed', () => {
+  const noGender = { ...unclaimed, gender: null };
+  assert.equal(matches(rankedUserWhere('MALE'), noGender), true);
+  assert.equal(matches(rankedUserWhere('FEMALE'), noGender), true);
+});
+
+test('ordinary discoverable accounts still rank', () => {
+  assert.equal(matches(rankedUserWhere('MALE'), ordinary), true);
+});
+
+test('a deliberately private account is still kept off the boards', () => {
+  assert.equal(matches(rankedUserWhere('MALE'), privateAcc), false);
+});
+
+test('SAFEGUARDING: a known under-13 shell never reaches a public board', () => {
+  assert.equal(matches(rankedUserWhere('MALE'), minorShell), false);
+  assert.equal(matches(rankedUserWhere(undefined), minorShell), false);
+});
+
+test('playerGenderWhere is a no-op for a board with no gender', () => {
+  assert.deepEqual(playerGenderWhere(undefined), {});
+  assert.deepEqual(playerGenderWhere('ANY'), {});
 });

@@ -4,44 +4,10 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { aiLimiter, browseLimiter } from '../middleware/rateLimiter';
 import { recalculateTournamentRankings, MIN_RANKED_SCORE } from '../services/rankingService';
-import { publicProfileWhere } from '../services/profileVisibility';
-import { boardGenderFromQuery, tournamentOnBoard, shouldFilterByPlayerGender } from '../services/rankingGender';
-import type { Sport, Gender } from '@prisma/client';
+import { boardGenderFromQuery, tournamentOnBoard, shouldFilterByPlayerGender, rankedUserWhere } from '../services/rankingGender';
+import type { Sport } from '@prisma/client';
 
 const router = Router();
-
-/**
- * Per-player gender clause — the FALLBACK, used only for a tournament whose own
- * category makes no claim (MIXED / OPEN / unset). See services/rankingGender for
- * why the tournament's category is the primary rule.
- *
- * `User.gender` is nullable and is only set when someone supplied it — an
- * organiser-created athlete often has none. A strict equality match would drop
- * those players from the men's board AND the women's board, so a player could top
- * an uncategorised tournament's scoring and appear on no ranking anywhere. Unset
- * gender is therefore included on whichever board is being viewed.
- */
-function genderWhere(gender: unknown): Record<string, unknown> {
-  if (gender !== 'MALE' && gender !== 'FEMALE') return {};
-  return { OR: [{ gender: gender as Gender }, { gender: null }] };
-}
-
-/**
- * The `user` clause every rankings query must use — visibility AND gender, in one
- * place so the list, the tournament picker and their counts can never disagree.
- *
- * Visibility is `publicProfileWhere()`, the same rule the profile 404 gate uses
- * (services/profileVisibility) — so a player who ranks here always has a profile
- * page that opens, and vice versa. In particular it admits UNCLAIMED profiles:
- * organiser-created players are `discoverable: false` to stay out of people-search
- * and Radar, but they played the matches and hiding them would falsify the very
- * standings this endpoint reports.
- *
- * Composed under AND because both halves contribute their own OR.
- */
-function rankedUserWhere(gender: unknown): Record<string, unknown> {
-  return { AND: [publicProfileWhere(), genderWhere(gender)] };
-}
 
 // GET /api/rankings
 router.get('/', authenticate, browseLimiter, async (req: AuthRequest, res: Response) => {
