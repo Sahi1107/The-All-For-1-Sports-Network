@@ -27,7 +27,7 @@ import {
 } from '../validation/tournament';
 import {
   BoxScoreError, BOX_SCORE_SPORTS, publishBoxScore, notifyBoxScorePublished,
-  toPlayerStats, loadStatRows,
+  toPlayerStats, loadStatRows, assertBoxScoreRosters,
 } from '../services/manualBoxScore';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
 import { createUnclaimedPlayer, reissueClaimCode } from '../services/unclaimedPlayer';
@@ -1660,37 +1660,6 @@ async function boxScoreTournament(id: string) {
   return t;
 }
 
-/**
- * Both teams must be registered in THIS tournament, and every player named must
- * be on the roster of the side they're listed under. Without this an organiser
- * could publish stats onto any profile on the platform, which would land in that
- * player's career totals and ranking with no connection to a match they played.
- */
-async function assertRostersMatch(
-  tournamentId: string,
-  homeTeamId: string, awayTeamId: string,
-  home: { userId: string }[], away: { userId: string }[],
-) {
-  const teams = await prisma.team.findMany({
-    where: { id: { in: [homeTeamId, awayTeamId] }, tournamentId },
-    select: { id: true, name: true, members: { select: { userId: true } } },
-  });
-  if (teams.length !== 2) {
-    throw new BoxScoreError('Both teams must be registered in this tournament', 'TEAM_NOT_IN_TOURNAMENT');
-  }
-  for (const [teamId, lines, side] of [[homeTeamId, home, 'home'], [awayTeamId, away, 'away']] as const) {
-    const team = teams.find((t) => t.id === teamId)!;
-    const roster = new Set(team.members.map((m) => m.userId));
-    const stranger = lines.find((l) => !roster.has(l.userId));
-    if (stranger) {
-      throw new BoxScoreError(
-        `A player in the ${side} box score isn't on ${team.name}'s roster. Add them to the team first.`,
-        'PLAYER_NOT_ON_ROSTER', side,
-      );
-    }
-  }
-}
-
 /** Map a BoxScoreError to the right status. */
 function boxScoreStatus(code: string): number {
   if (code === 'NOT_FOUND') return 404;
@@ -1829,7 +1798,7 @@ async function handleBoxScoreWrite(req: AuthRequest, res: Response, matchId: str
       }
     }
 
-    await assertRostersMatch(tournamentId, b.homeTeamId, b.awayTeamId, b.home, b.away);
+    await assertBoxScoreRosters(tournamentId, b.homeTeamId, b.awayTeamId, b.home, b.away);
 
     const result = await publishBoxScore({
       tournamentId, sport: t.sport,

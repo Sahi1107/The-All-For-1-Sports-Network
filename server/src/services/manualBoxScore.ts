@@ -295,6 +295,49 @@ export function toPlayerStats(sport: Sport, input: BoxScoreInput): PlayerStatEnt
   });
 }
 
+// ─── Roster authority ────────────────────────────────────────────────────────
+
+/**
+ * Both teams must be registered in THIS tournament, and every player named must be
+ * on the roster of the side they're listed under.
+ *
+ * This is the security boundary of the whole feature. A box score writes rows into
+ * a player's career totals and their ranking position; without this check an
+ * organiser could type any userId on the platform into a sheet and permanently
+ * attach stats — and a rank — to someone who never played the match. Membership is
+ * checked regardless of ACCEPTED status, because a player added mid-tournament is
+ * legitimately on the sheet before any invite dance completes.
+ *
+ * Shared by both entry points (standalone match and tracker fixture) so the two
+ * can never diverge on who is allowed to appear in a box score.
+ */
+export async function assertBoxScoreRosters(
+  tournamentId: string,
+  homeTeamId: string,
+  awayTeamId: string,
+  home: { userId: string }[],
+  away: { userId: string }[],
+): Promise<void> {
+  const teams = await prisma.team.findMany({
+    where: { id: { in: [homeTeamId, awayTeamId] }, tournamentId },
+    select: { id: true, name: true, members: { select: { userId: true } } },
+  });
+  if (teams.length !== 2) {
+    throw new BoxScoreError('Both teams must be registered in this tournament', 'TEAM_NOT_IN_TOURNAMENT');
+  }
+  for (const [teamId, lines, side] of [[homeTeamId, home, 'home'], [awayTeamId, away, 'away']] as const) {
+    const team = teams.find((t) => t.id === teamId)!;
+    const roster = new Set(team.members.map((m) => m.userId));
+    const stranger = lines.find((l) => !roster.has(l.userId));
+    if (stranger) {
+      throw new BoxScoreError(
+        `A player in the ${side} box score isn't on ${team.name}'s roster. Add them to the team first.`,
+        'PLAYER_NOT_ON_ROSTER', side,
+      );
+    }
+  }
+}
+
 // ─── Publish ─────────────────────────────────────────────────────────────────
 
 export interface PublishBoxScoreArgs {

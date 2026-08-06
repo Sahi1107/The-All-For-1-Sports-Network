@@ -53,6 +53,12 @@ export interface TrackerMatch {
   court?: string | null;
   state: FootballState | BasketballState | null;
   publishedMatchId: string | null;
+  /**
+   * Where a PUBLISHED result came from — 'TRACKER' (scored live) or 'MANUAL' (a
+   * box score typed in afterwards). Null until published. Read from the platform
+   * Match by the session endpoint; the demo tracker omits it.
+   */
+  statsSource?: 'TRACKER' | 'MANUAL' | null;
 }
 
 export interface TrackerSession {

@@ -20,30 +20,50 @@ import {
  * DNP is a first-class state, not zeros. A player marked DNP has no stat row
  * written at all, because rankings average per game and a row of zeros would
  * count as a game played badly against their average.
+ *
+ * TWO ENTRY POINTS, ONE SHEET:
+ *
+ *   • STANDALONE (`matchId` / neither) — a match the draw never knew about. The
+ *     organiser picks both teams and the date, and a new match is created.
+ *
+ *   • FIXTURE (`trackerMatchId`) — a fixture that already exists in the draw and
+ *     simply never got tracked. Teams, round, court and date come from the
+ *     fixture, so they're shown read-only rather than asked for: a box score
+ *     supplies numbers, not scheduling. Publishing flips that fixture to
+ *     PUBLISHED in the fixtures list, exactly as tracking it would have.
+ *
+ * The grid, the validation and the totals are identical either way — only where
+ * the sheet is loaded from and posted to differs.
  */
 
 interface RosterPlayer { userId: string; name: string; position?: string | null }
 interface TeamOption { id: string; name: string; players: RosterPlayer[] }
 
-type Row = { userId: string; name: string; played: boolean; stats: Record<string, number> };
+type Row = { userId: string; name: string; number?: number | null; played: boolean; stats: Record<string, number> };
 
 const blankStats = (cols: StatColumn[]) =>
   Object.fromEntries(cols.map((c) => [c.key, 0])) as Record<string, number>;
 
 export default function BoxScoreModal({
-  tournamentId, sport, teams, matchId, onClose,
+  tournamentId, sport, teams, matchId, trackerMatchId, onClose,
 }: {
   tournamentId: string;
   sport: string;
   teams: TeamOption[];
-  /** Set to correct an existing manual box score; omit to enter a new one. */
+  /** Set to correct an existing standalone manual box score. */
   matchId?: string;
+  /** Set to enter/correct the box score of an existing draw fixture. */
+  trackerMatchId?: string;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
   const cols = useMemo(() => columnsFor(sport), [sport]);
   const derived = useMemo(() => derivedFor(sport), [sport]);
   const scoreField = scoreFieldFor(sport);
+
+  // Anchored to a fixture from the draw: the match already exists, so the teams
+  // and scheduling are facts to display, not fields to fill in.
+  const isFixture = !!trackerMatchId;
 
   const [homeTeamId, setHomeTeamId] = useState('');
   const [awayTeamId, setAwayTeamId] = useState('');
@@ -52,28 +72,54 @@ export default function BoxScoreModal({
   const [court, setCourt] = useState('');
   const [home, setHome] = useState<Row[]>([]);
   const [away, setAway] = useState<Row[]>([]);
+  // In fixture mode the team names come from the API, not the `teams` list (the
+  // fixtures page doesn't carry full rosters). Falls back to the list otherwise.
+  const [names, setNames] = useState<{ home: string; away: string } | null>(null);
+  const [alreadyEntered, setAlreadyEntered] = useState(false);
 
-  // Correcting: load the saved sheet, including which players were DNP (they come
-  // back with played:false because a DNP wrote no stat row).
-  const { data: existing } = useQuery({
-    queryKey: ['box-score', tournamentId, matchId],
-    queryFn: async () => (await api.get(`/tournaments/${tournamentId}/box-scores/${matchId}`)).data,
-    enabled: !!matchId,
+  const nameOf = (side: 'home' | 'away') =>
+    names?.[side] ?? teams.find((t) => t.id === (side === 'home' ? homeTeamId : awayTeamId))?.name ?? '';
+
+  // Load the existing sheet — the saved box score when correcting, or the two
+  // rosters as a blank sheet for a fixture. Players come back with played:false
+  // where no stat row exists, because a DNP writes no row: absence IS the record.
+  const { data: existing, isLoading, error: loadError } = useQuery({
+    queryKey: isFixture ? ['fixture-box-score', trackerMatchId] : ['box-score', tournamentId, matchId],
+    queryFn: async () => (await api.get(
+      isFixture
+        ? `/tracker/matches/${trackerMatchId}/box-score`
+        : `/tournaments/${tournamentId}/box-scores/${matchId}`,
+    )).data,
+    enabled: isFixture || !!matchId,
+    retry: false,
   });
 
   useEffect(() => {
     if (!existing) return;
+    const toRows = (side: any[]): Row[] => side.map((p) => ({
+      userId: p.userId, name: p.name, number: p.number ?? null, played: p.played,
+      stats: { ...blankStats(cols), ...(p.stats ?? {}) },
+    }));
+    setHome(toRows(existing.home));
+    setAway(toRows(existing.away));
+
+    if (existing.fixture) {
+      const f = existing.fixture;
+      setHomeTeamId(f.homeTeamId);
+      setAwayTeamId(f.awayTeamId);
+      setNames({ home: f.homeTeamName, away: f.awayTeamName });
+      setRound(f.round ?? '');
+      setCourt(f.court ?? '');
+      if (f.scheduledAt) setMatchDate(new Date(f.scheduledAt).toISOString().slice(0, 10));
+      setAlreadyEntered(!!f.alreadyEntered);
+      return;
+    }
     setHomeTeamId(existing.match.homeTeamId);
     setAwayTeamId(existing.match.awayTeamId);
     setMatchDate(new Date(existing.match.matchDate).toISOString().slice(0, 10));
     setRound(existing.match.round ?? '');
     setCourt(existing.match.court ?? '');
-    const toRows = (side: any[]): Row[] => side.map((p) => ({
-      userId: p.userId, name: p.name, played: p.played,
-      stats: { ...blankStats(cols), ...(p.stats ?? {}) },
-    }));
-    setHome(toRows(existing.home));
-    setAway(toRows(existing.away));
+    setAlreadyEntered(true);
   }, [existing, cols]);
 
   // Picking a team loads its roster, everyone starting as "played" with zeros.
@@ -84,8 +130,8 @@ export default function BoxScoreModal({
     })));
   };
 
-  const setHomeTeam = (id: string) => { setHomeTeamId(id); if (!matchId) loadSide(id, setHome); };
-  const setAwayTeam = (id: string) => { setAwayTeamId(id); if (!matchId) loadSide(id, setAway); };
+  const setHomeTeam = (id: string) => { setHomeTeamId(id); setNames(null); if (!matchId) loadSide(id, setHome); };
+  const setAwayTeam = (id: string) => { setAwayTeamId(id); setNames(null); if (!matchId) loadSide(id, setAway); };
 
   const patch = (side: 'home' | 'away', i: number, key: string, value: number) => {
     const [rows, set] = side === 'home' ? [home, setHome] : [away, setAway];
@@ -127,14 +173,21 @@ export default function BoxScoreModal({
 
   const save = useMutation({
     mutationFn: () => {
+      // DNP lines carry no stats — the server writes no row for them.
+      const sides = {
+        home: home.map((r) => (r.played ? { userId: r.userId, played: true, stats: r.stats } : { userId: r.userId, played: false })),
+        away: away.map((r) => (r.played ? { userId: r.userId, played: true, stats: r.stats } : { userId: r.userId, played: false })),
+      };
+      // A fixture already owns its teams and scheduling; sending them would let a
+      // box score quietly re-point the fixture, so only the sheets go up.
+      if (isFixture) return api.post(`/tracker/matches/${trackerMatchId}/box-score`, sides);
+
       const body = {
+        ...sides,
         homeTeamId, awayTeamId,
         matchDate: new Date(`${matchDate}T12:00:00`).toISOString(),
         round: round.trim() || undefined,
         court: court.trim() || undefined,
-        // DNP lines carry no stats — the server writes no row for them.
-        home: home.map((r) => (r.played ? { userId: r.userId, played: true, stats: r.stats } : { userId: r.userId, played: false })),
-        away: away.map((r) => (r.played ? { userId: r.userId, played: true, stats: r.stats } : { userId: r.userId, played: false })),
       };
       return matchId
         ? api.put(`/tournaments/${tournamentId}/box-scores/${matchId}`, body)
@@ -146,6 +199,9 @@ export default function BoxScoreModal({
       qc.invalidateQueries({ queryKey: ['box-scores', tournamentId] });
       qc.invalidateQueries({ queryKey: ['manage-tournament', tournamentId] });
       qc.invalidateQueries({ queryKey: ['tournament-teams', tournamentId] });
+      // The fixtures list shows the new score + PUBLISHED badge straight away.
+      qc.invalidateQueries({ queryKey: ['tracker-session'] });
+      qc.invalidateQueries({ queryKey: ['fixture-box-score', trackerMatchId] });
       onClose();
     },
     onError: (e: any) => toast.error(e.response?.data?.error || 'Could not publish the box score'),
@@ -164,7 +220,7 @@ export default function BoxScoreModal({
   const renderSide = (side: 'home' | 'away') => {
     const rows = side === 'home' ? home : away;
     const teamId = side === 'home' ? homeTeamId : awayTeamId;
-    const teamName = teams.find((t) => t.id === teamId)?.name ?? '';
+    const teamName = nameOf(side);
     if (!teamId) return null;
     const totals = totalsFor(rows);
 
@@ -282,11 +338,13 @@ export default function BoxScoreModal({
         <div className="flex items-center justify-between px-5 py-3 border-b border-line">
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-wide text-gray-custom">
-              {matchId ? 'Correct box score' : 'Add box score'}
+              {alreadyEntered ? 'Correct box score' : 'Add box score'}
             </p>
             <h3 className="font-semibold truncate flex items-center gap-2">
               <ClipboardList size={16} className="text-primary shrink-0" />
-              Untracked match result
+              {isFixture
+                ? `${nameOf('home')} vs ${nameOf('away')}`
+                : 'Untracked match result'}
             </h3>
           </div>
           <button onClick={onClose} className="text-gray-custom hover:text-foreground"><X size={18} /></button>
@@ -300,63 +358,86 @@ export default function BoxScoreModal({
             stat line, so their per-game averages aren't diluted.
           </p>
 
-          {/* Fixture */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-[11px] text-gray-custom mb-1">Home team</label>
-              <select
-                value={homeTeamId} onChange={(e) => setHomeTeam(e.target.value)} disabled={!!matchId}
-                className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary disabled:opacity-50"
-              >
-                <option value="">Select…</option>
-                {teams.filter((t) => t.id !== awayTeamId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+          {isFixture ? (
+            /* The draw already set the teams and the schedule — shown, not asked for. */
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-custom px-3 py-2 rounded-lg border border-line bg-surface">
+              <span className="font-medium text-foreground">{round || 'Fixture'}</span>
+              {court && <span>· {court}</span>}
+              {matchDate && <span>· {new Date(`${matchDate}T12:00:00`).toLocaleDateString()}</span>}
+              <span className="ml-auto">Teams and schedule come from the draw</span>
             </div>
-            <div>
-              <label className="block text-[11px] text-gray-custom mb-1">Away team</label>
-              <select
-                value={awayTeamId} onChange={(e) => setAwayTeam(e.target.value)} disabled={!!matchId}
-                className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary disabled:opacity-50"
-              >
-                <option value="">Select…</option>
-                {teams.filter((t) => t.id !== homeTeamId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-custom mb-1">Date played</label>
-              <input
-                type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)}
-                className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-gray-custom mb-1">Round (optional)</label>
-              <input
-                type="text" value={round} onChange={(e) => setRound(e.target.value)} maxLength={50}
-                placeholder="Group A / Final"
-                className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
-              />
-            </div>
-          </div>
-
-          {teamsPicked && (
-            <div className="flex items-center justify-center gap-4 py-2 border-y border-line">
-              <span className="text-sm text-gray-custom truncate max-w-[35%] text-right">{teams.find((t) => t.id === homeTeamId)?.name}</span>
-              <span className="text-2xl font-bold tabular-nums">{homeScore} – {awayScore}</span>
-              <span className="text-sm text-gray-custom truncate max-w-[35%]">{teams.find((t) => t.id === awayTeamId)?.name}</span>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[11px] text-gray-custom mb-1">Home team</label>
+                <select
+                  value={homeTeamId} onChange={(e) => setHomeTeam(e.target.value)} disabled={!!matchId}
+                  className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary disabled:opacity-50"
+                >
+                  <option value="">Select…</option>
+                  {teams.filter((t) => t.id !== awayTeamId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] text-gray-custom mb-1">Away team</label>
+                <select
+                  value={awayTeamId} onChange={(e) => setAwayTeam(e.target.value)} disabled={!!matchId}
+                  className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary disabled:opacity-50"
+                >
+                  <option value="">Select…</option>
+                  {teams.filter((t) => t.id !== homeTeamId).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] text-gray-custom mb-1">Date played</label>
+                <input
+                  type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)}
+                  className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-gray-custom mb-1">Round (optional)</label>
+                <input
+                  type="text" value={round} onChange={(e) => setRound(e.target.value)} maxLength={50}
+                  placeholder="Group A / Final"
+                  className="w-full px-2 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
+                />
+              </div>
             </div>
           )}
 
-          {renderSide('home')}
-          {renderSide('away')}
+          {loadError ? (
+            <p className="text-sm text-red-400 text-center py-6">
+              {(loadError as any)?.response?.data?.error ?? 'Could not load this fixture.'}
+            </p>
+          ) : isLoading ? (
+            <p className="text-sm text-gray-custom text-center py-6">Loading rosters…</p>
+          ) : (
+            <>
+              {teamsPicked && (
+                <div className="flex items-center justify-center gap-4 py-2 border-y border-line">
+                  <span className="text-sm text-gray-custom truncate max-w-[35%] text-right">{nameOf('home')}</span>
+                  <span className="text-2xl font-bold tabular-nums">{homeScore} – {awayScore}</span>
+                  <span className="text-sm text-gray-custom truncate max-w-[35%]">{nameOf('away')}</span>
+                </div>
+              )}
 
-          {!teamsPicked && (
-            <p className="text-sm text-gray-custom text-center py-6">Pick both teams to load their rosters.</p>
+              {renderSide('home')}
+              {renderSide('away')}
+
+              {!teamsPicked && !isFixture && (
+                <p className="text-sm text-gray-custom text-center py-6">Pick both teams to load their rosters.</p>
+              )}
+            </>
           )}
         </div>
 
         <div className="flex items-center justify-between gap-2 px-5 py-3 border-t border-line">
-          {matchId ? (
+          {/* Deleting is only offered for a standalone box score. A fixture's
+              result is removed by un-publishing it in the tracker, which also
+              returns the fixture to SCHEDULED — deleting the match here would
+              strip the result but leave the fixture claiming to be PUBLISHED. */}
+          {matchId && !isFixture ? (
             <button
               onClick={() => { if (confirm('Delete this box score? The stats and rankings it produced will be removed.')) remove.mutate(); }}
               disabled={remove.isPending}
@@ -373,7 +454,7 @@ export default function BoxScoreModal({
               title={rowErrors.size > 0 ? 'Fix the highlighted rows first' : undefined}
               className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50"
             >
-              {save.isPending ? 'Publishing…' : matchId ? 'Save corrections' : 'Publish result & stats'}
+              {save.isPending ? 'Publishing…' : alreadyEntered ? 'Save corrections' : 'Publish result & stats'}
             </button>
           </div>
         </div>

@@ -23,6 +23,13 @@ import { writeMatchPlayerStats } from '../services/matchStats';
 import { recalculateTournamentRankings } from '../services/rankingService';
 import { mergeRoster, rosterSignature } from '../services/rosterLifecycle';
 import { backfillGenderFromTournament } from '../services/genderBackfill';
+import {
+  BoxScoreError, BOX_SCORE_SPORTS, publishBoxScore, notifyBoxScorePublished,
+  toPlayerStats, loadStatRows, assertBoxScoreRosters,
+} from '../services/manualBoxScore';
+import { FixtureBoxScoreBody } from '../validation/tournament';
+import { bustTournament } from '../services/tournamentCache';
+import logger from '../utils/logger';
 import { captureException } from '../config/sentry';
 import {
   CreateSessionBody,
@@ -232,7 +239,31 @@ router.get(
         where: { tournamentId: req.params.tournamentId as string },
         include: { matches: { orderBy: { orderIndex: 'asc' } } },
       });
-      res.json({ session });
+
+      // Where each published result CAME from (live tracking vs a typed box
+      // score). The fixtures list needs it to decide whether "Box score" is an
+      // offer to correct a sheet or would silently discard an event log — the
+      // distinction lives on the platform Match, not on the fixture. One query
+      // for the whole session, not one per fixture.
+      let matches = session?.matches ?? [];
+      if (session) {
+        const publishedIds = matches
+          .map((m) => m.publishedMatchId)
+          .filter((id): id is string => !!id);
+        const sources = publishedIds.length
+          ? await prisma.match.findMany({
+              where: { id: { in: publishedIds } },
+              select: { id: true, statsSource: true },
+            })
+          : [];
+        const sourceOf = new Map(sources.map((s) => [s.id, s.statsSource]));
+        matches = matches.map((m) => ({
+          ...m,
+          statsSource: m.publishedMatchId ? sourceOf.get(m.publishedMatchId) ?? null : null,
+        })) as typeof matches;
+      }
+
+      res.json({ session: session ? { ...session, matches } : null });
     } catch (err) {
       console.error('Get tracker session error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -898,6 +929,13 @@ router.post(
             ...(trackerMatch.scheduledAt ? { matchDate: trackerMatch.scheduledAt } : {}),
             court: trackerMatch.court,
             status: 'COMPLETED',
+            // Reclaim ownership. This fixture may have been box-scored manually
+            // first and then actually tracked; live tracking is the more
+            // authoritative record, so it takes the match back. Without this the
+            // match would stay flagged MANUAL and the box-score editor would keep
+            // offering to correct numbers the next tracker publish overwrites.
+            statsSource: 'TRACKER',
+            enteredById: null,
           },
         });
       } else {
@@ -1017,6 +1055,208 @@ router.post(
       }
     } catch (err) {
       console.error('Unpublish tracker match error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Box score for a fixture nobody tracked ──────────────────────────────────
+//
+// The draw already knows this fixture: its teams, its round, when it was meant to
+// be played. If it never got tracked — no scorer, no signal, or it was simply
+// played before anyone opened the tracker — the organiser types the scoresheet in
+// here instead, straight off the fixtures list.
+//
+// The result is indistinguishable from a tracked publish: the same platform Match,
+// the same per-player stat rows on profiles, the same ranking recompute. The only
+// difference is where the numbers came from, recorded as Match.statsSource.
+//
+// This is the same pipeline as the tournament-level box score endpoints
+// (POST /tournaments/:id/box-scores); it differs only in being ANCHORED to an
+// existing TrackerMatch, so the fixture flips to PUBLISHED and shows its score in
+// the list rather than a second, parallel match appearing alongside it.
+
+/** Load the fixture + its session, and check it can take a manual box score. */
+async function boxScoreFixture(trackerMatchId: string) {
+  const trackerMatch = await prisma.trackerMatch.findUnique({
+    where: { id: trackerMatchId },
+    include: { session: { select: { tournamentId: true, sport: true, roster: true } } },
+  });
+  if (!trackerMatch) throw new BoxScoreError('Fixture not found', 'NOT_FOUND');
+  if (!trackerMatch.homeTeamId || !trackerMatch.awayTeamId) {
+    throw new BoxScoreError('This fixture has no teams assigned yet', 'NO_TEAMS');
+  }
+  if (!BOX_SCORE_SPORTS.has(trackerMatch.session.sport)) {
+    throw new BoxScoreError(`Box scores aren't supported for ${trackerMatch.session.sport} yet`, 'UNSUPPORTED_SPORT');
+  }
+
+  // A fixture already PUBLISHED from live tracking belongs to the tracker. Its
+  // numbers came from the event log, and un-publishing is the documented way to
+  // change them — letting a box score overwrite them here would discard that log
+  // while leaving the fixture looking tracked.
+  if (trackerMatch.publishedMatchId) {
+    const existing = await prisma.match.findUnique({
+      where: { id: trackerMatch.publishedMatchId },
+      select: { statsSource: true },
+    });
+    if (existing && existing.statsSource !== 'MANUAL') {
+      throw new BoxScoreError(
+        'This match was scored in the live tracker. Un-publish it first if you need to replace the result with a box score.',
+        'TRACKED_MATCH',
+      );
+    }
+  }
+  return trackerMatch;
+}
+
+// GET /api/tracker/matches/:id/box-score — the entry form's starting point: both
+// rosters, plus whatever box score has already been entered for this fixture.
+//
+// Rosters come from the team membership (the authority the write path validates
+// against), enriched with jersey numbers from the session's roster snapshot — the
+// numbers a scorer already typed, so the sheet reads like the one on the table.
+router.get(
+  '/matches/:id/box-score',
+  requireTournamentAccess(fromTrackerMatchId),
+  validate({ params: IdParam }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const trackerMatch = await boxScoreFixture(req.params.id as string);
+      const { sport } = trackerMatch.session;
+
+      // Existing rows, when this fixture has been box-scored before.
+      const rows = trackerMatch.publishedMatchId
+        ? await loadStatRows(sport, trackerMatch.publishedMatchId)
+        : [];
+      const byUser = new Map(rows.map((r) => [r.userId, r]));
+      const numbers = jerseyMap(trackerMatch.session.roster);
+
+      const teams = await prisma.team.findMany({
+        where: { id: { in: [trackerMatch.homeTeamId!, trackerMatch.awayTeamId!] } },
+        select: {
+          id: true, name: true,
+          members: {
+            select: { userId: true, user: { select: { id: true, name: true, position: true } } },
+            orderBy: { invitedAt: 'asc' },
+          },
+        },
+      });
+      const sideFor = (teamId: string) => {
+        const team = teams.find((x) => x.id === teamId);
+        return (team?.members ?? []).map((m) => ({
+          userId: m.userId,
+          name: m.user.name,
+          position: m.user.position,
+          number: numbers.get(m.userId) ?? null,
+          // No stat row ⇒ DNP. On a fixture never box-scored this makes every
+          // player start as DNP, which is the right blank sheet: the organiser
+          // marks who actually played rather than un-marking who didn't.
+          played: byUser.has(m.userId),
+          stats: byUser.get(m.userId) ?? null,
+        }));
+      };
+
+      res.json({
+        fixture: {
+          id: trackerMatch.id,
+          homeTeamId: trackerMatch.homeTeamId,
+          awayTeamId: trackerMatch.awayTeamId,
+          homeTeamName: teams.find((t) => t.id === trackerMatch.homeTeamId)?.name ?? 'Home',
+          awayTeamName: teams.find((t) => t.id === trackerMatch.awayTeamId)?.name ?? 'Away',
+          round: trackerMatch.round,
+          court: trackerMatch.court,
+          scheduledAt: trackerMatch.scheduledAt,
+          status: trackerMatch.status,
+          alreadyEntered: rows.length > 0,
+        },
+        sport,
+        home: sideFor(trackerMatch.homeTeamId!),
+        away: sideFor(trackerMatch.awayTeamId!),
+      });
+    } catch (error) {
+      if (error instanceof BoxScoreError) {
+        res.status(error.code === 'NOT_FOUND' ? 404 : error.code === 'TRACKED_MATCH' ? 409 : 400)
+          .json({ error: error.message, code: error.code });
+        return;
+      }
+      console.error('Load fixture box score error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// POST /api/tracker/matches/:id/box-score — publish (or correct) the box score for
+// this fixture. Idempotent on re-entry: it updates the same platform Match rather
+// than creating another, so correcting a sheet never leaves a duplicate result.
+router.post(
+  '/matches/:id/box-score',
+  requireTournamentAccess(fromTrackerMatchId),
+  validate({ params: IdParam, body: FixtureBoxScoreBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const trackerMatch = await boxScoreFixture(req.params.id as string);
+      const { tournamentId, sport } = trackerMatch.session;
+      const homeTeamId = trackerMatch.homeTeamId!;
+      const awayTeamId = trackerMatch.awayTeamId!;
+      const b = req.body as {
+        home: { userId: string; played: boolean; stats?: Record<string, number> }[];
+        away: { userId: string; played: boolean; stats?: Record<string, number> }[];
+      };
+
+      // Every player must be on the roster of the side they're listed under —
+      // otherwise stats would land in the career totals and rankings of someone
+      // who never played this match.
+      await assertBoxScoreRosters(tournamentId, homeTeamId, awayTeamId, b.home, b.away);
+
+      const result = await publishBoxScore({
+        tournamentId, sport,
+        homeTeamId, awayTeamId,
+        boxScore: { home: b.home, away: b.away },
+        // The fixture owns the when/where; a box score supplies numbers, not
+        // scheduling. Falling back to now only when the draw never set a date.
+        matchDate: trackerMatch.scheduledAt ?? new Date(),
+        round: trackerMatch.round,
+        court: trackerMatch.court,
+        enteredById: req.user!.userId,
+        // Present when re-entering — updates in place instead of duplicating.
+        matchId: trackerMatch.publishedMatchId ?? undefined,
+      });
+
+      // Flip the fixture itself, so the list shows the score and PUBLISHED
+      // exactly as it would for a tracked match.
+      await prisma.trackerMatch.update({
+        where: { id: trackerMatch.id },
+        data: {
+          status: 'PUBLISHED',
+          homeScore: result.homeScore,
+          awayScore: result.awayScore,
+          publishedMatchId: result.matchId,
+        },
+      });
+
+      bustTournament(tournamentId);
+      logger.info('tracker.box_score_published', {
+        tournamentId, trackerMatchId: trackerMatch.id, matchId: result.matchId,
+        by: req.user!.userId, players: result.playerCount,
+        corrected: !!trackerMatch.publishedMatchId,
+      });
+      res.json({ published: true, ...result });
+
+      // Fire-and-forget — the stats are already written; a notification failure
+      // must not turn a successful publish into an error.
+      void notifyBoxScorePublished({
+        tournamentId, sport, homeTeamId, awayTeamId,
+        homeScore: result.homeScore, awayScore: result.awayScore,
+        matchId: result.matchId,
+        playerStats: toPlayerStats(sport, { home: b.home, away: b.away }),
+      }).catch((e) => console.error('fixture box score notify failed', e));
+    } catch (error) {
+      if (error instanceof BoxScoreError) {
+        res.status(error.code === 'NOT_FOUND' ? 404 : error.code === 'TRACKED_MATCH' ? 409 : 400)
+          .json({ error: error.message, code: error.code, field: error.field });
+        return;
+      }
+      console.error('Publish fixture box score error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   },

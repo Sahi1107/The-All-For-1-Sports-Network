@@ -19,6 +19,7 @@ import GroupEditor from './components/GroupEditor';
 import { Pencil, AlertTriangle, Crown, Lock } from 'lucide-react';
 import { TeamCrest } from '../../components/Avatar';
 import RosterEditorModal from '../tournaments/RosterEditorModal';
+import BoxScoreModal from '../tournaments/BoxScoreModal';
 
 /** Adapt a live TrackerSession's bracket into the shared Bracket's plain props. */
 function bracketDataFromSession(session: TrackerSession): BracketData {
@@ -73,6 +74,10 @@ export default function TournamentView({
   const [showSchedule, setShowSchedule] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
   const [editTeam, setEditTeam] = useState<any | null>(null);
+  // Fixture whose box score is being typed in — for a match that was played but
+  // never tracked. Publishing it produces the same result, per-player stats and
+  // ranking update a live-tracked match would have.
+  const [boxScore, setBoxScore] = useState<TrackerMatch | null>(null);
 
   // Registered teams + roster status — so an organiser can manage rosters right
   // here on the tracker, without bouncing back to the manage hub. Same endpoint
@@ -258,6 +263,7 @@ export default function TournamentView({
           onShowDetails={setDetail}
           onQuickSim={demo?.onQuickSim}
           onManageMatch={demo ? undefined : setManage}
+          onBoxScore={demo ? undefined : setBoxScore}
           onAutoSchedule={demo ? undefined : () => setShowSchedule(true)}
         />
       )}
@@ -267,6 +273,17 @@ export default function TournamentView({
       {showSchedule && <AutoScheduleModal tournamentId={session.tournamentId} sport={session.sport} onClose={() => setShowSchedule(false)} />}
       {showGroups && <GroupEditor session={session} onClose={() => setShowGroups(false)} />}
       {editTeam && <RosterEditorModal tournamentId={session.tournamentId} team={editTeam} onClose={() => setEditTeam(null)} />}
+      {boxScore && (
+        <BoxScoreModal
+          tournamentId={session.tournamentId}
+          sport={session.sport}
+          // Teams and rosters are loaded from the fixture itself, so the picker
+          // list this prop feeds isn't used in fixture mode.
+          teams={[]}
+          trackerMatchId={boxScore.id}
+          onClose={() => setBoxScore(null)}
+        />
+      )}
     </div>
   );
 }

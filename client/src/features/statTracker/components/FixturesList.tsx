@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Play, CheckCircle2, BarChart3, Zap, SlidersHorizontal, CalendarClock, CalendarPlus } from 'lucide-react';
+import { Play, CheckCircle2, BarChart3, Zap, SlidersHorizontal, CalendarClock, CalendarPlus, ClipboardList } from 'lucide-react';
 import type { TrackerSession, TrackerMatch } from '../types';
 import { teamNames, DONE, stageSort, isBye } from './helpers';
 import { fmtSchedule } from '../schedule';
@@ -26,6 +26,7 @@ export default function FixturesList({
   onShowDetails,
   onQuickSim,
   onManageMatch,
+  onBoxScore,
   onAutoSchedule,
 }: {
   session: TrackerSession;
@@ -33,6 +34,8 @@ export default function FixturesList({
   onShowDetails: (m: TrackerMatch) => void;
   onQuickSim?: (m: TrackerMatch) => void;
   onManageMatch?: (m: TrackerMatch) => void;
+  /** Enter the result from a scoresheet instead of tracking it live. */
+  onBoxScore?: (m: TrackerMatch) => void;
   onAutoSchedule?: () => void;
 }) {
   const name = teamNames(session);
@@ -101,6 +104,25 @@ export default function FixturesList({
                       title="Simulate a result"
                     >
                       <Zap size={13} /> Quick sim
+                    </button>
+                  )}
+
+                  {/* Box score — for a fixture that was played but never tracked.
+                      Offered on anything not yet published (nothing to overwrite),
+                      and on a published match only when the result CAME from a box
+                      score, so it can be corrected. A tracker-published match is
+                      excluded: its numbers come from the event log and replacing
+                      them means un-publishing first. */}
+                  {onBoxScore && (m.status !== 'PUBLISHED' || m.statsSource === 'MANUAL') && (
+                    <button
+                      onClick={() => onBoxScore(m)}
+                      disabled={!ready}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-elevated border border-line hover:border-primary text-xs rounded-lg disabled:opacity-40 transition-colors"
+                      title={m.statsSource === 'MANUAL'
+                        ? 'Correct the box score for this match'
+                        : "Enter this match's box score — publishes the result, player stats and rankings"}
+                    >
+                      <ClipboardList size={13} /> {m.statsSource === 'MANUAL' ? 'Edit sheet' : 'Box score'}
                     </button>
                   )}
 

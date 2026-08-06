@@ -292,3 +292,16 @@ export const BoxScoreBody = z.object({
 }).refine((d) => d.homeTeamId !== d.awayTeamId, {
   message: 'A team cannot play itself', path: ['awayTeamId'],
 });
+
+/**
+ * Box score entered against an EXISTING tracker fixture (the fixtures list).
+ *
+ * Just the two sheets. Teams, round, court and date all come from the fixture the
+ * draw already created — accepting them here would let a box score silently
+ * re-point a fixture at different teams or a different date, which is what the
+ * fixture-management tools are for.
+ */
+export const FixtureBoxScoreBody = z.object({
+  home: z.array(BoxScoreLine).max(30, 'A roster cannot exceed 30 players'),
+  away: z.array(BoxScoreLine).max(30, 'A roster cannot exceed 30 players'),
+});
