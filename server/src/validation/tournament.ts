@@ -151,9 +151,16 @@ export const ProvisionMemberBody = z.object({
     .transform((s) => { const t = s?.trim().toLowerCase(); return t ? t : undefined; })
     .refine((s) => s === undefined || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), 'Invalid email address'),
   role:  z.enum(['ATHLETE', 'COACH'], { error: 'role must be ATHLETE or COACH' }).default('ATHLETE'),
+  // Optional here, then REQUIRED by the refine below whenever an email is given.
+  // An account with credentials must have a DOB — that's what drives the under-13
+  // guardian-consent gate. An unclaimed shell issues no credentials, so an
+  // organiser rostering someone off a team sheet isn't blocked on a birthday
+  // they don't have. Blank normalises to undefined the same way email does.
   dateOfBirth: z
-    .string({ error: 'Date of birth is required' })
-    .refine((s) => !Number.isNaN(Date.parse(s)), 'Invalid date of birth'),
+    .string()
+    .optional()
+    .transform((s) => { const t = s?.trim(); return t ? t : undefined; })
+    .refine((s) => s === undefined || !Number.isNaN(Date.parse(s)), 'Invalid date of birth'),
   gender:   GenderEnum, // required — rankings are split men's/women's
   position: optStr(60, 'Position'),
   phone:    optStr(40, 'Phone'),
@@ -165,6 +172,13 @@ export const ProvisionMemberBody = z.object({
     .transform((s) => (s ? s.toLowerCase().trim() : s)),
   // Set by the client after the organiser confirms a duplicate warning.
   allowDuplicate: z.boolean().optional(),
+}).refine((d) => !d.email || !!d.dateOfBirth, {
+  // Supplying an email means a real account gets created with login credentials,
+  // and that path is gated on age (under-13 needs guardian consent before any
+  // credentials are issued). No DOB, no way to apply that gate — so it stays
+  // mandatory there, and is only relaxed for the credential-less shell.
+  message: 'Date of birth is required when creating an account with an email',
+  path: ['dateOfBirth'],
 });
 
 // Organiser roster search — see services/rosterSearch. `q` is a name fragment.

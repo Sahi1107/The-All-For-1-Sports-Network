@@ -139,11 +139,14 @@ export default function RosterEditorModal({
   // Email is OPTIONAL: with one the player gets a real account and login details;
   // without one they get an unclaimed profile they can claim later with a code.
   const npHasEmail = !!np.email.trim();
-  // A guardian email only gates ISSUING CREDENTIALS to a minor. An unclaimed
-  // profile has none to issue, so it isn't required on the no-email path — the
-  // profile is simply kept private until someone claims it.
+  // With an email a real account is created, so the account rules apply in full:
+  // a date of birth (it drives the under-13 gate) and, for a minor, a guardian
+  // email. Without one it's a credential-less shell — nothing to gate — so name
+  // and category are all that's needed. Category stays required either way
+  // because the ranking boards are split by it.
   const npValid = !!(
-    np.name.trim() && np.dateOfBirth && np.gender &&
+    np.name.trim() && np.gender &&
+    (!npHasEmail || np.dateOfBirth) &&
     (!npUnder13 || !npHasEmail || np.guardianEmail.trim())
   );
   const setNpField = (patch: Partial<NewPlayer>) => setNp((v) => ({ ...v, ...patch }));
@@ -188,7 +191,8 @@ export default function RosterEditorModal({
       name: np.name.trim(),
       // Omitted entirely when blank — that's what selects the unclaimed path.
       email: npHasEmail ? np.email.trim() : undefined,
-      dateOfBirth: np.dateOfBirth,
+      // Omitted when blank — only the with-email path requires it.
+      dateOfBirth: np.dateOfBirth || undefined,
       gender: np.gender,
       position: np.position.trim() || undefined,
       guardianEmail: npUnder13 && npHasEmail ? np.guardianEmail.trim() : undefined,
@@ -420,12 +424,19 @@ export default function RosterEditorModal({
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="block text-[11px] text-gray-custom mb-1">Date of birth</label>
+                    <label className="block text-[11px] text-gray-custom mb-1">
+                      Date of birth {npHasEmail ? '' : <span className="text-gray-custom/70">(optional)</span>}
+                    </label>
                     <input
                       type="date" value={np.dateOfBirth}
                       onChange={(e) => setNpField({ dateOfBirth: e.target.value })}
                       className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
                     />
+                    {!npHasEmail && (
+                      <p className="text-[11px] text-gray-custom mt-1">
+                        Add it if you know it — it sets age categories and keeps under-13s off public boards.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[11px] text-gray-custom mb-1">Category</label>

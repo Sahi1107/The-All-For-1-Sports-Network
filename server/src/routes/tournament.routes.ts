@@ -1407,7 +1407,10 @@ router.post(
         name: b.name,
         role: b.role,
         sport: tournament.sport,
-        dateOfBirth: new Date(b.dateOfBirth),
+        // Optional on the no-email path (the schema still requires it whenever an
+        // email is supplied), so `new Date(undefined)` — an Invalid Date — must
+        // never reach the services.
+        dateOfBirth: b.dateOfBirth ? new Date(b.dateOfBirth) : null,
         gender: b.gender,
         position: b.position,
         phone: b.phone,

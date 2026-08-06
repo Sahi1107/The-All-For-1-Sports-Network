@@ -92,11 +92,17 @@ test('gender is required — the ranking boards are split by it', () => {
   );
 });
 
-test('an athlete needs a date of birth', () => {
-  assert.throws(() => validateUnclaimedInput({ ...base, dateOfBirth: null }), ProvisionError);
+test('a date of birth is OPTIONAL — an organiser rarely has one off a team sheet', () => {
+  // Deliberately unlike provisionAthleteAccount, which requires it: that path
+  // issues login credentials and DOB drives the under-13 consent gate. A shell
+  // issues nothing, so requiring a birthday nobody knows would just block the
+  // roster. If this starts throwing, adding players off a team sheet breaks.
+  const r = validateUnclaimedInput({ ...base, dateOfBirth: null });
+  assert.equal(r.age, null);
+  assert.equal(r.under13, false); // unknown age is NOT assumed to be a minor
 });
 
-test('a coach does not need a date of birth', () => {
+test('a coach does not need a date of birth either', () => {
   const r = validateUnclaimedInput({ ...base, role: 'COACH', dateOfBirth: null });
   assert.equal(r.age, null);
   assert.equal(r.under13, false);

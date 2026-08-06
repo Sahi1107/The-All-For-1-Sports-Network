@@ -18,9 +18,36 @@ test('valid new-player input parses; role defaults to ATHLETE; email normalised'
   assert.equal(r.data.email, 'priya@school.edu');
 });
 
-test('date of birth is mandatory', () => {
+// Date of birth is conditional on the email, because the two paths differ in what
+// they actually create: an email means real login credentials, and the under-13
+// guardian-consent gate is applied from the DOB. A shell issues no credentials,
+// so there is nothing to gate — and an organiser copying a team sheet usually
+// doesn't have birthdays.
+test('date of birth is mandatory WHEN an email is supplied (credentials path)', () => {
   const r = ProvisionMemberBody.safeParse({ ...valid, dateOfBirth: undefined });
   assert.equal(r.success, false);
+  assert.equal(ProvisionMemberBody.safeParse({ ...valid, dateOfBirth: '' }).success, false);
+});
+
+test('date of birth is OPTIONAL with no email (unclaimed shell)', () => {
+  const noEmail = { name: 'Priya Sharma', gender: 'FEMALE' as const };
+  const r = ProvisionMemberBody.safeParse(noEmail);
+  assert.ok(r.success);
+  assert.equal(r.data.dateOfBirth, undefined);
+  assert.equal(r.data.email, undefined);
+
+  // Blank strings for both must behave exactly like omitting them.
+  const blanks = ProvisionMemberBody.safeParse({ ...noEmail, email: '', dateOfBirth: '  ' });
+  assert.ok(blanks.success);
+  assert.equal(blanks.data.dateOfBirth, undefined);
+});
+
+test('a supplied date of birth is still validated on either path', () => {
+  assert.equal(ProvisionMemberBody.safeParse({ name: 'A', gender: 'MALE', dateOfBirth: 'not-a-date' }).success, false);
+});
+
+test('gender stays mandatory even for a shell — the boards are split by it', () => {
+  assert.equal(ProvisionMemberBody.safeParse({ name: 'A' }).success, false);
 });
 
 test('gender is mandatory (rankings split men’s/women’s)', () => {

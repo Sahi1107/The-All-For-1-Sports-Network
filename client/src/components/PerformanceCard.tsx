@@ -34,10 +34,13 @@ const HERO: Record<string, { key: string; label: string }[]> = {
   BASKETBALL: [{ key: 'points', label: 'Points' }, { key: 'rebounds', label: 'Rebounds' }, { key: 'assists', label: 'Assists' }],
   CRICKET:    [{ key: 'runs', label: 'Runs' }, { key: 'wickets', label: 'Wickets' }],
 };
-const RECEIPT: Record<string, (t: Record<string, number>) => string> = {
-  FOOTBALL:   (t) => `${t.goals} G · ${t.assists} A`,
-  BASKETBALL: (t) => `${t.points} PTS · ${t.rebounds} REB`,
-  CRICKET:    (t) => `${t.runs} runs · ${t.wickets} wkts`,
+/** Per-tournament summary. Averages, like the rest of the card — the match count
+ *  sits immediately before it, so "per match" is spelled out to keep the two
+ *  numbers from reading as a total. */
+const RECEIPT: Record<string, (a: Record<string, number>) => string> = {
+  FOOTBALL:   (a) => `${a.goals} G · ${a.assists} A per match`,
+  BASKETBALL: (a) => `${a.points} PTS · ${a.rebounds} REB per match`,
+  CRICKET:    (a) => `${a.runs} runs · ${a.wickets} wkts per match`,
 };
 const METRIC_LABEL: Record<string, string> = {
   goals: 'Goals', assists: 'Assists', shots: 'Shots', passes: 'Passes', tackles: 'Tackles', saves: 'Saves',
@@ -181,11 +184,17 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
           <p className="flex items-center gap-1.5 font-display font-bold tracking-[0.1em] text-[10px] text-primary/90 mb-3">
             <BadgeCheck size={12} /> RECORDED BY ALL FOR 1
           </p>
+          {/* PER-MATCH, not career totals. A total is a function of how many
+              games someone happened to play, so it ranks a squad player who
+              turned out ten times above a star who played two — the opposite of
+              what a scout reads this band for. Averages compare like with like,
+              and are what the ranking boards score on. The total is still one tap
+              away in Full record. */}
           <div className="flex flex-wrap gap-x-6 gap-y-3">
             {hero.map((m) => (
               <div key={m.key}>
-                <p className="font-numeric font-bold tabular-nums text-3xl leading-none text-foreground">{career.totals[m.key] ?? 0}</p>
-                <p className="text-[11px] uppercase tracking-wide text-gray-custom mt-1">{m.label}</p>
+                <p className="font-numeric font-bold tabular-nums text-3xl leading-none text-foreground">{career.averages[m.key] ?? 0}</p>
+                <p className="text-[11px] uppercase tracking-wide text-gray-custom mt-1">{m.label} / match</p>
               </div>
             ))}
             <div>
@@ -222,7 +231,7 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
                     <BadgeCheck size={14} className="text-primary shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1 text-sm">
                       <p className="font-medium text-foreground/90 truncate">{t.name} <span className="text-gray-custom font-normal">· {yr(t.startDate)}</span></p>
-                      <p className="text-xs text-gray-custom">{t.matches} match{t.matches === 1 ? '' : 'es'} · {(sport && RECEIPT[sport]) ? RECEIPT[sport](t.totals) : ''}</p>
+                      <p className="text-xs text-gray-custom">{t.matches} match{t.matches === 1 ? '' : 'es'} · {(sport && RECEIPT[sport] && t.averages) ? RECEIPT[sport](t.averages) : ''}</p>
                     </div>
                     {lines.length > 0 && (
                       <ChevronDown
@@ -270,13 +279,15 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
           </button>
           {open && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {/* Average leads, total underneath — the inverse of what a box
+                  score prints, because per-match is the comparable figure. */}
               {Object.entries(career.totals)
                 .filter(([k]) => !HIDDEN_METRICS.has(k))
                 .map(([k, v]) => (
                   <div key={k} className="bg-surface rounded-lg px-3 py-2">
-                    <p className="font-numeric font-bold tabular-nums text-lg leading-none text-foreground">{v}</p>
-                    <p className="text-[10px] uppercase tracking-wide text-gray-custom mt-0.5">{METRIC_LABEL[k] ?? k}</p>
-                    <p className="text-[10px] text-gray-custom/70">{career.averages[k]}/match</p>
+                    <p className="font-numeric font-bold tabular-nums text-lg leading-none text-foreground">{career.averages[k] ?? 0}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-custom mt-0.5">{METRIC_LABEL[k] ?? k} / match</p>
+                    <p className="text-[10px] text-gray-custom/70">{v} total</p>
                   </div>
                 ))}
               {sport === 'BASKETBALL' && shootingTiles(career.totals).map((t) => (

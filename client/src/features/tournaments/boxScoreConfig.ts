@@ -6,6 +6,12 @@
 // here and rejects anything that fails. This module exists so the organiser sees
 // the problem in the cell that caused it, before submitting a sheet of 20 players
 // and getting one error back. Keep the two in step; the server's version wins.
+//
+// MINUTES ARE DELIBERATELY NOT A COLUMN. A paper scoresheet rarely records them,
+// they're the most tedious figure to reconstruct after the fact, and nothing
+// reads them: no ranking board weights minutes (see rankingConfig) and the
+// Performance Card hides them. They stay in the schema for live-tracked matches,
+// where the clock produces them for free, and default to 0 for a typed sheet.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface StatColumn {
@@ -46,7 +52,6 @@ export const BASKETBALL_COLUMNS: StatColumn[] = [
   { key: 'blocks',             label: 'BLK',  title: 'Blocks', max: 50 },
   { key: 'turnovers',          label: 'TOV',  title: 'Turnovers', max: 50 },
   { key: 'personalFouls',      label: 'PF',   title: 'Personal fouls', max: 10 },
-  { key: 'minutesPlayed',      label: 'MIN',  title: 'Minutes played', max: 80 },
 ];
 
 export const BASKETBALL_DERIVED: DerivedColumn[] = [
@@ -64,7 +69,6 @@ export const FOOTBALL_COLUMNS: StatColumn[] = [
   { key: 'saves',         label: 'SV',  title: 'Saves', max: 100 },
   { key: 'yellowCards',   label: 'YC',  title: 'Yellow cards', max: 2 },
   { key: 'redCards',      label: 'RC',  title: 'Red cards', max: 1 },
-  { key: 'minutesPlayed', label: 'MIN', title: 'Minutes played', max: 130 },
 ];
 
 export const CRICKET_COLUMNS: StatColumn[] = [

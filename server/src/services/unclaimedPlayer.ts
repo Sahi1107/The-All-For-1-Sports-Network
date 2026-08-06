@@ -93,23 +93,32 @@ export function validateUnclaimedInput(input: CreateUnclaimedPlayerInput): {
   if (!input.gender) throw new ProvisionError('Gender is required — ranking boards are split by gender');
 
   const isAthlete = input.role === Role.ATHLETE;
-  if (isAthlete && !input.dateOfBirth) {
-    throw new ProvisionError('Date of birth is required for athletes');
-  }
   if (input.dateOfBirth && Number.isNaN(input.dateOfBirth.getTime())) {
     throw new ProvisionError('Invalid date of birth');
   }
 
   const age = input.dateOfBirth ? ageFromDob(input.dateOfBirth) : null;
   const under13 = isAthlete && age !== null && age < GUARDIAN_AGE_THRESHOLD;
-  // NOTE: unlike provisionAthleteAccount, a guardian email is NOT required here.
-  // That requirement exists to gate ISSUING CREDENTIALS to a minor, and a shell
-  // has no credentials to issue — there is no login, no password and no email.
-  // The minor-safety guarantee is instead:
-  //   • discoverable = false + guardianManaged = true on the shell (below), which
-  //     keeps it out of people-search, Radar and the public ranking boards, and
-  //   • guardian consent enforced at CLAIM time (claimProfile), which is the
+
+  // NEITHER a date of birth NOR a guardian email is required here, unlike
+  // provisionAthleteAccount. Both of those exist to gate ISSUING CREDENTIALS to a
+  // minor, and a shell has none to issue — no login, no password, no email. An
+  // organiser copying names off a team sheet has a name and not much else, and
+  // blocking the roster on a birthday nobody knows just pushes them back to
+  // pen and paper, where the stats reach no profile at all.
+  //
+  // What still holds the minor-safety line:
+  //   • every shell is discoverable = false, so it never reaches people-search,
+  //     Radar or Scout Copilot regardless of age;
+  //   • a KNOWN under-13 additionally gets guardianManaged, which also keeps it
+  //     off the public ranking boards (see services/profileVisibility);
+  //   • guardian consent is enforced at CLAIM time (claimProfile), which is the
   //     moment real access to the account actually appears.
+  //
+  // The residual gap is honest and worth stating: with no DOB we cannot KNOW a
+  // player is under 13, so an unknown-age shell is treated as an adult's and can
+  // rank publicly. An organiser rostering minors should set the date of birth (or
+  // the tournament's age category), which is why the field is still offered.
   return { age, under13 };
 }
 
