@@ -48,7 +48,9 @@ export const CATALOG: Record<NotificationType, NotifMeta> = {
   },
   CONNECTION_REQUEST: {
     category: 'social', label: 'Connection requests', description: 'When someone wants to connect',
-    defaultInApp: true, defaultEmail: true, defaultDigest: 'INSTANT',
+    // In-app by default; no email per request. If a user turns email on, it batches
+    // into the daily digest rather than firing instantly (mirrors FOLLOW).
+    defaultInApp: true, defaultEmail: false, defaultDigest: 'DAILY',
     collapsible: false, collapseWindowMins: 0, configurable: true,
     title: () => 'Connection request',
     body: (c) => `${c.actorName} wants to connect`,
@@ -56,7 +58,8 @@ export const CATALOG: Record<NotificationType, NotifMeta> = {
   },
   CONNECTION_ACCEPTED: {
     category: 'social', label: 'Connections accepted', description: 'When someone accepts your request',
-    defaultInApp: true, defaultEmail: false, defaultDigest: 'INSTANT',
+    // In-app by default; if email is enabled it batches daily, never per acceptance.
+    defaultInApp: true, defaultEmail: false, defaultDigest: 'DAILY',
     collapsible: false, collapseWindowMins: 0, configurable: true,
     title: () => 'Connection accepted',
     body: (c) => `${c.actorName} accepted your connection request`,

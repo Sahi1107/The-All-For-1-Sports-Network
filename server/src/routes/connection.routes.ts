@@ -3,6 +3,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { socialLimiter } from '../middleware/rateLimiter';
 import { notify } from '../services/notifications/notify';
+import { attachConnectionStatus } from '../services/connectionState';
 
 const router = Router();
 
@@ -446,6 +447,7 @@ router.get('/suggestions', authenticate, async (req: AuthRequest, res: Response)
       return aMatch - bMatch;
     });
 
+    await attachConnectionStatus(userId, suggestions as Array<{ id: string }>);
     res.json({ suggestions });
   } catch (error) {
     console.error('Suggestions error:', error);

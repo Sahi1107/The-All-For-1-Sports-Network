@@ -7,6 +7,7 @@ import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
+import { attachConnectionStatus } from '../services/connectionState';
 import { deleteUserCompletely } from '../services/userDeletion';
 import { buildUserExport } from '../services/dataExport';
 import { recordProfileView, profileViewsSummary } from '../services/notifications/profileViews';
@@ -92,6 +93,7 @@ router.get('/', authenticate, browseLimiter, validate({ query: UserSearchQuery }
       users.forEach((u) => { (u as any).mutualCount = 0; });
     }
 
+    await attachConnectionStatus(req.user!.userId, users as Array<{ id: string }>);
     await signMediaDeepAll(users);
     res.json({ users, total, page: parseInt(page as string), totalPages: Math.ceil(total / parseInt(limit as string)) });
   } catch (error) {

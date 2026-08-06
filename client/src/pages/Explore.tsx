@@ -213,7 +213,7 @@ function PeopleGrid({ users, query }: { users: any[]; query: string }) {
                 {(u._count?.highlights ?? 0) > 0 && <p>{u._count.highlights} highlight{u._count.highlights === 1 ? '' : 's'}</p>}
               </div>
             )}
-            <div className="shrink-0"><ConnectButton userId={u.id} /></div>
+            <div className="shrink-0"><ConnectButton userId={u.id} status={u.connectionStatus} /></div>
           </div>
         </Link>
       ))}

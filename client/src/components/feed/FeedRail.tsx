@@ -153,7 +153,7 @@ function SuggestedFollows() {
               </p>
             </Link>
             <div className="shrink-0 flex flex-col gap-1">
-              <ConnectButton userId={p.id} className="justify-center w-full" />
+              <ConnectButton userId={p.id} status={p.connectionStatus} className="justify-center w-full" />
               <button
                 onClick={() => { follow.mutate(p.id); setDismissed((s) => new Set(s).add(p.id)); }}
                 disabled={follow.isPending}

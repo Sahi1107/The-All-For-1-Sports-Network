@@ -103,7 +103,7 @@ function AthleteCard({ athlete }: { athlete: any }) {
             {athlete.verified && <VerifiedTick size={14} />}
           </span>
           <span className="shrink-0 flex items-center gap-2">
-            <ConnectButton userId={athlete.id} />
+            <ConnectButton userId={athlete.id} status={athlete.connectionStatus} />
             <span className="flex items-center gap-0.5 text-[11px] font-semibold text-foreground/30 group-hover:text-primary transition-colors">
               View <ChevronRight size={13} />
             </span>

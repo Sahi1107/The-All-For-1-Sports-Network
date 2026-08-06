@@ -5,6 +5,14 @@ import api from '../api/client';
 
 type St = 'idle' | 'requested' | 'connected';
 
+// The server's relationship state (from discovery/list endpoints) → button state.
+// pending_in (they requested us) maps to idle: pressing Connect auto-accepts it.
+function stateFromStatus(status?: string): St {
+  if (status === 'connected') return 'connected';
+  if (status === 'pending_out') return 'requested';
+  return 'idle';
+}
+
 /**
  * Compact Connect action for discovery surfaces (feed rail, suggestions, Explore,
  * Radar) — anywhere Follow appears. Connection is mutual and unlocks messaging,
@@ -14,9 +22,9 @@ type St = 'idle' | 'requested' | 'connected';
  * inside a card that links to the profile.
  */
 export default function ConnectButton({
-  userId, className = '', initial = 'idle',
-}: { userId: string; className?: string; initial?: St }) {
-  const [st, setSt] = useState<St>(initial);
+  userId, className = '', status,
+}: { userId: string; className?: string; status?: string }) {
+  const [st, setSt] = useState<St>(stateFromStatus(status));
   const [busy, setBusy] = useState(false);
 
   const send = async (e: React.MouseEvent) => {

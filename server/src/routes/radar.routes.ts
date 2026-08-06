@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { searchAthletes } from '../data/radarSearch';
 import { parseScoutingQuery } from '../data/radarParse';
+import { attachConnectionStatus } from '../services/connectionState';
 import { env } from '../config/env';
 
 const router = Router();
@@ -58,6 +59,7 @@ router.post(
       // empty result (e.g. a sport with no athletes yet) is a normal 200 with an honest
       // emptyReason the client renders — NOT an error.
       const { results, total, widened, relaxed, emptyReason } = await searchAthletes(filters);
+      await attachConnectionStatus(req.user!.userId, results as Array<{ id: string }>);
 
       res.json({ results, filters, total, widened, relaxed, emptyReason });
     } catch (error) {

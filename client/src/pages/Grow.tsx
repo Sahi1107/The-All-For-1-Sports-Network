@@ -251,7 +251,7 @@ export default function Grow() {
                   )}
                 </div>
                 <div className="shrink-0 flex flex-col gap-1.5 items-stretch">
-                  <ConnectButton userId={u.id} className="justify-center px-3 py-1.5" />
+                  <ConnectButton userId={u.id} status={u.connectionStatus} className="justify-center px-3 py-1.5" />
                   <button
                     onClick={() => followMutation.mutate(u.id)}
                     disabled={followMutation.isPending}
