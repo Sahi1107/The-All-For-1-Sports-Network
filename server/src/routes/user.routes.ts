@@ -503,6 +503,25 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       return;
     }
 
+    // A block in EITHER direction hides the profile entirely (404, not 403, so we
+    // don't confirm the account exists). The blocked party must not be able to
+    // retrieve it; the blocker manages/undoes the block from Settings, not here.
+    if (!isSelf) {
+      const block = await prisma.block.findFirst({
+        where: {
+          OR: [
+            { blockerId: req.user!.userId, blockedId: req.params.id as string },
+            { blockerId: req.params.id as string, blockedId: req.user!.userId },
+          ],
+        },
+        select: { id: true },
+      });
+      if (block) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+    }
+
     // Fetch disableAllComments separately so a missing column (pre `prisma db push`)
     // doesn't break the entire self-profile endpoint.
     if (isSelf) {
