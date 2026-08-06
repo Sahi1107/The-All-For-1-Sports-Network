@@ -82,3 +82,11 @@ export const HandoverCompleteBody = z.object({
 export const EmailChangeBody = z.object({
   newEmail: email,
 });
+
+// ─── Claiming an organiser-created profile ─────────────────────────────────────
+// The code is normalised (case + separators) in services/unclaimedPlayer, so this
+// only bounds the input — 8 significant chars plus optional separators/whitespace.
+
+export const ClaimCodeBody = z.object({
+  code: z.string({ error: 'A claim code is required' }).min(1).max(32),
+});

@@ -67,6 +67,15 @@ enum TournamentFormat {
   DOUBLES
 }
 
+// Where a match's result and per-player stats came from. Guards the two entry
+// paths against each other: a manual box score must never overwrite a match the
+// live tracker owns (the next tracker publish would silently revert it), and the
+// tracker must not treat a hand-entered match as one of its fixtures.
+enum StatsSource {
+  TRACKER // scored live in the stat tracker, then published
+  MANUAL  // box score typed in afterwards for an untracked match
+}
+
 enum MatchStatus {
   SCHEDULED
   LIVE
@@ -174,12 +183,23 @@ enum Gender {
   FEMALE
 }
 
+// Lifecycle of an organiser-created "shell" profile — a real player who is on a
+// roster but not (yet) on the platform. Null for every ordinary account.
+enum ClaimStatus {
+  UNCLAIMED // created by an organiser with no email; nobody can sign in as it
+  CLAIMED   // a real person redeemed the claim code and now owns the profile
+}
+
 // ─── User ────────────────────────────────────────────────
 
 model User {
   id                     String    @id @default(uuid())
   firebaseUid            String?   @unique @map("firebase_uid")
-  email                  String    @unique
+  // NULLABLE so an organiser can roster a real player who has no email yet (see
+  // ClaimStatus / services/unclaimedPlayer). Postgres allows many NULLs under a
+  // UNIQUE index, so uniqueness still holds for every account that HAS an email.
+  // A null email means: no Firebase user, no login, no email notifications.
+  email                  String?   @unique
   name                   String
   role                   Role
   sport                  Sport?
@@ -268,6 +288,18 @@ model User {
   guardianConsentTokenExpiresAt DateTime?              @map("guardian_consent_token_expires_at")
   guardianConsentAt             DateTime?              @map("guardian_consent_at")
 
+  // ── Unclaimed (organiser-created) profiles ──
+  // An organiser can roster a player who isn't on the platform: we create a real
+  // User row with NO email and NO firebaseUid, so it takes stats, appears in the
+  // tracker and ranks normally — but nobody can sign in as it. The player later
+  // redeems `claimCode` to bind their own login to this row, keeping every stat
+  // and ranking already recorded. Null status = ordinary self-serve account.
+  claimStatus        ClaimStatus? @map("claim_status")
+  claimCodeHash      String?      @map("claim_code_hash") // SHA-256; the plaintext code is shown to the organiser once per rotation
+  claimedAt          DateTime?    @map("claimed_at")
+  // Who created the shell, for audit + so an organiser can re-issue the code.
+  createdByOrganizerId String?    @map("created_by_organizer_id")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -319,6 +351,8 @@ model User {
   @@index([sport])
   @@index([sport, role])
   @@index([name]) // search: helps ORDER BY name; pg_trgm GIN (see prisma/sql) accelerates the ILIKE
+  @@index([claimStatus]) // rankings/visibility carve-outs filter on this
+  @@index([claimCodeHash]) // claim redemption looks the row up by hashed code
 }
 
 // ─── Social: Follow & Connect ────────────────────────────
@@ -682,6 +716,13 @@ model Match {
   matchDate    DateTime
   court        String? // court / pitch / venue label (from the fixture's schedule)
   status       MatchStatus @default(SCHEDULED)
+  // TRACKER (default) covers every match the live tracker publishes, including
+  // all rows that existed before manual entry was added. MANUAL marks a box score
+  // typed in by an organiser for a match nobody tracked; only those may be edited
+  // through the box-score endpoints. See services/manualBoxScore.
+  statsSource  StatsSource @default(TRACKER) @map("stats_source")
+  // Who entered / last corrected a MANUAL box score. Null for tracked matches.
+  enteredById  String?     @map("entered_by_id")
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -694,6 +735,7 @@ model Match {
 
   @@index([tournamentId])
   @@index([matchDate])
+  @@index([tournamentId, statsSource]) // listing an organiser's manual box scores
 }
 
 // ─── Sport-Specific Stats ────────────────────────────────

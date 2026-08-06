@@ -33,9 +33,27 @@ test('an invalid date of birth is rejected', () => {
   assert.equal(r.success, false);
 });
 
-test('a missing/blank email is rejected', () => {
-  assert.equal(ProvisionMemberBody.safeParse({ ...valid, email: '' }).success, false);
-  assert.equal(ProvisionMemberBody.safeParse({ ...valid, email: undefined }).success, false);
+// Email is OPTIONAL: omitting it is what selects the unclaimed-profile path (a
+// player rostered with no account, claimed later with a code). Both spellings of
+// "no email" must normalise to undefined, because the route branches on exactly
+// that — a stray '' would be treated as an address and fail account creation.
+test('a missing or blank email is accepted and normalised to undefined', () => {
+  const blank = ProvisionMemberBody.safeParse({ ...valid, email: '' });
+  assert.ok(blank.success);
+  assert.equal(blank.data.email, undefined);
+
+  const absent = ProvisionMemberBody.safeParse({ ...valid, email: undefined });
+  assert.ok(absent.success);
+  assert.equal(absent.data.email, undefined);
+
+  const spaces = ProvisionMemberBody.safeParse({ ...valid, email: '   ' });
+  assert.ok(spaces.success);
+  assert.equal(spaces.data.email, undefined);
+});
+
+test('a malformed email is still rejected when one IS supplied', () => {
+  assert.equal(ProvisionMemberBody.safeParse({ ...valid, email: 'not-an-email' }).success, false);
+  assert.equal(ProvisionMemberBody.safeParse({ ...valid, email: 'missing@domain' }).success, false);
 });
 
 test('COACH is allowed', () => {

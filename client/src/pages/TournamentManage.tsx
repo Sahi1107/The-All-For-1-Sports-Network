@@ -9,12 +9,17 @@ import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
 import TournamentDetailsModal from '../features/tournaments/TournamentDetailsModal';
 import OrganizersModal from '../features/tournaments/OrganizersModal';
+import BoxScoreModal from '../features/tournaments/BoxScoreModal';
 import { canManageDraw, isRegistrationOpen, TRACKER_SPORTS, LATE_ENTRY_WARNING } from '../features/tournaments/manageGate';
 import {
   ArrowLeft, Check, Info, Users, Flag, GitFork, CalendarClock, Radio,
   UserPlus, Upload, AlertTriangle, ChevronRight, MapPin, Calendar, Crown, Lock,
-  ShieldCheck, Pencil,
+  ShieldCheck, Pencil, ClipboardList,
 } from 'lucide-react';
+
+/** Sports with per-player stat tables and ranking boards — the ones a box score
+ *  can be entered for. Mirrors BOX_SCORE_SPORTS in services/manualBoxScore. */
+const BOX_SCORE_SPORTS = new Set(['BASKETBALL', 'FOOTBALL', 'CRICKET']);
 
 const SPORT = (s?: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase().replace('_', ' ') : '');
 const LIFECYCLE_ACTIONS: Record<string, { to: string; label: string; primary?: boolean }[]> = {
@@ -40,6 +45,8 @@ export default function TournamentManage() {
   const [showAdd, setShowAdd] = useState(false);
   const [showOrganizers, setShowOrganizers] = useState(false);
   const [showEditDetails, setShowEditDetails] = useState(false);
+  const [showBoxScore, setShowBoxScore] = useState(false);
+  const [editBoxScore, setEditBoxScore] = useState<string | null>(null);
 
   if (!user) return <Navigate to="/home" replace />;
   const isSuperAdmin = user.role === 'ADMIN';
@@ -60,6 +67,13 @@ export default function TournamentManage() {
     queryFn: async () => (await api.get(`/tracker/sessions/${id}`)).data.session,
     enabled: !!t && canManage && canManageDraw(t?.status),
   });
+  // Manual box scores already entered for this tournament.
+  const boxScoreSport = BOX_SCORE_SPORTS.has(t?.sport ?? '');
+  const { data: boxScoreData } = useQuery({
+    queryKey: ['box-scores', id],
+    queryFn: async () => (await api.get(`/tournaments/${id}/box-scores`)).data,
+    enabled: !!t && canManage && boxScoreSport,
+  });
 
   const statusMutation = useMutation({
     mutationFn: (status: string) => api.put(`/tournaments/${id}`, { status }),
@@ -73,6 +87,17 @@ export default function TournamentManage() {
 
   const registrations: any[] = regData?.registrations ?? [];
   const pendingTeams = registrations.filter((r) => r.summary.pending > 0).length;
+  const boxScores: any[] = boxScoreData?.matches ?? [];
+  // Teams + their ACCEPTED rosters, which the box score form loads its rows from.
+  // Only accepted members: the server rejects a stat line for anyone not on the
+  // roster, so offering pending invitees would just produce a failed save.
+  const boxScoreTeams = registrations.map((r) => ({
+    id: r.team.id,
+    name: r.team.name,
+    players: (r.team.members ?? [])
+      .filter((m: any) => m.status === 'ACCEPTED')
+      .map((m: any) => ({ userId: m.userId, name: m.user.name, position: m.user.position })),
+  }));
   // Draw & tracking are MANAGEMENT actions — available in every non-cancelled
   // state, including while registration is open (see manageGate). Registration
   // closing only stops the public from self-registering.
@@ -210,13 +235,55 @@ export default function TournamentManage() {
         </Stage>
 
         {/* 6 · Track */}
-        <Stage n={6} icon={Radio} title="Track & publish" done={false} state="Live scoring" muted={!hasDraw} last>
+        <Stage n={6} icon={Radio} title="Track & publish" done={false} state="Live scoring" muted={!hasDraw}>
           {hasDraw ? (
             <Link to={`/admin/stat-tracker/${id}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary text-xs font-semibold rounded-lg transition-colors">
               Open Stat Tracker <ChevronRight size={14} />
             </Link>
           ) : (
             <p className="text-sm text-gray-custom">Track matches live and publish results once the draw is set up.</p>
+          )}
+        </Stage>
+
+        {/* 7 · Box scores — the path for matches nobody tracked live. Not gated on
+            the draw: the whole point is a match that never went through it. */}
+        <Stage n={7} icon={ClipboardList} title="Box scores" done={boxScores.length > 0}
+          state={boxScores.length > 0 ? `${boxScores.length} entered` : 'Untracked matches'}
+          muted={!boxScoreSport} last>
+          {!boxScoreSport ? (
+            <p className="text-sm text-gray-custom">
+              Box scores cover {SPORT('BASKETBALL')}, {SPORT('FOOTBALL')} and {SPORT('CRICKET')} — the sports with per-player stats and rankings.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-custom">
+                Played a match without the live tracker? Type the box score in from the scoresheet.
+                It becomes the result, publishes each player's stats to their profile, and updates the rankings.
+              </p>
+              {boxScores.length > 0 && (
+                <ul className="space-y-1.5">
+                  {boxScores.map((m: any) => (
+                    <li key={m.id} className="flex items-center gap-2 text-sm">
+                      <span className="flex-1 min-w-0 truncate">
+                        {m.homeTeam?.name} <span className="font-semibold tabular-nums">{m.homeScore}–{m.awayScore}</span> {m.awayTeam?.name}
+                      </span>
+                      <span className="text-[11px] text-gray-custom shrink-0">
+                        {new Date(m.matchDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </span>
+                      <button onClick={() => setEditBoxScore(m.id)} className="text-xs text-primary-light hover:underline shrink-0">Edit</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <button
+                onClick={() => setShowBoxScore(true)}
+                disabled={boxScoreTeams.length < 2}
+                title={boxScoreTeams.length < 2 ? 'Register at least two teams first' : undefined}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-line hover:border-primary text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                <ClipboardList size={13} /> Add box score
+              </button>
+            </div>
           )}
         </Stage>
       </div>
@@ -239,6 +306,15 @@ export default function TournamentManage() {
         </div>
       )}
 
+      {(showBoxScore || editBoxScore) && (
+        <BoxScoreModal
+          tournamentId={id!}
+          sport={t.sport}
+          teams={boxScoreTeams}
+          matchId={editBoxScore ?? undefined}
+          onClose={() => { setShowBoxScore(false); setEditBoxScore(null); }}
+        />
+      )}
       {editTeam && <RosterEditorModal tournamentId={id!} team={editTeam} sport={t.sport} onClose={() => setEditTeam(null)} />}
       {showAdd && <AddTeamModal tournamentId={id!} sport={t.sport} onClose={() => setShowAdd(false)} />}
       {showEditDetails && <TournamentDetailsModal tournament={t} onClose={() => setShowEditDetails(false)} />}

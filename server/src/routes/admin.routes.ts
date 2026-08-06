@@ -942,7 +942,8 @@ router.post(
         where: { email: { in: emails } },
         select: { email: true },
       });
-      const existingEmails = new Set(existing.map((u) => u.email));
+      // Unclaimed profiles have no email; they can't collide with an import row.
+      const existingEmails = new Set(existing.flatMap((u) => (u.email ? [u.email] : [])));
 
       const { report } = buildReport(rows, tournamentToContext(tournament), existingEmails);
       res.json({ report });
@@ -1006,7 +1007,8 @@ router.post(
         where: { email: { in: emails } },
         select: { email: true },
       });
-      const existingEmails = new Set(existing.map((u) => u.email));
+      // Unclaimed profiles have no email; they can't collide with an import row.
+      const existingEmails = new Set(existing.flatMap((u) => (u.email ? [u.email] : [])));
 
       const { report } = buildReport(rows, standaloneContext(req.body.sport), existingEmails);
       res.json({ report });

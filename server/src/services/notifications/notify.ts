@@ -116,8 +116,14 @@ async function dispatch(input: NotifyInput): Promise<void> {
     emailPref: pref.email, digest: pref.digest, paused, quiet,
     suppressEmail: !!input.suppressEmail, created, alreadyEmailed, hasEmail: !!recipient.email,
   });
-  if (emailNow) {
-    await deliverEmail({ recipient, type: input.type, ctx, link: input.link ?? null, notifId });
+  // `shouldEmailNow` already gates on hasEmail; re-checking here also narrows the
+  // nullable column to the non-null address deliverEmail requires. An unclaimed
+  // (organiser-created) profile has no email, so it silently gets in-app only.
+  if (emailNow && recipient.email) {
+    await deliverEmail({
+      recipient: { ...recipient, email: recipient.email },
+      type: input.type, ctx, link: input.link ?? null, notifId,
+    });
   }
 
   // 7 · PUSH channel — mirrors the instant, in-app-enabled notifications (the

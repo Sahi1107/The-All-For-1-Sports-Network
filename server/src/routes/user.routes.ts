@@ -13,6 +13,7 @@ import { recordProfileView, profileViewsSummary } from '../services/notification
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere } from '../services/search/gate';
+import { isPubliclyViewable } from '../services/profileVisibility';
 import { personSearchOr } from '../services/search/matchQuery';
 import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser, matchStatLinesForUser, type MatchStatLine } from '../data/careerStats';
 import logger from '../utils/logger';
@@ -350,10 +351,10 @@ router.get('/:id/performance-card', authenticate, async (req: AuthRequest, res: 
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, sport: true, discoverable: true, achievements: true, athleticsEvents: true },
+      select: { id: true, sport: true, discoverable: true, claimStatus: true, guardianManaged: true, achievements: true, athleticsEvents: true },
     });
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-    if (!isSelf && user.discoverable === false) { res.status(404).json({ error: 'User not found' }); return; }
+    if (!isSelf && !isPubliclyViewable(user)) { res.status(404).json({ error: 'User not found' }); return; }
 
     const sport = user.sport;
     const statSport = isStatSport(sport);
@@ -475,6 +476,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
         bio: true, location: true, age: true, height: true, position: true,
         achievements: true, verified: true, createdAt: true,
         contactEmail: true, banner: true, guardianManaged: true, discoverable: true,
+        // Drives both the visibility gate below and the "unclaimed profile" notice
+        // the client shows on the page.
+        claimStatus: true,
         // Email, phone, DOB, and notification settings are private
         ...(isSelf && { email: true, phone: true, phoneVerified: true, dateOfBirth: true, handoverStatus: true, messageNotifications: true, showOnlineStatus: true, messagingFollowersOnly: true, privateProfileViews: true }),
         highlights: { orderBy: { createdAt: 'desc' }, take: 10 },
@@ -491,8 +495,10 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
 
     // A private (undiscoverable) profile — under-13 accounts by default — is only
     // viewable by the account holder (the guardian). 404 rather than 403 so we
-    // don't confirm the account exists to outsiders.
-    if (!isSelf && user.discoverable === false) {
+    // don't confirm the account exists to outsiders. An UNCLAIMED profile is the
+    // documented exception: not discoverable, but its page must open, because it
+    // is linked from rosters, box scores and the ranking boards.
+    if (!isSelf && !isPubliclyViewable(user)) {
       res.status(404).json({ error: 'User not found' });
       return;
     }

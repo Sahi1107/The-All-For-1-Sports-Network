@@ -76,7 +76,7 @@ export async function provisionOrganizerAccount(input: {
   await admin.auth().setCustomUserClaims(firebaseUid, { userId: user.id, role: Role.ORGANIZER });
 
   await sendOrganizerWelcome(
-    { email: user.email, name: user.name },
+    { email, name: user.name }, // the address we just created the account with
     tempPassword,
     input.tournamentName,
     `${clientOrigin()}${managePath(input.tournamentId)}`,

@@ -23,8 +23,14 @@ import logger from '../utils/logger';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody, ProvisionMemberBody, PlayerSearchQuery,
+  BoxScoreBody,
 } from '../validation/tournament';
+import {
+  BoxScoreError, BOX_SCORE_SPORTS, publishBoxScore, notifyBoxScorePublished,
+  toPlayerStats, loadStatRows,
+} from '../services/manualBoxScore';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
+import { createUnclaimedPlayer, reissueClaimCode } from '../services/unclaimedPlayer';
 import { rosterPlayerSearchWhere } from '../services/rosterSearch';
 import { teamRosterIsLocked, ROSTER_LOCK_STATUSES, rosterNeedsAttention, rosterMeetsMinimum } from '../services/rosterLifecycle';
 
@@ -1150,7 +1156,9 @@ router.get('/:id/registrations', authenticate, requireTournamentAccess(fromParam
             captain: { select: { id: true, name: true, avatar: true } },
             coach:   { select: { id: true, name: true, avatar: true } },
             members: {
-              include: { user: { select: { id: true, name: true, avatar: true, position: true } } },
+              // claimStatus drives the "Unclaimed" badge + claim-code control in
+              // the organiser's roster editor.
+              include: { user: { select: { id: true, name: true, avatar: true, position: true, claimStatus: true } } },
               orderBy: { invitedAt: 'asc' },
             },
           },
@@ -1303,7 +1311,7 @@ router.post('/:id/bulk-provision/preview', authenticate, requireTournamentAccess
     const rows = req.body.rows as any[];
     const emails = [...new Set(rows.map((r) => normalizeEmail(r.email)).filter(Boolean))];
     const existing = await prisma.user.findMany({ where: { email: { in: emails } }, select: { email: true } });
-    const { report } = buildReport(rows, tournamentToContext(t), new Set(existing.map((u) => u.email)));
+    const { report } = buildReport(rows, tournamentToContext(t), new Set(existing.flatMap((u) => (u.email ? [u.email] : []))));
     res.json({ report });
   } catch (error) {
     console.error('Organiser bulk-provision preview error:', error);
@@ -1354,15 +1362,23 @@ router.post('/:id/teams/:teamId/members', authenticate, requireTournamentAccess(
 });
 
 // POST /api/tournaments/:id/teams/:teamId/members/provision — create a NEW player
-// account and add them to the team directly (all-accepted). For organisers running
-// a live tournament where most players aren't on the platform yet.
+// and add them to the team directly (all-accepted). For organisers running a live
+// tournament where most players aren't on the platform yet.
+//
+// Two paths, chosen by whether an email was supplied:
+//   • WITH email    → provisionAthleteAccount: a real account with credentials, a
+//                     welcome email, and under-13 guardian consent. An existing
+//                     account (by email) is linked and added, never recreated.
+//   • WITHOUT email → createUnclaimedPlayer: a shell profile with no email and no
+//                     Firebase user, so nobody can sign in as it. It still rosters,
+//                     appears in the tracker, takes published stats and ranks. The
+//                     response carries a one-time claim code for the organiser to
+//                     hand to the player, who redeems it at /claim to take the
+//                     profile — and everything recorded on it — over.
 //
 // Tournament-SCOPED (requireTournamentAccess): the team must belong to THIS
 // tournament and the sport is taken from the tournament — this is not a path to
-// platform-wide user creation or bulk provisioning. Account creation (DOB / under-13
-// guardian consent / private-by-default / duplicate-email linking) is delegated to
-// provisionAthleteAccount, so every safeguard that applies to admin creation applies
-// here too. An existing account (by email) is linked and added, never recreated.
+// platform-wide user creation or bulk provisioning.
 router.post(
   '/:id/teams/:teamId/members/provision',
   authenticate,
@@ -1387,18 +1403,21 @@ router.post(
 
       const b = req.body;
       // Sport is the tournament's, never client-supplied — keeps this scoped.
-      const result = await provisionAthleteAccount({
+      const common = {
         name: b.name,
-        email: b.email,
         role: b.role,
         sport: tournament.sport,
         dateOfBirth: new Date(b.dateOfBirth),
         gender: b.gender,
         position: b.position,
         phone: b.phone,
-        guardianEmail: b.guardianEmail,
         allowDuplicate: b.allowDuplicate,
-      });
+      };
+
+      // No email ⇒ unclaimed shell profile; the claim code is returned once.
+      const result = b.email
+        ? await provisionAthleteAccount({ ...common, email: b.email, guardianEmail: b.guardianEmail })
+        : await createUnclaimedPlayer({ ...common, createdByOrganizerId: req.user!.userId });
 
       await prisma.teamMember.upsert({
         where: { teamId_userId: { teamId: team.id, userId: result.userId } },
@@ -1408,8 +1427,10 @@ router.post(
 
       res.status(201).json({
         userId: result.userId,
-        created: result.created,
-        guardianConsentPending: result.guardianConsentPending,
+        created: 'created' in result ? result.created : true,
+        guardianConsentPending: 'guardianConsentPending' in result ? result.guardianConsentPending : false,
+        // Present only on the no-email path — shown to the organiser once.
+        ...('claimCode' in result && { claimCode: result.claimCode, unclaimed: true }),
       });
     } catch (error) {
       if (error instanceof ProvisionError) {
@@ -1422,6 +1443,41 @@ router.post(
     }
   },
 );
+
+// POST /api/tournaments/:id/players/:userId/claim-code — re-issue the claim code
+// for an unclaimed profile (the organiser lost the slip, or handed it to the wrong
+// person). Rotating INVALIDATES the previous code. The plaintext is returned once
+// and only ever stored hashed, so this is the only way to recover access to a code.
+//
+// Scoped twice over: requireTournamentAccess gates the caller to THIS tournament's
+// organiser (or a platform admin), and the player must actually be on one of this
+// tournament's rosters — so an organiser can't rotate codes for the whole platform.
+router.post('/:id/players/:userId/claim-code', authenticate, requireTournamentAccess(fromParamId), writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const userId = req.params.userId as string;
+
+    const onRoster = await prisma.teamMember.findFirst({
+      where: { userId, team: { tournamentId } },
+      select: { id: true },
+    });
+    if (!onRoster) {
+      res.status(404).json({ error: 'That player is not on a roster in this tournament' });
+      return;
+    }
+
+    const claimCode = await reissueClaimCode(userId);
+    logger.info('tournament.claim_code_reissued', { tournamentId, userId, by: req.user!.userId });
+    res.json({ claimCode });
+  } catch (error) {
+    if (error instanceof ProvisionError) {
+      res.status(error.code === 'NOT_FOUND' ? 404 : 409).json({ error: error.message, code: error.code });
+      return;
+    }
+    console.error('Re-issue claim code error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // DELETE /api/tournaments/:id/teams/:teamId/members/:userId — admin: remove a member.
 // Any player can be removed — including the captain. Removing the captain simply
@@ -1581,6 +1637,266 @@ router.put('/matches/:matchId/result', authenticate, requireTournamentAccess(fro
     res.json({ message: 'Match result updated', matchId: req.params.matchId });
   } catch (error) {
     console.error('Update match result error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Manual box scores (matches nobody tracked live) ────────────────────────
+//
+// An organiser types a finished match's box score in from the scoresheet. It
+// becomes the match result, publishes per-player stats to profiles, and feeds the
+// ranking boards — the same pipeline a tracked match publishes through (see
+// services/manualBoxScore). Team scores are DERIVED from the sheet, never sent.
+
+/** Load a tournament + verify the sport supports per-player stats at all. */
+async function boxScoreTournament(id: string) {
+  const t = await prisma.tournament.findUnique({
+    where: { id }, select: { id: true, sport: true, name: true },
+  });
+  if (!t) throw new BoxScoreError('Tournament not found', 'NOT_FOUND');
+  if (!BOX_SCORE_SPORTS.has(t.sport)) {
+    throw new BoxScoreError(`Box scores aren't supported for ${t.sport} yet`, 'UNSUPPORTED_SPORT');
+  }
+  return t;
+}
+
+/**
+ * Both teams must be registered in THIS tournament, and every player named must
+ * be on the roster of the side they're listed under. Without this an organiser
+ * could publish stats onto any profile on the platform, which would land in that
+ * player's career totals and ranking with no connection to a match they played.
+ */
+async function assertRostersMatch(
+  tournamentId: string,
+  homeTeamId: string, awayTeamId: string,
+  home: { userId: string }[], away: { userId: string }[],
+) {
+  const teams = await prisma.team.findMany({
+    where: { id: { in: [homeTeamId, awayTeamId] }, tournamentId },
+    select: { id: true, name: true, members: { select: { userId: true } } },
+  });
+  if (teams.length !== 2) {
+    throw new BoxScoreError('Both teams must be registered in this tournament', 'TEAM_NOT_IN_TOURNAMENT');
+  }
+  for (const [teamId, lines, side] of [[homeTeamId, home, 'home'], [awayTeamId, away, 'away']] as const) {
+    const team = teams.find((t) => t.id === teamId)!;
+    const roster = new Set(team.members.map((m) => m.userId));
+    const stranger = lines.find((l) => !roster.has(l.userId));
+    if (stranger) {
+      throw new BoxScoreError(
+        `A player in the ${side} box score isn't on ${team.name}'s roster. Add them to the team first.`,
+        'PLAYER_NOT_ON_ROSTER', side,
+      );
+    }
+  }
+}
+
+/** Map a BoxScoreError to the right status. */
+function boxScoreStatus(code: string): number {
+  if (code === 'NOT_FOUND') return 404;
+  if (code === 'TRACKED_MATCH') return 409;
+  return 400;
+}
+
+// GET /api/tournaments/:id/box-scores — manual box scores entered for this
+// tournament, so the organiser can see what they've recorded and correct it.
+router.get('/:id/box-scores', authenticate, requireTournamentAccess(fromParamId), async (req: AuthRequest, res: Response) => {
+  try {
+    const matches = await prisma.match.findMany({
+      where: { tournamentId: req.params.id as string, statsSource: 'MANUAL' },
+      select: {
+        id: true, homeScore: true, awayScore: true, matchDate: true, round: true, court: true,
+        homeTeam: { select: { id: true, name: true } },
+        awayTeam: { select: { id: true, name: true } },
+      },
+      orderBy: { matchDate: 'desc' },
+    });
+    res.json({ matches });
+  } catch (error) {
+    console.error('List box scores error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/tournaments/:id/box-scores/:matchId — reload a manual box score for
+// correction, rebuilt from the stat rows it wrote.
+//
+// Players on the roster with NO stat row come back as DNP (played: false), which
+// is exactly how they were entered: a DNP writes no row, so absence IS the record.
+router.get('/:id/box-scores/:matchId', authenticate, requireTournamentAccess(fromParamId), async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const t = await boxScoreTournament(tournamentId);
+    const match = await prisma.match.findFirst({
+      where: { id: req.params.matchId as string, tournamentId },
+      select: {
+        id: true, homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true,
+        matchDate: true, round: true, court: true, statsSource: true,
+      },
+    });
+    if (!match) { res.status(404).json({ error: 'Match not found in this tournament' }); return; }
+    if (match.statsSource !== 'MANUAL') {
+      res.status(409).json({
+        error: 'This match was scored in the live tracker — correct it there, not as a box score.',
+        code: 'TRACKED_MATCH',
+      });
+      return;
+    }
+
+    const rows = await loadStatRows(t.sport, match.id);
+    const byUser = new Map(rows.map((r) => [r.userId, r]));
+
+    const teams = await prisma.team.findMany({
+      where: { id: { in: [match.homeTeamId, match.awayTeamId] } },
+      select: {
+        id: true, name: true,
+        members: {
+          select: { userId: true, user: { select: { id: true, name: true, position: true } } },
+          orderBy: { invitedAt: 'asc' },
+        },
+      },
+    });
+    const sideFor = (teamId: string) => {
+      const team = teams.find((x) => x.id === teamId);
+      return (team?.members ?? []).map((m) => ({
+        userId: m.userId,
+        name: m.user.name,
+        position: m.user.position,
+        played: byUser.has(m.userId),
+        stats: byUser.get(m.userId) ?? null,
+      }));
+    };
+
+    res.json({
+      match: {
+        id: match.id, homeTeamId: match.homeTeamId, awayTeamId: match.awayTeamId,
+        homeScore: match.homeScore, awayScore: match.awayScore,
+        matchDate: match.matchDate, round: match.round, court: match.court,
+      },
+      sport: t.sport,
+      home: sideFor(match.homeTeamId),
+      away: sideFor(match.awayTeamId),
+    });
+  } catch (error) {
+    if (error instanceof BoxScoreError) {
+      res.status(boxScoreStatus(error.code)).json({ error: error.message, code: error.code });
+      return;
+    }
+    console.error('Load box score error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/tournaments/:id/box-scores — enter a box score for an untracked
+// match. Creates the match, publishes stats to every profile in it, and updates
+// the rankings. The score is derived from the sheet.
+router.post('/:id/box-scores', authenticate, requireTournamentAccess(fromParamId), writeLimiter, validate({ body: BoxScoreBody }), async (req: AuthRequest, res: Response) => {
+  await handleBoxScoreWrite(req, res, undefined);
+});
+
+// PUT /api/tournaments/:id/box-scores/:matchId — correct one. Re-runs the whole
+// pipeline, so stats and rankings converge on the corrected sheet.
+router.put('/:id/box-scores/:matchId', authenticate, requireTournamentAccess(fromParamId), writeLimiter, validate({ body: BoxScoreBody }), async (req: AuthRequest, res: Response) => {
+  await handleBoxScoreWrite(req, res, req.params.matchId as string);
+});
+
+async function handleBoxScoreWrite(req: AuthRequest, res: Response, matchId: string | undefined) {
+  try {
+    const tournamentId = req.params.id as string;
+    const t = await boxScoreTournament(tournamentId);
+    const b = req.body as {
+      homeTeamId: string; awayTeamId: string; matchDate: Date;
+      round?: string; court?: string;
+      home: { userId: string; played: boolean; stats?: Record<string, number> }[];
+      away: { userId: string; played: boolean; stats?: Record<string, number> }[];
+    };
+
+    // Correcting: the match must exist here AND be a manual one. Refusing to
+    // touch a tracker-owned match matters — the next tracker publish would
+    // silently overwrite whatever was typed here, so the edit would look
+    // accepted and then vanish.
+    if (matchId) {
+      const existing = await prisma.match.findFirst({
+        where: { id: matchId, tournamentId }, select: { statsSource: true },
+      });
+      if (!existing) { res.status(404).json({ error: 'Match not found in this tournament' }); return; }
+      if (existing.statsSource !== 'MANUAL') {
+        res.status(409).json({
+          error: 'This match was scored in the live tracker — correct it there, not as a box score.',
+          code: 'TRACKED_MATCH',
+        });
+        return;
+      }
+    }
+
+    await assertRostersMatch(tournamentId, b.homeTeamId, b.awayTeamId, b.home, b.away);
+
+    const result = await publishBoxScore({
+      tournamentId, sport: t.sport,
+      homeTeamId: b.homeTeamId, awayTeamId: b.awayTeamId,
+      boxScore: { home: b.home, away: b.away },
+      matchDate: b.matchDate, round: b.round ?? null, court: b.court ?? null,
+      enteredById: req.user!.userId,
+      matchId,
+    });
+
+    bustTournament(tournamentId);
+    logger.info('tournament.box_score_published', {
+      tournamentId, matchId: result.matchId, by: req.user!.userId,
+      players: result.playerCount, corrected: !!matchId,
+    });
+    res.status(matchId ? 200 : 201).json(result);
+
+    // Fire-and-forget: the stats are already written; a notification failure
+    // must not turn a successful publish into an error.
+    void notifyBoxScorePublished({
+      tournamentId, sport: t.sport,
+      homeTeamId: b.homeTeamId, awayTeamId: b.awayTeamId,
+      homeScore: result.homeScore, awayScore: result.awayScore,
+      matchId: result.matchId,
+      playerStats: toPlayerStats(t.sport, { home: b.home, away: b.away }),
+    }).catch((e) => console.error('box score notify failed', e));
+  } catch (error) {
+    if (error instanceof BoxScoreError) {
+      res.status(boxScoreStatus(error.code)).json({ error: error.message, code: error.code, field: error.field });
+      return;
+    }
+    console.error('Publish box score error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// DELETE /api/tournaments/:id/box-scores/:matchId — remove a manual box score
+// entirely (entered against the wrong fixture, or a duplicate). Deleting the
+// Match cascades its per-player stat rows, so profiles and career totals lose it
+// too; rankings are then recomputed so the boards stop counting it.
+router.delete('/:id/box-scores/:matchId', authenticate, requireTournamentAccess(fromParamId), writeLimiter, async (req: AuthRequest, res: Response) => {
+  try {
+    const tournamentId = req.params.id as string;
+    const match = await prisma.match.findFirst({
+      where: { id: req.params.matchId as string, tournamentId },
+      select: { id: true, statsSource: true },
+    });
+    if (!match) { res.status(404).json({ error: 'Match not found in this tournament' }); return; }
+    if (match.statsSource !== 'MANUAL') {
+      res.status(409).json({
+        error: 'This match was scored in the live tracker — un-publish it there instead.',
+        code: 'TRACKED_MATCH',
+      });
+      return;
+    }
+
+    await prisma.match.delete({ where: { id: match.id } }); // cascades stat rows
+    try {
+      await recalculateTournamentRankings(tournamentId);
+    } catch (e) {
+      console.error('ranking recompute (box score delete) failed', e);
+    }
+    bustTournament(tournamentId);
+    logger.info('tournament.box_score_deleted', { tournamentId, matchId: match.id, by: req.user!.userId });
+    res.json({ deleted: true });
+  } catch (error) {
+    console.error('Delete box score error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

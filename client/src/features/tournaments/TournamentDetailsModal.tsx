@@ -191,9 +191,24 @@ export default function TournamentDetailsModal({ tournament, onClose }: { tourna
             </div>
             <div>
               <label className={label}>Gender</label>
-              <input className={input} value={f.genderCategory} onChange={(e) => set({ genderCategory: e.target.value })} maxLength={20} placeholder="Men" />
+              {/* A fixed list, not free text: this field decides which ranking
+                  board the tournament appears on (Men / Women). Typed variants
+                  like "Mens" used to read as uncategorised, which put a women's
+                  tournament on the men's board. Matches the admin form's options. */}
+              <select className={input} value={f.genderCategory} onChange={(e) => set({ genderCategory: e.target.value })}>
+                <option value="">— Not set —</option>
+                <option value="MEN">Men</option>
+                <option value="WOMEN">Women</option>
+                <option value="MIXED">Mixed</option>
+                <option value="OPEN">Open</option>
+              </select>
             </div>
           </div>
+          <p className="text-[11px] text-gray-custom -mt-1">
+            Gender decides which ranking board this tournament appears under. Left unset, its
+            players are sorted by their own profile gender instead — and anyone without one
+            shows on both boards.
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={label}>Min roster size</label>

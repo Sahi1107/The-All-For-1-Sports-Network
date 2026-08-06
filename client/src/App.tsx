@@ -63,6 +63,7 @@ const ForgotPassword     = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword      = lazy(() => import('./pages/ResetPassword'));
 const HandoverConsent    = lazy(() => import('./pages/HandoverConsent'));
 const GuardianConsent    = lazy(() => import('./pages/GuardianConsent'));
+const ClaimProfile       = lazy(() => import('./pages/ClaimProfile'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -207,6 +208,12 @@ function AppRoutes() {
 
         {/* Forced first-login password change (bulk-provisioned accounts) */}
         <Route path="/force-password-reset" element={<ProtectedRoute><ForcePasswordReset /></ProtectedRoute>} />
+
+        {/* Claim a profile an organiser created for you (played before you joined).
+            Protected: you must be signed in, because claiming binds the profile to
+            YOUR account. /claim/:code lets an organiser share a direct link. */}
+        <Route path="/claim"       element={<ProtectedRoute><ClaimProfile /></ProtectedRoute>} />
+        <Route path="/claim/:code" element={<ProtectedRoute><ClaimProfile /></ProtectedRoute>} />
 
         {/* Full-screen live trackers (no app sidebar) */}
         <Route element={<ProtectedRoute><Outlet /></ProtectedRoute>}>

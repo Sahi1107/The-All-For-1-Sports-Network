@@ -125,20 +125,31 @@ export const RegisterTeamBody = z.object({
 );
 
 // ─── Provision a NEW player onto a team (tournament-scoped) ────────────────────
-// Lets an organiser add a player who isn't on the platform yet: the account is
+// Lets an organiser add a player who isn't on the platform yet: the profile is
 // created and added to the team directly (all-accepted). The SPORT is taken from
 // the tournament, never the body — so this can't create off-tournament accounts.
-// DOB + gender are mandatory here; under-13 guardian-consent and duplicate-email
-// handling are enforced downstream by provisionAthleteAccount (same rules as the
-// admin single-create). Only ATHLETE/COACH — never a privileged role.
+// Only ATHLETE/COACH — never a privileged role.
+//
+// EMAIL IS OPTIONAL. With one, an account is provisioned as before (credentials +
+// welcome email, under-13 guardian consent — all enforced downstream by
+// provisionAthleteAccount). Without one, an UNCLAIMED shell profile is created
+// instead (services/unclaimedPlayer): it rosters, tracks and ranks like any other
+// player but has no login until the player redeems a claim code. DOB + gender stay
+// mandatory on both paths — gender drives the split ranking boards and DOB drives
+// age categories and the under-13 safeguards.
 
 export const ProvisionMemberBody = z.object({
   name:  reqStr(80, 'Name'),
+  // Omitted / empty ⇒ create an unclaimed profile. `''` is normalised to
+  // undefined so a cleared form field behaves the same as an absent one.
   email: z
-    .string({ error: 'Email is required' })
-    .email('Invalid email address')
+    .string()
     .max(254, 'Email address too long')
-    .transform((s) => s.toLowerCase().trim()),
+    .optional()
+    // Trim FIRST, then treat anything empty as absent — a whitespace-only field
+    // must mean "no email", not an unparseable address.
+    .transform((s) => { const t = s?.trim().toLowerCase(); return t ? t : undefined; })
+    .refine((s) => s === undefined || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s), 'Invalid email address'),
   role:  z.enum(['ATHLETE', 'COACH'], { error: 'role must be ATHLETE or COACH' }).default('ATHLETE'),
   dateOfBirth: z
     .string({ error: 'Date of birth is required' })
@@ -226,4 +237,58 @@ export const MatchResultBody = z.object({
   homeScore:   z.coerce.number().int().min(0).max(9999).optional(),
   awayScore:   z.coerce.number().int().min(0).max(9999).optional(),
   playerStats: z.array(PlayerStatEntry).max(50, 'Cannot submit stats for more than 50 players').optional(),
+});
+
+// ─── Manual box score (untracked match) ───────────────────────────────────────
+//
+// The organiser types a finished match's box score in afterwards. Shapes mirror
+// how a box score is actually printed — notably FGM/FGA are TOTALS including
+// threes (see the sample sheet), which services/manualBoxScore converts to the
+// schema's separate two-/three-point columns.
+//
+// This schema only bounds the numbers. The rules that make a box score COHERENT
+// (points matching the shooting line, makes ≤ attempts, threes ⊆ field goals) live
+// in services/manualBoxScore so the client can run exactly the same checks as it
+// types. Team scores are deliberately NOT accepted here — they're derived by
+// summing the sheet, so the score and the box score can never disagree.
+
+const BoxScoreBasketballShape = z.object({
+  points:             z.coerce.number().int().min(0).max(200),
+  fieldGoalsMade:     z.coerce.number().int().min(0).max(100), // FGM — total, incl. threes
+  fieldGoalAttempts:  z.coerce.number().int().min(0).max(150), // FGA — total, incl. threes
+  threePointers:      z.coerce.number().int().min(0).max(50),
+  threePointAttempts: z.coerce.number().int().min(0).max(80),
+  freeThrows:         z.coerce.number().int().min(0).max(60),
+  freeThrowAttempts:  z.coerce.number().int().min(0).max(80),
+  rebounds:           z.coerce.number().int().min(0).max(100),
+  offRebounds:        z.coerce.number().int().min(0).max(60),
+  defRebounds:        z.coerce.number().int().min(0).max(80),
+  assists:            z.coerce.number().int().min(0).max(100),
+  steals:             z.coerce.number().int().min(0).max(50),
+  blocks:             z.coerce.number().int().min(0).max(50),
+  turnovers:          z.coerce.number().int().min(0).max(50),
+  personalFouls:      z.coerce.number().int().min(0).max(10),
+  minutesPlayed:      z.coerce.number().min(0).max(80),
+}).partial();
+
+const BoxScoreFootballShape = FootballStatsShape;
+const BoxScoreCricketShape = CricketStatsShape.omit({ strikeRate: true, economy: true });
+
+const BoxScoreLine = z.object({
+  userId: z.string().uuid('Each box score line needs a valid player'),
+  /** false = DNP. A DNP writes NO stat row — see services/manualBoxScore. */
+  played: z.boolean().default(true),
+  stats: z.union([BoxScoreBasketballShape, BoxScoreFootballShape, BoxScoreCricketShape]).optional(),
+});
+
+export const BoxScoreBody = z.object({
+  homeTeamId: z.string().uuid('Home team is required'),
+  awayTeamId: z.string().uuid('Away team is required'),
+  matchDate:  isoDate('Match date'),
+  round:      optStr(50, 'Round'),
+  court:      optStr(60, 'Court'),
+  home: z.array(BoxScoreLine).max(30, 'A roster cannot exceed 30 players'),
+  away: z.array(BoxScoreLine).max(30, 'A roster cannot exceed 30 players'),
+}).refine((d) => d.homeTeamId !== d.awayTeamId, {
+  message: 'A team cannot play itself', path: ['awayTeamId'],
 });

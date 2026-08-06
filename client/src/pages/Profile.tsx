@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2, Award } from 'lucide-react';
+import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2, Award, KeyRound } from 'lucide-react';
 import ShareProfileModal from '../components/ShareProfileModal';
 import { VerifiedTick, PerformanceCard as PerformancePostCard } from '../components/feed/FeedBits';
 import toast from 'react-hot-toast';
@@ -836,6 +836,14 @@ export default function Profile() {
                     <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary-light font-medium">
                       <Users size={11} />
                       Parent / academy managed
+                    </span>
+                  )}
+                  {/* Created by an organiser for a player who wasn't on the platform.
+                      The stats and rankings below are real; nobody owns the profile yet. */}
+                  {profile.claimStatus === 'UNCLAIMED' && (
+                    <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-medium">
+                      <KeyRound size={11} />
+                      Unclaimed
                     </span>
                   )}
                 </div>

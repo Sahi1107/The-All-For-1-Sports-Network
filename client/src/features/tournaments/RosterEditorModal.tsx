@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Crown, UserPlus, Trash2, AlertTriangle, Search, Lock } from 'lucide-react';
+import { X, Crown, UserPlus, Trash2, AlertTriangle, Search, Lock, KeyRound, Copy, Check } from 'lucide-react';
 import api from '../../api/client';
 
-interface Member { userId: string; role: string; status: string; user: { id: string; name: string; position?: string | null } }
+interface Member {
+  userId: string; role: string; status: string;
+  user: { id: string; name: string; position?: string | null; claimStatus?: 'UNCLAIMED' | 'CLAIMED' | null };
+}
 interface Team { id: string; name: string; captainId: string | null; members: Member[] }
 
 // Suggested positions per sport. Free text is still allowed, but these map to the
@@ -61,6 +64,52 @@ function ageFromDateString(s: string): number | null {
   return a;
 }
 
+/** The claim code for an unclaimed profile, shown once. It exists only hashed on
+ *  the server, so this panel is the single chance to copy it — re-issuing later
+ *  mints a different code and invalidates this one. */
+function ClaimCodePanel({ name, code, onDone }: { name: string; code: string; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Could not copy — write the code down instead');
+    }
+  };
+  return (
+    <div className="p-3 rounded-lg border border-primary/40 bg-primary/5 text-xs space-y-2">
+      <p className="flex items-start gap-1.5 text-foreground font-medium">
+        <KeyRound size={13} className="mt-0.5 shrink-0 text-primary" />
+        <span><span className="font-semibold">{name}</span> was added without an email.</span>
+      </p>
+      <p className="text-gray-custom">
+        They'll be on the roster, in the tracker and on the rankings straight away. Give them this
+        code — they enter it after signing up to take over the profile and everything recorded on it.
+      </p>
+      <div className="flex items-center gap-2">
+        <code className="flex-1 px-3 py-2 rounded-lg bg-surface border border-line font-mono text-sm tracking-widest text-center select-all">
+          {code}
+        </code>
+        <button
+          onClick={copy}
+          title="Copy claim code"
+          className="p-2 rounded-lg border border-line text-gray-custom hover:text-foreground hover:bg-elevated transition-colors"
+        >
+          {copied ? <Check size={14} className="text-accent" /> : <Copy size={14} />}
+        </button>
+      </div>
+      <p className="text-[11px] text-amber-300/90">
+        Copy it now — it isn't stored in readable form. You can issue a new one later, which replaces this.
+      </p>
+      <button onClick={onDone} className="w-full px-3 py-1.5 rounded-lg border border-line text-gray-custom hover:text-foreground">
+        Done
+      </button>
+    </div>
+  );
+}
+
 /** Admin roster editor: add/remove players directly (ACCEPTED, no invite dance),
  *  and clearly surface members who haven't accepted — they're excluded from the
  *  draw. */
@@ -82,10 +131,21 @@ export default function RosterEditorModal({
   const [mode, setMode] = useState<'search' | 'create'>('search');
   const [np, setNp] = useState<NewPlayer>(EMPTY_NEW);
   // Matching records returned when the server flags a likely duplicate at creation.
-  const [dupMatches, setDupMatches] = useState<Array<{ id: string; name: string; email: string; role: string }> | null>(null);
+  const [dupMatches, setDupMatches] = useState<Array<{ id: string; name: string; email: string | null; role: string }> | null>(null);
+  // Set when a player was created WITHOUT an email — shown once, then dismissed.
+  const [claimCode, setClaimCode] = useState<{ name: string; code: string } | null>(null);
   const npAge = ageFromDateString(np.dateOfBirth);
   const npUnder13 = npAge !== null && npAge < 13;
-  const npValid = !!(np.name.trim() && np.email.trim() && np.dateOfBirth && np.gender && (!npUnder13 || np.guardianEmail.trim()));
+  // Email is OPTIONAL: with one the player gets a real account and login details;
+  // without one they get an unclaimed profile they can claim later with a code.
+  const npHasEmail = !!np.email.trim();
+  // A guardian email only gates ISSUING CREDENTIALS to a minor. An unclaimed
+  // profile has none to issue, so it isn't required on the no-email path — the
+  // profile is simply kept private until someone claims it.
+  const npValid = !!(
+    np.name.trim() && np.dateOfBirth && np.gender &&
+    (!npUnder13 || !npHasEmail || np.guardianEmail.trim())
+  );
   const setNpField = (patch: Partial<NewPlayer>) => setNp((v) => ({ ...v, ...patch }));
 
   const [search, setSearch] = useState('');
@@ -126,23 +186,29 @@ export default function RosterEditorModal({
   const createPlayer = useMutation({
     mutationFn: (allowDuplicate: boolean) => api.post(`/tournaments/${tournamentId}/teams/${team.id}/members/provision`, {
       name: np.name.trim(),
-      email: np.email.trim(),
+      // Omitted entirely when blank — that's what selects the unclaimed path.
+      email: npHasEmail ? np.email.trim() : undefined,
       dateOfBirth: np.dateOfBirth,
       gender: np.gender,
       position: np.position.trim() || undefined,
-      guardianEmail: npUnder13 ? np.guardianEmail.trim() : undefined,
+      guardianEmail: npUnder13 && npHasEmail ? np.guardianEmail.trim() : undefined,
       ...(allowDuplicate && { allowDuplicate: true }),
     }),
     onSuccess: (res: any) => {
-      const { created, guardianConsentPending } = res.data ?? {};
+      const { created, guardianConsentPending, claimCode: code } = res.data ?? {};
+      const name = np.name.trim();
       toast.success(
-        guardianConsentPending ? 'Added — guardian consent email sent'
+        code ? 'Unclaimed profile created & added'
+        : guardianConsentPending ? 'Added — guardian consent email sent'
         : created ? 'Player created & added'
         : 'Existing account added to team',
       );
       setDupMatches(null);
       setNp(EMPTY_NEW);
-      setMode('search');
+      // Keep the create pane open on the no-email path so the one-time claim code
+      // stays on screen until the organiser has copied it.
+      if (code) setClaimCode({ name, code });
+      else setMode('search');
       invalidate();
     },
     onError: (e: any) => {
@@ -154,6 +220,14 @@ export default function RosterEditorModal({
       }
       toast.error(e.response?.data?.error || 'Could not create player');
     },
+  });
+  // Mint a replacement claim code for an unclaimed player (slip lost, or it went
+  // to the wrong person). The previous code stops working immediately.
+  const reissueCode = useMutation({
+    mutationFn: ({ userId }: { userId: string; name: string }) =>
+      api.post(`/tournaments/${tournamentId}/players/${userId}/claim-code`),
+    onSuccess: (res: any, vars) => setClaimCode({ name: vars.name, code: res.data.claimCode }),
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not issue a new claim code'),
   });
 
   // Read the LIVE roster from the shared registrations cache (same query key the
@@ -235,6 +309,18 @@ export default function RosterEditorModal({
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm flex-1 min-w-0 truncate">{m.user.name}</span>
+                    {/* No email on file — the profile is live and scores normally,
+                        but nobody owns it yet. Tap the key to issue a claim code. */}
+                    {m.user.claimStatus === 'UNCLAIMED' && (
+                      <button
+                        onClick={() => reissueCode.mutate({ userId: m.userId, name: m.user.name })}
+                        disabled={reissueCode.isPending}
+                        title="Not claimed yet — issue a new claim code for this player"
+                        className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 bg-primary/15 text-primary hover:bg-primary/25 transition-colors disabled:opacity-50"
+                      >
+                        <KeyRound size={9} /> UNCLAIMED
+                      </button>
+                    )}
                     <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS[m.status] ?? 'bg-elevated text-gray-custom'}`}>{m.status}</span>
                   </div>
                   {/* Position — editable ANY time, including after the roster locks. */}
@@ -260,6 +346,17 @@ export default function RosterEditorModal({
           <datalist id="roster-position-options">
             {posOptions.map((o) => <option key={o} value={o} />)}
           </datalist>
+
+          {/* One-time claim code — from creating an email-less player OR from
+              tapping a player's UNCLAIMED badge. Sits here, outside the add-player
+              pane, so it's visible from either mode. */}
+          {claimCode && (
+            <ClaimCodePanel
+              name={claimCode.name}
+              code={claimCode.code}
+              onDone={() => { setClaimCode(null); setMode('search'); }}
+            />
+          )}
 
           {/* Add player — search an existing user, or create a brand-new one.
               Hidden once the roster locks (the team has played). */}
@@ -316,7 +413,7 @@ export default function RosterEditorModal({
                     className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
                   />
                   <input
-                    type="email" value={np.email} maxLength={254} placeholder="Email (login)"
+                    type="email" value={np.email} maxLength={254} placeholder="Email (optional)"
                     onChange={(e) => setNpField({ email: e.target.value })}
                     className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
                   />
@@ -349,7 +446,7 @@ export default function RosterEditorModal({
                   onChange={(e) => setNpField({ position: e.target.value })}
                   className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
                 />
-                {npUnder13 && (
+                {npUnder13 && npHasEmail && (
                   <div>
                     <label className="block text-[11px] text-amber-300 mb-1">Guardian email (required · under 13)</label>
                     <input
@@ -362,6 +459,13 @@ export default function RosterEditorModal({
                     </p>
                   </div>
                 )}
+                {npUnder13 && !npHasEmail && (
+                  <p className="text-[11px] text-amber-300/90 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5">
+                    Under-13 and no email: the profile is created private — it scores in the
+                    tracker but stays off public rankings and search. A guardian provides
+                    consent when they claim it.
+                  </p>
+                )}
                 {dupMatches && (
                   <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs space-y-2">
                     <p className="flex items-start gap-1.5 text-amber-200 font-medium">
@@ -371,7 +475,7 @@ export default function RosterEditorModal({
                     <ul className="space-y-1 pl-5">
                       {dupMatches.map((m) => (
                         <li key={m.id} className="text-amber-100/90">
-                          <span className="font-medium">{m.name}</span> · {m.email} · {m.role.toLowerCase()}
+                          <span className="font-medium">{m.name}</span> · {m.email ?? 'unclaimed profile'} · {m.role.toLowerCase()}
                         </li>
                       ))}
                     </ul>
@@ -388,16 +492,23 @@ export default function RosterEditorModal({
                     </div>
                   </div>
                 )}
-                {!dupMatches && (
+                {!dupMatches && !claimCode && (
                 <button
                   onClick={() => createPlayer.mutate(false)}
                   disabled={!npValid || createPlayer.isPending}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50"
                 >
-                  <UserPlus size={14} /> {createPlayer.isPending ? 'Creating…' : 'Create & add to team'}
+                  <UserPlus size={14} />
+                  {createPlayer.isPending ? 'Creating…' : npHasEmail ? 'Create & add to team' : 'Add without email'}
                 </button>
                 )}
-                <p className="text-[11px] text-gray-custom">Creates an account in this tournament's sport and adds them as accepted — no invite needed. An existing account with this email is added, not duplicated.</p>
+                {!claimCode && (
+                  <p className="text-[11px] text-gray-custom">
+                    {npHasEmail
+                      ? "Creates an account in this tournament's sport and adds them as accepted — no invite needed. An existing account with this email is added, not duplicated."
+                      : 'No email? They still join the roster, appear in the tracker, get stats published and show on the rankings. You’ll get a claim code to pass on so they can take the profile over later.'}
+                  </p>
+                )}
               </div>
             )}
           </div>

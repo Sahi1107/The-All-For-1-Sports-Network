@@ -38,7 +38,9 @@ router.post('/', authenticate, writeLimiter, async (req: AuthRequest, res: Respo
     }
     await sendSupportRequest({
       fromName:  user.name,
-      fromEmail: user.email,
+      // Fall back to the token's address: the request is authenticated, so there
+      // is always one, even in the edge case of a row with no stored email.
+      fromEmail: user.email ?? req.user!.email,
       userId:    req.user!.userId,
       category:  parse.data.category,
       subject:   parse.data.subject,

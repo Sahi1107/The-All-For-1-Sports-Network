@@ -5,12 +5,13 @@ import admin from '../config/firebaseAdmin';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { reqStr, SportEnum, RoleEnum, AthleticsEventEnum, GenderEnum } from '../validation/common';
-import { HandoverConsentBody, HandoverCompleteBody, EmailChangeBody } from '../validation/auth';
+import { HandoverConsentBody, HandoverCompleteBody, EmailChangeBody, ClaimCodeBody } from '../validation/auth';
 import { reconcileEmail } from '../services/account/emailChange';
 import { generateSecureToken, hashToken } from '../utils/crypto';
 import { sendGuardianConsentEmail, sendAthleteWelcome, sendEmailVerification, sendPasswordResetEmail } from '../services/email';
-import { writeLimiter } from '../middleware/rateLimiter';
-import { generateTempPassword } from '../services/provisionAthlete';
+import { writeLimiter, claimLimiter } from '../middleware/rateLimiter';
+import { generateTempPassword, ProvisionError } from '../services/provisionAthlete';
+import { previewClaim, claimProfile } from '../services/unclaimedPlayer';
 import { decideProviderOutcome } from '../services/providerSignin';
 import { profileCompleteness, isProfileComplete } from '../services/profileCompleteness';
 import { attributeReferral } from '../services/referral';
@@ -343,7 +344,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
         });
         logger.info('auth.me.email_reconciled', { userId: user.id });
       }
-    } else if (user.pendingEmail && req.user!.emailVerified && req.user!.email.toLowerCase() === user.email.toLowerCase()) {
+    } else if (user.pendingEmail && req.user!.emailVerified && req.user!.email.toLowerCase() === user.email?.toLowerCase()) {
       // Token already matches the stored email but a stale pending marker remains
       // (e.g. reconciled on another device) — clear it so the UI stops nagging.
       user = await prisma.user.update({ where: { id: user.id }, data: { pendingEmail: null }, select: meSelect });
@@ -376,7 +377,7 @@ router.post('/email/request-change', authenticate, validate({ body: EmailChangeB
     const newEmail = (req.body.newEmail as string).toLowerCase();
     const me = await prisma.user.findUnique({ where: { id: req.user!.userId }, select: { id: true, email: true } });
     if (!me) { res.status(404).json({ error: 'User not found' }); return; }
-    if (newEmail === me.email.toLowerCase()) { res.status(400).json({ error: "That's already your email" }); return; }
+    if (newEmail === me.email?.toLowerCase()) { res.status(400).json({ error: "That's already your email" }); return; }
 
     // Taken by another of our users?
     const dbClash = await prisma.user.findUnique({ where: { email: newEmail }, select: { id: true } });
@@ -527,6 +528,14 @@ router.post('/handover/request', authenticate, async (req: AuthRequest, res: Res
       return;
     }
 
+    // There must be somewhere to send the consent link. Every guardian-managed
+    // account has one; check anyway so a data anomaly is a clear 400, not a crash.
+    const consentTo = user.guardianEmail ?? user.email;
+    if (!consentTo) {
+      res.status(400).json({ error: 'No guardian email on file to send the consent link to' });
+      return;
+    }
+
     const rawToken = generateSecureToken();
     await prisma.user.update({
       where: { id: user.id },
@@ -540,7 +549,7 @@ router.post('/handover/request', authenticate, async (req: AuthRequest, res: Res
     });
 
     const consentUrl = `${clientOrigin}/handover/consent?token=${rawToken}`;
-    await sendGuardianConsentEmail(user.guardianEmail ?? user.email, {
+    await sendGuardianConsentEmail(consentTo, {
       athleteName: user.name,
       consentUrl,
     });
@@ -618,16 +627,21 @@ router.post('/guardian-consent', validate({ body: HandoverConsentBody }), async 
       },
     });
 
-    try {
-      await sendAthleteWelcome({
-        to: user.guardianEmail ?? user.email,
-        athleteName: user.name,
-        loginEmail: user.email,
-        tempPassword,
-        forGuardian: true,
-      });
-    } catch (err) {
-      logger.warn('auth.guardian_consent.welcome_email_failed', { userId: user.id, error: String(err) });
+    // A guardian-consent flow always has both addresses (the account was created
+    // with a login email); skip rather than throw if that ever isn't true.
+    const welcomeTo = user.guardianEmail ?? user.email;
+    if (welcomeTo && user.email) {
+      try {
+        await sendAthleteWelcome({
+          to: welcomeTo,
+          athleteName: user.name,
+          loginEmail: user.email,
+          tempPassword,
+          forGuardian: true,
+        });
+      } catch (err) {
+        logger.warn('auth.guardian_consent.welcome_email_failed', { userId: user.id, error: String(err) });
+      }
     }
 
     logger.info('auth.guardian_consent.consented', { userId: user.id });
@@ -678,6 +692,85 @@ router.post('/handover/complete', authenticate, validate({ body: HandoverComplet
     res.json({ user: updated });
   } catch (error) {
     logger.error('Handover complete error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── Claiming an organiser-created profile ───────────────────────────────────
+//
+// A player rostered without an email exists as an UNCLAIMED profile: real stats,
+// real ranking, no login (see services/unclaimedPlayer). The organiser hands them
+// a claim code; these two routes turn it into their account.
+//
+// Both verify the Firebase token MANUALLY rather than using `authenticate`,
+// because the claimant legitimately may not have a platform row yet — that is the
+// whole point of claiming, and `authenticate` fails closed on a missing row.
+// Requiring a valid token still means only a real, signed-in identity can probe a
+// code, and claimLimiter caps attempts well below anything that could guess one.
+
+/** Verify the bearer token without requiring an existing platform account. */
+async function verifyTokenOnly(req: Request): Promise<admin.auth.DecodedIdToken | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    return await admin.auth().verifyIdToken(authHeader.split(' ')[1]);
+  } catch {
+    return null;
+  }
+}
+
+// POST /api/auth/claim/preview — "is this my profile?" WITHOUT redeeming the code.
+// Returns only name/position/avatar and the teams the profile has played for, so
+// the claimant can recognise it. Never contact details: a guessed code must not
+// become a way to read someone's PII.
+router.post('/claim/preview', claimLimiter, validate({ body: ClaimCodeBody }), async (req: Request, res: Response) => {
+  const decoded = await verifyTokenOnly(req);
+  if (!decoded) { res.status(401).json({ error: 'Invalid or expired token' }); return; }
+
+  try {
+    const preview = await previewClaim(req.body.code as string);
+    if (!preview) {
+      res.status(404).json({ error: 'That claim code is not valid or has already been used', code: 'INVALID_CODE' });
+      return;
+    }
+    await signMediaDeep(preview);
+    res.json({ profile: preview });
+  } catch (error) {
+    logger.error('Claim preview error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/auth/claim — redeem the code and bind this identity to the profile.
+// On success the caller MUST refresh their ID token (refreshClaims): the Firebase
+// custom claims now point at the claimed profile's userId.
+router.post('/claim', claimLimiter, validate({ body: ClaimCodeBody }), async (req: Request, res: Response) => {
+  const decoded = await verifyTokenOnly(req);
+  if (!decoded) { res.status(401).json({ error: 'Invalid or expired token' }); return; }
+  if (!decoded.email) { res.status(400).json({ error: 'Your sign-in has no email address' }); return; }
+
+  try {
+    const result = await claimProfile({
+      rawCode: req.body.code as string,
+      firebaseUid: decoded.uid,
+      email: decoded.email,
+      emailVerified: decoded.email_verified ?? false,
+    });
+
+    const user = await prisma.user.findUnique({ where: { id: result.userId }, select: meSelect });
+    if (user) await signMediaDeep(user);
+    logger.info('auth.claim.redeemed', { userId: result.userId });
+    res.json({ user, refreshClaims: true, mergedFromUserId: result.mergedFromUserId });
+  } catch (error) {
+    if (error instanceof ProvisionError) {
+      // 404 for a bad/spent code, 409 for a conflict the user must resolve.
+      const status = error.code === 'INVALID_CODE' ? 404
+        : error.code === 'EMAIL_NOT_VERIFIED' ? 403
+        : 409;
+      res.status(status).json({ error: error.message, code: error.code });
+      return;
+    }
+    logger.error('Claim error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });

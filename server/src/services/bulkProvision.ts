@@ -223,16 +223,24 @@ export function userRoleForMember(memberRole: TeamMemberRole): Role {
 
 /**
  * Gender implied by the tournament's genderCategory, if any. MEN→MALE,
- * WOMEN→FEMALE; MIXED/OPEN leave it unset so a row's own gender can apply.
+ * WOMEN→FEMALE; MIXED/OPEN (and anything unrecognised) leave it unset so a row's
+ * own gender can apply.
+ *
+ * Deliberately forgiving about spelling. The admin form offers a fixed list
+ * (MEN/WOMEN/MIXED/OPEN), but the ORGANISER's tournament editor takes this as
+ * FREE TEXT — so "Men's", "Womens", "Girls" and "M" all reach here in practice.
+ * An exact-match switch quietly returned null for every one of those, which meant
+ * a real women's tournament read as uncategorised and its players were sorted
+ * onto ranking boards by their own (often unset) profile gender instead.
+ * Apostrophes, case, and a trailing S are all ignored.
  */
 export function genderFromCategory(genderCategory: string | null): Gender | null {
-  switch ((genderCategory ?? '').trim().toUpperCase()) {
-    case 'MEN':
-    case 'MALE':   return Gender.MALE;
-    case 'WOMEN':
-    case 'FEMALE': return Gender.FEMALE;
-    default:       return null;
-  }
+  // Strip straight and curly apostrophes so MEN'S / MEN’S normalise to MENS.
+  const c = (genderCategory ?? '').trim().toUpperCase().replace(/['’‘`]/g, '');
+  // WOMEN before MEN: anchored so "WOMEN" can't be caught by the MEN pattern.
+  if (/^(WOMENS?|FEMALES?|GIRLS?|LADIES|W|F)$/.test(c)) return Gender.FEMALE;
+  if (/^(MENS?|MALES?|BOYS?|M)$/.test(c)) return Gender.MALE;
+  return null;
 }
 
 /**
@@ -504,7 +512,8 @@ export async function commitBulkProvision(
     where: { email: { in: allEmails } },
     select: { id: true, email: true },
   });
-  const existingEmails = new Set(existing.map((u) => u.email));
+  // Unclaimed profiles have no email; they can't collide with an import row.
+  const existingEmails = new Set(existing.flatMap((u) => (u.email ? [u.email] : [])));
 
   // 2. Authoritative validation.
   const { report, resolved } = buildReport(rows, ctx, existingEmails);

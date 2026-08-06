@@ -17,7 +17,7 @@ const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
 export interface EmailReconcileInput {
   tokenEmail: string | null | undefined; // email claim on the verified Firebase token
   emailVerified: boolean;                 // email_verified claim
-  dbEmail: string;                        // our stored email
+  dbEmail: string | null;                 // our stored email (null on a just-claimed shell profile)
 }
 
 /**

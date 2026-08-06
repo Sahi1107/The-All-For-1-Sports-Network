@@ -137,3 +137,20 @@ export const aiLimiter = make({
   message:  'Compute limit reached. You can trigger up to 20 operations per hour.',
   keyFn:    userOrIp,
 });
+
+/**
+ * Claim-code redemption (taking over an organiser-created profile).
+ * 10 attempts per hour per IP — deliberately the tightest limiter here.
+ *
+ * A claim code is an 8-character secret drawn from a 31-symbol alphabet (~8.5e11
+ * combinations), and redeeming one hands over a profile carrying somebody's real
+ * competitive record. At this rate an attacker gets ~88k guesses a year against
+ * odds of 8.5e11, so guessing is not a practical attack. Keyed on IP rather than
+ * user because a claimant may have no account row yet.
+ */
+export const claimLimiter = make({
+  name:     'claim',
+  windowMs: 60 * 60 * 1000,
+  max:      10,
+  message:  'Too many claim attempts. Please try again later.',
+});
