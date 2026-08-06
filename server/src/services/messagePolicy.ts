@@ -68,7 +68,7 @@ export function canSendMessage(input: {
 /** User-facing message for a denied contact/message decision. */
 export function contactDenialMessage(reason: string): string {
   switch (reason) {
-    case 'protected_minor':   return 'This account is protected and can only be messaged after connecting.';
+    case 'protected_minor':   return 'This account is protected and can’t be messaged.';
     case 'followers_only':    return 'This person only accepts messages from people they follow. Send a connection request instead.';
     case 'not_discoverable':  return 'This person isn’t open to new messages. Send a connection request instead.';
     case 'awaiting_reply':    return 'You’ve sent your first message — please wait for a reply before sending more.';

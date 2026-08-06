@@ -255,7 +255,7 @@ router.post('/conversations', authenticate, validate({ body: CreateConversationB
       },
     });
     if (!decision.ok) {
-      res.status(403).json({ error: contactDenialMessage(decision.reason), code: 'CONTACT_NOT_ALLOWED' });
+      res.status(403).json({ error: contactDenialMessage(decision.reason), code: 'CONTACT_NOT_ALLOWED', reason: decision.reason });
       return;
     }
 

@@ -538,9 +538,14 @@ export default function Messages() {
       setRecipientSearch('');
     },
     onError: (err: any, userId: string) => {
-      const msg = err?.response?.data?.error || 'Could not start conversation';
-      // Gated because there's no accepted connection — offer to form one.
-      if (err?.response?.data?.code === 'CONTACT_NOT_ALLOWED') {
+      const data = err?.response?.data;
+      const msg = data?.error || 'Could not start conversation';
+      // Offer the one-tap connect shortcut ONLY for adult messaging gates. Never
+      // when the target is a minor or their age is unknown (reason
+      // 'protected_minor') — that friction is doing safeguarding work, so we
+      // don't surface a shortcut to messaging a child. Allowlist = fail closed.
+      const CONNECTABLE = new Set(['followers_only', 'not_discoverable', 'target_not_athlete', 'sender_not_outreach']);
+      if (data?.code === 'CONTACT_NOT_ALLOWED' && CONNECTABLE.has(data?.reason)) {
         toast((t) => (
           <div className="flex items-center gap-3">
             <span className="text-sm">{msg}</span>
