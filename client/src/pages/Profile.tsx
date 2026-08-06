@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2, Award, KeyRound } from 'lucide-react';
+import { MapPin, Users, Trophy, Video, UserPlus, UserCheck, UserMinus, Edit, Calendar, Ruler, Trash2, Plus, X, Share2, MoreHorizontal, Flag, Ban, Send, Link2, Repeat2, Award, KeyRound, MessageCircle, Clock } from 'lucide-react';
 import ShareProfileModal from '../components/ShareProfileModal';
 import { VerifiedTick, PerformanceCard as PerformancePostCard } from '../components/feed/FeedBits';
 import toast from 'react-hot-toast';
@@ -574,13 +574,39 @@ export default function Profile() {
     onError: () => toast.error('Action failed'),
   });
 
+  // Connection is mutual and unlocks messaging (distinct from Follow). The row
+  // carries who sent it, so the button reflects the exact state: none / outgoing
+  // pending / incoming pending / accepted.
+  const iSentRequest = connection?.senderId === me?.id;
+  const refreshRelationship = () => {
+    queryClient.invalidateQueries({ queryKey: ['profile', id] });
+    queryClient.invalidateQueries({ queryKey: ['connection-requests'] });
+  };
   const connectMutation = useMutation({
     mutationFn: () => api.post(`/connections/request/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile', id] });
-      toast.success('Connection request sent!');
+    onSuccess: (res) => {
+      refreshRelationship();
+      toast.success(res?.data?.autoAccepted ? 'Connected!' : 'Connection request sent!');
     },
-    onError: () => toast.error('Could not send request'),
+    onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not send request'),
+  });
+  const acceptConnectionMutation = useMutation({
+    mutationFn: () => api.put(`/connections/${connection?.id}/accept`),
+    onSuccess: () => { refreshRelationship(); toast.success('Connected!'); },
+    onError: () => toast.error('Could not accept'),
+  });
+  const declineConnectionMutation = useMutation({
+    mutationFn: () => api.put(`/connections/${connection?.id}/reject`),
+    onSuccess: () => { refreshRelationship(); toast.success('Request declined'); },
+    onError: () => toast.error('Could not decline'),
+  });
+  const removeConnectionMutation = useMutation({
+    mutationFn: () => api.delete(`/connections/${connection?.id}`),
+    onSuccess: () => {
+      refreshRelationship();
+      toast.success(connection?.status === 'ACCEPTED' ? 'Connection removed' : 'Request cancelled');
+    },
+    onError: () => toast.error('Could not update'),
   });
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -970,21 +996,61 @@ export default function Profile() {
                       {isFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
                       {isFollowing ? 'Unfollow' : 'Follow'}
                     </button>
-                    {connection?.status === 'ACCEPTED' ? null : connection?.status === 'PENDING' ? (
-                      <span className="flex items-center gap-2 px-4 py-2 text-sm text-foreground/60 border border-ink/20 rounded-lg">
-                        <UserCheck size={14} />
-                        Pending
-                      </span>
+                    {connection?.status === 'ACCEPTED' ? (
+                      <button
+                        onClick={() => { if (window.confirm(`Remove your connection with ${profile.name}?`)) removeConnectionMutation.mutate(); }}
+                        disabled={removeConnectionMutation.isPending}
+                        title="Connected — click to remove"
+                        className="group/conn flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors bg-primary/15 text-primary-light border-primary/30 hover:bg-red-500/15 hover:text-red-400 hover:border-red-500/30"
+                      >
+                        <UserCheck size={14} className="group-hover/conn:hidden" />
+                        <UserMinus size={14} className="hidden group-hover/conn:block" />
+                        <span className="group-hover/conn:hidden">Connected</span>
+                        <span className="hidden group-hover/conn:block">Remove</span>
+                      </button>
+                    ) : connection?.status === 'PENDING' && iSentRequest ? (
+                      <button
+                        onClick={() => removeConnectionMutation.mutate()}
+                        disabled={removeConnectionMutation.isPending}
+                        title="Request sent — click to cancel"
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-foreground/70 border border-line rounded-lg hover:text-red-400 hover:border-red-500/30 transition-colors"
+                      >
+                        <Clock size={14} /> Requested
+                      </button>
+                    ) : connection?.status === 'PENDING' && !iSentRequest ? (
+                      <>
+                        <button
+                          onClick={() => acceptConnectionMutation.mutate()}
+                          disabled={acceptConnectionMutation.isPending}
+                          className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-dark text-on-primary text-sm font-semibold rounded-lg transition-colors"
+                        >
+                          <UserCheck size={14} /> Accept
+                        </button>
+                        <button
+                          onClick={() => declineConnectionMutation.mutate()}
+                          disabled={declineConnectionMutation.isPending}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-custom border border-line rounded-lg hover:text-foreground transition-colors"
+                        >
+                          Decline
+                        </button>
+                      </>
                     ) : (
                       <button
                         onClick={() => connectMutation.mutate()}
                         disabled={connectMutation.isPending}
                         className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-foreground text-sm font-medium rounded-lg transition-colors"
                       >
-                        <UserCheck size={14} />
+                        <Link2 size={14} />
                         Connect
                       </button>
                     )}
+                    <button
+                      onClick={() => navigate(`/messages?to=${id}`)}
+                      className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-foreground text-sm font-medium rounded-lg transition-colors"
+                    >
+                      <MessageCircle size={14} />
+                      Message
+                    </button>
                   </>
                 )}
               </div>

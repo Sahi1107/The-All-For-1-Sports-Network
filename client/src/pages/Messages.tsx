@@ -2,7 +2,7 @@ import AvatarMark from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { io, type Socket } from 'socket.io-client';
@@ -518,6 +518,17 @@ export default function Messages() {
     enabled: recipientSearch.length >= 2,
   });
 
+  // Messaging is unlocked by an accepted connection. When contact is gated, offer
+  // to send a connection request in-context instead of a dead-end error.
+  const sendConnectionRequest = async (userId: string) => {
+    try {
+      const { data } = await api.post(`/connections/request/${userId}`);
+      toast.success(data?.autoAccepted ? 'Connected — you can message now.' : 'Connection request sent');
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'Could not send request');
+    }
+  };
+
   const newConvMutation = useMutation({
     mutationFn: (userId: string) => api.post('/messages/conversations', { userId }),
     onSuccess: (data) => {
@@ -526,11 +537,36 @@ export default function Messages() {
       setShowNewConv(false);
       setRecipientSearch('');
     },
-    onError: (err: any) => {
+    onError: (err: any, userId: string) => {
       const msg = err?.response?.data?.error || 'Could not start conversation';
-      toast.error(msg);
+      // Gated because there's no accepted connection — offer to form one.
+      if (err?.response?.data?.code === 'CONTACT_NOT_ALLOWED') {
+        toast((t) => (
+          <div className="flex items-center gap-3">
+            <span className="text-sm">{msg}</span>
+            <button
+              onClick={() => { toast.dismiss(t.id); sendConnectionRequest(userId); }}
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-primary text-on-primary text-xs font-semibold hover:bg-primary-dark transition-colors"
+            >Send request</button>
+          </div>
+        ), { duration: 8000 });
+      } else {
+        toast.error(msg);
+      }
     },
   });
+
+  // Deep link from a profile's Message button: /messages?to=<userId> opens (or
+  // starts) that conversation, routing through the same gate/offer as above.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const toParam = searchParams.get('to');
+  useEffect(() => {
+    if (!toParam) return;
+    newConvMutation.mutate(toParam);
+    searchParams.delete('to');
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toParam]);
 
   // ── Action handlers ──────────────────────────────────────────
 

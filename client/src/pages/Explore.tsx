@@ -6,6 +6,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Search, MapPin, Users, Shield, Trophy, Calendar, ChevronDown } from 'lucide-react';
 import api from '../api/client';
 import { VerifiedTick } from '../components/feed/FeedBits';
+import ConnectButton from '../components/ConnectButton';
 import PullToRefresh from '../components/PullToRefresh';
 import EmptyState from '../components/EmptyState';
 import { useDebounce } from '../hooks/useDebounce';
@@ -212,6 +213,7 @@ function PeopleGrid({ users, query }: { users: any[]; query: string }) {
                 {(u._count?.highlights ?? 0) > 0 && <p>{u._count.highlights} highlight{u._count.highlights === 1 ? '' : 's'}</p>}
               </div>
             )}
+            <div className="shrink-0"><ConnectButton userId={u.id} /></div>
           </div>
         </Link>
       ))}

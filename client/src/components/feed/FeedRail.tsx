@@ -4,6 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { CalendarClock, BarChart3, UserPlus, ChevronRight, MapPin, Newspaper, ExternalLink } from 'lucide-react';
 import api from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
+import ConnectButton from '../ConnectButton';
 import Avatar from '../Avatar';
 import { VerifiedTick } from './FeedBits';
 
@@ -151,13 +152,16 @@ function SuggestedFollows() {
                 {[cap(p.role), cap(p.sport), p.position].filter(Boolean).join(' · ') || (p.location && <><MapPin size={9} />{p.location}</>)}
               </p>
             </Link>
-            <button
-              onClick={() => { follow.mutate(p.id); setDismissed((s) => new Set(s).add(p.id)); }}
-              disabled={follow.isPending}
-              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-primary/12 text-primary-light border border-primary/25 hover:bg-primary/20 transition-colors"
-            >
-              <UserPlus size={11} /> Follow
-            </button>
+            <div className="shrink-0 flex flex-col gap-1">
+              <ConnectButton userId={p.id} className="justify-center w-full" />
+              <button
+                onClick={() => { follow.mutate(p.id); setDismissed((s) => new Set(s).add(p.id)); }}
+                disabled={follow.isPending}
+                className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-ink/5 text-foreground/55 border border-ink/10 hover:bg-ink/10 transition-colors"
+              >
+                <UserPlus size={11} /> Follow
+              </button>
+            </div>
           </div>
         ))}
       </div>

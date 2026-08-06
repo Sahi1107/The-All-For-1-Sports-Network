@@ -55,7 +55,9 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 // Fallback deep-link when the server didn't precompute `link` (legacy rows).
 function fallbackLink(n: any): string | null {
-  if (n.type === 'CONNECTION_REQUEST' || n.type === 'CONNECTION_ACCEPTED') return '/grow';
+  // An accepted request should open the person who accepted, not the requests list.
+  if (n.type === 'CONNECTION_ACCEPTED') return n.actor?.id ? `/profile/${n.actor.id}` : '/grow';
+  if (n.type === 'CONNECTION_REQUEST') return '/grow';
   if ((n.type === 'FOLLOW' || n.type === 'ENDORSEMENT') && n.actor?.id) return `/profile/${n.actor.id}`;
   if (n.type === 'MESSAGE') return '/messages';
   return null;
@@ -123,6 +125,34 @@ export default function Notifications() {
     onSuccess: (_res, teamId: string) => { toast('Invite declined'); dropInvite(teamId); qc.invalidateQueries({ queryKey: ['notifications'] }); },
     onError: (err: any) => toast.error(err.response?.data?.error || 'Could not decline invite'),
     onSettled: () => setRespondingTeamId(null),
+  });
+
+  // Connection requests act inline like team invites (by the sender's userId, since
+  // the notification row doesn't carry the connection id). The row updates in place.
+  const [respondingConn, setRespondingConn] = useState<string | null>(null);
+  const resolveConn = (userId: string, outcome: 'accepted' | 'declined') => {
+    setAllNotifs((prev) => prev.map((n) =>
+      n.type === 'CONNECTION_REQUEST' && n.actor?.id === userId ? { ...n, read: true, _connOutcome: outcome } : n));
+    setUnread((u) => Math.max(0, u - 1));
+    qc.invalidateQueries({ queryKey: ['connection-requests'] }); // keeps the nav badge in sync
+  };
+  const acceptConnMutation = useMutation({
+    mutationFn: (userId: string) => api.put(`/connections/by-user/${userId}/accept`),
+    onSuccess: (_res, userId: string) => { toast.success('Connected!'); resolveConn(userId, 'accepted'); },
+    onError: (err: any, userId: string) => {
+      toast.error(err.response?.data?.error || 'Could not accept');
+      if (err.response?.status === 404) resolveConn(userId, 'accepted'); // already handled elsewhere
+    },
+    onSettled: () => setRespondingConn(null),
+  });
+  const declineConnMutation = useMutation({
+    mutationFn: (userId: string) => api.put(`/connections/by-user/${userId}/reject`),
+    onSuccess: (_res, userId: string) => { toast('Request declined'); resolveConn(userId, 'declined'); },
+    onError: (err: any, userId: string) => {
+      toast.error(err.response?.data?.error || 'Could not decline');
+      if (err.response?.status === 404) resolveConn(userId, 'declined');
+    },
+    onSettled: () => setRespondingConn(null),
   });
 
   const loadMore = useCallback(async () => {
@@ -217,6 +247,29 @@ export default function Notifications() {
                       className="px-3 py-1.5 bg-surface hover:bg-elevated disabled:opacity-50 border border-line text-xs text-gray-custom hover:text-foreground rounded-lg transition-colors"
                     >Decline</button>
                   </div>
+                )}
+
+                {/* Connection request — inline accept / decline (single-actor rows only;
+                    collapsed multi-actor rows fall back to opening /grow). */}
+                {n.type === 'CONNECTION_REQUEST' && n.actor?.id && (n.count ?? 1) === 1 && (
+                  n._connOutcome ? (
+                    <p className="mt-2 text-xs text-gray-custom flex items-center gap-1.5">
+                      {n._connOutcome === 'accepted' ? <><Check size={13} className="text-accent" /> Connected</> : <>Request declined</>}
+                    </p>
+                  ) : (
+                    <div className="flex gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => { setRespondingConn(n.actor.id); acceptConnMutation.mutate(n.actor.id); }}
+                        disabled={respondingConn === n.actor.id}
+                        className="px-3 py-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-on-primary text-xs font-semibold rounded-lg transition-colors"
+                      >Accept</button>
+                      <button
+                        onClick={() => { setRespondingConn(n.actor.id); declineConnMutation.mutate(n.actor.id); }}
+                        disabled={respondingConn === n.actor.id}
+                        className="px-3 py-1.5 bg-surface hover:bg-elevated disabled:opacity-50 border border-line text-xs text-gray-custom hover:text-foreground rounded-lg transition-colors"
+                      >Decline</button>
+                    </div>
+                  )
                 )}
               </div>
 

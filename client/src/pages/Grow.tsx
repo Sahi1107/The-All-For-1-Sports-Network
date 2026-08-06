@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import Avatar from '../components/Avatar';
-import { UserPlus, UserCheck, UserX, TrendingUp, Handshake } from 'lucide-react';
+import ConnectButton from '../components/ConnectButton';
+import { UserPlus, UserCheck, UserX, TrendingUp, Handshake, Clock, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Grow() {
@@ -16,6 +17,18 @@ export default function Grow() {
       const { data } = await api.get('/connections/requests');
       return data;
     },
+  });
+
+  // Outgoing (sent) requests awaiting the other side
+  const { data: outData } = useQuery({
+    queryKey: ['connections-outgoing'],
+    queryFn: async () => (await api.get('/connections/requests/outgoing')).data,
+  });
+
+  // My accepted connections
+  const { data: connData } = useQuery({
+    queryKey: ['connections-list'],
+    queryFn: async () => (await api.get('/connections')).data,
   });
 
   // Suggestions
@@ -58,7 +71,15 @@ export default function Grow() {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/connections/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['connections-outgoing'] }); toast('Request cancelled'); },
+    onError: () => toast.error('Failed to cancel'),
+  });
+
   const requests = reqData?.requests ?? [];
+  const outgoing = outData?.requests ?? [];
+  const connections = connData?.connections ?? [];
   const suggestions = sugData?.suggestions ?? [];
 
   return (
@@ -132,6 +153,65 @@ export default function Grow() {
         )}
       </section>
 
+      {/* ── Sent Requests (outgoing) ──────────────────────────────── */}
+      {outgoing.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Clock size={18} className="text-gray-custom" />
+            <h2 className="text-lg font-semibold">Sent Requests</h2>
+            <span className="px-2 py-0.5 bg-elevated text-gray-custom text-xs font-bold rounded-full">{outgoing.length}</span>
+          </div>
+          <div className="space-y-3">
+            {outgoing.map((r: any) => (
+              <div key={r.id} className="bg-card rounded-xl border border-line p-4 flex items-center gap-4">
+                <Link to={`/profile/${r.receiver.id}`} className="shrink-0">
+                  <Avatar name={r.receiver.name} src={r.receiver.avatar} size={44} />
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <Link to={`/profile/${r.receiver.id}`} className="text-sm font-medium hover:text-primary-light transition-colors truncate block">
+                    {r.receiver.name}
+                  </Link>
+                  <p className="text-xs text-gray-custom capitalize truncate">
+                    {r.receiver.role?.toLowerCase()}{r.receiver.sport && ` · ${r.receiver.sport.toLowerCase()}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => cancelMutation.mutate(r.id)}
+                  disabled={cancelMutation.isPending}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-elevated hover:bg-surface border border-line text-foreground/70 hover:text-red-400 text-xs rounded-lg transition-colors"
+                >
+                  <UserX size={13} /> Cancel
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Your Connections ──────────────────────────────────────── */}
+      {connections.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={18} className="text-primary-light" />
+            <h2 className="text-lg font-semibold">Your Connections</h2>
+            <span className="px-2 py-0.5 bg-primary/15 text-primary-light text-xs font-bold rounded-full">{connections.length}</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {connections.map((u: any) => (
+              <Link key={u.id} to={`/profile/${u.id}`} className="bg-card rounded-xl border border-line p-3 flex items-center gap-3 hover:border-primary/50 transition-colors">
+                <Avatar name={u.name} src={u.avatar} size={40} />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{u.name}</p>
+                  <p className="text-xs text-gray-custom capitalize truncate">
+                    {u.role?.toLowerCase()}{u.sport && ` · ${u.sport.toLowerCase()}`}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ── Suggestions ──────────────────────────────────────────── */}
       <section>
         <div className="flex items-center gap-2 mb-4">
@@ -170,14 +250,17 @@ export default function Grow() {
                     <p className="text-xs text-gray-custom truncate">{u.location}</p>
                   )}
                 </div>
-                <button
-                  onClick={() => followMutation.mutate(u.id)}
-                  disabled={followMutation.isPending}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-on-primary font-semibold text-xs rounded-lg transition-colors"
-                >
-                  <UserPlus size={13} />
-                  Follow
-                </button>
+                <div className="shrink-0 flex flex-col gap-1.5 items-stretch">
+                  <ConnectButton userId={u.id} className="justify-center px-3 py-1.5" />
+                  <button
+                    onClick={() => followMutation.mutate(u.id)}
+                    disabled={followMutation.isPending}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-elevated hover:bg-surface border border-line text-foreground/70 font-semibold text-xs rounded-lg transition-colors"
+                  >
+                    <UserPlus size={13} />
+                    Follow
+                  </button>
+                </div>
               </div>
             ))}
           </div>

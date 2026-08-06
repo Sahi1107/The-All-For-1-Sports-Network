@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import Avatar from '../components/Avatar';
 import BallLoader from '../components/BallLoader';
 import { VerifiedTick } from '../components/feed/FeedBits';
+import ConnectButton from '../components/ConnectButton';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { track } from '../config/analytics';
@@ -101,8 +102,11 @@ function AthleteCard({ athlete }: { athlete: any }) {
             </p>
             {athlete.verified && <VerifiedTick size={14} />}
           </span>
-          <span className="shrink-0 flex items-center gap-0.5 text-[11px] font-semibold text-foreground/30 group-hover:text-primary transition-colors">
-            View <ChevronRight size={13} />
+          <span className="shrink-0 flex items-center gap-2">
+            <ConnectButton userId={athlete.id} />
+            <span className="flex items-center gap-0.5 text-[11px] font-semibold text-foreground/30 group-hover:text-primary transition-colors">
+              View <ChevronRight size={13} />
+            </span>
           </span>
         </div>
 
