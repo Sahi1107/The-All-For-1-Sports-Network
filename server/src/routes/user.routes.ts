@@ -540,6 +540,16 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       }),
     ]);
 
+    // Contact email is connection-gated and adult-only. Returned to the owner, or
+    // to an ACCEPTED connection when the target is a known adult (age >= 18). Fail
+    // closed: never exposed for a minor or unknown age, even to a connection.
+    const contactEmailAllowed =
+      isSelf ||
+      (connection?.status === 'ACCEPTED' && typeof user.age === 'number' && user.age >= 18);
+    if (!contactEmailAllowed) {
+      delete (user as { contactEmail?: string | null }).contactEmail;
+    }
+
     await signMediaDeep(user);
     res.json({ user, isFollowing: !!isFollowing, connection, isBlocked: !!blockRow });
 

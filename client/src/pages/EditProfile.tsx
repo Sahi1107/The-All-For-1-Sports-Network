@@ -300,9 +300,10 @@ export default function EditProfile() {
               </div>
             </div>
             <div>
-              <label className="block text-sm text-gray-custom mb-1">Public contact email</label>
+              <label className="block text-sm text-gray-custom mb-1">Contact email</label>
               <input name="contactEmail" type="email" value={form.contactEmail} onChange={handleChange} placeholder="me@example.com"
                 className="w-full bg-surface border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary" />
+              <p className="mt-1 text-xs text-gray-custom">Shown only to your accepted connections, and never on under-18 profiles. Not public.</p>
             </div>
           </div>
         </div>
