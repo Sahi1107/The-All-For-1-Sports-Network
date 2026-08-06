@@ -134,19 +134,28 @@ export default function RosterEditorModal({
   const [dupMatches, setDupMatches] = useState<Array<{ id: string; name: string; email: string | null; role: string }> | null>(null);
   // Set when a player was created WITHOUT an email — shown once, then dismissed.
   const [claimCode, setClaimCode] = useState<{ name: string; code: string } | null>(null);
+  // "Claim later" — an explicit choice rather than something inferred from an
+  // empty email box. Ticking it says: this player isn't on the platform and I'm
+  // not going to pretend to know their details. It relaxes email and date of
+  // birth to optional and produces a profile they claim with a code later.
+  const [claimLater, setClaimLater] = useState(false);
   const npAge = ageFromDateString(np.dateOfBirth);
   const npUnder13 = npAge !== null && npAge < 13;
-  // Email is OPTIONAL: with one the player gets a real account and login details;
-  // without one they get an unclaimed profile they can claim later with a code.
   const npHasEmail = !!np.email.trim();
-  // With an email a real account is created, so the account rules apply in full:
-  // a date of birth (it drives the under-13 gate) and, for a minor, a guardian
-  // email. Without one it's a credential-less shell — nothing to gate — so name
-  // and category are all that's needed. Category stays required either way
-  // because the ranking boards are split by it.
+
+  // What's mandatory follows from what will actually be CREATED, not from the
+  // checkbox alone. An email always means a real account with login credentials,
+  // and that path is gated on age — so supplying one re-imposes the date of
+  // birth (and a guardian's email for a minor) even with "claim later" ticked.
+  // Category is required on every path: the ranking boards are split by it.
+  const emailRequired = !claimLater;
+  const dobRequired = !claimLater || npHasEmail;
+  // Ticked AND no email is the only combination that yields a claimable shell.
+  const willBeUnclaimed = claimLater && !npHasEmail;
   const npValid = !!(
     np.name.trim() && np.gender &&
-    (!npHasEmail || np.dateOfBirth) &&
+    (!emailRequired || npHasEmail) &&
+    (!dobRequired || np.dateOfBirth) &&
     (!npUnder13 || !npHasEmail || np.guardianEmail.trim())
   );
   const setNpField = (patch: Partial<NewPlayer>) => setNp((v) => ({ ...v, ...patch }));
@@ -208,6 +217,9 @@ export default function RosterEditorModal({
         : 'Existing account added to team',
       );
       setDupMatches(null);
+      // Fields clear but `claimLater` deliberately does NOT — an organiser
+      // working down a team sheet is adding twelve of these in a row, and
+      // re-ticking it every time would be the whole friction this removes.
       setNp(EMPTY_NEW);
       // Keep the create pane open on the no-email path so the one-time claim code
       // stays on screen until the organiser has copied it.
@@ -410,6 +422,23 @@ export default function RosterEditorModal({
               </div>
             ) : (
               <div className="space-y-2.5">
+                {/* The one decision that changes what gets created. Above the
+                    fields because it decides which of them you have to fill in. */}
+                <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-line bg-surface cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={claimLater}
+                    onChange={(e) => setClaimLater(e.target.checked)}
+                    className="mt-0.5 accent-primary shrink-0"
+                  />
+                  <span className="text-xs">
+                    <span className="font-medium text-foreground">Claim later — not on the platform yet</span>
+                    <span className="block text-gray-custom mt-0.5">
+                      Email and date of birth become optional. You'll get a claim code to pass on.
+                    </span>
+                  </span>
+                </label>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <input
                     type="text" value={np.name} maxLength={80} placeholder="Full name"
@@ -417,7 +446,8 @@ export default function RosterEditorModal({
                     className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
                   />
                   <input
-                    type="email" value={np.email} maxLength={254} placeholder="Email (optional)"
+                    type="email" value={np.email} maxLength={254}
+                    placeholder={emailRequired ? 'Email (login)' : 'Email (optional)'}
                     onChange={(e) => setNpField({ email: e.target.value })}
                     className="px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary placeholder-gray-custom"
                   />
@@ -425,16 +455,24 @@ export default function RosterEditorModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-[11px] text-gray-custom mb-1">
-                      Date of birth {npHasEmail ? '' : <span className="text-gray-custom/70">(optional)</span>}
+                      Date of birth {dobRequired ? '' : <span className="text-gray-custom/70">(optional)</span>}
                     </label>
                     <input
                       type="date" value={np.dateOfBirth}
                       onChange={(e) => setNpField({ dateOfBirth: e.target.value })}
                       className="w-full px-3 py-2 bg-surface border border-line rounded-lg text-sm focus:outline-none focus:border-primary"
                     />
-                    {!npHasEmail && (
+                    {!dobRequired && (
                       <p className="text-[11px] text-gray-custom mt-1">
                         Add it if you know it — it sets age categories and keeps under-13s off public boards.
+                      </p>
+                    )}
+                    {/* Ticking the box then typing an email quietly switches back
+                        to real account creation, which re-requires this. Say so
+                        in place rather than letting the button just stay dead. */}
+                    {claimLater && npHasEmail && !np.dateOfBirth && (
+                      <p className="text-[11px] text-amber-300 mt-1">
+                        Required — an email creates a real account, which is age-gated.
                       </p>
                     )}
                   </div>
@@ -470,11 +508,11 @@ export default function RosterEditorModal({
                     </p>
                   </div>
                 )}
-                {npUnder13 && !npHasEmail && (
+                {npUnder13 && willBeUnclaimed && (
                   <p className="text-[11px] text-amber-300/90 p-2.5 rounded-lg border border-amber-500/30 bg-amber-500/5">
-                    Under-13 and no email: the profile is created private — it scores in the
-                    tracker but stays off public rankings and search. A guardian provides
-                    consent when they claim it.
+                    Under-13: the profile is created private — it scores in the tracker but
+                    stays off public rankings and search. A guardian provides consent when
+                    they claim it.
                   </p>
                 )}
                 {dupMatches && (
@@ -510,14 +548,19 @@ export default function RosterEditorModal({
                   className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg bg-primary hover:bg-primary-dark text-on-primary transition-colors disabled:opacity-50"
                 >
                   <UserPlus size={14} />
-                  {createPlayer.isPending ? 'Creating…' : npHasEmail ? 'Create & add to team' : 'Add without email'}
+                  {createPlayer.isPending ? 'Creating…' : willBeUnclaimed ? 'Add without email' : 'Create & add to team'}
                 </button>
                 )}
                 {!claimCode && (
                   <p className="text-[11px] text-gray-custom">
-                    {npHasEmail
-                      ? "Creates an account in this tournament's sport and adds them as accepted — no invite needed. An existing account with this email is added, not duplicated."
-                      : 'No email? They still join the roster, appear in the tracker, get stats published and show on the rankings. You’ll get a claim code to pass on so they can take the profile over later.'}
+                    {willBeUnclaimed
+                      ? 'They still join the roster, appear in the tracker, get stats published and show on the rankings. You’ll get a claim code to pass on so they can take the profile over later.'
+                      : "Creates an account in this tournament's sport and adds them as accepted — no invite needed. An existing account with this email is added, not duplicated."}
+                    {claimLater && npHasEmail && (
+                      <span className="block mt-1 text-amber-300/90">
+                        You've added an email, so they'll get real login details instead of a claim code.
+                      </span>
+                    )}
                   </p>
                 )}
               </div>
