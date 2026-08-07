@@ -26,6 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cd client && npm install && npm run build
+      # Stamp the deployed commit so "what client is live?" is a 5-second curl of
+      # https://allfor1.pro/version.json (this incident was a STALE CLIENT, which
+      # the server's /api/version can't reveal). Served no-cache via firebase.json.
+      - name: Stamp deployed version
+        run: echo "{\"sha\":\"${{ github.sha }}\",\"ref\":\"${{ github.ref_name }}\",\"builtAt\":\"$(date -u +%FT%TZ)\"}" > client/dist/version.json
       - uses: google-github-actions/auth@v2
         with:
           project_id: allfor1-prod
