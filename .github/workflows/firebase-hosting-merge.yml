@@ -14,6 +14,9 @@ on:
   push:
     branches:
       - main
+  # Manual one-click re-deploy from the Actions tab (no empty commit needed) —
+  # e.g. when a push event didn't fire a run, or to re-run after a cache flush.
+  workflow_dispatch:
 permissions:
   contents: read
   id-token: write   # required for the WIF OIDC token

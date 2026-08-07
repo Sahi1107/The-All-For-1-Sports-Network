@@ -76,6 +76,24 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ─── Version / build info (unauthenticated) ──────────────────
+// Answers "what is actually deployed here?" in one request. `sha` is the git
+// commit baked into the image at build time (server/Dockerfile ARG GIT_SHA,
+// which the Cloud Build trigger passes as $COMMIT_SHA). `revision` is the Cloud
+// Run revision — it changes on every deploy even before the SHA is wired, so
+// this endpoint distinguishes deploys immediately.
+const STARTED_AT = new Date().toISOString();
+app.get('/api/version', (_req, res) => {
+  res.json({
+    sha: process.env.BUILD_SHA || process.env.COMMIT_SHA || process.env.GIT_SHA || null,
+    revision: process.env.K_REVISION || null,
+    service: process.env.K_SERVICE || null,
+    startedAt: STARTED_AT,
+    node: process.version,
+    env: process.env.NODE_ENV || 'development',
+  });
+});
+
 // ─── Routes ───────────────────────────────────────────────────
 app.use('/api/auth',          authRoutes);
 app.use('/api/users',         userRoutes);

@@ -43,6 +43,13 @@ ENV NODE_ENV=production
 # Cloud Run injects PORT — default to 8080 for local docker run.
 ENV PORT=8080
 
+# Build SHA baked into the image so /api/version can report exactly what's
+# running. The Cloud Build trigger should pass it: --build-arg GIT_SHA=$COMMIT_SHA
+# (or a _GIT_SHA substitution). Empty is fine — /api/version still returns the
+# Cloud Run revision, which changes on every deploy.
+ARG GIT_SHA=""
+ENV BUILD_SHA=${GIT_SHA}
+
 # Non-root user for the runtime.
 RUN groupadd --system --gid 1001 app \
  && useradd  --system --uid 1001 --gid app app
