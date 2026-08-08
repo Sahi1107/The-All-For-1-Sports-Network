@@ -20,6 +20,7 @@ import type {
   RosterTeam,
 } from './types';
 import { standingsFor, type StandingRow } from './stats';
+import { pairFirstRound, groupOfTeams } from './bracketSeeding';
 
 type Stage = 'group' | 'league' | 'r32' | 'r16' | 'qf' | 'sf' | 'final' | 'third_place';
 
@@ -245,6 +246,9 @@ function loser(m: TrackerMatch): string | null {
   return m.homeScore > m.awayScore ? m.awayTeamId : m.homeTeamId;
 }
 
+/** Qualifiers in SEED ORDER — winners first, then runners-up. Mirror of
+ *  seedOrderFromGroups in server/src/services/trackerDraw.ts; see the note there
+ *  for why rank-major is what makes the draw pair across groups. */
 function seedOrderFromGroups(
   groups: GroupDef[],
   standings: StandingRow[],
@@ -252,19 +256,13 @@ function seedOrderFromGroups(
 ): string[] {
   const rankIn = (teamIds: string[]) =>
     standings.filter((s) => teamIds.includes(s.teamId)).map((s) => s.teamId);
-  const advancing: string[] = [];
-  groups.forEach((g) => {
-    rankIn(g.teamIds).slice(0, advancePerGroup).forEach((id) => advancing.push(id));
-  });
-  // snake pairing: 1 vs last, 2 vs 2nd-last, …
-  const half = Math.floor(advancing.length / 2);
-  const order: string[] = [];
-  for (let i = 0; i < half; i++) {
-    order.push(advancing[i]);
-    order.push(advancing[advancing.length - 1 - i]);
+  const qualifiers = groups.map((g) => rankIn(g.teamIds).slice(0, advancePerGroup));
+
+  const seeds: string[] = [];
+  for (let rank = 0; rank < advancePerGroup; rank++) {
+    qualifiers.forEach((q) => { if (q[rank]) seeds.push(q[rank]); });
   }
-  if (advancing.length % 2 === 1) order.push(advancing[half]);
-  return order;
+  return seeds;
 }
 
 /** Pure progression: seed the knockout from finished groups, then fill every
@@ -300,11 +298,14 @@ export function progress(session: TrackerSession): TrackerSession {
         ),
       );
       const order = seedOrderFromGroups(groups, standings, advancePerGroup);
+      // The group map keeps two teams out of the same group from meeting again
+      // in the first knockout round — they have just played each other.
+      const ties = pairFirstRound(order, firstSlots.length, groupOfTeams(groups));
       firstSlots.forEach((slot, i) => {
         const m = bySlot.get(slot.id);
         if (!m) return;
-        if (!m.homeTeamId) m.homeTeamId = order[i * 2] ?? null;
-        if (!m.awayTeamId) m.awayTeamId = order[i * 2 + 1] ?? null;
+        if (!m.homeTeamId) m.homeTeamId = ties[i]?.home ?? null;
+        if (!m.awayTeamId) m.awayTeamId = ties[i]?.away ?? null;
       });
     }
   }

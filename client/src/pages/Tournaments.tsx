@@ -9,6 +9,7 @@ import api from '../api/client'
 import PullToRefresh from '../components/PullToRefresh'
 import { Trophy, MapPin, Calendar, Users, ChevronRight } from 'lucide-react'
 import { SPORTS } from '../data/sports'
+import { categoryLabels } from '../data/tournamentCategory'
 
 const SPORT_ICONS: Record<string, string> = Object.fromEntries(
   SPORTS.map(({ value, emoji }) => [value, emoji]),
@@ -101,6 +102,19 @@ export default function Tournaments() {
                   {humanStatus(t.status)}
                 </span>
               </div>
+
+              {/* Who the tournament is FOR. Two teams can run the same event for
+                  men and women on the same dates, so this is often the only thing
+                  telling two otherwise identical cards apart. */}
+              {categoryLabels(t).length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                  {categoryLabels(t).map((label) => (
+                    <span key={label} className="text-[11px] px-2 py-0.5 rounded-full bg-elevated border border-line text-gray-custom">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               <div className="space-y-1.5 text-xs text-gray-custom">
                 {(t.city || t.venue) && <p className="flex items-center gap-1.5"><MapPin size={11} />{t.city || t.venue}</p>}

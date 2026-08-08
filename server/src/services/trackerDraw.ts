@@ -207,22 +207,99 @@ export interface ByeAdvance {
  * the side that matches the parent's `feedFrom` order (so it agrees with
  * bracketAdvancements when the sibling match later resolves).
  */
+/**
+ * Standard single-elimination seed positions for a bracket with `size` opening
+ * places (a power of two). `positions[i]` is the 1-based SEED that sits in
+ * position i, and consecutive positions are a tie:
+ *
+ *   size 4 → [1, 4, 2, 3]          ties: 1v4, 2v3
+ *   size 8 → [1, 8, 4, 5, 2, 7, 3, 6]
+ *
+ * Built by the usual doubling rule — every seed s in a bracket of n is joined by
+ * n+1−s — which is what keeps the top seeds in opposite halves and, when
+ * qualifiers are ranked group-winners-first, pairs each winner with a runner-up
+ * from a DIFFERENT group.
+ */
+export function seedPositions(size: number): number[] {
+  let arr = [1];
+  while (arr.length < size) {
+    const n = arr.length * 2;
+    const next: number[] = [];
+    for (const s of arr) next.push(s, n + 1 - s);
+    arr = next;
+  }
+  return arr;
+}
+
+type Tie = { home: string | null; away: string | null };
+
+/**
+ * Swap opponents until no tie is two teams out of the same group.
+ *
+ * The seeding above already avoids this wherever the maths allows, but it cannot
+ * always: three groups of two qualifiers leaves seeds 3 and 6 — the third
+ * group's winner and its own runner-up — facing each other. Swapping the away
+ * sides of two ties fixes that without disturbing the bracket's shape.
+ *
+ * A tie that no swap can fix is left alone: with a single group there is no
+ * cross-group pairing to find, and an unbalanced draw is better than none.
+ */
+function repairSameGroupTies(ties: Tie[], groupOf: Map<string, string>): void {
+  const clash = (t: Tie): boolean => {
+    if (!t.home || !t.away) return false;
+    const g = groupOf.get(t.home);
+    return !!g && g === groupOf.get(t.away);
+  };
+  for (let i = 0; i < ties.length; i++) {
+    if (!clash(ties[i])) continue;
+    for (let j = 0; j < ties.length; j++) {
+      if (i === j || !ties[j].away) continue;
+      const a = ties[i].away, b = ties[j].away;
+      ties[i].away = b; ties[j].away = a;
+      if (!clash(ties[i]) && !clash(ties[j])) break;
+      ties[i].away = a; ties[j].away = b; // no good — put them back
+    }
+  }
+}
+
+/**
+ * Fill the opening round from `teamOrder`, which must be in SEED ORDER (best
+ * first) — not pre-paired. Pairing is this function's job, so there is one place
+ * that decides who meets whom.
+ *
+ * `groupOf` is supplied when the qualifiers came out of a group stage: it lets
+ * the draw guarantee nobody faces a team they have already played in the group.
+ *
+ * When the bracket has more places than qualifiers the surplus seeds simply do
+ * not exist, so the teams drawn against them get byes. Because the top seeds sit
+ * opposite the highest seed numbers, those byes land on the best-placed
+ * qualifiers and in different halves of the draw — which is what a bye is for.
+ */
 export function seedFirstRound(
   bracket: BracketDef,
   teamOrder: string[],
+  groupOf?: Map<string, string>,
 ): { seeds: FirstRoundSeed[]; byeAdvances: ByeAdvance[] } {
   const firstStage = bracket.stages[0];
   const firstSlots = bracket.slots.filter((s) => s.stage === firstStage);
   const teams = teamOrder.filter(Boolean);
   const S = firstSlots.length || 1;
-  const buckets: string[][] = firstSlots.map(() => []);
-  teams.forEach((t, i) => buckets[i % S].push(t));
+  const positions = seedPositions(S * 2);
+  const teamAt = (seed: number): string | null => teams[seed - 1] ?? null;
+
+  const ties: Tie[] = [];
+  for (let i = 0; i < S; i++) {
+    const home = teamAt(positions[i * 2]);
+    const away = teamAt(positions[i * 2 + 1]);
+    // A bye reads as "this team, no opponent", so never leave the empty side first.
+    ties.push(home ? { home, away } : { home: away, away: null });
+  }
+  if (groupOf) repairSameGroupTies(ties, groupOf);
 
   const seeds: FirstRoundSeed[] = [];
   const byeAdvances: ByeAdvance[] = [];
   firstSlots.forEach((slot, i) => {
-    const home = buckets[i][0] ?? null;
-    const away = buckets[i][1] ?? null;
+    const { home, away } = ties[i];
     const bye = !!home && !away;
     seeds.push({ slotId: slot.id, home, away, bye });
     if (bye && home) {
@@ -357,7 +434,21 @@ export function computeStandings(
   return orderGroup([...table.values()], matches, sport);
 }
 
-// Seed knockout first-round order from group standings (top N per group, snake-paired).
+/**
+ * The qualifiers in SEED ORDER — every group's winner first (in group order),
+ * then every runner-up, and so on. Seed 1 is group A's winner, seed 2 group B's,
+ * seed 3 group A's runner-up …
+ *
+ * Rank-major is the whole trick. Feed this to seedFirstRound's standard bracket
+ * positions and a winner is always drawn against a runner-up from another group:
+ * with two groups, seeds [A1, B1, A2, B2] and positions [1,4,2,3] give A1 v B2
+ * and B1 v A2. Listing the qualifiers group by group instead — [A1, A2, B1, B2]
+ * — pairs 1 v 4 as A1 v B2 but 2 v 3 as A2 v B1 only by accident, and breaks
+ * outright at four groups.
+ *
+ * Returns seed order, NOT pre-paired ties: pairing belongs to seedFirstRound,
+ * which is the only place that knows how big the bracket is.
+ */
 export function seedOrderFromGroups(
   groups: GroupDef[],
   standings: Standing[],
@@ -365,19 +456,20 @@ export function seedOrderFromGroups(
 ): string[] {
   const rankIn = (teamIds: string[]) =>
     standings.filter((s) => teamIds.includes(s.teamId)).map((s) => s.teamId);
-  const advancing: string[] = [];
-  groups.forEach((g) => {
-    rankIn(g.teamIds).slice(0, advancePerGroup).forEach((id) => advancing.push(id));
-  });
-  // snake pairing: 1 vs last, 2 vs 2nd-last, …
-  const half = Math.floor(advancing.length / 2);
-  const order: string[] = [];
-  for (let i = 0; i < half; i++) {
-    order.push(advancing[i]);
-    order.push(advancing[advancing.length - 1 - i]);
+  const qualifiers = groups.map((g) => rankIn(g.teamIds).slice(0, advancePerGroup));
+
+  const seeds: string[] = [];
+  for (let rank = 0; rank < advancePerGroup; rank++) {
+    qualifiers.forEach((q) => { if (q[rank]) seeds.push(q[rank]); });
   }
-  if (advancing.length % 2 === 1) order.push(advancing[half]);
-  return order;
+  return seeds;
+}
+
+/** teamId → the group it qualified from, so a draw can keep group rivals apart. */
+export function groupOfTeams(groups: GroupDef[]): Map<string, string> {
+  const map = new Map<string, string>();
+  groups.forEach((g) => g.teamIds.forEach((id) => map.set(id, g.id)));
+  return map;
 }
 
 // Given a completed bracket match, return [winnerTeamId, feedsIntoSlotId] to propagate.

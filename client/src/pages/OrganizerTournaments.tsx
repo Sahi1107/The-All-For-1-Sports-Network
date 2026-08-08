@@ -3,10 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, MapPin, Calendar, ShieldCheck } from 'lucide-react';
 import api from '../api/client';
 import BallLoader from '../components/BallLoader';
+import { categoryLabels } from '../data/tournamentCategory';
 
 interface OrgTournament {
   id: string; name: string; sport: string; status: string;
   startDate?: string | null; city?: string | null; venue?: string | null;
+  ageCategory?: string | null; genderCategory?: string | null;
 }
 
 const SPORT = (s?: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase().replace('_', ' ') : '');
@@ -58,6 +60,9 @@ export default function OrganizerTournaments() {
                   </div>
                   <p className="text-xs text-gray-custom mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span>{SPORT(t.sport)}</span>
+                    {/* The men's and women's edition of one event are otherwise
+                        an identical row: same name, sport, venue and dates. */}
+                    {categoryLabels(t).length > 0 && <span>{categoryLabels(t).join(' · ')}</span>}
                     {(t.city || t.venue) && <span className="flex items-center gap-1"><MapPin size={11} />{[t.venue, t.city].filter(Boolean).join(', ')}</span>}
                     {t.startDate && <span className="flex items-center gap-1"><Calendar size={11} />{new Date(t.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}
                   </p>

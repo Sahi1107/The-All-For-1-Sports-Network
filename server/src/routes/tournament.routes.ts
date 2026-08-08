@@ -209,7 +209,14 @@ router.get('/mine/organizing', authenticate, async (req: AuthRequest, res: Respo
       where: { userId: req.user!.userId },
       select: {
         tournament: {
-          select: { id: true, name: true, sport: true, status: true, startDate: true, city: true, venue: true, thumbnailUrl: true },
+          // Category + age ride along: an organiser often runs the men's and
+          // women's edition of the same event, and without them this list shows
+          // two rows with an identical name, sport, venue and date.
+          select: {
+            id: true, name: true, sport: true, status: true, startDate: true,
+            city: true, venue: true, thumbnailUrl: true,
+            ageCategory: true, genderCategory: true,
+          },
         },
       },
       orderBy: { createdAt: 'desc' },

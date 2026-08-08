@@ -10,6 +10,7 @@ import {
   computeStandings,
   seedOrderFromGroups,
   seedFirstRound,
+  groupOfTeams,
   bracketAdvancements,
   groupRoundRobin,
   planGroupFixtures,
@@ -213,9 +214,12 @@ async function maybeSeedKnockout(session: {
   );
   const order = seedOrderFromGroups(groups, standings, advancePerGroup);
 
-  // Seed the first knockout round, distributing byes for a non-power-of-2 count
-  // (e.g. 3 groups × 2 advancing = 6). Byes auto-advance into their parent slot.
-  const { seeds, byeAdvances } = seedFirstRound(bracket, order);
+  // Seed the first knockout round. The group map is what keeps two teams out of
+  // the same group from meeting again immediately — they have just played each
+  // other in the group stage. Byes (a non-power-of-2 count, e.g. 3 groups × 2
+  // advancing = 6) fall to the best-placed qualifiers and auto-advance into
+  // their parent slot.
+  const { seeds, byeAdvances } = seedFirstRound(bracket, order, groupOfTeams(groups));
   for (const seed of seeds) {
     const match = matches.find((m) => m.bracketSlot === seed.slotId);
     if (!match) continue;

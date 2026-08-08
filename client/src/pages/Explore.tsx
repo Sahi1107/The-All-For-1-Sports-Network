@@ -11,6 +11,7 @@ import PullToRefresh from '../components/PullToRefresh';
 import EmptyState from '../components/EmptyState';
 import { useDebounce } from '../hooks/useDebounce';
 import { SPORTS as ALL_SPORTS } from '../data/sports';
+import { categoryLabels } from '../data/tournamentCategory';
 
 type Tab = 'people' | 'teams' | 'tournaments';
 const TABS: { key: Tab; label: string; icon: typeof Users }[] = [
@@ -262,7 +263,9 @@ function TournamentsGrid({ tournaments, query }: { tournaments: any[]; query: st
                 <h3 className="font-semibold truncate">{t.name}</h3>
                 <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${statusChip(t.status)}`}>{cap(String(t.status).replace(/_/g, ' '))}</span>
               </div>
-              <p className="text-sm text-gray-custom capitalize">{[cap(t.sport), t.city].filter(Boolean).join(' · ')}</p>
+              {/* Category and age group ride with the sport — two events for men
+                  and women on the same dates are otherwise indistinguishable. */}
+              <p className="text-sm text-gray-custom capitalize">{[cap(t.sport), ...categoryLabels(t), t.city].filter(Boolean).join(' · ')}</p>
               <p className="text-xs text-gray-custom flex items-center gap-1 mt-1"><Calendar size={12} /> {dateRange(t.startDate, t.endDate)} · {t._count?.teams ?? 0} teams</p>
             </div>
           </div>
