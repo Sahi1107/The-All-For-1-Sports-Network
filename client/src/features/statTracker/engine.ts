@@ -289,9 +289,15 @@ export function progress(session: TrackerSession): TrackerSession {
     });
     if (allGroupsDone && !alreadySeeded) {
       const advancePerGroup = session.config?.advancePerGroup ?? 2;
-      const standings = standingsFor(
-        { ...session, matches: groupMatches },
-        groups.flatMap((g) => g.teamIds),
+      // Ranked PER GROUP, not as one combined table: basketball breaks ties on
+      // the games the tied teams played against each other, and teams in
+      // different groups never meet. Concatenating the ranked groups keeps
+      // seedOrderFromGroups' per-group filter reading them in the right order.
+      const standings = groups.flatMap((g) =>
+        standingsFor(
+          { ...session, matches: groupMatches.filter((m) => m.groupId === g.id) },
+          g.teamIds,
+        ),
       );
       const order = seedOrderFromGroups(groups, standings, advancePerGroup);
       firstSlots.forEach((slot, i) => {

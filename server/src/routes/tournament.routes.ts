@@ -567,6 +567,7 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       const standings = computeStandings(
         g.teamIds,
         gMatches.map((m) => ({ homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId, homeScore: m.homeScore, awayScore: m.awayScore, status: m.status })),
+        session.sport,
       );
       return { id: g.id, name: g.name, teamIds: g.teamIds, standings, matches: gMatches.map(lite) };
     });

@@ -6,6 +6,9 @@ import type {
   BasketballState,
   RosterTeam,
 } from './types';
+// Explicit extension: the repo's test runner is `node --experimental-strip-types`,
+// which resolves as native ESM and won't infer one.
+import { orderGroup } from './groupRanking.ts';
 
 export interface FootballPlayerRow {
   userId: string;
@@ -142,10 +145,17 @@ export function standingsFor(
       goalsFor: 0, goalsAgainst: 0, goalDifference: 0, points: 0,
     }),
   );
-  session.matches.forEach((m) => {
-    if (m.status !== 'COMPLETED' && m.status !== 'PUBLISHED') return;
-    if (!m.homeTeamId || !m.awayTeamId) return;
-    const h = table.get(m.homeTeamId), a = table.get(m.awayTeamId);
+  // Group-stage games ONLY. Two teams from the same group can meet again in the
+  // knockout, and that rematch is not a group result: counting it would inflate
+  // the table's P/W/L and — now that basketball breaks ties head-to-head — let a
+  // semi-final retrospectively rewrite the group it came out of.
+  const groupMatches = session.matches.filter(
+    (m) => (m.stage === 'group' || m.stage === 'league')
+      && (m.status === 'COMPLETED' || m.status === 'PUBLISHED')
+      && m.homeTeamId && m.awayTeamId,
+  );
+  groupMatches.forEach((m) => {
+    const h = table.get(m.homeTeamId!), a = table.get(m.awayTeamId!);
     if (!h || !a) return;
     h.played++; a.played++;
     h.goalsFor += m.homeScore; h.goalsAgainst += m.awayScore;
@@ -155,7 +165,5 @@ export function standingsFor(
     else { h.draws++; a.draws++; h.points++; a.points++; }
   });
   table.forEach((s) => { s.goalDifference = s.goalsFor - s.goalsAgainst; });
-  return [...table.values()].sort(
-    (x, y) => y.points - x.points || y.goalDifference - x.goalDifference || y.goalsFor - x.goalsFor,
-  );
+  return orderGroup([...table.values()], groupMatches, session.sport);
 }

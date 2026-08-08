@@ -174,6 +174,7 @@ async function propagateBracket(
  *  knockout round from group standings. No-op if already seeded or incomplete. */
 async function maybeSeedKnockout(session: {
   id: string;
+  sport: string;
   groups: unknown;
   bracket: unknown;
   config: unknown;
@@ -197,9 +198,18 @@ async function maybeSeedKnockout(session: {
   if (firstRoundMatches.some((m) => m.homeTeamId || m.awayTeamId)) return;
 
   const advancePerGroup = (session.config as { advancePerGroup?: number } | null)?.advancePerGroup ?? 2;
-  const standings = computeStandings(
-    groups.flatMap((g) => g.teamIds),
-    groupMatches,
+  // Ranked PER GROUP, not as one combined table. Basketball breaks ties on the
+  // games the tied teams played against each other, and teams in different
+  // groups never meet — so a single table across every group would compare
+  // records that have no head-to-head to decide them. Each group's own matches
+  // go in with it; concatenating the ranked groups keeps seedOrderFromGroups'
+  // per-group filter reading them in the right order.
+  const standings = groups.flatMap((g) =>
+    computeStandings(
+      g.teamIds,
+      groupMatches.filter((m) => m.groupId === g.id),
+      session.sport,
+    ),
   );
   const order = seedOrderFromGroups(groups, standings, advancePerGroup);
 
@@ -413,6 +423,102 @@ router.delete(
       res.json({ reset: true, deletedPublishedMatches: publishedMatchIds.length });
     } catch (err) {
       console.error('Reset tracker session error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Re-seed the knockout from the current group standings ───
+// Correction path for a bracket that was seeded from standings since found to be
+// wrong — the basketball head-to-head tiebreak is the case this exists for: a
+// group stage seeded before it landed sent the wrong team through, and nothing
+// re-derives that on its own. maybeSeedKnockout deliberately refuses to touch a
+// bracket that already has teams (otherwise every result would rewrite the draw),
+// so this clears the seeding first and lets it run again.
+//
+// REFUSES once a knockout match has been played. At that point the seeding is not
+// a prediction to correct but a game that happened, and re-drawing would orphan a
+// real result. That case needs a human decision (replay it, or reset the draw).
+router.post(
+  '/sessions/:tournamentId/reseed-knockout',
+  requireTournamentAccess(fromParamTournamentId),
+  validate({ params: TournamentIdParam }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const tournamentId = req.params.tournamentId as string;
+      const session = await prisma.trackerSession.findUnique({
+        where: { tournamentId },
+        include: { matches: true },
+      });
+      if (!session) {
+        res.status(404).json({ error: 'No draw for this tournament' });
+        return;
+      }
+
+      const bracket = session.bracket as BracketDef | null;
+      const groups = (session.groups as GroupDef[] | null) ?? [];
+      if (!bracket || !bracket.stages.length || !groups.length) {
+        res.status(400).json({ error: 'This tournament has no group stage feeding a knockout', code: 'NO_KNOCKOUT' });
+        return;
+      }
+
+      // Re-seeding derives the bracket from the group table, so the group stage
+      // has to be finished — otherwise this would clear the slots and
+      // maybeSeedKnockout would decline to refill them, leaving an empty bracket.
+      const groupStage = session.matches.filter((m) => m.stage === 'group');
+      const groupsDone = groupStage.length > 0 && groupStage.every((m) => isPlayed(m.status));
+      if (!groupsDone) {
+        res.status(409).json({
+          error: 'The group stage is not finished, so there are no final standings to seed from.',
+          code: 'GROUPS_INCOMPLETE',
+        });
+        return;
+      }
+
+      const knockout = session.matches.filter((m) => m.stage !== 'group' && m.stage !== 'league');
+      // A BYE is marked COMPLETED with only one side filled — nobody played it,
+      // and it is re-derived from scratch, so it must not read as a played tie.
+      const alreadyPlayed = knockout.filter(
+        (m) => !!m.publishedMatchId
+          || ((isPlayed(m.status) || m.status === 'IN_PROGRESS') && !!m.homeTeamId && !!m.awayTeamId),
+      );
+      if (alreadyPlayed.length > 0) {
+        res.status(409).json({
+          error: `${alreadyPlayed.length} knockout match${alreadyPlayed.length === 1 ? ' has' : 'es have'} already been played, so the bracket can no longer be re-seeded. Un-publish those results first, or reset the draw.`,
+          code: 'KNOCKOUT_IN_PROGRESS',
+          playedMatchIds: alreadyPlayed.map((m) => m.id),
+        });
+        return;
+      }
+
+      const before = knockout
+        .filter((m) => m.homeTeamId || m.awayTeamId)
+        .map((m) => ({ id: m.id, homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId }));
+
+      // Clear every knockout slot, then re-derive from the current standings.
+      await prisma.trackerMatch.updateMany({
+        where: { id: { in: knockout.map((m) => m.id) } },
+        data: { homeTeamId: null, awayTeamId: null, homeScore: 0, awayScore: 0, status: 'SCHEDULED' },
+      });
+      await maybeSeedKnockout(session);
+
+      const after = await prisma.trackerMatch.findMany({
+        where: { id: { in: knockout.map((m) => m.id) } },
+        select: { id: true, homeTeamId: true, awayTeamId: true },
+      });
+      const wasBefore = new Map(before.map((m) => [m.id, m]));
+      const changed = after.filter((m) => {
+        const prev = wasBefore.get(m.id);
+        return (prev?.homeTeamId ?? null) !== m.homeTeamId || (prev?.awayTeamId ?? null) !== m.awayTeamId;
+      });
+
+      bustTournament(tournamentId);
+      logger.info('tracker.knockout_reseeded', {
+        tournamentId, by: req.user!.userId, cleared: before.length, changed: changed.length,
+      });
+      res.json({ reseeded: true, changed: changed.length, matches: after });
+    } catch (err) {
+      console.error('Re-seed knockout error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   },

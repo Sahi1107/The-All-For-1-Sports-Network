@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { LayoutDashboard, Table2, GitFork, ListOrdered, Zap, RotateCcw } from 'lucide-react';
 import api from '../../api/client';
 import type { TrackerSession, TrackerMatch, GroupDef } from './types';
@@ -67,6 +68,7 @@ export default function TournamentView({
   onOpenMatch: (m: TrackerMatch) => void;
   demo?: DemoControls;
 }) {
+  const qc = useQueryClient();
   const hasBracket = !!session.bracket;
   const hasStandings = session.format === 'LEAGUE' || session.format === 'MIXED';
   const [detail, setDetail] = useState<TrackerMatch | null>(null);
@@ -130,6 +132,32 @@ export default function TournamentView({
     () => tournamentLeaders(session, 5, publishedStats ?? []),
     [session, publishedStats],
   );
+
+  // Re-seed the knockout from the group tables as they stand now. Offered only
+  // while the bracket is still a prediction: once a knockout tie has been played,
+  // re-drawing would orphan a real result, and the server refuses it too.
+  const knockoutMatches = (session.matches ?? []).filter((m) => m.stage !== 'group' && m.stage !== 'league');
+  const groupStage = (session.matches ?? []).filter((m) => m.stage === 'group');
+  const canReseed = !demo
+    && knockoutMatches.length > 0
+    && groupStage.length > 0
+    && groupStage.every((m) => m.status === 'COMPLETED' || m.status === 'PUBLISHED')
+    // A bye is COMPLETED with one side empty — not a tie anyone played.
+    && !knockoutMatches.some((m) => m.publishedMatchId
+      || (['COMPLETED', 'PUBLISHED', 'IN_PROGRESS'].includes(m.status) && m.homeTeamId && m.awayTeamId));
+
+  const reseed = useMutation({
+    mutationFn: () => api.post(`/tracker/sessions/${session.tournamentId}/reseed-knockout`),
+    onSuccess: (res: any) => {
+      const changed = res.data?.changed ?? 0;
+      toast.success(changed > 0
+        ? `Bracket re-seeded — ${changed} tie${changed === 1 ? '' : 's'} changed`
+        : 'Bracket re-seeded — the standings already matched');
+      qc.invalidateQueries({ queryKey: ['tracker-session', session.tournamentId] });
+      qc.invalidateQueries({ queryKey: ['tournament-fixtures', session.tournamentId] });
+    },
+    onError: (e: any) => toast.error(e.response?.data?.error || 'Could not re-seed the bracket'),
+  });
 
   const tabs = useMemo(
     () =>
@@ -254,11 +282,31 @@ export default function TournamentView({
       {activeTab === 'standings' && <StandingsSection session={session} onEditGroups={demo ? undefined : () => setShowGroups(true)} />}
 
       {activeTab === 'bracket' && (
-        <Bracket
-          {...bracketDataFromSession(session)}
-          onOpenMatch={(vm) => { const m = session.matches.find((x) => x.id === vm.id); if (m) onOpenMatch(m); }}
-          onShowDetails={(vm) => { const m = session.matches.find((x) => x.id === vm.id); if (m) setDetail(m); }}
-        />
+        <div className="space-y-3">
+          {canReseed && (
+            <div className="flex flex-wrap items-center gap-2 p-3 rounded-xl border border-line bg-ink/[0.03]">
+              <span className="text-xs text-gray-custom mr-auto">
+                Seeded from the group standings when the group stage finished. Re-seed if
+                those standings have since been corrected.
+              </span>
+              <button
+                onClick={() => {
+                  if (!confirm('Re-seed the knockout from the current group standings? The bracket is redrawn from the tables as they stand now.')) return;
+                  reseed.mutate();
+                }}
+                disabled={reseed.isPending}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-elevated border border-line hover:border-primary text-xs rounded-lg transition-colors disabled:opacity-50"
+              >
+                <RotateCcw size={13} /> {reseed.isPending ? 'Re-seeding…' : 'Re-seed from standings'}
+              </button>
+            </div>
+          )}
+          <Bracket
+            {...bracketDataFromSession(session)}
+            onOpenMatch={(vm) => { const m = session.matches.find((x) => x.id === vm.id); if (m) onOpenMatch(m); }}
+            onShowDetails={(vm) => { const m = session.matches.find((x) => x.id === vm.id); if (m) setDetail(m); }}
+          />
+        </div>
       )}
 
       {activeTab === 'fixtures' && (

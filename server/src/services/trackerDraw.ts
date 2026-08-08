@@ -4,6 +4,7 @@
 // plus the session-level `groups` and `bracket` JSON structures.
 
 import { randomUUID } from 'crypto';
+import { orderGroup } from './groupRanking';
 
 export type Stage =
   | 'group'
@@ -320,9 +321,17 @@ export interface Standing {
   points: number;
 }
 
+/**
+ * Build one group's (or league's) table.
+ *
+ * `matches` must be that group's own matches and `teamIds` its own teams —
+ * basketball breaks ties on the games the tied teams played against each other,
+ * which is only meaningful inside a single group.
+ */
 export function computeStandings(
   teamIds: string[],
   matches: { homeTeamId?: string | null; awayTeamId?: string | null; homeScore: number; awayScore: number; status: string }[],
+  sport?: string | null,
 ): Standing[] {
   const table = new Map<string, Standing>();
   teamIds.forEach((id) =>
@@ -345,9 +354,7 @@ export function computeStandings(
     else { h.draws++; a.draws++; h.points++; a.points++; }
   });
   table.forEach((s) => { s.goalDifference = s.goalsFor - s.goalsAgainst; });
-  return [...table.values()].sort(
-    (x, y) => y.points - x.points || y.goalDifference - x.goalDifference || y.goalsFor - x.goalsFor,
-  );
+  return orderGroup([...table.values()], matches, sport);
 }
 
 // Seed knockout first-round order from group standings (top N per group, snake-paired).
