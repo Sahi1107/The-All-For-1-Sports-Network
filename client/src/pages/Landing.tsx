@@ -6,12 +6,6 @@ import './landing.css';
 
 type SectionId = 'home' | 'about' | 'team';
 
-const NAV_LINKS: { id: SectionId; label: string }[] = [
-  { id: 'home', label: 'Home' },
-  { id: 'about', label: 'About' },
-  { id: 'team', label: 'Team' },
-];
-
 const CREATORS = {
   sahil: {
     name: 'Sahil Desai',
@@ -186,36 +180,21 @@ export default function Landing() {
           <div className="page-wipe page-wipe--front" aria-hidden />
         </>
       )}
-      <header className="glass-header">
-        <button className="logo" onClick={() => jumpTo('home')} aria-label="All For One home">
-          <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
-        </button>
-
-        <button className={`nav-signup nav-signup--corner ${navBlue ? 'nav-signup--blue' : ''}`} onClick={() => navigate('/register')}>
-          Sign Up
-        </button>
-
-        <nav className={`nav-container ${navBlue ? 'nav-blue' : ''}`} aria-label="Primary">
-          <div className="glass-menu nav-track" ref={navTrackRef}>
-            <span className="nav-indicator" />
-            {NAV_LINKS.map((link) => (
-              <button
-                key={link.id}
-                data-id={link.id}
-                className={`nav-item ${active === link.id ? 'active' : ''}`}
-                onClick={() => jumpTo(link.id)}
-              >
-                {link.label}
-              </button>
-            ))}
-            <button
-              className="nav-item"
-              onClick={() => navigate('/challenges')}
-            >
-              Challenges
-            </button>
-          </div>
-        </nav>
+      <header className={`lp-header ${navBlue ? 'is-light' : ''}`}>
+        <div className="lp-bar">
+          <button className="lp-logo" onClick={() => jumpTo('home')} aria-label="All For One home">
+            <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
+          </button>
+          <nav className="lp-nav" aria-label="Primary">
+            <button className="lp-link" onClick={() => jumpTo('about')}>How it works</button>
+            <button className="lp-link" onClick={() => jumpTo('team')}>For scouts</button>
+            <button className="lp-link" onClick={() => navigate('/challenges')}>Challenges</button>
+            <span className="lp-actions">
+              <button className="lp-login" onClick={() => navigate('/login')}>Log In</button>
+              <button className="lp-signup" onClick={() => navigate('/register')}>Sign Up</button>
+            </span>
+          </nav>
+        </div>
       </header>
 
       <section id="home" className="hero-wrapper" ref={homeRef}>

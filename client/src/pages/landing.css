@@ -471,6 +471,128 @@ body {
   }
 }
 
+/* ── Landing header (image-forward nav) ───────────────────────────── */
+.lp-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  transition: background 0.3s ease, backdrop-filter 0.3s ease, box-shadow 0.3s ease;
+}
+.lp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 18px 40px;
+}
+.lp-logo {
+  display: block;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.lp-logo img {
+  height: 54px;
+  width: auto;
+  display: block;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.lp-logo:hover img {
+  transform: scale(1.03);
+}
+.lp-nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+.lp-link {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  transition: color 0.2s ease;
+}
+.lp-link:hover {
+  color: #fff;
+}
+.lp-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.lp-login {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  padding: 9px 6px;
+  transition: color 0.2s ease;
+}
+.lp-login:hover {
+  color: #dbff5a;
+}
+.lp-signup {
+  border: 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0a0a0a;
+  background: #dbff5a;
+  padding: 10px 22px;
+  border-radius: 999px;
+  font-family: "Saira Condensed", system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.lp-signup:hover {
+  background: #c8ef3f;
+  transform: translateY(-1px);
+}
+
+/* Over the light info-hub section: solid backdrop + dark text so it stays legible */
+.lp-header.is-light {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
+}
+.lp-header.is-light .lp-link {
+  color: rgba(17, 17, 17, 0.66);
+}
+.lp-header.is-light .lp-link:hover {
+  color: #111;
+}
+.lp-header.is-light .lp-login {
+  color: #111;
+}
+.lp-header.is-light .lp-login:hover {
+  color: #4e6b00;
+}
+
+@media (max-width: 820px) {
+  .lp-bar {
+    padding: 14px 20px;
+  }
+  .lp-logo img {
+    height: 46px;
+  }
+  .lp-nav {
+    gap: 14px;
+  }
+  .lp-link {
+    display: none;
+  }
+}
+
 .about-section {
   position: relative;
   height: 600px;
