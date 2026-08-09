@@ -219,18 +219,29 @@ export default function Landing() {
       </header>
 
       <section id="home" className="hero-wrapper" ref={homeRef}>
-        <div className="hero-aurora" aria-hidden />
+        <div className="hero-photo" aria-hidden />
+        <div className="hero-scrim" aria-hidden />
         <div className="hero-content">
-          <h1>Performance is the Test. Elite is the Title.</h1>
-          <p>India&apos;s First Unified Sports Platform</p>
+          <span className="hero-eyebrow">India&apos;s verified sports network</span>
+          <h1>
+            The next<br />big player<br />
+            <span className="hero-accent">could be you.</span>
+          </h1>
+          <p>
+            Build a <b>verified profile</b> from your real match stats. Get discovered by
+            scouts and coaches on <b>merit, not connections.</b>
+          </p>
           <div className="hero-buttons">
             <button className="btn-primary" onClick={() => navigate('/register')}>
-              Sign Up
+              Create your free profile
             </button>
             <button className="btn-glass" onClick={() => jumpTo('about')}>
-              About All For One
+              See how it works
             </button>
           </div>
+          <p className="hero-login">
+            Already have an account? <Link to="/login">Log in</Link>
+          </p>
         </div>
       </section>
 
