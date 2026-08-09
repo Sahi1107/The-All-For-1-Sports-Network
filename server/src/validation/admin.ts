@@ -235,3 +235,31 @@ export const AdminUserLookupQuery = z.object({
     .max(254)
     .transform((s) => s.toLowerCase().trim()),
 });
+
+// ─── Unclaimed profiles: browse + link ───────────────────────────────────────
+// Shells have no email, so `search` matches on name/position only. The guardian
+// rule for under-13s is enforced downstream (services/unclaimedPlayer) where the
+// stored date of birth is known — the client can't be trusted to declare it.
+
+export const AdminUnclaimedListQuery = PaginationQuery.extend({
+  sport:  SportEnum.optional(),
+  search: z.string().max(100).optional().transform((v) => (v ? v.trim() : undefined)),
+});
+
+export const AdminUnclaimedParams = z.object({
+  id: z.string().uuid('Invalid profile ID'),
+});
+
+export const AdminLinkUnclaimedBody = z.object({
+  email: z
+    .string({ error: 'Email is required' })
+    .email('Invalid email address')
+    .max(254, 'Email address too long')
+    .transform((s) => s.toLowerCase().trim()),
+  guardianEmail: z
+    .string()
+    .email('Invalid guardian email address')
+    .max(254)
+    .optional()
+    .transform((s) => (s ? s.toLowerCase().trim() : s)),
+});

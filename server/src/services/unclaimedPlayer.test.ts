@@ -5,6 +5,7 @@ import {
   normalizeClaimCode,
   claimCodeHash,
   validateUnclaimedInput,
+  validateLinkInput,
 } from './unclaimedPlayer';
 import { ProvisionError } from './provisionAthlete';
 
@@ -135,4 +136,91 @@ test('someone turning 13 today is not treated as under 13', () => {
   const dob = new Date();
   dob.setUTCFullYear(dob.getUTCFullYear() - 13);
   assert.equal(validateUnclaimedInput({ ...base, dateOfBirth: dob }).under13, false);
+});
+
+// ─── Admin link contract ─────────────────────────────────────────────────────
+//
+// linkUnclaimedProfile itself does I/O (Prisma + Firebase + email); what's pure
+// and worth pinning here is WHEN the guardian gate fires, because that gate is
+// the whole reason this path differs from creating a shell. A shell needs no
+// guardian email — it has no credentials to issue. A link DOES issue them.
+
+const shellOf = (over: Partial<{ role: 'ATHLETE' | 'COACH'; dateOfBirth: Date | null; age: number | null }> = {}) => ({
+  role: 'ATHLETE' as const,
+  dateOfBirth: new Date('2005-04-12'),
+  age: null,
+  ...over,
+});
+
+const yearsAgo = (n: number) => {
+  const d = new Date();
+  d.setUTCFullYear(d.getUTCFullYear() - n);
+  return d;
+};
+
+test('linking an adult profile needs nothing but an email', () => {
+  const r = validateLinkInput(shellOf(), { email: 'riya@example.com' });
+  assert.equal(r.under13, false);
+  assert.ok(r.age !== null && r.age > 13);
+});
+
+test('an email is required — a link with no identity to bind is meaningless', () => {
+  assert.throws(() => validateLinkInput(shellOf(), { email: '   ' }), ProvisionError);
+});
+
+test('linking a KNOWN under-13 profile requires a guardian email', () => {
+  // The gate that does not exist when the shell is created. If this stops
+  // throwing, an admin can issue login credentials for a child's account with no
+  // parent in the loop — the exact thing guardian consent exists to prevent.
+  assert.throws(
+    () => validateLinkInput(shellOf({ dateOfBirth: yearsAgo(10) }), { email: 'kid@example.com' }),
+    (err: unknown) => err instanceof ProvisionError && err.code === 'GUARDIAN_EMAIL_REQUIRED',
+  );
+});
+
+test('an under-13 link passes once a guardian email is supplied', () => {
+  const r = validateLinkInput(
+    shellOf({ dateOfBirth: yearsAgo(10) }),
+    { email: 'kid@example.com', guardianEmail: 'parent@example.com' },
+  );
+  assert.equal(r.under13, true);
+});
+
+test('a blank guardian email does not satisfy the gate', () => {
+  assert.throws(
+    () => validateLinkInput(shellOf({ dateOfBirth: yearsAgo(9) }), { email: 'kid@example.com', guardianEmail: '  ' }),
+    ProvisionError,
+  );
+});
+
+test('a coach is never guardian-gated, whatever the stored date of birth says', () => {
+  const r = validateLinkInput(shellOf({ role: 'COACH', dateOfBirth: yearsAgo(10) }), { email: 'coach@example.com' });
+  assert.equal(r.under13, false);
+});
+
+test('an unknown age is not treated as a minor', () => {
+  // Same honest gap as validateUnclaimedInput: most shells are rostered off a team
+  // sheet with no birthday. We cannot gate on an age we do not have.
+  const r = validateLinkInput(shellOf({ dateOfBirth: null }), { email: 'player@example.com' });
+  assert.equal(r.age, null);
+  assert.equal(r.under13, false);
+});
+
+test('the stored age is used only when there is no date of birth', () => {
+  const r = validateLinkInput(shellOf({ dateOfBirth: null, age: 10 }), {
+    email: 'kid@example.com', guardianEmail: 'parent@example.com',
+  });
+  assert.equal(r.under13, true);
+});
+
+test('a stale stored age never overrides the date of birth', () => {
+  // `age` is a snapshot taken when the shell was created. A player rostered at 12
+  // who is now 15 must link as an adult, not get stuck behind a guardian gate.
+  const r = validateLinkInput(shellOf({ dateOfBirth: yearsAgo(15), age: 12 }), { email: 'teen@example.com' });
+  assert.equal(r.age, 15);
+  assert.equal(r.under13, false);
+});
+
+test('someone turning 13 today can be linked without a guardian', () => {
+  assert.doesNotThrow(() => validateLinkInput(shellOf({ dateOfBirth: yearsAgo(13) }), { email: 'teen@example.com' }));
 });

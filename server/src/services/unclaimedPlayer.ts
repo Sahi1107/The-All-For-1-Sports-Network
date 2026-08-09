@@ -1,7 +1,9 @@
 import crypto from 'crypto';
 import { Role, Gender, Sport, ClaimStatus } from '@prisma/client';
-import { hashToken } from '../utils/crypto';
-import { GUARDIAN_AGE_THRESHOLD, ageFromDob, ProvisionError } from './provisionAthlete';
+import { generateSecureToken, hashToken } from '../utils/crypto';
+import {
+  GUARDIAN_AGE_THRESHOLD, CONSENT_TOKEN_TTL_MS, ageFromDob, generateTempPassword, ProvisionError,
+} from './provisionAthlete';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // UNCLAIMED PLAYERS
@@ -255,6 +257,31 @@ export async function previewClaim(rawCode: string): Promise<ClaimPreview | null
   };
 }
 
+/**
+ * How much real activity an account carries. Zero means it is an empty shell of a
+ * signup that can be folded away; anything above zero is a genuine profile that
+ * must never be silently destroyed to make room for a claim.
+ *
+ * Shared by both binding paths (code redemption and admin link) deliberately: if
+ * they disagreed on what "empty" means, one of them would delete real history.
+ */
+async function countAccountHistory(
+  prisma: typeof import('../config/db').default,
+  userId: string,
+): Promise<number> {
+  const [stats, memberships, posts, rankings] = await Promise.all([
+    Promise.all([
+      prisma.basketballStats.count({ where: { userId } }),
+      prisma.footballStats.count({ where: { userId } }),
+      prisma.cricketStats.count({ where: { userId } }),
+    ]).then((c) => c.reduce((a, b) => a + b, 0)),
+    prisma.teamMember.count({ where: { userId } }),
+    prisma.post.count({ where: { userId } }),
+    prisma.playerRanking.count({ where: { userId } }),
+  ]);
+  return stats + memberships + posts + rankings;
+}
+
 export interface ClaimProfileInput {
   rawCode: string;
   /** Firebase UID of the person redeeming — they have just authenticated. */
@@ -330,17 +357,7 @@ export async function claimProfile(input: ClaimProfileInput): Promise<ClaimProfi
   if (existingId && existingId !== shell.id) {
     // Only an account with nothing on it can be folded away. Anything with real
     // history is a genuine profile — refuse rather than destroy or half-merge it.
-    const [stats, memberships, posts, rankings] = await Promise.all([
-      Promise.all([
-        prisma.basketballStats.count({ where: { userId: existingId } }),
-        prisma.footballStats.count({ where: { userId: existingId } }),
-        prisma.cricketStats.count({ where: { userId: existingId } }),
-      ]).then((c) => c.reduce((a, b) => a + b, 0)),
-      prisma.teamMember.count({ where: { userId: existingId } }),
-      prisma.post.count({ where: { userId: existingId } }),
-      prisma.playerRanking.count({ where: { userId: existingId } }),
-    ]);
-    if (stats + memberships + posts + rankings > 0) {
+    if (await countAccountHistory(prisma, existingId) > 0) {
       throw new ProvisionError(
         'Your account already has activity on it, so it can\'t be merged automatically. Please contact support to link this profile.',
         'ACCOUNT_HAS_HISTORY',
@@ -404,4 +421,248 @@ export async function claimProfile(input: ClaimProfileInput): Promise<ClaimProfi
     userId: claimed.id, mergedFromUserId, under13,
   });
   return { userId: claimed.id, name: claimed.name, mergedFromUserId };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN LINKING
+//
+// The claim code is the self-serve path and it covers the normal case. It leaves
+// a real gap though: the code only exists on a slip of paper. When the organiser
+// loses it and the player never had an email to re-send it to, or the player
+// simply can't work the flow, the profile is stranded — a real competitive record
+// nobody can reach. Rotating the code (reissueClaimCode) doesn't help if there is
+// no one to hand the new slip to, and it is tournament-scoped besides.
+//
+// So an admin can bind an identity to a shell directly, network-wide, with no
+// code involved. The admin is asserting "this email belongs to this player" —
+// exactly the assertion they already make in provisionAthleteAccount, and this
+// path deliberately mirrors that one rather than claimProfile, because like it
+// this ISSUES CREDENTIALS: it is the moment real access to the account appears.
+// That means the under-13 guardian-consent gate applies here in full, which is
+// the one place the shell rules bend (a shell needs no guardian email precisely
+// because it has no credentials to issue — see validateUnclaimedInput).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The bits of the shell that decide whether the guardian gate applies. */
+export interface LinkTargetShell {
+  role: Role;
+  dateOfBirth: Date | null;
+  age: number | null;
+}
+
+export interface LinkUnclaimedInput {
+  /** The UNCLAIMED shell to bind. */
+  userId: string;
+  /** The player's email — becomes the login identity of the profile. */
+  email: string;
+  /** Required when the shell is a KNOWN under-13; the address consent is sent to. */
+  guardianEmail?: string | null;
+  /** Admin performing the link — audit only, never written to the profile. */
+  actorId: string;
+}
+
+export interface LinkUnclaimedResult {
+  userId: string;
+  name: string;
+  email: string;
+  /** An empty just-signed-up account that was folded into the shell, if any. */
+  mergedFromUserId: string | null;
+  /** True when credentials are withheld until the guardian consents. */
+  guardianConsentPending: boolean;
+  /** True when a fresh login was created and a temp password emailed out. */
+  credentialsIssued: boolean;
+  /** True when the email already had a login, which we bound as-is (no new password). */
+  linkedExistingIdentity: boolean;
+}
+
+/**
+ * Pure validation for a link, so the guardian rule can be tested without a DB and
+ * can't drift from the age derivation the write path uses. Throws ProvisionError.
+ */
+export function validateLinkInput(
+  shell: LinkTargetShell,
+  input: { email: string; guardianEmail?: string | null },
+): { age: number | null; under13: boolean } {
+  if (!input.email?.trim()) throw new ProvisionError('An email address is required to link a profile');
+
+  // Prefer the date of birth over the stored `age`, which is a snapshot that goes
+  // stale — a shell rostered at 12 must not still read as 12 two birthdays later.
+  const age = shell.dateOfBirth ? ageFromDob(shell.dateOfBirth) : shell.age ?? null;
+  const under13 = shell.role === Role.ATHLETE && age !== null && age < GUARDIAN_AGE_THRESHOLD;
+
+  if (under13 && !input.guardianEmail?.trim()) {
+    throw new ProvisionError(
+      'This profile belongs to an athlete under 13 — a guardian email is required to link it',
+      'GUARDIAN_EMAIL_REQUIRED',
+    );
+  }
+  return { age, under13 };
+}
+
+/**
+ * Bind an identity to an UNCLAIMED profile on an admin's authority, keeping every
+ * stat, roster spot and ranking already recorded against it.
+ *
+ * The identity is resolved in the order that avoids creating a second account for
+ * someone who already has one:
+ *   • the email has a platform account with history → refuse (ACCOUNT_HAS_HISTORY);
+ *     merging two real profiles is a different, much larger operation
+ *   • the email has an EMPTY platform account       → fold it away, reuse its login
+ *   • the email has a Firebase login but no row     → bind that login as-is
+ *   • the email is unknown                          → create a login with a temp
+ *                                                     password and email it over
+ */
+export async function linkUnclaimedProfile(input: LinkUnclaimedInput): Promise<LinkUnclaimedResult> {
+  const { default: prisma } = await import('../config/db');
+  const { default: admin } = await import('../config/firebaseAdmin');
+  const { default: logger } = await import('../utils/logger');
+  const { sendAthleteWelcome, sendGuardianConsentInvite } = await import('./email');
+
+  const email = (input.email ?? '').trim().toLowerCase();
+
+  const shell = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { id: true, name: true, role: true, claimStatus: true, dateOfBirth: true, age: true },
+  });
+  if (!shell) throw new ProvisionError('Profile not found', 'NOT_FOUND');
+  if (shell.claimStatus !== ClaimStatus.UNCLAIMED) {
+    throw new ProvisionError('This profile has already been claimed', 'ALREADY_CLAIMED');
+  }
+
+  const { under13 } = validateLinkInput(shell, { email, guardianEmail: input.guardianEmail });
+
+  // Does this email already exist on the platform?
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, firebaseUid: true },
+  });
+
+  let mergedFromUserId: string | null = null;
+  let firebaseUid: string | null = null;
+
+  if (existing && existing.id !== shell.id) {
+    if (await countAccountHistory(prisma, existing.id) > 0) {
+      throw new ProvisionError(
+        `${email} already has an account with activity on it. Linking would merge two real profiles, which this action can't do safely.`,
+        'ACCOUNT_HAS_HISTORY',
+      );
+    }
+    // Empty account — fold it away and reuse whatever login it had.
+    mergedFromUserId = existing.id;
+    firebaseUid = existing.firebaseUid;
+  }
+
+  // A temp password is only minted when we create the login ourselves. Reusing an
+  // existing one must never reset the password of an account already in use.
+  let tempPassword: string | null = null;
+  let linkedExistingIdentity = firebaseUid !== null;
+
+  if (!firebaseUid) {
+    const password = generateTempPassword();
+    try {
+      const fbUser = await admin.auth().createUser({
+        email, password, displayName: shell.name, emailVerified: false,
+      });
+      firebaseUid = fbUser.uid;
+      tempPassword = password;
+    } catch (err: any) {
+      // A Firebase login with no platform row behind it — someone who signed up
+      // and never finished onboarding. Bind it rather than failing the link.
+      if (err?.code === 'auth/email-already-exists') {
+        firebaseUid = (await admin.auth().getUserByEmail(email)).uid;
+        linkedExistingIdentity = true;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  // Under 13: the login exists but stays undelivered. Same bargain as
+  // provisionAthleteAccount — no credentials reach anyone until the guardian
+  // consents, and the profile stays private meanwhile.
+  const rawConsentToken = under13 ? generateSecureToken() : null;
+
+  const linked = await prisma.$transaction(async (tx) => {
+    // Free the email + UID from the empty signup before reusing them, or the
+    // unique constraints below reject the update.
+    if (mergedFromUserId) {
+      await tx.user.delete({ where: { id: mergedFromUserId } });
+    }
+
+    // updateMany with claimStatus in the WHERE, exactly as claimProfile does: the
+    // check-then-write stays a single guarded statement, so an admin link racing a
+    // code redemption for the same profile can't both win.
+    const { count } = await tx.user.updateMany({
+      where: { id: shell.id, claimStatus: ClaimStatus.UNCLAIMED },
+      data: {
+        firebaseUid,
+        email,
+        claimStatus: ClaimStatus.CLAIMED,
+        claimedAt: new Date(),
+        claimCodeHash: null, // any slip still floating around is now dead
+        // Force a change only on a password we generated — never on a login the
+        // person already uses.
+        ...(tempPassword ? { mustResetPassword: true } : {}),
+        discoverable: !under13,
+        ...(under13
+          ? {
+              guardianManaged: true,
+              guardianEmail: input.guardianEmail!.trim().toLowerCase(),
+              guardianConsentStatus: 'PENDING',
+              guardianConsentTokenHash: hashToken(rawConsentToken!),
+              guardianConsentTokenExpiresAt: new Date(Date.now() + CONSENT_TOKEN_TTL_MS),
+            }
+          : { guardianManaged: false }),
+      },
+    });
+    if (count === 0) {
+      throw new ProvisionError('This profile has already been claimed', 'ALREADY_CLAIMED');
+    }
+
+    return tx.user.findUniqueOrThrow({
+      where: { id: shell.id },
+      select: { id: true, name: true, role: true, email: true },
+    });
+  });
+
+  await admin.auth().setCustomUserClaims(firebaseUid!, { userId: linked.id, role: linked.role });
+
+  if (under13) {
+    const { env } = await import('../config/env');
+    const clientOrigin = Array.isArray(env.CLIENT_URL) ? env.CLIENT_URL[0] : env.CLIENT_URL;
+    const consentUrl = `${clientOrigin}/guardian-consent?token=${rawConsentToken}`;
+    try {
+      await sendGuardianConsentInvite({
+        to: input.guardianEmail!.trim(), athleteName: linked.name, consentUrl,
+      });
+    } catch (err) {
+      logger.warn('unclaimedPlayer.link_consent_email_failed', { userId: linked.id, error: String(err) });
+    }
+  } else if (tempPassword) {
+    try {
+      await sendAthleteWelcome({
+        to: email, athleteName: linked.name, loginEmail: email, tempPassword, forGuardian: false,
+      });
+    } catch (err) {
+      logger.warn('unclaimedPlayer.link_welcome_email_failed', { userId: linked.id, error: String(err) });
+    }
+  }
+
+  logger.info('unclaimedPlayer.admin_linked', {
+    userId: linked.id,
+    actorId: input.actorId,
+    mergedFromUserId,
+    under13,
+    linkedExistingIdentity,
+  }); // never log the email or the temp password
+
+  return {
+    userId: linked.id,
+    name: linked.name,
+    email: linked.email!,
+    mergedFromUserId,
+    guardianConsentPending: under13,
+    credentialsIssued: tempPassword !== null && !under13,
+    linkedExistingIdentity,
+  };
 }

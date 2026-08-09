@@ -28,8 +28,10 @@ import { generateSecureToken, hashToken } from '../utils/crypto';
 /** Age below which an athlete account must be guardian-managed. Canonical home. */
 export const GUARDIAN_AGE_THRESHOLD = 13;
 
-/** Guardian consent links stay valid for 7 days. */
-const CONSENT_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Guardian consent links stay valid for 7 days. Exported so every path that
+ *  issues credentials to a minor (provisioning here, admin-linking an unclaimed
+ *  profile in services/unclaimedPlayer) expires consent on the same clock. */
+export const CONSENT_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Whole years between `dob` and today, computed in UTC to match stored dates. */
 export function ageFromDob(dob: Date): number {

@@ -5,14 +5,30 @@ import { Navigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight, Flag, AlertTriangle, ShieldAlert, Ban } from 'lucide-react';
+import { Shield, Users, BarChart3, CheckCircle, Trash2, UserPlus, Trophy, Plus, Upload, Eye, ChevronDown, ChevronUp, Crown, Award, Activity, ChevronRight, Flag, AlertTriangle, ShieldAlert, Ban, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { SPORTS } from '../data/sports';
 import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
 import DeleteTournamentModal from '../features/tournaments/DeleteTournamentModal';
 
-type Tab = 'users' | 'stats' | 'reports' | 'appeals' | 'new-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
+type Tab = 'users' | 'stats' | 'reports' | 'appeals' | 'new-profile' | 'link-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
+
+const EMPTY_LINK_FORM = { email: '', guardianEmail: '' };
+
+/** Effective age of an unclaimed profile: date of birth first, the stored `age`
+ *  only as a fallback. Mirrors validateLinkInput on the server so the guardian
+ *  field appears exactly when the server is going to insist on it. */
+function unclaimedAge(p: { dateOfBirth: string | null; age: number | null }): number | null {
+  if (!p.dateOfBirth) return p.age ?? null;
+  const dob = new Date(p.dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return p.age ?? null;
+  const t = new Date();
+  let a = t.getUTCFullYear() - dob.getUTCFullYear();
+  const m = t.getUTCMonth() - dob.getUTCMonth();
+  if (m < 0 || (m === 0 && t.getUTCDate() < dob.getUTCDate())) a--;
+  return a;
+}
 
 const EMPTY_ATHLETE_FORM = {
   name: '', email: '', sport: '', role: 'ATHLETE' as 'ATHLETE' | 'COACH',
@@ -273,6 +289,13 @@ export default function AdminDashboard() {
   const [athleteForm, setAthleteForm] = useState(EMPTY_ATHLETE_FORM);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Link Profile tab: browse unclaimed shells and bind an identity to one
+  const [unclaimedSearch, setUnclaimedSearch] = useState('');
+  const [unclaimedSport, setUnclaimedSport] = useState('');
+  const [unclaimedPage, setUnclaimedPage] = useState(1);
+  const [linkTarget, setLinkTarget] = useState<any | null>(null);
+  const [linkForm, setLinkForm] = useState(EMPTY_LINK_FORM);
+
   // Teams tab: create-empty | create-with-players | manage members
   const [teamMode, setTeamMode] = useState<'empty' | 'compose' | 'manage'>('empty');
   // New Team form state (+ captain picker) — the "empty team" create mode
@@ -335,6 +358,18 @@ export default function AdminDashboard() {
       return data;
     },
     enabled: tab === 'appeals',
+  });
+
+  const { data: unclaimedData, isLoading: unclaimedLoading } = useQuery({
+    queryKey: ['admin-unclaimed', unclaimedSearch, unclaimedSport, unclaimedPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(unclaimedPage), limit: '20' });
+      if (unclaimedSearch) params.set('search', unclaimedSearch);
+      if (unclaimedSport) params.set('sport', unclaimedSport);
+      const { data } = await api.get(`/admin/unclaimed?${params}`);
+      return data;
+    },
+    enabled: tab === 'link-profile',
   });
 
   // ─── Mutations ────────────────────────────────────────────────
@@ -447,6 +482,42 @@ export default function AdminDashboard() {
       toast.error(err.response?.data?.error || 'Failed to create profile');
     },
   });
+
+  const linkProfileMutation = useMutation({
+    mutationFn: async ({ id, email, guardianEmail }: { id: string; email: string; guardianEmail: string }) => {
+      const { data } = await api.post(`/admin/unclaimed/${id}/link`, {
+        email,
+        guardianEmail: guardianEmail || undefined,
+      });
+      return data;
+    },
+    // The three outcomes differ in what the player has to do next, so say which
+    // one happened rather than a generic "linked".
+    onSuccess: (data) => {
+      toast.success(
+        data.guardianConsentPending
+          ? `${data.name} linked — a consent email went to the guardian. The login activates once they consent.`
+          : data.linkedExistingIdentity
+            ? `${data.name} linked to ${data.email} — that email already had a login, so they can sign in now.`
+            : `${data.name} linked — a welcome email with login details went to ${data.email}.`,
+        { duration: 6000 },
+      );
+      setLinkTarget(null);
+      setLinkForm(EMPTY_LINK_FORM);
+      qc.invalidateQueries({ queryKey: ['admin-unclaimed'] });
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to link profile'),
+  });
+
+  // Derived state for the Link Profile panel (mirrors the server's guardian gate).
+  const linkTargetAge = linkTarget ? unclaimedAge(linkTarget) : null;
+  const linkTargetUnder13 =
+    !!linkTarget && linkTarget.role === 'ATHLETE' && linkTargetAge !== null && linkTargetAge < 13;
+  const linkFormValid = !!(
+    linkForm.email.trim() &&
+    (!linkTargetUnder13 || linkForm.guardianEmail.trim())
+  );
 
   // Derived state for the New Profile form (mirrors the server's under-13 rule).
   const athleteAge = (() => {
@@ -619,6 +690,7 @@ export default function AdminDashboard() {
           ['reports',      'Reports',        Flag],
           ['appeals',      'Appeals',        ShieldAlert],
           ['new-profile',  'New Profile',    UserPlus],
+          ['link-profile', 'Link Profile',   Link2],
           ['new-team',     'Teams',          Crown],
           ['tournaments',  'Tournaments',    Trophy],
           ['feed-preview', 'Feed Preview',   Eye],
@@ -1598,6 +1670,221 @@ export default function AdminDashboard() {
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* ── Link Profile Tab (bind an identity to an unclaimed profile) ── */}
+      {tab === 'link-profile' && (
+        <div>
+          <div className="bg-card rounded-xl border border-line p-5 mb-5">
+            <div className="flex items-center gap-2 mb-1">
+              <Link2 size={18} className="text-primary" />
+              <h2 className="font-semibold text-lg">Link an Unclaimed Profile</h2>
+            </div>
+            <p className="text-sm text-gray-custom">
+              A player rostered without an email lives on as an unclaimed profile — real stats, real ranking,
+              no login. They normally take it over with a claim code. Link one here when that can't happen:
+              the slip was lost, or there was never an email to send it to. Everything already recorded on the
+              profile stays on it.
+            </p>
+          </div>
+
+          <div className="flex gap-3 mb-4 flex-wrap">
+            <input
+              value={unclaimedSearch}
+              onChange={(e) => { setUnclaimedSearch(e.target.value); setUnclaimedPage(1); }}
+              placeholder="Search by name or position..."
+              className="flex-1 min-w-48 bg-card border border-line rounded-lg px-3 py-2 text-sm text-foreground placeholder-gray-custom focus:outline-none focus:border-primary"
+            />
+            <select
+              value={unclaimedSport}
+              onChange={(e) => { setUnclaimedSport(e.target.value); setUnclaimedPage(1); }}
+              className="bg-card border border-line rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary"
+            >
+              <option value="">All sports</option>
+              {SPORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+
+          {unclaimedLoading ? (
+            <div className="flex justify-center py-16">
+              <BallLoader />
+            </div>
+          ) : (
+            <div className="grid lg:grid-cols-[1fr_360px] gap-5 items-start">
+              {/* Stranded profiles */}
+              <div className="bg-card rounded-xl border border-line overflow-hidden">
+                <div className="divide-y divide-line">
+                  {(unclaimedData?.profiles ?? []).length === 0 ? (
+                    <div className="p-10 text-center text-gray-custom text-sm">
+                      No unclaimed profiles{unclaimedSearch || unclaimedSport ? ' match those filters' : ' on the network'}.
+                    </div>
+                  ) : (unclaimedData?.profiles ?? []).map((p: any) => {
+                    const age = unclaimedAge(p);
+                    const selected = linkTarget?.id === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => { setLinkTarget(p); setLinkForm(EMPTY_LINK_FORM); }}
+                        className={`w-full text-left px-5 py-3 flex items-center gap-3 transition-colors ${
+                          selected ? 'bg-primary/10' : 'hover:bg-surface/20'
+                        }`}
+                      >
+                        <Avatar name={p.name} src={p.avatar} size={36} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">
+                            {p.name}
+                            {p.guardianManaged && (
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-400/15 text-yellow-300 align-middle">
+                                Under 13
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-gray-custom truncate">
+                            {[
+                              p.role === 'COACH' ? 'Coach' : 'Athlete',
+                              p.sport,
+                              p.position,
+                              age !== null ? `Age ${age}` : null,
+                            ].filter(Boolean).join(' · ')}
+                          </p>
+                          {p.teams.length > 0 && (
+                            <p className="text-xs text-gray-custom truncate mt-0.5">
+                              {p.teams.map((t: any) => `${t.teamName} (${t.tournamentName})`).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                        {/* What would be handed over — the reason linking matters. */}
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-semibold">{p.gamesRecorded}</p>
+                          <p className="text-[10px] text-gray-custom uppercase tracking-wide">
+                            {p.gamesRecorded === 1 ? 'game' : 'games'}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {unclaimedData?.total > 20 && (
+                  <div className="flex items-center justify-between px-5 py-3 border-t border-line">
+                    <span className="text-xs text-gray-custom">{unclaimedData.total} unclaimed</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setUnclaimedPage((p) => Math.max(1, p - 1))}
+                        disabled={unclaimedPage === 1}
+                        className="px-3 py-1 text-sm text-gray-custom hover:text-foreground disabled:opacity-40 border border-line rounded-lg"
+                      >
+                        Prev
+                      </button>
+                      <span className="px-3 py-1 text-sm">Page {unclaimedPage}</span>
+                      <button
+                        onClick={() => setUnclaimedPage((p) => p + 1)}
+                        disabled={unclaimedPage * 20 >= unclaimedData.total}
+                        className="px-3 py-1 text-sm text-gray-custom hover:text-foreground disabled:opacity-40 border border-line rounded-lg"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Link panel */}
+              <div className="bg-card rounded-xl border border-line p-5 lg:sticky lg:top-4">
+                {!linkTarget ? (
+                  <p className="text-sm text-gray-custom py-6 text-center">
+                    Pick a profile to link it to someone.
+                  </p>
+                ) : (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!linkFormValid) return;
+                      linkProfileMutation.mutate({
+                        id: linkTarget.id,
+                        email: linkForm.email,
+                        guardianEmail: linkForm.guardianEmail,
+                      });
+                    }}
+                    className="space-y-4"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar name={linkTarget.name} src={linkTarget.avatar} size={40} />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate">{linkTarget.name}</p>
+                        <p className="text-xs text-gray-custom truncate">
+                          {[linkTarget.sport, linkTarget.position].filter(Boolean).join(' · ') || 'Unclaimed profile'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm text-gray-custom mb-2">
+                        {linkTargetUnder13 ? "Athlete's email " : 'Email '}
+                        <span className="text-gray-custom">(login)</span>
+                      </label>
+                      <input
+                        type="email" value={linkForm.email} required autoFocus
+                        onChange={(e) => setLinkForm((f) => ({ ...f, email: e.target.value }))}
+                        placeholder="player@example.com"
+                        className="w-full px-4 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                      />
+                      <p className="mt-2 text-xs text-gray-custom">
+                        If this email already has a login, it's bound to the profile as-is. If not, one is created
+                        and a temporary password emailed over.
+                      </p>
+                    </div>
+
+                    {/* Guardian email — required and surfaced only for under-13 athletes */}
+                    {linkTargetUnder13 && (
+                      <div className="rounded-lg border border-yellow-400/30 bg-yellow-400/5 p-4">
+                        <label className="block text-sm font-medium text-yellow-300 mb-2">
+                          Guardian Email <span className="text-primary">*</span>
+                        </label>
+                        <input
+                          type="email" value={linkForm.guardianEmail} required
+                          onChange={(e) => setLinkForm((f) => ({ ...f, guardianEmail: e.target.value }))}
+                          placeholder="parent@example.com"
+                          className="w-full px-3 py-3 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground placeholder-gray-custom text-sm"
+                        />
+                        <p className="mt-2 text-xs text-yellow-200/70">
+                          This athlete is under 13. The profile stays private and no login is handed out until the
+                          guardian consents via an emailed link — they'll get the login details then.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="rounded-lg border border-line bg-surface/40 p-3">
+                      <p className="text-xs text-gray-custom">
+                        Linking is not reversible from here. Any claim code still floating around for this profile
+                        stops working, and {linkTarget.gamesRecorded > 0
+                          ? `${linkTarget.gamesRecorded} recorded ${linkTarget.gamesRecorded === 1 ? 'game' : 'games'} plus every roster spot and ranking`
+                          : 'every roster spot and ranking'} moves under this login.
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setLinkTarget(null); setLinkForm(EMPTY_LINK_FORM); }}
+                        className="px-4 py-3 bg-elevated hover:bg-card border border-line rounded-lg text-sm font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!linkFormValid || linkProfileMutation.isPending}
+                        className="flex-1 py-3 bg-primary hover:bg-primary-dark text-on-primary font-semibold rounded-lg transition-colors disabled:opacity-50 text-sm"
+                      >
+                        {linkProfileMutation.isPending ? 'Linking…' : 'Link Profile'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

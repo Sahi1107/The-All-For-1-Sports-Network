@@ -13,11 +13,13 @@ import {
   AdminCreateTeamBody, AdminTeamParams, AdminTeamMemberParams,
   AdminAddMemberBody, AdminTeamListQuery, AdminComposeTeamBody,
   AdminTournamentParams, AdminOrganizerParams, AdminAddOrganizerBody, AdminUserLookupQuery,
+  AdminUnclaimedListQuery, AdminUnclaimedParams, AdminLinkUnclaimedBody,
 } from '../validation/admin';
 import { AdminSuspendBody, AdminAppealResolveBody, AdminAppealListQuery } from '../validation/appeal';
 import { grantEffect, isResolution } from '../services/account/appeals';
 import { deleteUserCompletely } from '../services/userDeletion';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';
+import { linkUnclaimedProfile } from '../services/unclaimedPlayer';
 import {
   findUserByEmail, provisionOrganizerAccount, assignOrganizer,
   revokeOrganizer, listOrganizers, listOrganizerAudit, notifyOrganizerAssigned,
@@ -1067,6 +1069,113 @@ router.get('/users/lookup', validate({ query: AdminUserLookupQuery }), async (re
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ─── Unclaimed profiles ──────────────────────────────────────────────────────
+//
+// An organiser can roster a player who isn't on the platform: the row is real and
+// takes stats and rankings, but has no login (see services/unclaimedPlayer). The
+// player is meant to redeem a claim code for it. When that breaks down — the slip
+// is lost, the player has no email to resend it to, the organiser has moved on —
+// the profile is stranded, and the organiser's own re-issue route is scoped to a
+// single tournament. These two routes are the network-wide admin backstop.
+
+// GET /api/admin/unclaimed — browse every stranded profile on the platform.
+router.get('/unclaimed', validate({ query: AdminUnclaimedListQuery }), async (req: AuthRequest, res: Response) => {
+  try {
+    const { sport, search, page = 1, limit = 20 } = req.query as unknown as {
+      sport?: Sport; search?: string; page?: number; limit?: number;
+    };
+    const skip = (page - 1) * limit;
+
+    const where: any = { claimStatus: 'UNCLAIMED' };
+    if (sport) where.sport = sport;
+    // No email on a shell by definition — name and position are all there is.
+    if (search) {
+      where.OR = [
+        { name:     { contains: search, mode: 'insensitive' } },
+        { position: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [profiles, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        select: {
+          id: true, name: true, role: true, sport: true, gender: true, position: true,
+          avatar: true, dateOfBirth: true, age: true, guardianManaged: true, createdAt: true,
+          // What the admin recognises the player by — and what they'd be handing over.
+          teamMemberships: {
+            where: { status: 'ACCEPTED' },
+            select: { team: { select: { name: true, tournament: { select: { name: true } } } } },
+            take: 5,
+          },
+          _count: { select: { basketballStats: true, footballStats: true, cricketStats: true } },
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    res.json({
+      profiles: profiles.map((p) => {
+        const { _count, teamMemberships, ...rest } = p;
+        return {
+          ...rest,
+          gamesRecorded: _count.basketballStats + _count.footballStats + _count.cricketStats,
+          teams: teamMemberships.map((m) => ({
+            teamName: m.team.name,
+            tournamentName: m.team.tournament?.name ?? '—',
+          })),
+        };
+      }),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    logger.error('Admin list unclaimed error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/unclaimed/:id/link — bind an identity to a stranded profile, no
+// claim code needed. The admin is asserting the email belongs to the player, the
+// same assertion they already make when provisioning an account. Everything
+// recorded against the profile stays on it.
+router.post(
+  '/unclaimed/:id/link',
+  writeLimiter,
+  validate({ params: AdminUnclaimedParams, body: AdminLinkUnclaimedBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const result = await linkUnclaimedProfile({
+        userId: req.params.id as string,
+        email: req.body.email,
+        guardianEmail: req.body.guardianEmail,
+        actorId: req.user!.userId,
+      });
+      logger.info('admin.unclaimed_linked', {
+        actorId: req.user!.userId,
+        userId: result.userId,
+        guardianConsentPending: result.guardianConsentPending,
+      });
+      res.json(result);
+    } catch (error: any) {
+      if (error?.name === 'ProvisionError') {
+        const status =
+          error.code === 'NOT_FOUND' ? 404
+          : error.code === 'ALREADY_CLAIMED' || error.code === 'ACCOUNT_HAS_HISTORY' ? 409
+          : 400;
+        res.status(status).json({ error: error.message, code: error.code });
+        return;
+      }
+      logger.error('Admin link unclaimed error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
 
 // GET /api/admin/tournaments/:id/organizers — who has organiser access.
 router.get('/tournaments/:id/organizers', validate({ params: AdminTournamentParams }), async (req: AuthRequest, res: Response) => {
