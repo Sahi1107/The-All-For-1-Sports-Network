@@ -603,8 +603,41 @@ body {
 
 /* ── Marketing sub-pages: How it works, For scouts & coaches ───────── */
 .mkt-page {
+  position: relative;
   min-height: 100vh;
   background: #080808;
+}
+
+/* Atmospheric backdrop so the pages don't read blank: a soft overhead spotlight,
+   a volt accent, and a faint echo of the hero athletes in the corner. */
+.mkt-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 72% at 50% -12%, rgba(211, 228, 255, 0.12), transparent 55%),
+    radial-gradient(66% 55% at 86% 6%, rgba(219, 255, 90, 0.08), transparent 55%),
+    radial-gradient(95% 60% at 50% 122%, rgba(219, 255, 90, 0.05), transparent 60%);
+}
+.mkt-bg::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(52vw, 680px);
+  height: min(58vh, 640px);
+  background: url("../assets/hero-athletes.webp") right bottom / contain no-repeat;
+  opacity: 0.12;
+  -webkit-mask: linear-gradient(305deg, #000 12%, transparent 72%);
+  mask: linear-gradient(305deg, #000 12%, transparent 72%);
+}
+.mkt-hero,
+.mkt-sec,
+.mkt-cta,
+.mkt-foot {
+  position: relative;
+  z-index: 1;
 }
 .mkt-hero {
   max-width: 1180px;

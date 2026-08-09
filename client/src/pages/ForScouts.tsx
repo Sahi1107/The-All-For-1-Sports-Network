@@ -48,6 +48,7 @@ export default function ForScouts() {
 
   return (
     <div className={`landing-root mkt-page ${showWipe ? 'intro-full' : 'intro-quick'}`}>
+      <div className="mkt-bg" aria-hidden />
       {showWipe && <PageWipe />}
       <LandingHeader />
 
