@@ -22,6 +22,8 @@ import { stopAnalytics, analyticsAvailable } from './config/analytics';
 // Lazy-load every page so the initial bundle is tiny
 const Landing        = lazy(() => import('./pages/Landing'));
 const Challenges     = lazy(() => import('./pages/Challenges'));
+const HowItWorks     = lazy(() => import('./pages/HowItWorks'));
+const ForScouts      = lazy(() => import('./pages/ForScouts'));
 const Terms          = lazy(() => import('./pages/Terms'));
 const Privacy        = lazy(() => import('./pages/Privacy'));
 const Login          = lazy(() => import('./pages/Login'));
@@ -160,6 +162,8 @@ function AppRoutes() {
         <Route index                   element={<LandingRoute><Landing /></LandingRoute>} />
         <Route path="/landing"         element={<LandingRoute><Landing /></LandingRoute>} />
         <Route path="/challenges"      element={<Challenges />} />
+        <Route path="/how-it-works"    element={<HowItWorks />} />
+        <Route path="/for-scouts"      element={<ForScouts />} />
         <Route path="/terms"           element={<Terms />} />
         <Route path="/privacy"         element={<Privacy />} />
 

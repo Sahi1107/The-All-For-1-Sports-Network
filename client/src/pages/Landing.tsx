@@ -186,8 +186,8 @@ export default function Landing() {
             <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
           </button>
           <nav className="lp-nav" aria-label="Primary">
-            <button className="lp-link" onClick={() => jumpTo('about')}>How it works</button>
-            <button className="lp-link" onClick={() => jumpTo('team')}>For scouts</button>
+            <button className="lp-link" onClick={() => navigate('/how-it-works')}>How it works</button>
+            <button className="lp-link" onClick={() => navigate('/for-scouts')}>For scouts</button>
             <button className="lp-link" onClick={() => navigate('/challenges')}>Challenges</button>
             <span className="lp-actions">
               <button className="lp-login" onClick={() => navigate('/login')}>Log In</button>
