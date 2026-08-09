@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import logoUrl from '../assets/logo.svg';
 
 /**
@@ -10,6 +10,7 @@ import logoUrl from '../assets/logo.svg';
  */
 export default function LandingHeader() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -19,13 +20,20 @@ export default function LandingHeader() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // On the landing itself, "Home" scrolls to the top instead of a no-op nav.
+  const goHome = () => {
+    if (location.pathname === '/') window.scrollTo({ top: 0, behavior: 'smooth' });
+    else navigate('/');
+  };
+
   return (
     <header className={`lp-header ${scrolled ? 'is-solid' : ''}`}>
       <div className="lp-bar">
-        <button className="lp-logo" onClick={() => navigate('/')} aria-label="All For One home">
+        <button className="lp-logo" onClick={goHome} aria-label="All For One home">
           <img src={logoUrl} alt="All For One" />
         </button>
         <nav className="lp-nav" aria-label="Primary">
+          <button className="lp-link" onClick={goHome}>Home</button>
           <button className="lp-link" onClick={() => navigate('/how-it-works')}>How it works</button>
           <button className="lp-link" onClick={() => navigate('/for-scouts')}>For scouts</button>
           <button className="lp-link" onClick={() => navigate('/challenges')}>Challenges</button>

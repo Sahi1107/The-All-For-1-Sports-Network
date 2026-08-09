@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LandingHeader from '../components/LandingHeader';
+import PageWipe, { useIntro } from '../components/PageWipe';
 import logoUrl from '../assets/logo.svg';
 import './landing.css';
 
@@ -39,13 +40,15 @@ const CARDS = [
 
 export default function ForScouts() {
   const navigate = useNavigate();
+  const showWipe = useIntro();
 
   useEffect(() => {
     document.title = 'For scouts & coaches · All For 1';
   }, []);
 
   return (
-    <div className="landing-root mkt-page">
+    <div className={`landing-root mkt-page ${showWipe ? 'intro-full' : 'intro-quick'}`}>
+      {showWipe && <PageWipe />}
       <LandingHeader />
 
       <section className="mkt-hero">

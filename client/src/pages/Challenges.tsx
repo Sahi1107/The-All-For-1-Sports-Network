@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
+import LandingHeader from '../components/LandingHeader';
+import { useIntro } from '../components/PageWipe';
 import logoUrl from '../assets/logo.svg';
 import './landing.css';
 
@@ -94,7 +96,8 @@ export default function Challenges() {
   const navigate = useNavigate();
   const [selected, setSelected] = useState<Challenge | null>(null);
   const [sportFilter, setSportFilter] = useState<string>('All');
-  const [wipeActive, setWipeActive] = useState(true);
+  const showWipe = useIntro();
+  const [wipeActive, setWipeActive] = useState(showWipe);
   // Live athlete count per challenge id, fetched from the public stats endpoint.
   const [counts, setCounts] = useState<Record<string, number>>({});
 
@@ -157,51 +160,15 @@ export default function Challenges() {
       ? CHALLENGES
       : CHALLENGES.filter((c) => c.sport === sportFilter);
 
-  const goToLandingSection = (id: 'home' | 'about' | 'team') => {
-    navigate(`/#${id}`);
-  };
-
   return (
-    <div className="landing-root challenges-page challenges-enter">
+    <div className={`landing-root challenges-page challenges-enter ${showWipe ? 'intro-full' : 'intro-quick'}`}>
       {wipeActive && (
         <>
           <div className="page-wipe page-wipe--back" aria-hidden />
           <div className="page-wipe page-wipe--front" aria-hidden />
         </>
       )}
-      <header className="glass-header">
-        <button
-          className="logo"
-          onClick={() => navigate('/')}
-          aria-label="All For One home"
-        >
-          <img src={logoUrl} className="logo-anim" alt="All For One" />
-        </button>
-
-        <button
-          className="nav-signup nav-signup--corner"
-          onClick={() => navigate('/login')}
-        >
-          Sign Up
-        </button>
-
-        <nav className="nav-container nav-blue" aria-label="Primary">
-          <div className="glass-menu">
-            <button className="nav-item" onClick={() => goToLandingSection('home')}>
-              Home
-            </button>
-            <button className="nav-item" onClick={() => goToLandingSection('about')}>
-              About
-            </button>
-            <button className="nav-item" onClick={() => goToLandingSection('team')}>
-              Team
-            </button>
-            <button className="nav-item active" aria-current="page">
-              Challenges
-            </button>
-          </div>
-        </nav>
-      </header>
+      <LandingHeader />
 
       <section className="challenges-hero">
         <div className="challenges-hero-content">

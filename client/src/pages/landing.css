@@ -374,7 +374,7 @@ body {
   color: #fff;
   text-align: left;
   max-width: 780px;
-  padding: 0 clamp(22px, 5vw, 72px);
+  padding: 96px clamp(22px, 5vw, 72px) 40px;
 }
 
 .hero-eyebrow {
@@ -776,6 +776,56 @@ body {
 }
 .mkt-foot-links a:hover {
   color: #fff;
+}
+
+/* Entrance: content rises in behind the page-wipe, same feel as the landing */
+@keyframes mktRise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: none; }
+}
+.mkt-page .mkt-hero > *,
+.mkt-page .mkt-sec,
+.mkt-page .mkt-cta {
+  opacity: 0;
+  animation: mktRise 0.72s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.mkt-page .mkt-hero > *:nth-child(1) { animation-delay: 0.62s; }
+.mkt-page .mkt-hero > *:nth-child(2) { animation-delay: 0.72s; }
+.mkt-page .mkt-hero > *:nth-child(3) { animation-delay: 0.84s; }
+.mkt-page .mkt-sec { animation-delay: 0.92s; }
+.mkt-page .mkt-cta { animation-delay: 1.02s; }
+@media (prefers-reduced-motion: reduce) {
+  .mkt-page .mkt-hero > *,
+  .mkt-page .mkt-sec,
+  .mkt-page .mkt-cta {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Return-navigation intro: the big page-wipe + stagger fires only on the first
+   page of a session (.intro-full). Every navigation after that gets a quick,
+   quiet fade instead of the full sweep, so the effect never gets repetitive. */
+@keyframes quickFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.intro-quick {
+  animation: quickFade 0.32s ease both;
+}
+.intro-quick .hero-content > *,
+.intro-quick .hero-photo,
+.intro-quick header,
+.intro-quick .mkt-hero > *,
+.intro-quick .mkt-sec,
+.intro-quick .mkt-cta,
+.intro-quick .challenges-hero-content > *,
+.intro-quick .challenges-filter-row,
+.intro-quick .challenge-card {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
 }
 @media (max-width: 860px) {
   .mkt-steps {
@@ -1931,24 +1981,25 @@ body.modal-open {
   display: inline-block;
   padding: 6px 14px;
   border-radius: 999px;
-  background: rgba(215, 255, 90, 0.14);
-  border: 1px solid rgba(215, 255, 90, 0.32);
-  color: #d7ff5a;
-  font-size: 0.78rem;
+  background: rgba(219, 255, 90, 0.14);
+  border: 1px solid rgba(219, 255, 90, 0.32);
+  color: #dbff5a;
+  font-family: "Saira Condensed", system-ui, sans-serif;
+  font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   margin-bottom: 18px;
 }
 
 .challenges-hero-content h1 {
-  font-size: clamp(2.6rem, 6vw, 4rem);
+  font-family: "Anton", Impact, "Arial Narrow Bold", sans-serif;
+  font-weight: 400;
+  font-size: clamp(2.8rem, 6.4vw, 4.6rem);
+  line-height: 1;
   margin: 0 0 14px;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #ffffff 0%, #d7ff5a 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  letter-spacing: 0.008em;
+  color: #fff;
 }
 
 .challenges-hero-content p {

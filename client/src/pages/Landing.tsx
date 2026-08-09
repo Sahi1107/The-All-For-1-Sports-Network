@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logoUrl from '../assets/logo.svg';
-import logoBlueUrl from '../assets/logo-icon.svg';
+import LandingHeader from '../components/LandingHeader';
+import { useIntro } from '../components/PageWipe';
 import './landing.css';
 
 type SectionId = 'home' | 'about' | 'team';
@@ -27,9 +28,9 @@ export default function Landing() {
   const navigate = useNavigate();
   const location = useLocation();
   const [active, setActive] = useState<SectionId>('home');
-  const [navBlue, setNavBlue] = useState(false);
   const [expandedCreator, setExpandedCreator] = useState<Creator | null>(null);
-  const [wipeActive, setWipeActive] = useState(true);
+  const showWipe = useIntro();
+  const [wipeActive, setWipeActive] = useState(showWipe);
   // Defer the 1.8MB background video until the About section is near view — the
   // poster (40KB WebP) shows until then, so nothing loads on first paint.
   const [videoSrc, setVideoSrc] = useState('');
@@ -86,16 +87,6 @@ export default function Landing() {
     });
 
     return () => sectionObserver.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!infoHubRef.current || !('IntersectionObserver' in window)) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setNavBlue(entry.isIntersecting),
-      { root: null, threshold: 0, rootMargin: '-100px 0px -90% 0px' },
-    );
-    observer.observe(infoHubRef.current);
-    return () => observer.disconnect();
   }, []);
 
   // Lazy-load the About video only when its section is ~one screen away. Falls
@@ -173,29 +164,14 @@ export default function Landing() {
   };
 
   return (
-    <div className="landing-root landing-enter">
+    <div className={`landing-root landing-enter ${showWipe ? 'intro-full' : 'intro-quick'}`}>
       {wipeActive && (
         <>
           <div className="page-wipe page-wipe--back" aria-hidden />
           <div className="page-wipe page-wipe--front" aria-hidden />
         </>
       )}
-      <header className={`lp-header ${navBlue ? 'is-light' : ''}`}>
-        <div className="lp-bar">
-          <button className="lp-logo" onClick={() => jumpTo('home')} aria-label="All For One home">
-            <img src={navBlue ? logoBlueUrl : logoUrl} className="logo-anim" alt="All For One" />
-          </button>
-          <nav className="lp-nav" aria-label="Primary">
-            <button className="lp-link" onClick={() => navigate('/how-it-works')}>How it works</button>
-            <button className="lp-link" onClick={() => navigate('/for-scouts')}>For scouts</button>
-            <button className="lp-link" onClick={() => navigate('/challenges')}>Challenges</button>
-            <span className="lp-actions">
-              <button className="lp-login" onClick={() => navigate('/login')}>Log In</button>
-              <button className="lp-signup" onClick={() => navigate('/register')}>Sign Up</button>
-            </span>
-          </nav>
-        </div>
-      </header>
+      <LandingHeader />
 
       <section id="home" className="hero-wrapper" ref={homeRef}>
         <div className="hero-photo" aria-hidden />
@@ -214,7 +190,7 @@ export default function Landing() {
             <button className="btn-primary" onClick={() => navigate('/register')}>
               Create your free profile
             </button>
-            <button className="btn-glass" onClick={() => jumpTo('about')}>
+            <button className="btn-glass" onClick={() => navigate('/how-it-works')}>
               See how it works
             </button>
           </div>
