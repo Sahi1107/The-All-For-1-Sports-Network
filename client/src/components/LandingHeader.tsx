@@ -29,8 +29,8 @@ export default function LandingHeader() {
   return (
     <header className={`lp-header ${scrolled ? 'is-solid' : ''}`}>
       <div className="lp-bar">
-        <button className="lp-logo" onClick={goHome} aria-label="All For One home">
-          <img src={logoUrl} alt="All For One" />
+        <button className="lp-logo" onClick={goHome} aria-label="All For 1 home">
+          <img src={logoUrl} alt="All For 1" />
         </button>
         <nav className="lp-nav" aria-label="Primary">
           <button className="lp-link" onClick={goHome}>Home</button>

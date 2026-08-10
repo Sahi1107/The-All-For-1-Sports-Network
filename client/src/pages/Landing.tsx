@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import logoUrl from '../assets/logo.svg';
 import LandingHeader from '../components/LandingHeader';
+import SiteFooter from '../components/SiteFooter';
 import { useIntro } from '../components/PageWipe';
 import './landing.css';
 
@@ -146,14 +146,6 @@ export default function Landing() {
     };
   }, [active]);
 
-  const jumpTo = (id: SectionId) => {
-    const nodes: Record<SectionId, HTMLElement | null> = {
-      home: homeRef.current,
-      about: aboutRef.current,
-      team: teamRef.current,
-    };
-    nodes[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   const moveSpotlightTo = (clientX: number, clientY: number, pointerType: string) => {
     if (pointerType === 'touch') return;
@@ -214,7 +206,7 @@ export default function Landing() {
         />
         <div className="about-split">
           <div className="about-text">
-            <h2>What Is All For One?</h2>
+            <h2>What Is All For 1?</h2>
             <p>
               The professional network for the entire Indian sports ecosystem — where
               athletes are known by verified performance, not self-reported hype. Stats
@@ -285,7 +277,7 @@ export default function Landing() {
         <div className="spotlight" ref={spotlightRef} />
         <div className="who-container">
           <div className="who-left">
-            <h2>ABOUT ALL FOR ONE</h2>
+            <h2>ABOUT ALL FOR 1</h2>
             <p>
               All For 1 is a social network designed for the entire Indian sports ecosystem. At
               its core, athletes build verified profiles with verified stats and rankings. These
@@ -441,49 +433,14 @@ export default function Landing() {
               </span>
               <span className="contact-meta">
                 <span className="contact-label">LinkedIn</span>
-                <span className="contact-value">All For One Sport</span>
+                <span className="contact-value">All For 1 Sport</span>
               </span>
             </a>
           </div>
         </div>
       </section>
 
-      <footer className="l-footer">
-        <div className="l-footer__inner">
-          <div>
-            <img src={logoUrl} alt="All For One" className="footer-logo" />
-            <p>The verified data layer for Indian grassroots sport.</p>
-          </div>
-          <div className="l-footer__col">
-            <h5>Product</h5>
-            <button onClick={() => jumpTo('home')}>Home</button>
-            <button onClick={() => jumpTo('about')}>About</button>
-            <button onClick={() => jumpTo('team')}>Team</button>
-            <Link to="/challenges">Challenges</Link>
-            <Link to="/register">Sign Up</Link>
-          </div>
-          <div className="l-footer__col">
-            <h5>Company</h5>
-            <a href="/about">About</a>
-            <a href="/safety">Safety</a>
-            <a href="/community-guidelines">Community Guidelines</a>
-            <a href="/faq">FAQ</a>
-            <a href="mailto:info@allfor1.pro">Contact</a>
-          </div>
-          <div className="l-footer__col">
-            <h5>Legal</h5>
-            <Link to="/terms">Terms &amp; Conditions</Link>
-            <Link to="/privacy">Privacy Policy</Link>
-          </div>
-        </div>
-        <div className="l-footer__bar">
-          <span>&copy; {new Date().getFullYear()} The AllFor1 Network. All rights reserved.</span>
-          <span>
-            <Link to="/terms">Terms</Link>
-            <Link to="/privacy">Privacy</Link>
-          </span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

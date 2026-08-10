@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { useLogo } from '../hooks/useLogo';
 import GoogleAuthButton from '../components/GoogleAuthButton';
+import SiteFooter from '../components/SiteFooter';
 
 export default function Login() {
   const logoUrl = useLogo();
@@ -35,6 +36,7 @@ export default function Login() {
   };
 
   return (
+    <>
     <div className="min-h-screen flex items-center justify-center bg-surface p-4 relative overflow-hidden af-fade-in">
       {/* Background video */}
       {/* eslint-disable-next-line */}
@@ -110,5 +112,7 @@ export default function Login() {
         </form>
       </div>
     </div>
+    <SiteFooter />
+    </>
   );
 }

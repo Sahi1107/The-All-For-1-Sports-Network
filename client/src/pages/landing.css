@@ -485,9 +485,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  max-width: 1360px;
-  margin: 0 auto;
-  padding: 18px 40px;
+  padding: 18px clamp(22px, 5vw, 72px);
 }
 .lp-logo {
   display: block;
@@ -497,7 +495,7 @@ body {
   cursor: pointer;
 }
 .lp-logo img {
-  height: 54px;
+  height: 68px;
   width: auto;
   display: block;
   transition: opacity 0.35s ease, transform 0.35s ease;
@@ -583,7 +581,7 @@ body {
     padding: 14px 20px;
   }
   .lp-logo img {
-    height: 46px;
+    height: 54px;
   }
   .lp-nav {
     gap: 14px;

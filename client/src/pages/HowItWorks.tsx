@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LandingHeader from '../components/LandingHeader';
 import PageWipe, { useIntro } from '../components/PageWipe';
-import logoUrl from '../assets/logo.svg';
+import SiteFooter from '../components/SiteFooter';
 import './landing.css';
 
 const STEPS = [
@@ -59,14 +59,7 @@ export default function HowItWorks() {
         </div>
       </section>
 
-      <footer className="mkt-foot">
-        <img src={logoUrl} alt="All For One" className="mkt-foot-logo" />
-        <span className="mkt-foot-links">
-          <a href="/">Home</a>
-          <a href="/challenges">Challenges</a>
-          <a href="mailto:info@allfor1.pro">info@allfor1.pro</a>
-        </span>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

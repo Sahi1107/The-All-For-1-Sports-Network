@@ -8,6 +8,7 @@ import { COUNTRY_LIST, getStates, HEIGHT_OPTIONS } from '../data/locationData';
 import { SPORTS, ATHLETICS_EVENT_GROUPS, type Sport } from '../data/sports';
 import DOBPicker from '../components/DOBPicker';
 import GoogleAuthButton from '../components/GoogleAuthButton';
+import SiteFooter from '../components/SiteFooter';
 
 // Lazy so the long legal text only loads when a signup link is tapped, and
 // stays a separate chunk (consistent with the app's lazy-loaded legal pages).
@@ -133,6 +134,7 @@ export default function Register() {
   }
 
   return (
+    <>
     <div className="min-h-screen flex items-center justify-center bg-surface p-4 af-fade-in">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
@@ -474,5 +476,7 @@ export default function Register() {
         </Suspense>
       )}
     </div>
+    <SiteFooter />
+    </>
   );
 }
