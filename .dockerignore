@@ -1,0 +1,31 @@
+# Root build context for the API image. Keep it small and never ship secrets or
+# the web client's build output into the API image.
+**/node_modules
+**/dist
+**/build
+**/.git
+.gitignore
+**/.env
+**/.env.*
+**/*.log
+**/logs/
+**/coverage/
+**/.vscode
+**/.idea
+**/.DS_Store
+
+# Web client: only its package.json is needed (for workspace resolution); its
+# source and large assets are not part of the API image.
+client/src
+client/public
+client/index.html
+client/vite.config.ts
+client/prerender
+client/src/assets/Gemini_Generated_Image_*.png
+
+# Local-only / large artifacts + anything secret-shaped.
+graphify-out
+**/*firebase-adminsdk*.json
+server/cloudinary-to-gcs-mapping.json
+server/neon-backup.dump
+server/scripts
