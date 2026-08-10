@@ -66,11 +66,16 @@ function render(route: RouteSEO): string {
   // 3. JSON-LD before </head>.
   html = html.replace('</head>', `    ${jsonLdTags(route)}\n  </head>`);
 
-  // 4. Semantic content into #root (SPA replaces it on mount).
+  // 4. Semantic content into #root (SPA replaces it on mount). A boot overlay is
+  //    prepended so users see the neutral loader, not the raw SEO copy, during the
+  //    ~1s before React clears #root — the copy stays in the DOM for crawlers.
   if (!html.includes('<div id="root"></div>')) {
     throw new Error('[prerender] <div id="root"></div> not found in index.html template');
   }
-  html = html.replace('<div id="root"></div>', `<div id="root">${route.bodyHtml}</div>`);
+  html = html.replace(
+    '<div id="root"></div>',
+    `<div id="root"><div class="app-boot" aria-hidden="true"></div>${route.bodyHtml}</div>`,
+  );
 
   return html;
 }

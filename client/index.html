@@ -66,6 +66,22 @@
         animation: af1-spin 0.8s linear infinite;
       }
       @keyframes af1-spin { to { transform: rotate(360deg); } }
+      /* Boot overlay for prerendered pages (/, /terms, /privacy, /challenges): their
+         #root is non-empty (SEO copy for crawlers), so #root:empty can't cover it.
+         This mirrors that loader and sits on top; React clears #root on mount, removing
+         both the overlay and the SEO copy together — so users never see the raw text. */
+      .app-boot { position: fixed; inset: 0; z-index: 2147483000; background: #0a0a0a; }
+      html[data-theme="light"] .app-boot { background: #f4f5f8; }
+      .app-boot::after {
+        content: "";
+        position: fixed; top: 50%; left: 50%;
+        width: 32px; height: 32px;
+        margin: -16px 0 0 -16px;
+        border: 2px solid #3b82f6;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: af1-spin 0.8s linear infinite;
+      }
       #af1-nojs { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
     </style>
   </head>
