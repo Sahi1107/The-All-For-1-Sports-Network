@@ -52,10 +52,14 @@ test('an override wins for a configurable type', () => {
 test('SYSTEM is non-configurable — forced fully on even with an override', () => {
   assert.deepEqual(effectivePref('SYSTEM', { inApp: false, email: false, digest: 'OFF' }), { inApp: true, email: true, digest: 'INSTANT' });
 });
-test('valuable/rare types default to instant email; noisy types do not', () => {
+test('valuable/rare types default to instant email; noisy + connection types do not', () => {
   assert.equal(effectivePref('ENDORSEMENT', null).email, true);
-  assert.equal(effectivePref('CONNECTION_REQUEST', null).email, true);
   assert.equal(effectivePref('MATCH_RESULT_PUBLISHED', null).email, true);
+  // Connection requests are intentionally in-app by default — NOT instant email. If a
+  // user enables email it batches into the daily digest (the "emails too frequent" fix,
+  // 4571b16). The digest assertion locks that intent against an accidental flip back.
+  assert.equal(effectivePref('CONNECTION_REQUEST', null).email, false);
+  assert.equal(effectivePref('CONNECTION_REQUEST', null).digest, 'DAILY');
   assert.equal(effectivePref('LIKE', null).email, false);
   assert.equal(effectivePref('REPOST', null).email, false);
 });
