@@ -5,7 +5,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { uploadImage, validateImageBytes } from '../middleware/upload';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { UpdateProfileBody, UserSearchQuery } from '../validation/user';
+import { UpdateProfileBody, UserSearchQuery } from '@af1/validation';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 import { attachConnectionStatus } from '../services/connectionState';
 import { deleteUserCompletely } from '../services/userDeletion';

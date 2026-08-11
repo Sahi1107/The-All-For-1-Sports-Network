@@ -5,7 +5,7 @@ import { uploadVideo } from '../middleware/upload';
 import { browseLimiter, uploadLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateVideoBytes } from '../middleware/upload';
-import { CreateHighlightBody, HighlightListQuery } from '../validation/post';
+import { CreateHighlightBody, HighlightListQuery } from '@af1/validation';
 import { uploadToGCS, signMediaDeep, signMediaDeepAll } from '../services/storage';
 
 const router = Router();

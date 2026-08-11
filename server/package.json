@@ -16,6 +16,7 @@
     "seed:mock": "ts-node --project tsconfig.json scripts/seed-mock-profiles.ts"
   },
   "dependencies": {
+    "@af1/validation": "*",
     "@anthropic-ai/sdk": "^0.82.0",
     "@google-cloud/storage": "^7.19.0",
     "@prisma/client": "^6.4.0",

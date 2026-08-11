@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ZodSchema, ZodError } from 'zod';
-import { hasDangerousKeys } from '../validation/common';
+import { hasDangerousKeys } from '@af1/validation';
 import logger from '../utils/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -120,6 +120,6 @@ export function validate(schemas: Schemas) {
 /** Shorthand for validating a single UUID route param named `id`. */
 export function validateId() {
   const { z } = require('zod') as typeof import('zod');
-  const { uuidParam } = require('../validation/common') as typeof import('../validation/common');
+  const { uuidParam } = require('@af1/validation') as typeof import('@af1/validation');
   return validate({ params: z.object({ id: uuidParam }) });
 }

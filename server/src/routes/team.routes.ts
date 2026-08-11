@@ -4,7 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { getIO } from '../config/socket';
-import { TeamSearchQuery } from '../validation/team';
+import { TeamSearchQuery } from '@af1/validation';
 import { notify } from '../services/notifications/notify';
 
 const router = Router();

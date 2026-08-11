@@ -1,0 +1,92 @@
+import { z } from 'zod';
+import { reqStr, optStr, SportEnum, RoleEnum, GenderEnum } from './common';
+
+// ─── Password rules ───────────────────────────────────────────────────────────
+// Min 8 chars, at least one uppercase, one lowercase, one digit.
+// Max 128 chars — bcrypt silently truncates at 72 bytes so we reject longer
+// passwords server-side rather than let users believe a 200-char password is set.
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+const password = z
+  .string({ error: 'Password is required' })
+  .min(8, 'Password must be at least 8 characters')
+  .max(128, 'Password cannot exceed 128 characters')
+  .regex(
+    PASSWORD_REGEX,
+    'Password must include an uppercase letter, a lowercase letter, and a number',
+  );
+
+const email = z
+  .string({ error: 'Email is required' })
+  .email('Invalid email address')
+  .max(254, 'Email address too long')            // RFC 5321 maximum
+  .transform((s) => s.toLowerCase().trim());
+
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+
+export const RegisterBody = z.object({
+  email,
+  password,
+  name:   reqStr(50, 'Name'),
+  role:   RoleEnum,
+  sport:  SportEnum,
+  gender: GenderEnum.optional(),
+});
+
+export const LoginBody = z.object({
+  email,
+  // Don't apply the strength regex on login — just check presence and max length.
+  // Wrong-password error is returned either way; we don't want to leak which rule failed.
+  password: z
+    .string({ error: 'Password is required' })
+    .min(1, 'Password is required')
+    .max(128, 'Password cannot exceed 128 characters'),
+});
+
+export const RefreshBody = z.object({
+  refreshToken: z.string({ error: 'Refresh token required' }).min(1),
+});
+
+export const ForgotPasswordBody = z.object({
+  // Optional — route always returns 200 to prevent email enumeration
+  email: email.optional().or(z.literal('')).transform((v) => (v === '' ? undefined : v)),
+});
+
+export const ResendVerificationBody = z.object({
+  email: email.optional().or(z.literal('')).transform((v) => (v === '' ? undefined : v)),
+});
+
+export const ResetPasswordBody = z.object({
+  token:    z.string({ error: 'Reset token is required' }).min(1).max(512),
+  password,
+});
+
+export const LogoutBody = z.object({
+  // refreshToken is optional — route still revokes the access token
+  refreshToken: z.string().min(1).max(512).optional(),
+});
+
+// ─── Guardian handover (under-13 athletes) ─────────────────────────────────────
+
+export const HandoverConsentBody = z.object({
+  token: z.string({ error: 'Consent token is required' }).min(1).max(128),
+});
+
+export const HandoverCompleteBody = z.object({
+  // The athlete's own new email. Password is changed client-side via Firebase.
+  newEmail: email,
+});
+
+// ─── Email change (normal users) ────────────────────────────────────────────────
+
+export const EmailChangeBody = z.object({
+  newEmail: email,
+});
+
+// ─── Claiming an organiser-created profile ─────────────────────────────────────
+// The code is normalised (case + separators) in services/unclaimedPlayer, so this
+// only bounds the input — 8 significant chars plus optional separators/whitespace.
+
+export const ClaimCodeBody = z.object({
+  code: z.string({ error: 'A claim code is required' }).min(1).max(32),
+});

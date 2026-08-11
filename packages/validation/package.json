@@ -1,0 +1,19 @@
+{
+  "name": "@af1/validation",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared Zod request/response schemas — one source of truth for server, web and mobile.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --require ts-node/register --test 'src/**/*.test.ts'"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

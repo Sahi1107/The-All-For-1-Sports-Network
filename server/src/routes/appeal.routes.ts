@@ -3,7 +3,7 @@ import prisma from '../config/db';
 import { authenticateAllowSuspended, AuthRequest } from '../middleware/auth';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { AppealSubmitBody } from '../validation/appeal';
+import { AppealSubmitBody } from '@af1/validation';
 import { canSubmitAppeal, type AppealKindT, type AppealStatusT } from '../services/account/appeals';
 import logger from '../utils/logger';
 

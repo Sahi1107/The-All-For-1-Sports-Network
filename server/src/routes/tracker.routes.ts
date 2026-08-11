@@ -28,7 +28,7 @@ import {
   BoxScoreError, BOX_SCORE_SPORTS, publishBoxScore, notifyBoxScorePublished,
   toPlayerStats, loadStatRows, assertBoxScoreRosters,
 } from '../services/manualBoxScore';
-import { FixtureBoxScoreBody } from '../validation/tournament';
+import { FixtureBoxScoreBody } from '@af1/validation';
 import { bustTournament } from '../services/tournamentCache';
 import logger from '../utils/logger';
 import { captureException } from '../config/sentry';
@@ -41,7 +41,7 @@ import {
   JerseysBody,
   IdParam,
   TournamentIdParam,
-} from '../validation/tracker';
+} from '@af1/validation';
 
 const DONE_STATUS = (s: string) => s === 'COMPLETED' || s === 'PUBLISHED';
 

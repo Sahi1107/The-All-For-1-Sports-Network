@@ -10,7 +10,7 @@ import {
   CreateConversationBody,
   SendMessageBody,
   ForwardMessageBody,
-} from '../validation/message';
+} from '@af1/validation';
 import { signMediaDeep } from '../services/storage';
 import { parseReportInput, createReport } from '../services/reports';
 

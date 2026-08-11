@@ -14,8 +14,8 @@ import {
   AdminAddMemberBody, AdminTeamListQuery, AdminComposeTeamBody,
   AdminTournamentParams, AdminOrganizerParams, AdminAddOrganizerBody, AdminUserLookupQuery,
   AdminUnclaimedListQuery, AdminUnclaimedParams, AdminLinkUnclaimedBody,
-} from '../validation/admin';
-import { AdminSuspendBody, AdminAppealResolveBody, AdminAppealListQuery } from '../validation/appeal';
+} from '@af1/validation';
+import { AdminSuspendBody, AdminAppealResolveBody, AdminAppealListQuery } from '@af1/validation';
 import { grantEffect, isResolution } from '../services/account/appeals';
 import { deleteUserCompletely } from '../services/userDeletion';
 import { provisionAthleteAccount, ProvisionError } from '../services/provisionAthlete';

@@ -24,7 +24,7 @@ import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
   RegisterTeamBody, CreateMatchBody, MatchResultBody, ProvisionMemberBody, PlayerSearchQuery,
   BoxScoreBody,
-} from '../validation/tournament';
+} from '@af1/validation';
 import {
   BoxScoreError, BOX_SCORE_SPORTS, publishBoxScore, notifyBoxScorePublished,
   toPlayerStats, loadStatRows, assertBoxScoreRosters,
@@ -38,7 +38,7 @@ import { teamRosterIsLocked, ROSTER_LOCK_STATUSES, rosterNeedsAttention, rosterM
 const ROSTER_LOCKED_MESSAGE =
   'This team has already played a match, so its roster is locked — stats are recorded against it. Corrections go through the match-correction tools.';
 import { buildReport, commitBulkProvision, normalizeEmail, tournamentToContext } from '../services/bulkProvision';
-import { BulkProvisionBody } from '../validation/admin';
+import { BulkProvisionBody } from '@af1/validation';
 
 const router = Router();
 

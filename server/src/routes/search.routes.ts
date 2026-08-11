@@ -3,7 +3,7 @@ import prisma from '../config/db';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { browseLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { SearchQuery } from '../validation/search';
+import { SearchQuery } from '@af1/validation';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere, isSearchablePerson } from '../services/search/gate';
 import { personSearchOr } from '../services/search/matchQuery';

@@ -4,7 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
-import { CreateAnnouncementBody, AnnouncementListQuery } from '../validation/announcement';
+import { CreateAnnouncementBody, AnnouncementListQuery } from '@af1/validation';
 
 const router = Router();
 

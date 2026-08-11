@@ -5,7 +5,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { uploadLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
 import { validateImageBytes, validateVideoBytes, validateVideoBuffer } from '../middleware/upload';
-import { CreatePostBody, UploadUrlBody } from '../validation/post';
+import { CreatePostBody, UploadUrlBody } from '@af1/validation';
 import {
   uploadToGCS,
   signMediaDeep,
