@@ -19,13 +19,13 @@ WORKDIR /app
 # Workspace manifests + lockfile → a deterministic, server-scoped install.
 # Copying every workspace's package.json lets npm validate the workspace tree;
 # `-w server` then installs ONLY the server's dependency graph (no web client),
-# so the runtime node_modules stays lean. packages/ does NOT exist on main yet —
-# when the server first depends on an @af1/* package, that change adds
-# `COPY packages ./packages` here, a `RUN npm run build -w @af1/<pkg>` before the
-# server build, and the matching runner copy. It lands with the package, not here.
+# so the runtime node_modules stays lean. packages/ is copied so npm links the
+# server's @af1/* deps and can resolve them at build + runtime. Add each new
+# server-consumed package to the `npm run build -w` line below.
 COPY package.json package-lock.json ./
 COPY server/package.json ./server/package.json
 COPY client/package.json ./client/package.json
+COPY packages ./packages
 # The root `prepare` script installs local git hooks — irrelevant and absent in
 # the image. Drop it from the in-image manifest only (repo unchanged) so it
 # doesn't run on install; dependency install scripts still run.
@@ -38,6 +38,9 @@ COPY server/prisma ./server/prisma
 COPY server/src ./server/src
 COPY server/assets ./server/assets
 
+# Build the server-consumed @af1/* packages to JS first (the server runs plain
+# node and requires their compiled dist), then build the server.
+RUN npm run build -w @af1/validation -w @af1/core
 # Build: prisma client + tsc → server/dist.
 RUN npm run build --workspace server
 
@@ -65,9 +68,11 @@ ENV BUILD_SHA=${GIT_SHA}
 RUN groupadd --system --gid 1001 app \
  && useradd  --system --uid 1001 --gid app app
 
-# Identical runtime layout to the current image. node_modules is hoisted to the
-# workspace root; packages/ carries the (future) @af1/* sources the symlinks point at.
+# Runtime layout: /app/dist + prisma + assets + package.json, node_modules hoisted
+# to the workspace root, and packages/ carrying the @af1/* compiled dist that the
+# node_modules symlinks resolve to.
 COPY --from=builder --chown=app:app /app/node_modules      ./node_modules
+COPY --from=builder --chown=app:app /app/packages          ./packages
 COPY --from=builder --chown=app:app /app/server/dist       ./dist
 COPY --from=builder --chown=app:app /app/server/prisma     ./prisma
 COPY --from=builder --chown=app:app /app/server/assets     ./assets
