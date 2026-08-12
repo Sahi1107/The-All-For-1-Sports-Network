@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@af1/validation": "*",
+    "@af1/core": "*",
     "@anthropic-ai/sdk": "^0.82.0",
     "@google-cloud/storage": "^7.19.0",
     "@prisma/client": "^6.4.0",

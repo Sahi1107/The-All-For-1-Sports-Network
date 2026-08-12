@@ -4,7 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../config/socket';
 import { messageLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { notify } from '../services/notifications/notify';
-import { canInitiateContact, canSendMessage, contactDenialMessage } from '../services/messagePolicy';
+import { canInitiateContact, canSendMessage, contactDenialMessage } from '@af1/core';
 import { validate } from '../middleware/validate';
 import {
   CreateConversationBody,

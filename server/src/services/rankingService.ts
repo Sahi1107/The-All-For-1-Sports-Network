@@ -17,7 +17,7 @@
 // dependency and unit-test directly; recalculate persists via an injectable db.
 import prismaDefault from '../config/db';
 import type { Sport } from '@prisma/client';
-import { RANKING_CONFIG, FOUL_OUT_LIMIT, applyTransform, normalizeScore, type Board } from './rankingConfig';
+import { RANKING_CONFIG, FOUL_OUT_LIMIT, applyTransform, normalizeScore, type Board } from '@af1/core';
 
 export type RankSport = 'BASKETBALL' | 'FOOTBALL' | 'CRICKET';
 const RANK_SPORTS = new Set<string>(['BASKETBALL', 'FOOTBALL', 'CRICKET']);

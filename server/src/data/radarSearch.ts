@@ -24,7 +24,7 @@
  */
 
 import { Prisma, Role, Sport } from '@prisma/client';
-import { positionMatchAliases } from './positions';
+import { positionMatchAliases } from '@af1/core';
 import { resolveRegion } from './locations';
 import {
   isStatSport,

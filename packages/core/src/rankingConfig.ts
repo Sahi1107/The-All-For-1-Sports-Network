@@ -1,4 +1,4 @@
-import { normalizePosition } from '../data/positions';
+import { normalizePosition } from './positions';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RANKING CONFIG — the single, tunable source of truth for how tournament

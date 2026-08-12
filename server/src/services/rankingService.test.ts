@@ -4,7 +4,7 @@ import {
   scoreBoard, rankBoard, recalculateTournamentRankings, isRankable,
   MIN_RANKED_SCORE, type RankingDb,
 } from './rankingService';
-import { RANKING_CONFIG, normalizeScore } from './rankingConfig';
+import { RANKING_CONFIG, normalizeScore } from '@af1/core';
 
 const BB = RANKING_CONFIG.BASKETBALL;
 const overall = BB.overall;
