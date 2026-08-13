@@ -22,7 +22,7 @@ import {
   type RankableCandidate,
 } from './radarSearch';
 
-// ─── Invariant 1: minor-safety (discoverable) is ALWAYS enforced ─────────────
+// ─── Invariant 1: minor-safety (discoverable + guardianManaged) is ALWAYS enforced ─
 
 test('discoverable:true is present for every filter combination (minor-safety never relaxes)', () => {
   const combos: RadarFilters[] = [
@@ -38,6 +38,7 @@ test('discoverable:true is present for every filter combination (minor-safety ne
   for (const f of combos) {
     const where = buildAthleteWhere(f);
     assert.equal(where.discoverable, true, `discoverable must be true for ${JSON.stringify(f)}`);
+    assert.equal(where.guardianManaged, false, `guardianManaged must be false for ${JSON.stringify(f)}`);
   }
 });
 

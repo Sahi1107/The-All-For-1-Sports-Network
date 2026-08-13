@@ -5,6 +5,7 @@ import { writeLimiter } from '../middleware/rateLimiter';
 import { searchAthletes } from '../data/radarSearch';
 import { parseScoutingQuery } from '../data/radarParse';
 import { attachConnectionStatus } from '../services/connectionState';
+import { blockedUserIds } from '../services/blocks';
 import { env } from '../config/env';
 
 const router = Router();
@@ -59,9 +60,13 @@ router.post(
       // empty result (e.g. a sport with no athletes yet) is a normal 200 with an honest
       // emptyReason the client renders — NOT an error.
       const { results, total, widened, relaxed, emptyReason } = await searchAthletes(filters);
-      await attachConnectionStatus(req.user!.userId, results as Array<{ id: string }>);
+      // Block filter (viewer-dependent, so applied here — the engine stays pure): a
+      // scout never sees an athlete in a block relationship with them, either way.
+      const blocked = new Set(await blockedUserIds(req.user!.userId));
+      const visible = (results as Array<{ id: string }>).filter((r) => !blocked.has(r.id));
+      await attachConnectionStatus(req.user!.userId, visible);
 
-      res.json({ results, filters, total, widened, relaxed, emptyReason });
+      res.json({ results: visible, filters, total, widened, relaxed, emptyReason });
     } catch (error) {
       // Final safety net — any unexpected server/DB error. Log the real cause for
       // debugging; return a calm message. 503 (not 500) so the user never sees a raw

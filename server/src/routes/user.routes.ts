@@ -358,6 +358,14 @@ router.get('/:id/performance-card', authenticate, async (req: AuthRequest, res: 
     });
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
     if (!isSelf && !isPubliclyViewable(user)) { res.status(404).json({ error: 'User not found' }); return; }
+    // Two-direction block check — mirror GET /:id (a block hides the card entirely).
+    if (!isSelf) {
+      const blk = await prisma.block.findFirst({
+        where: { OR: [{ blockerId: req.user!.userId, blockedId: id }, { blockerId: id, blockedId: req.user!.userId }] },
+        select: { id: true },
+      });
+      if (blk) { res.status(404).json({ error: 'User not found' }); return; }
+    }
 
     const sport = user.sport;
     const statSport = isStatSport(sport);

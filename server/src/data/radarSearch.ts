@@ -75,7 +75,8 @@ const DISPLAY_STATS: Record<StatSport, readonly string[]> = {
 export function buildBaseWhere(filters: RadarFilters): Prisma.UserWhereInput {
   const where: Prisma.UserWhereInput = {
     role: (filters.role as Role) || Role.ATHLETE,
-    discoverable: true, // ── minor-safety — NEVER relaxed ──
+    discoverable: true,     // ── minor-safety — NEVER relaxed ──
+    guardianManaged: false, // ── minor-safety — guardian-managed (under-13) never surfaced ──
   };
 
   if (filters.sport) where.sport = filters.sport as Sport; // ── sport — NEVER relaxed ──

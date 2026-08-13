@@ -5,6 +5,8 @@ import { socialLimiter } from '../middleware/rateLimiter';
 import { notify } from '../services/notifications/notify';
 import { attachConnectionStatus } from '../services/connectionState';
 import { socialListUsers } from '../services/social';
+import { searchablePeopleWhere, isSearchablePerson } from '../services/search/gate';
+import { blockedUserIds } from '../services/blocks';
 
 const router = Router();
 
@@ -385,24 +387,28 @@ router.get('/mutual/:userId', authenticate, async (req: AuthRequest, res: Respon
       (id) => theirFollowers.has(id) && id !== me && id !== other && !connSet.has(id),
     );
 
-    const [connUsers, followerUsers] = await Promise.all([
-      prisma.user.findMany({
-        where: { id: { in: mutualConnIds } },
-        select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
-        take: 20,
-      }),
-      prisma.user.findMany({
-        where: { id: { in: mutualFollowerIds } },
-        select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
-        take: 20,
-      }),
+    // Discovery-gate the shown users: a non-discoverable / guardian-managed (minor)
+    // account must never be revealed as a mutual connection. (Blocks are already gone
+    // from the sets — block tears down the connection — but pass them for safety.)
+    const blocked = await blockedUserIds(me);
+    const excludedSet = new Set(blocked);
+    const gate = searchablePeopleWhere(blocked);
+    const sel = { id: true, name: true, avatar: true, role: true, sport: true, position: true, discoverable: true, guardianManaged: true };
+    const [connRaw, followerRaw] = await Promise.all([
+      prisma.user.findMany({ where: { AND: [{ id: { in: mutualConnIds } }, gate] }, select: sel, take: 20 }),
+      prisma.user.findMany({ where: { AND: [{ id: { in: mutualFollowerIds } }, gate] }, select: sel, take: 20 }),
     ]);
+    const clean = (arr: any[]) => arr
+      .filter((u) => isSearchablePerson(u, excludedSet))
+      .map(({ discoverable, guardianManaged, ...u }: any) => u);
+    const connUsers = clean(connRaw);
+    const followerUsers = clean(followerRaw);
 
     res.json({
       users: connUsers,
-      count: mutualConnIds.length,
-      connections: { users: connUsers, count: mutualConnIds.length },
-      followers: { users: followerUsers, count: mutualFollowerIds.length },
+      count: connUsers.length,
+      connections: { users: connUsers, count: connUsers.length },
+      followers: { users: followerUsers, count: followerUsers.length },
     });
   } catch (error) {
     console.error('Mutual connections error:', error);
@@ -422,22 +428,24 @@ router.get('/suggestions', authenticate, async (req: AuthRequest, res: Response)
       where: { followerId: userId },
       select: { followingId: true },
     });
-    const excludeIds = [userId, ...following.map((f: any) => f.followingId)];
+    const blocked = await blockedUserIds(userId);
+    const excludeIds = [userId, ...following.map((f: any) => f.followingId), ...blocked];
+    const excludedSet = new Set(excludeIds);
 
-    // Same sport first, then others — limit 20
-    const suggestions = await prisma.user.findMany({
-      where: { id: { notIn: excludeIds }, role: { not: 'ADMIN' } },
-      select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, location: true },
+    // Discovery gate — identical to search: no non-discoverable, no guardian-managed
+    // minors, no ADMIN/TEAM, no one in a block relationship with the viewer. Fetch a
+    // few extra, re-check fail-closed, then take 20 (same-sport first).
+    const candidates = await prisma.user.findMany({
+      where: searchablePeopleWhere(excludeIds),
+      select: { id: true, name: true, avatar: true, role: true, sport: true, position: true, location: true, discoverable: true, guardianManaged: true },
       orderBy: [{ sport: 'asc' }],
-      take: 20,
+      take: 40,
     });
-
-    // Sort: same sport first
-    suggestions.sort((a: any, b: any) => {
-      const aMatch = a.sport === user.sport ? 0 : 1;
-      const bMatch = b.sport === user.sport ? 0 : 1;
-      return aMatch - bMatch;
-    });
+    const suggestions = candidates
+      .filter((u: any) => isSearchablePerson(u, excludedSet))
+      .map(({ discoverable, guardianManaged, ...u }: any) => u)
+      .sort((a: any, b: any) => (a.sport === user.sport ? 0 : 1) - (b.sport === user.sport ? 0 : 1))
+      .slice(0, 20);
 
     await attachConnectionStatus(userId, suggestions as Array<{ id: string }>);
     res.json({ suggestions });

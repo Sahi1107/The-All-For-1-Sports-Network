@@ -12,6 +12,7 @@ import {
   ForwardMessageBody,
 } from '@af1/validation';
 import { signMediaDeep } from '../services/storage';
+import { isSearchablePerson } from '../services/search/gate';
 import { parseReportInput, createReport } from '../services/reports';
 
 const router = Router();
@@ -387,10 +388,25 @@ router.post('/conversations/:id', authenticate, messageLimiter, validate({ body:
       }
     }
 
-    // Validate sharedProfileId if provided
+    // Validate sharedProfileId if provided. A shared profile card must not bypass
+    // the people-gate: no non-discoverable / guardian-managed (minor) / ADMIN|TEAM
+    // profile, and none in a block relationship with the sender, can be injected
+    // into a conversation.
     if (sharedProfileId) {
-      const profile = await prisma.user.findUnique({ where: { id: sharedProfileId }, select: { id: true, role: true } });
-      if (!profile || profile.role === 'ADMIN') {
+      const profile = await prisma.user.findUnique({
+        where: { id: sharedProfileId },
+        select: { id: true, role: true, discoverable: true, guardianManaged: true },
+      });
+      const shareBlock = profile ? await prisma.block.findFirst({
+        where: {
+          OR: [
+            { blockerId: req.user!.userId, blockedId: sharedProfileId },
+            { blockerId: sharedProfileId, blockedId: req.user!.userId },
+          ],
+        },
+        select: { id: true },
+      }) : null;
+      if (!profile || shareBlock || !isSearchablePerson(profile, new Set<string>())) {
         res.status(404).json({ error: 'Profile not found' });
         return;
       }
