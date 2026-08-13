@@ -14,7 +14,7 @@ import { recordProfileView, profileViewsSummary } from '../services/notification
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere } from '../services/search/gate';
-import { canSeeSocialLists, socialListUsers } from '../services/social';
+import { canSeeSocialLists, socialListUsers, connectionListUsers } from '../services/social';
 import { isPubliclyViewable } from '../services/profileVisibility';
 import { personSearchOr } from '../services/search/matchQuery';
 import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser, matchStatLinesForUser, type MatchStatLine } from '../data/careerStats';
@@ -639,6 +639,23 @@ router.get('/:id/following', authenticate, async (req: AuthRequest, res: Respons
       return;
     }
     const users = await socialListUsers('following', targetId, me);
+    await signMediaDeepAll(users);
+    res.json({ users });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/users/:id/connections — accepted connections, same access + safety rules.
+router.get('/:id/connections', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const me = req.user!.userId;
+    const targetId = req.params.id as string;
+    if (!(await canSeeSocialLists(me, targetId))) {
+      res.status(403).json({ error: 'Only connections can view this list', gated: true });
+      return;
+    }
+    const users = await connectionListUsers(targetId, me);
     await signMediaDeepAll(users);
     res.json({ users });
   } catch (error) {

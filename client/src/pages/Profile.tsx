@@ -511,6 +511,33 @@ function VolleyballCourtBackdrop() {
   );
 }
 
+// A profile stat count. Openable ones (followers / following / connections you're
+// allowed to see) render as a button — pointer cursor + underline on hover; the
+// rest render as plain, non-interactive text with a "Connections only" tooltip so
+// it's clear why they don't respond.
+function CountStat({
+  count, label, openable, onOpen,
+}: { count: number; label: string; openable: boolean; onOpen?: () => void }) {
+  if (openable) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="text-left cursor-pointer rounded hover:underline underline-offset-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        <span className="font-bold text-foreground">{count}</span>
+        <span className="text-foreground/70 ml-1">{label}</span>
+      </button>
+    );
+  }
+  return (
+    <span className="text-left cursor-default" title="Connections only">
+      <span className="font-bold text-foreground">{count}</span>
+      <span className="text-foreground/70 ml-1">{label}</span>
+    </span>
+  );
+}
+
 export default function Profile() {
   const { id } = useParams<{ id: string }>();
   const { user: me } = useAuth();
@@ -519,7 +546,7 @@ export default function Profile() {
   const invalidateSocial = useInvalidateSocialCounts();
 
   const isOwnProfile = me?.id === id;
-  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | 'connections' | null>(null);
   const [openPost, setOpenPost] = useState<any | null>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -554,13 +581,14 @@ export default function Profile() {
   // this too (the endpoint 403s) — this just avoids opening a denied/empty modal.
   const canSeeSocialLists = isOwnProfile || data?.connection?.status === 'ACCEPTED';
 
-  const { data: followListData, isLoading: followListLoading } = useQuery<{ users: any[] }>({
+  const { data: followListData, isLoading: followListLoading, isError: followListError } = useQuery<{ users: any[] }>({
     queryKey: ['follow-list', id, followModal],
     queryFn: async () => {
       const { data } = await api.get(`/users/${id}/${followModal}`);
       return data;
     },
     enabled: !!id && !!followModal && canSeeSocialLists,
+    retry: 1,
   });
 
   const isFollowing = data?.isFollowing ?? false;
@@ -1076,34 +1104,13 @@ export default function Profile() {
             </div>
 
             {/* Stats Row */}
-            <div className="flex gap-6 mt-4 text-sm">
-              {canSeeSocialLists ? (
-                <button onClick={() => setFollowModal('followers')} className="hover:text-primary-light transition-colors text-left">
-                  <span className="font-bold text-foreground">{profile._count?.followers ?? 0}</span>
-                  <span className="text-foreground/70 ml-1">Followers</span>
-                </button>
-              ) : (
-                <div className="text-left" title="Connect to see who follows them">
-                  <span className="font-bold text-foreground">{profile._count?.followers ?? 0}</span>
-                  <span className="text-foreground/70 ml-1">Followers</span>
-                </div>
-              )}
-              {canSeeSocialLists ? (
-                <button onClick={() => setFollowModal('following')} className="hover:text-primary-light transition-colors text-left">
-                  <span className="font-bold text-foreground">{profile._count?.following ?? 0}</span>
-                  <span className="text-foreground/70 ml-1">Following</span>
-                </button>
-              ) : (
-                <div className="text-left" title="Connect to see who they follow">
-                  <span className="font-bold text-foreground">{profile._count?.following ?? 0}</span>
-                  <span className="text-foreground/70 ml-1">Following</span>
-                </div>
-              )}
-              {/* Connections (mutual, accepted) — a separate system from Follow. */}
-              <div>
-                <span className="font-bold text-foreground">{profile._count?.connections ?? 0}</span>
-                <span className="text-foreground/70 ml-1">Connections</span>
-              </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mt-4 text-sm">
+              {/* Followers / Following / Connections all open a list; each is only
+                  clickable when you may see it (own profile or an accepted
+                  connection), otherwise it's plain with a "Connections only" hint. */}
+              <CountStat count={profile._count?.followers ?? 0} label="Followers" openable={canSeeSocialLists} onOpen={() => setFollowModal('followers')} />
+              <CountStat count={profile._count?.following ?? 0} label="Following" openable={canSeeSocialLists} onOpen={() => setFollowModal('following')} />
+              <CountStat count={profile._count?.connections ?? 0} label="Connections" openable={canSeeSocialLists} onOpen={() => setFollowModal('connections')} />
               <div>
                 <span className="font-bold text-foreground">{highlights.length}</span>
                 <span className="text-foreground/70 ml-1">Highlights</span>
@@ -1539,45 +1546,64 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Followers / Following modal */}
+      {/* Followers / Following / Connections modal */}
       {followModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
           style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
           onClick={() => setFollowModal(null)}
         >
           <div
-            className="bg-card border border-ink/10 rounded-xl w-full max-w-sm max-h-[70vh] flex flex-col"
+            className="bg-card border border-ink/10 w-full sm:max-w-sm rounded-t-2xl sm:rounded-xl max-h-[80vh] sm:max-h-[70vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
-              <div className="flex gap-4 text-sm font-semibold">
-                <button
-                  onClick={() => setFollowModal('followers')}
-                  className={followModal === 'followers' ? 'text-foreground' : 'text-foreground/40 hover:text-foreground/70'}
-                >
-                  Followers
-                </button>
-                <button
-                  onClick={() => setFollowModal('following')}
-                  className={followModal === 'following' ? 'text-foreground' : 'text-foreground/40 hover:text-foreground/70'}
-                >
-                  Following
-                </button>
-              </div>
-              <button onClick={() => setFollowModal(null)} className="text-foreground/40 hover:text-foreground text-xl leading-none">×</button>
+            {/* Header: three tabs + close on one row. min-w-0 + truncate keep it
+                from overflowing even the narrowest phone. */}
+            <div className="flex items-stretch border-b border-ink/10 shrink-0">
+              {(['followers', 'following', 'connections'] as const).map((tab) => {
+                const tabLabel = tab === 'followers' ? 'Followers' : tab === 'following' ? 'Following' : 'Connections';
+                const active = followModal === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setFollowModal(tab)}
+                    className={`flex-1 min-w-0 truncate py-3.5 text-[13px] sm:text-sm font-semibold border-b-2 transition-colors ${
+                      active ? 'border-primary text-foreground' : 'border-transparent text-foreground/45 hover:text-foreground/70'
+                    }`}
+                  >
+                    {tabLabel}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setFollowModal(null)}
+                aria-label="Close"
+                className="shrink-0 px-3 text-foreground/40 hover:text-foreground text-2xl leading-none self-center"
+              >
+                ×
+              </button>
             </div>
 
-            {/* List */}
-            <div className="overflow-y-auto flex-1 p-2">
+            {/* Body — loading / error / empty / list */}
+            <div className="overflow-y-auto flex-1 p-2 min-h-[8rem]">
               {followListLoading ? (
-                <div className="flex justify-center py-8">
-                  <BallLoader />
+                <div className="flex justify-center py-10"><BallLoader /></div>
+              ) : followListError ? (
+                <div className="text-center py-10 px-6">
+                  <p className="text-sm text-foreground/70">Couldn’t load this list.</p>
+                  <button
+                    type="button"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['follow-list', id, followModal] })}
+                    className="mt-3 text-xs font-semibold text-primary-light hover:underline"
+                  >
+                    Try again
+                  </button>
                 </div>
               ) : !followListData?.users?.length ? (
-                <p className="text-center text-foreground/30 text-sm py-8">
-                  {followModal === 'followers' ? 'No followers yet' : 'Not following anyone yet'}
+                <p className="text-center text-foreground/35 text-sm py-10">
+                  {followModal === 'followers' ? 'No followers yet' : followModal === 'following' ? 'Not following anyone yet' : 'No connections yet'}
                 </p>
               ) : (
                 followListData.users.map((u: any) => (
@@ -1589,11 +1615,9 @@ export default function Profile() {
                   >
                     <Avatar name={u.name} src={u.avatar} size={36} />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{u.name}</p>
-                      <p className="text-xs text-foreground/40 capitalize">
-                        {u.role?.toLowerCase()}
-                        {u.sport && u.role !== 'ADMIN' && ` · ${u.sport.toLowerCase()}`}
-                        {u.position && ` · ${u.position}`}
+                      <p className="text-sm font-medium truncate text-foreground">{u.name}</p>
+                      <p className="text-xs text-foreground/40 capitalize truncate">
+                        {[u.role?.toLowerCase(), u.sport && u.role !== 'ADMIN' ? u.sport.toLowerCase() : null, u.position].filter(Boolean).join(' · ')}
                       </p>
                     </div>
                   </Link>
@@ -1601,16 +1625,17 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Quiet reconciliation note: the count is the true total, but the list
-                is safety-filtered, so it can be shorter. Name the gap rather than
-                let "40 followers → 31 shown" read as a bug. */}
+            {/* Hidden-count note: the count is the true total, the list is
+                safety-filtered, so it can be shorter. Name the gap. */}
             {(() => {
               const total = followModal === 'followers'
                 ? (profile._count?.followers ?? 0)
-                : (profile._count?.following ?? 0);
+                : followModal === 'following'
+                  ? (profile._count?.following ?? 0)
+                  : (profile._count?.connections ?? 0);
               const hidden = total - (followListData?.users?.length ?? 0);
-              return !followListLoading && hidden > 0 ? (
-                <p className="px-5 py-3 border-t border-ink/10 text-center text-[11px] text-foreground/40">
+              return !followListLoading && !followListError && hidden > 0 ? (
+                <p className="px-5 py-3 border-t border-ink/10 text-center text-[11px] text-foreground/40 shrink-0">
                   {hidden} {hidden === 1 ? 'account' : 'accounts'} not shown for privacy
                 </p>
               ) : null;

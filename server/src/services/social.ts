@@ -77,3 +77,29 @@ export async function socialListUsers(
       role: u.role, sport: u.sport, position: u.position,
     }));
 }
+
+/**
+ * A user's accepted connections — the other party in each ACCEPTED edge, either
+ * direction — safety-filtered exactly like socialListUsers. Access is gated by
+ * canSeeSocialLists at the route, the same as followers/following.
+ */
+export async function connectionListUsers(targetId: string, viewerId: string): Promise<SocialListUser[]> {
+  const blocked = await blockedUserIds(viewerId);
+  const excluded = new Set(blocked);
+  const rows = await prisma.connection.findMany({
+    where: { status: 'ACCEPTED', OR: [{ senderId: targetId }, { receiverId: targetId }] },
+    select: {
+      senderId: true,
+      sender: { select: LIST_SELECT },
+      receiver: { select: LIST_SELECT },
+    },
+    orderBy: { updatedAt: 'desc' },
+  });
+  const others = rows.map((r: any) => (r.senderId === targetId ? r.receiver : r.sender));
+  return others
+    .filter((u: any) => isSearchablePerson(u, excluded)) // fail-closed discovery + block gate
+    .map((u: any): SocialListUser => ({
+      id: u.id, name: u.name, avatar: u.avatar,
+      role: u.role, sport: u.sport, position: u.position,
+    }));
+}
