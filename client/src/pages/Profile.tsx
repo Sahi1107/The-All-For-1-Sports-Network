@@ -1600,6 +1600,21 @@ export default function Profile() {
                 ))
               )}
             </div>
+
+            {/* Quiet reconciliation note: the count is the true total, but the list
+                is safety-filtered, so it can be shorter. Name the gap rather than
+                let "40 followers → 31 shown" read as a bug. */}
+            {(() => {
+              const total = followModal === 'followers'
+                ? (profile._count?.followers ?? 0)
+                : (profile._count?.following ?? 0);
+              const hidden = total - (followListData?.users?.length ?? 0);
+              return !followListLoading && hidden > 0 ? (
+                <p className="px-5 py-3 border-t border-ink/10 text-center text-[11px] text-foreground/40">
+                  {hidden} {hidden === 1 ? 'account' : 'accounts'} not shown for privacy
+                </p>
+              ) : null;
+            })()}
           </div>
         </div>
       )}
