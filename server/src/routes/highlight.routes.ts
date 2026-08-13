@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../config/db';
+import { blockedUserIds } from '../services/blocks';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { uploadVideo } from '../middleware/upload';
 import { browseLimiter, uploadLimiter } from '../middleware/rateLimiter';
@@ -66,6 +67,10 @@ router.get('/', authenticate, browseLimiter, validate({ query: HighlightListQuer
     if (sport) where.sport = sport;
     if (userId) where.userId = userId;
     if (tournamentId) where.tournamentId = tournamentId;
+    // Blocks are absolute (either direction): a blocked user's highlights never
+    // surface to the viewer. Discovery/minor authorship is unchanged by design.
+    const blocked = await blockedUserIds(req.user!.userId);
+    if (blocked.length) where.user = { id: { notIn: blocked } };
 
     const [highlights, total] = await Promise.all([
       prisma.highlight.findMany({
@@ -112,6 +117,12 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       },
     });
     if (!highlight) {
+      res.status(404).json({ error: 'Highlight not found' });
+      return;
+    }
+    // Blocks are absolute (either direction) — a blocked author's highlight is hidden.
+    const blocked = await blockedUserIds(req.user!.userId);
+    if (blocked.includes(highlight.userId)) {
       res.status(404).json({ error: 'Highlight not found' });
       return;
     }

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import prisma from '../config/db';
+import { blockedUserIds } from '../services/blocks';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { browseLimiter, writeLimiter } from '../middleware/rateLimiter';
 import { signMediaDeepAll } from '../services/storage';
@@ -10,8 +11,9 @@ const router = Router();
 // GET /api/endorsements/user/:userId — list endorsements an athlete has received
 router.get('/user/:userId', authenticate, browseLimiter, async (req: AuthRequest, res: Response) => {
   try {
+    const blocked = await blockedUserIds(req.user!.userId);
     const endorsements = await prisma.endorsement.findMany({
-      where: { athleteId: req.params.userId as string },
+      where: { athleteId: req.params.userId as string, ...(blocked.length ? { coachId: { notIn: blocked } } : {}) },
       orderBy: { createdAt: 'desc' },
       include: {
         coach: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } },

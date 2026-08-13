@@ -31,6 +31,7 @@ const GATE_TOKENS = [
   'searchablePeopleWhere', 'isSearchablePerson', 'blockedUserIds',
   'socialListUsers', 'canSeeSocialLists', 'canInitiateContact',
   'athleteCardEligible', 'requireTournamentAccess', 'isPubliclyViewable',
+  'rankedUserWhere', // leaderboard discovery gate (publicProfileWhere + guardianManaged:false)
 ];
 
 // People-returning routes intentionally NOT discovery-gated, each with a reason.
@@ -53,19 +54,14 @@ const ALLOWLIST: Record<string, string> = {
   'notification.routes.ts GET /': 'actors who interacted with you directly',
   'invite.routes.ts GET /resolve/:code': 'holder of the invite code',
   'team.routes.ts POST /:teamId/members/me/accept': 'joining a team you were invited to',
-  'post.routes.ts GET /saved': 'authors of posts you saved',
   // ── product decision: rosters / participation shown as event participation ──
   'team.routes.ts GET /': 'team browse (captains) — participation',
   'team.routes.ts GET /:id': 'team roster — event participation',
   'tournament.routes.ts GET /:id/teams': 'tournament participants — event participation',
   'tournament.routes.ts GET /:id/leaders': 'stat leaders — competitive standing',
-  'ranking.routes.ts GET /': 'ranking board — public competitive standing',
-  // ── product decision: content-graph author identity shown as-is ──
+  // ── product decision: content-graph author identity shown as-is (block-filtered) ──
   'announcement.routes.ts GET /': 'announcement authors (broadcast content)',
   'announcement.routes.ts POST /': 'creating an announcement (author is self/admin)',
-  'highlight.routes.ts GET /': 'highlight-feed authors — content, shown as-is',
-  'highlight.routes.ts GET /:id': 'highlight author — content, shown as-is',
-  'endorsement.routes.ts GET /user/:userId': 'endorsing coaches — content, shown as-is',
 };
 
 interface RouteDecl { method: string; path: string; body: string }

@@ -163,8 +163,11 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
 router.get('/saved', authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.userId;
+    // Blocks are absolute (either direction): drop saved posts whose author the
+    // viewer blocks (or who blocks them). Discovery/minor authorship is unchanged.
+    const blocked = await blockedUserIds(userId);
     const saves = await prisma.postSave.findMany({
-      where: { userId },
+      where: { userId, ...(blocked.length ? { post: { userId: { notIn: blocked } } } : {}) },
       orderBy: { createdAt: 'desc' },
       include: {
         post: {

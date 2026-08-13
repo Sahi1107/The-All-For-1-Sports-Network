@@ -103,5 +103,9 @@ export function playerGenderWhere(gender: unknown): Record<string, unknown> {
  * and the failure mode is a board quietly missing every unclaimed player.
  */
 export function rankedUserWhere(gender: unknown): Record<string, unknown> {
-  return { AND: [publicProfileWhere(), playerGenderWhere(gender)] };
+  // A public leaderboard is a discovery surface: never enumerate a non-discoverable
+  // player (publicProfileWhere) OR a guardian-managed under-13 — even one whose
+  // guardian opted them into discovery. Their ranking record and their coach's view
+  // are unaffected; this filters only the public board (list + tournament counts).
+  return { AND: [publicProfileWhere(), playerGenderWhere(gender), { guardianManaged: false }] };
 }
