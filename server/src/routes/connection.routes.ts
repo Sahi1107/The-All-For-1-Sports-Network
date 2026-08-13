@@ -4,6 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { socialLimiter } from '../middleware/rateLimiter';
 import { notify } from '../services/notifications/notify';
 import { attachConnectionStatus } from '../services/connectionState';
+import { socialListUsers } from '../services/social';
 
 const router = Router();
 
@@ -270,30 +271,21 @@ router.put('/by-user/:userId/reject', authenticate, async (req: AuthRequest, res
   }
 });
 
-// GET /api/connections/followers
+// GET /api/connections/followers — the current user's own followers, safety-filtered
+// (guardian-managed / non-discoverable / blocked never appear). See services/social.ts.
 router.get('/followers', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const followers = await prisma.follow.findMany({
-      where: { followingId: req.user!.userId },
-      include: { follower: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json({ followers: followers.map((f: any) => f.follower) });
+    res.json({ followers: await socialListUsers('followers', req.user!.userId, req.user!.userId) });
   } catch (error) {
     console.error('Get followers error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET /api/connections/following
+// GET /api/connections/following — the current user's own following, same filtering.
 router.get('/following', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const following = await prisma.follow.findMany({
-      where: { followerId: req.user!.userId },
-      include: { following: { select: { id: true, name: true, avatar: true, role: true, sport: true, position: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json({ following: following.map((f: any) => f.following) });
+    res.json({ following: await socialListUsers('following', req.user!.userId, req.user!.userId) });
   } catch (error) {
     console.error('Get following error:', error);
     res.status(500).json({ error: 'Internal server error' });

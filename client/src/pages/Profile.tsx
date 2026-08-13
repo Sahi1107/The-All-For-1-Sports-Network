@@ -549,13 +549,18 @@ export default function Profile() {
     enabled: !!id && !isOwnProfile,
   });
 
+  // Follower/following lists open for the owner and accepted connections only;
+  // non-connections see the counts but can't open the list. The server enforces
+  // this too (the endpoint 403s) — this just avoids opening a denied/empty modal.
+  const canSeeSocialLists = isOwnProfile || data?.connection?.status === 'ACCEPTED';
+
   const { data: followListData, isLoading: followListLoading } = useQuery<{ users: any[] }>({
     queryKey: ['follow-list', id, followModal],
     queryFn: async () => {
       const { data } = await api.get(`/users/${id}/${followModal}`);
       return data;
     },
-    enabled: !!id && !!followModal,
+    enabled: !!id && !!followModal && canSeeSocialLists,
   });
 
   const isFollowing = data?.isFollowing ?? false;
@@ -1072,14 +1077,28 @@ export default function Profile() {
 
             {/* Stats Row */}
             <div className="flex gap-6 mt-4 text-sm">
-              <button onClick={() => setFollowModal('followers')} className="hover:text-primary-light transition-colors text-left">
-                <span className="font-bold text-foreground">{profile._count?.followers ?? 0}</span>
-                <span className="text-foreground/70 ml-1">Followers</span>
-              </button>
-              <button onClick={() => setFollowModal('following')} className="hover:text-primary-light transition-colors text-left">
-                <span className="font-bold text-foreground">{profile._count?.following ?? 0}</span>
-                <span className="text-foreground/70 ml-1">Following</span>
-              </button>
+              {canSeeSocialLists ? (
+                <button onClick={() => setFollowModal('followers')} className="hover:text-primary-light transition-colors text-left">
+                  <span className="font-bold text-foreground">{profile._count?.followers ?? 0}</span>
+                  <span className="text-foreground/70 ml-1">Followers</span>
+                </button>
+              ) : (
+                <div className="text-left" title="Connect to see who follows them">
+                  <span className="font-bold text-foreground">{profile._count?.followers ?? 0}</span>
+                  <span className="text-foreground/70 ml-1">Followers</span>
+                </div>
+              )}
+              {canSeeSocialLists ? (
+                <button onClick={() => setFollowModal('following')} className="hover:text-primary-light transition-colors text-left">
+                  <span className="font-bold text-foreground">{profile._count?.following ?? 0}</span>
+                  <span className="text-foreground/70 ml-1">Following</span>
+                </button>
+              ) : (
+                <div className="text-left" title="Connect to see who they follow">
+                  <span className="font-bold text-foreground">{profile._count?.following ?? 0}</span>
+                  <span className="text-foreground/70 ml-1">Following</span>
+                </div>
+              )}
               {/* Connections (mutual, accepted) — a separate system from Follow. */}
               <div>
                 <span className="font-bold text-foreground">{profile._count?.connections ?? 0}</span>

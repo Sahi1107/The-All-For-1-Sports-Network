@@ -14,6 +14,7 @@ import { recordProfileView, profileViewsSummary } from '../services/notification
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import { searchablePeopleWhere } from '../services/search/gate';
+import { canSeeSocialLists, socialListUsers } from '../services/social';
 import { isPubliclyViewable } from '../services/profileVisibility';
 import { personSearchOr } from '../services/search/matchQuery';
 import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser, matchStatLinesForUser, type MatchStatLine } from '../data/careerStats';
@@ -600,41 +601,38 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
   }
 });
 
-// GET /api/users/:id/followers
+// GET /api/users/:id/followers — followers list, connection-gated + safety-filtered.
+// Access: owner or an accepted connection only (else 403, counts stay visible).
+// Contents: discovery-gated + block-filtered so a guardian-managed / non-discoverable
+// account is never revealed. See services/social.ts.
 router.get('/:id/followers', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const follows = await prisma.follow.findMany({
-      where: { followingId: req.params.id as string },
-      select: {
-        follower: {
-          select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    const usersOut = follows.map((f) => f.follower);
-    await signMediaDeepAll(usersOut);
-    res.json({ users: usersOut });
+    const me = req.user!.userId;
+    const targetId = req.params.id as string;
+    if (!(await canSeeSocialLists(me, targetId))) {
+      res.status(403).json({ error: 'Only connections can view this list', gated: true });
+      return;
+    }
+    const users = await socialListUsers('followers', targetId, me);
+    await signMediaDeepAll(users);
+    res.json({ users });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// GET /api/users/:id/following
+// GET /api/users/:id/following — same access + safety rules as /followers.
 router.get('/:id/following', authenticate, async (req: AuthRequest, res: Response) => {
   try {
-    const follows = await prisma.follow.findMany({
-      where: { followerId: req.params.id as string },
-      select: {
-        following: {
-          select: { id: true, name: true, avatar: true, role: true, sport: true, position: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    const usersOut = follows.map((f) => f.following);
-    await signMediaDeepAll(usersOut);
-    res.json({ users: usersOut });
+    const me = req.user!.userId;
+    const targetId = req.params.id as string;
+    if (!(await canSeeSocialLists(me, targetId))) {
+      res.status(403).json({ error: 'Only connections can view this list', gated: true });
+      return;
+    }
+    const users = await socialListUsers('following', targetId, me);
+    await signMediaDeepAll(users);
+    res.json({ users });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
