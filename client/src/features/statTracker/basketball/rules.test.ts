@@ -2,9 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   FOUL_OUT_LIMIT, BONUS_THRESHOLD, isFouledOut, inFoulTrouble, teamInBonus,
-  teamFoulsInQuarter, bumpTeamFoul, emptyPlayer, rowOrBlank, missingPlayerRows,
+  teamFoulsInQuarter, bumpTeamFoul,
 } from './rules.ts';
-import type { BasketballState } from '../types.ts';
 
 test('a player fouls out at the limit (5), not before', () => {
   assert.equal(isFouledOut(4), false);
@@ -48,70 +47,15 @@ test('a full quarter of fouls crosses into the bonus exactly at the 5th', () => 
 });
 
 // ── Late roster additions ────────────────────────────────────────────────────
-// Regression: `state.players` is built once, when the match is first opened, but
-// a roster keeps moving — an organiser can add a player mid-tournament. Such a
-// player rendered as a normal row of zeros while every write path read the map,
-// found nothing and silently bailed. They could be selected, put on court and
-// tapped all game while recording nothing, with no symptom but the zeros.
-
-const stateWith = (players: Record<string, ReturnType<typeof emptyPlayer>>) =>
-  ({ players } as unknown as BasketballState);
-
-test('rowOrBlank returns the existing row untouched when there is one', () => {
-  const mine = { ...emptyPlayer('t1'), pts: 12, pf: 3 };
-  const s = stateWith({ p1: mine });
-  assert.equal(rowOrBlank(s, 'p1', 't1'), mine); // same object — no silent reset
-});
-
-test('rowOrBlank creates a blank row for a player with none (the bug)', () => {
-  const s = stateWith({});
-  const row = rowOrBlank(s, 'late-signing', 't1');
-  assert.ok(row, 'a rostered player must always get a row to write into');
-  assert.equal(row!.teamId, 't1');
-  assert.equal(row!.pts, 0);
-});
-
-test('rowOrBlank still refuses a player on neither roster', () => {
-  // teamId null = not on either side. That stays a no-op: inventing a row would
-  // attach stats to someone who isn't in the match at all.
-  assert.equal(rowOrBlank(stateWith({}), 'stranger', null), null);
-});
-
-test('a created row accumulates like any other', () => {
-  const row = rowOrBlank(stateWith({}), 'late', 't1')!;
-  const after = { ...row, pts: row.pts + 2, fg: row.fg + 1, fga: row.fga + 1 };
-  assert.equal(after.pts, 2);
-  assert.equal(after.fg, 1);
-});
-
-test('missingPlayerRows finds only players with no row, tagged to their side', () => {
-  const s = stateWith({ a: emptyPlayer('home'), c: emptyPlayer('away') });
-  const missing = missingPlayerRows(s, [
-    { teamId: 'home', players: [{ userId: 'a' }, { userId: 'b' }] },
-    { teamId: 'away', players: [{ userId: 'c' }, { userId: 'd' }] },
-  ]);
-  assert.deepEqual(missing, [
-    { userId: 'b', teamId: 'home' },
-    { userId: 'd', teamId: 'away' },
-  ]);
-});
-
-test('missingPlayerRows reports nothing when every player already has a row', () => {
-  // Matters because the caller writes state only when this is non-empty — a
-  // false positive here would save on every render and loop.
-  const s = stateWith({ a: emptyPlayer('home'), b: emptyPlayer('away') });
-  const missing = missingPlayerRows(s, [
-    { teamId: 'home', players: [{ userId: 'a' }] },
-    { teamId: 'away', players: [{ userId: 'b' }] },
-  ]);
-  assert.deepEqual(missing, []);
-});
-
-test('missingPlayerRows never proposes removing a departed player', () => {
-  // Additive only, mirroring the server's roster merge: a player dropped from the
-  // roster still owns the stats recorded under their id in state.players.
-  const s = stateWith({ gone: { ...emptyPlayer('home'), pts: 9 } });
-  const missing = missingPlayerRows(s, [{ teamId: 'home', players: [] }]);
-  assert.deepEqual(missing, []);
-  assert.equal(s.players.gone.pts, 9);
-});
+// The row-backfill helpers that used to live here (emptyPlayer, rowOrBlank,
+// missingPlayerRows) are gone with the state blob they defended.
+//
+// They existed because `state.players` was built once when a match was opened,
+// while a roster keeps moving: a player added mid-tournament had no row, so every
+// write path read the map, found nothing and silently bailed — they could be
+// selected, put on court and tapped all game while recording nothing.
+//
+// Folding an event log has no such map to be missing from. A stat is recorded
+// against a player id whether or not anything has been recorded for them before,
+// and the fold creates their line when it first meets one (covered by
+// @af1/core's "a stat entered for a player with no prior row creates one").

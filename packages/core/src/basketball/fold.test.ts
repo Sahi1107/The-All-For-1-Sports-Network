@@ -28,6 +28,7 @@ function ev(
     quarter: opts.quarter ?? 1,
     clockMs: opts.clockMs ?? 0,
     payload: opts.payload ?? null,
+    clientId: `c${seq}`,
     actorId: 'admin-1',
     createdAt: new Date(T0 + (opts.atMs ?? 0)).toISOString(),
     deletedAt: opts.deleted ? new Date(T0).toISOString() : null,

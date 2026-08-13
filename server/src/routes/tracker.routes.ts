@@ -26,6 +26,7 @@ import {
   type GroupDef,
 } from '../services/trackerDraw';
 import { derivePlayerStats } from '../services/trackerStats';
+import { materializeBasketballState, materializeThrottled } from '../services/basketballSnapshot';
 import { fanoutMatchResult, fanoutDrawPublished, fanoutFixturesScheduled, fanoutStatsVerified, slotLabel } from '../services/notifications/competitionNotify';
 import { writeMatchPlayerStats } from '../services/matchStats';
 import { recalculateTournamentRankings } from '../services/rankingService';
@@ -984,29 +985,40 @@ router.patch(
         },
       });
 
+      // A basketball match becoming final settles its result from the event log
+      // before anything downstream reads it. The bracket advances on these
+      // scores and standings are computed from them, so the side that goes
+      // through is decided by the entries themselves — not by a column that
+      // happens to be a co-scorer's last save behind.
+      let settled = updated;
+      if (updated.status === 'COMPLETED' && existing.session.sport === 'BASKETBALL') {
+        const folded = await materializeBasketballState(id);
+        if (folded) settled = await prisma.trackerMatch.findUniqueOrThrow({ where: { id } });
+      }
+
       // Whenever a knockout match is (or stays) COMPLETED, (re)propagate — so a
       // corrected result that flips the winner flows through the bracket. The
       // advancement side is deterministic (feedFrom order), so re-running simply
       // overwrites the parent slot with the current winner.
-      if (updated.status === 'COMPLETED') {
+      if (settled.status === 'COMPLETED') {
         const sess = existing.session;
         const bracket = sess.bracket as BracketDef | null;
-        if (updated.bracketSlot) {
-          await propagateBracket(sess.id, bracket, updated as TrackerMatchRow);
+        if (settled.bracketSlot) {
+          await propagateBracket(sess.id, bracket, settled as TrackerMatchRow);
         }
-        if (updated.stage === 'group') {
+        if (settled.stage === 'group') {
           await maybeSeedKnockout(sess);
         }
       }
 
       // Broadcast to spectators / co-scorers in the match room
       try {
-        getIO().to(`tracker:${id}`).emit('tracker:state', updated);
+        getIO().to(`tracker:${id}`).emit('tracker:state', settled);
       } catch {
         /* socket not initialised in some contexts — non-fatal */
       }
 
-      res.json({ match: updated });
+      res.json({ match: settled });
     } catch (err) {
       console.error('Patch tracker match error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -1185,6 +1197,11 @@ router.post(
         /* socket not initialised in some contexts — non-fatal */
       }
       res.status(201).json(payload);
+
+      // Keep the derived `state` snapshot roughly live for the surfaces that
+      // read it (export, stat leaders). After the response on purpose: this is a
+      // convenience read and must never add latency to an analyst's entry.
+      void materializeThrottled(id);
     } catch (err) {
       console.error('Append tracker event error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -1239,6 +1256,12 @@ router.delete(
         /* non-fatal */
       }
       res.json(payload);
+
+      // Removals are rare and are corrections, so refresh the snapshot properly
+      // rather than on the throttle — a wrong entry the analyst has just taken
+      // back should not linger in an export for another five seconds.
+      void materializeBasketballState(id).catch((err) =>
+        console.error('[tracker] snapshot refresh after removal failed (non-fatal):', err));
     } catch (err) {
       console.error('Remove tracker event error:', err);
       res.status(500).json({ error: 'Internal server error' });
@@ -1270,14 +1293,29 @@ router.post(
       const tournamentId = session.tournamentId;
       const sport = session.sport;
 
+      // Re-fold the event log before anything leaves the tracker.
+      //
+      // The append path keeps the score columns in step as it goes, but this is
+      // the moment a result becomes official and it deserves a full re-read
+      // rather than an accumulation nobody has re-checked since tip-off. It is
+      // also the point at which a co-scorer's final entries must certainly be
+      // included — publishing off a snapshot written before their last save is
+      // exactly how a player's night ends up two points short in the record.
+      const folded = sport === 'BASKETBALL'
+        ? await materializeBasketballState(trackerMatch.id)
+        : null;
+      const publishState = folded?.state ?? trackerMatch.state;
+      const homeScore = folded?.homeScore ?? trackerMatch.homeScore;
+      const awayScore = folded?.awayScore ?? trackerMatch.awayScore;
+
       // Create or update the platform Match (update-in-place on re-publish)
       let platformMatchId = trackerMatch.publishedMatchId;
       if (platformMatchId) {
         await prisma.match.update({
           where: { id: platformMatchId },
           data: {
-            homeScore: trackerMatch.homeScore,
-            awayScore: trackerMatch.awayScore,
+            homeScore,
+            awayScore,
             ...(trackerMatch.scheduledAt ? { matchDate: trackerMatch.scheduledAt } : {}),
             court: trackerMatch.court,
             status: 'COMPLETED',
@@ -1299,8 +1337,8 @@ router.post(
             round: trackerMatch.round,
             matchDate: trackerMatch.scheduledAt ?? new Date(),
             court: trackerMatch.court,
-            homeScore: trackerMatch.homeScore,
-            awayScore: trackerMatch.awayScore,
+            homeScore,
+            awayScore,
             status: 'COMPLETED',
           },
         });
@@ -1308,7 +1346,7 @@ router.post(
       }
 
       // Write per-player stats to the right sport-specific table (profiles)
-      const playerStats = derivePlayerStats(sport, trackerMatch.state);
+      const playerStats = derivePlayerStats(sport, publishState);
       await writeMatchPlayerStats({ matchId: platformMatchId, tournamentId, sport, playerStats });
 
       // Playing a men's or women's tournament settles a player's category. Many

@@ -1,54 +1,10 @@
-// Pure basketball rules — foul-out, team-foul bonus, and stat-row creation.
-// Framework-free so they unit-test directly and stay the single source of truth
-// for the live indicators.
-
-import type { BasketballPlayer, BasketballState } from '../types';
-
-/** A blank stat line for one player on `teamId`. */
-export function emptyPlayer(teamId: string): BasketballPlayer {
-  return { teamId, secondsPlayed: 0, pts: 0, ast: 0, reb: 0, oreb: 0, dreb: 0, stl: 0, blk: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0, to: 0, pf: 0 };
-}
-
-/**
- * A player's stat row, created blank when they have none yet — a late roster
- * addition, whose row `state.players` was built before they existed.
- *
- * EVERY WRITE PATH MUST GO THROUGH THIS. The tracker table renders a player with
- * no row as an ordinary row of zeros (it falls back to emptyPlayer), so reading
- * the map directly and bailing on undefined drops the stat with no visible
- * symptom whatsoever: the scorer taps +, the row still reads 0, and nothing
- * indicates it didn't land. That was a real bug — a player added to a team
- * mid-tournament could be selected, put on court and tapped all game while
- * recording precisely nothing.
- *
- * `teamId` null means the player is on neither roster, which stays a no-op.
- */
-export function rowOrBlank(
-  state: BasketballState,
-  playerId: string,
-  teamId: string | null,
-): BasketballPlayer | null {
-  return state.players[playerId] ?? (teamId ? emptyPlayer(teamId) : null);
-}
-
-/**
- * Players on either roster that `state.players` has no row for. Additive
- * reconciliation, mirroring the server's roster merge (services/rosterLifecycle):
- * it only ever reports MISSING players, never proposes removing one, because a
- * player dropped from a roster still owns the stats recorded under their id here.
- */
-export function missingPlayerRows(
-  state: BasketballState,
-  sides: Array<{ teamId: string; players: { userId: string }[] }>,
-): Array<{ userId: string; teamId: string }> {
-  const missing: Array<{ userId: string; teamId: string }> = [];
-  for (const side of sides) {
-    for (const p of side.players) {
-      if (!state.players[p.userId]) missing.push({ userId: p.userId, teamId: side.teamId });
-    }
-  }
-  return missing;
-}
+// Pure basketball rules — foul-out and the team-foul bonus. Framework-free so
+// they unit-test directly and stay the single source of truth for the live
+// indicators the tracker shows.
+//
+// The stat-row helpers that used to live here went with the state blob: a folded
+// event log has no per-player map to be absent from, so there is nothing left to
+// backfill. Everything below is genuine rules, not bookkeeping.
 
 /** Personal fouls that disqualify a player (FIBA / high-school / college). */
 export const FOUL_OUT_LIMIT = 5;

@@ -1,222 +1,401 @@
-/* Faithful port of the standalone basketball tracker's styles, scoped under
-   .bball-tracker so the global selectors don't leak into the rest of the app. */
+/* Live basketball tracker — court-centred entry surface.
 
-.bball-tracker {
+   The layout is a three-column grid: the two rosters flank the court, which is
+   where every field goal is recorded. Keeping the rails and the court on one
+   screen is the whole point — the old table pushed the away side below the fold,
+   and an analyst scrolling mid-possession is an analyst missing the next play. */
+
+.bb2 {
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   color: #e5e7eb;
-  background: #1f2937;
+  background: #111827;
   padding: 12px;
   border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.bball-scroll { overflow-x: auto; }
 
-.bball-tracker h2 { margin: 0; color: #fff; }
+/* ── Scoreboard ──────────────────────────────────────────── */
 
-/* Fixed layout + <colgroup>: column widths come from the col-* rules below, not
-   from content, so the total table width is a number we choose rather than one
-   that emerges from the longest player name. `width:100%` lets it fill a wide
-   screen (the slack lands in the name column, which is the only auto one) while
-   `min-width` is the floor below which .bball-scroll starts scrolling. */
-.bball-tracker table {
-  width: 100%;
-  min-width: 1678px;
-  table-layout: fixed;
-  border-collapse: collapse;
-  background: #0b1220;
-  margin-top: 12px;
+.bb2-board {
+  display: grid;
+  grid-template-columns: 1fr auto minmax(280px, auto) auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #0b1220, #0a0f1a);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
-.bball-tracker col.col-num { width: 62px; }
-.bball-tracker col.col-cnt { width: 112px; }
-.bball-tracker col.col-shot { width: 190px; }
-/* col-player is intentionally width-less — under table-layout:fixed it takes
-   whatever is left, so a wide display gives the names more room, not the grid. */
+.bb2-board-team { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.bb2-board-team.away { text-align: right; align-items: flex-end; }
+.bb2-board-name {
+  font-size: 17px; font-weight: 700; color: #fff;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%;
+}
+.bb2-board-fouls { font-size: 11px; color: #9ca3af; letter-spacing: 0.02em; }
+.bb2-board-fouls.bonus { color: #fca5a5; font-weight: 700; }
 
-/* nowrap: a cell must never wrap — squeezed counter cells would stack their
-   inline −/+ buttons onto separate lines and overlap. */
-.bball-tracker th, .bball-tracker td { padding: 8px 10px; text-align: left; white-space: nowrap; }
-.bball-tracker table th { background: #0b1220; color: #9ca3af; font-weight: 600; padding: 10px; }
-.bball-tracker table td { color: #e5e7eb; }
+.bb2-board-score {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums;
+  color: #fff; min-width: 72px; text-align: center;
+}
 
-/* Player cell: the name is the only part allowed to truncate. The flex row is an
-   inner span, NOT the <td> — display:flex on a table-cell drops it out of table
-   layout and the column widths stop being honoured. */
-.bball-tracker td.pcell { overflow: hidden; }
-.bball-tracker .pcell-in { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.bball-tracker .pnum { flex: none; color: #9ca3af; font-variant-numeric: tabular-nums; }
-.bball-tracker .pname { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.bball-tracker .badge-on, .bball-tracker .badge-bench { flex: none; }
-.bball-tracker .badge-out { background: #7f1d1d; color: #fecaca; }
+.bb2-board-centre { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.bb2-board-period {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.06em; color: #cbd5e1;
+}
 
-.bball-tracker button {
-  background: #2563eb;
-  color: #fff;
-  border: none;
-  padding: 6px 8px;
-  border-radius: 4px;
+/* Amber seven-segment clock, carried over from the previous tracker — it reads
+   at a glance from across a scorer's table, which is the point of it. */
+.bb2-clock, .bb2-clock-set input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 34px; line-height: 1; letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+  color: #ffd27a;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.3));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px; padding: 6px 14px;
+  text-shadow: 0 0 10px rgba(255, 153, 0, 0.55), 0 0 18px rgba(255, 153, 0, 0.35);
   cursor: pointer;
 }
-.bball-tracker button:disabled { opacity: 0.5; cursor: not-allowed; }
+.bb2-clock:disabled { cursor: default; opacity: 0.7; }
+.bb2-clock-set { display: flex; align-items: center; gap: 6px; }
+.bb2-clock-set input { width: 140px; text-align: center; cursor: text; }
+.bb2-clock-set input:focus { outline: 2px solid #3b82f6; outline-offset: 1px; }
 
-/* Counter (−  value  +): a flex row so the two controls always have a clear gap
-   and a proper tap target, at any column width. */
-.bball-tracker .cnt { display: inline-flex; align-items: center; gap: 8px; }
-.bball-tracker .cnt button {
-  min-width: 30px; min-height: 30px; padding: 4px 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 15px; line-height: 1;
-}
-.bball-tracker .cnt .v { min-width: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+.bb2-board-clockbtns { display: flex; gap: 6px; }
+.bb2-board-status { font-size: 11px; }
+.bb2-sync.ok { color: #6ee7b7; }
+.bb2-sync.busy { color: #fcd34d; }
+.bb2-sync.bad { color: #fca5a5; font-weight: 700; }
 
-/* Shot cell: [− +] made/att [− M]. Sized in CSS (not inline) so the compact
-   pointer:fine block below can shrink it to fit a laptop. */
-.bball-tracker .shot { display: inline-flex; align-items: center; gap: 6px; }
-.bball-tracker .shot-grp { display: inline-flex; gap: 4px; }
-.bball-tracker .shot-v {
-  padding: 0 8px; min-width: 46px; text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.bball-tracker .shot button {
-  min-width: 26px; min-height: 30px; padding: 4px 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  font-size: 14px; line-height: 1;
-}
-.bball-tracker .sb-mk-minus { background: #ef4444; }
-.bball-tracker .sb-mk-plus  { background: #10b981; }
-.bball-tracker .sb-ms-minus { background: #b91c1c; }
-.bball-tracker .sb-ms-plus  { background: #065f46; }
-
-/* ── Compact density for precise pointers ─────────────────────
-   A 14" MacBook Pro is 1512pt wide; the tracker shell spends 80pt on the rail
-   and 16pt on the right gutter, and .bball-tracker another 24pt of padding,
-   leaving ~1392pt for the table. The roomy metrics above total ~1678pt, so the
-   grid scrolls sideways — and a scorer entering stats mid-play cannot scroll.
-   These numbers bring the floor to ~1306pt, which fits with ~86pt to spare for
-   a visible scrollbar or slightly wider font metrics.
-
-   Gated on pointer:fine so it only applies to trackpad/mouse. A tablet reports
-   pointer:coarse and keeps the larger touch targets above, scrolling as before
-   — shrinking a touch target to 24pt to win horizontal space is a bad trade
-   when the input is a fingertip. */
-@media (pointer: fine) {
-  /* 1116px of that is the fixed stat columns, which never shrink — the floor
-     only decides how early the NAME column starts truncating. Set below the
-     14" target on purpose: a 1440-wide window (or a slightly zoomed 1512 one)
-     then stops scrolling too, trading a shortened name — jersey number first,
-     full name on hover — for a grid that stays entirely on screen. */
-  .bball-tracker table { min-width: 1240px; }
-  .bball-tracker col.col-num { width: 48px; }
-  .bball-tracker col.col-cnt { width: 84px; }
-  .bball-tracker col.col-shot { width: 144px; }
-
-  .bball-tracker th, .bball-tracker td { padding: 5px 6px; }
-  .bball-tracker table th { padding: 7px 6px; font-size: 12px; }
-
-  .bball-tracker .cnt { gap: 4px; }
-  .bball-tracker .cnt button { min-width: 24px; min-height: 26px; font-size: 14px; }
-  .bball-tracker .cnt .v { min-width: 14px; }
-
-  .bball-tracker .shot { gap: 3px; }
-  .bball-tracker .shot-grp { gap: 2px; }
-  .bball-tracker .shot-v { padding: 0 3px; min-width: 40px; font-size: 12px; }
-  .bball-tracker .shot button { min-width: 20px; min-height: 26px; font-size: 13px; }
-
-  .bball-tracker .badge-on, .bball-tracker .badge-bench { margin-left: 2px; padding: 2px 5px; font-size: 9px; }
+.bb2-board-actions {
+  grid-column: 1 / -1;
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* Keep the player-name column pinned while scrolling to the shooting columns. */
-.bball-tracker th:first-child,
-.bball-tracker td:first-child { position: sticky; left: 0; z-index: 2; background: #0b1220; }
-.bball-tracker thead th:first-child { z-index: 3; }
+/* ── Buttons ─────────────────────────────────────────────── */
 
-/* Column titles reprinted inside the body above the second team's rows. Ruled
-   top and bottom so it reads as a header band and not as another stat row. */
-.bball-tracker tbody tr.bball-colhead th {
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+.bb2-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e5e7eb; padding: 6px 12px; border-radius: 7px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.bb2-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.11); }
+.bb2-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.bb2-btn.go { background: #15803d; border-color: #16a34a; color: #dcfce7; }
+.bb2-btn.stop { background: #b45309; border-color: #d97706; color: #fef3c7; }
+.bb2-btn.danger { background: #991b1b; border-color: #b91c1c; color: #fee2e2; }
+
+.bb2-mini {
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #e5e7eb; width: 24px; height: 24px; border-radius: 6px;
+  font-size: 14px; line-height: 1; cursor: pointer; padding: 0;
+}
+.bb2-mini:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Three-column main area ──────────────────────────────── */
+
+.bb2-main {
+  display: grid;
+  grid-template-columns: minmax(190px, 240px) minmax(0, 1fr) minmax(190px, 240px);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  /* Court first: on a narrow screen the shot-entry surface is the one thing that
+     must stay above the fold, since it's the only entry that can't be completed
+     without it. */
+  .bb2-main { grid-template-columns: 1fr; }
+  .bb2-centre { order: -1; }
 }
 
-/* ── Keyboard entry ──────────────────────────────────────── */
+/* ── Court ───────────────────────────────────────────────── */
 
-.bball-keybar {
-  position: relative; /* anchors the overlaid confirmation pill */
-  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px;
-  margin-top: 12px; padding: 8px 12px; border-radius: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+.bb2-centre { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: relative; }
+
+.bb2-court-wrap { position: relative; border-radius: 10px; overflow: hidden; }
+.bb2-court-wrap.armed { box-shadow: 0 0 0 2px #38bdf8, 0 0 24px rgba(56, 189, 248, 0.4); }
+.bb-court { display: block; width: 100%; height: auto; background: #0b1220; }
+.bb-court-wrap { position: relative; border-radius: 10px; overflow: hidden; }
+.bb-court-wrap.armed { box-shadow: 0 0 0 2px #38bdf8, 0 0 24px rgba(56, 189, 248, 0.45); }
+.bb-court-wrap.armed .bb-court { cursor: crosshair; }
+
+/* The armed banner sits ON the court and is click-through: it tells the analyst
+   what's pending without ever swallowing the click that completes it. */
+.bb2-arm {
+  position: absolute; inset: auto 0 0 0;
+  display: flex; align-items: baseline; justify-content: center; gap: 10px; flex-wrap: wrap;
+  padding: 7px 12px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0), rgba(2, 6, 23, 0.88));
   font-size: 13px;
 }
-.bball-keybar-who { min-width: 220px; }
-.bball-keybar-clear {
-  background: none !important; border: none; padding: 0 0 0 6px;
-  color: #93c5fd; font-size: 12px; text-decoration: underline; cursor: pointer;
+.bb2-arm-what { font-weight: 800; color: #38bdf8; letter-spacing: 0.04em; }
+.bb2-arm-who { font-weight: 700; color: #fff; }
+.bb2-arm-hint { color: #94a3b8; font-size: 12px; }
+
+/* ── Action bar ──────────────────────────────────────────── */
+
+.bb2-actions { display: flex; flex-direction: column; gap: 6px; }
+.bb2-actions-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.bb2-act {
+  flex: 1 1 auto; min-width: 78px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e5e7eb; padding: 9px 8px; border-radius: 8px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
 }
-.bball-keybar-keys { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto; }
-.bball-keybar-keys.dimmed { opacity: 0.2; }
-.bball-key { display: inline-flex; align-items: center; gap: 5px; color: #9ca3af; font-size: 12px; }
-.bball-key kbd {
+.bb2-act:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); }
+.bb2-act:disabled { opacity: 0.35; cursor: not-allowed; }
+.bb2-act.made { border-color: rgba(34, 197, 94, 0.45); color: #bbf7d0; }
+.bb2-act.miss { border-color: rgba(239, 68, 68, 0.45); color: #fecaca; }
+.bb2-act.armed { outline: 2px solid #38bdf8; background: rgba(56, 189, 248, 0.16); }
+
+/* ── Legend + flash ──────────────────────────────────────── */
+
+.bb2-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: #94a3b8; }
+.bb2-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.bb2-legend kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px; line-height: 1; min-width: 18px; text-align: center;
-  padding: 3px 5px; border-radius: 4px; color: #e5e7eb;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
-}
-.bball-keybar-flash {
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  padding: 5px 12px; border-radius: 999px;
-  font-weight: 700; font-size: 12px; white-space: nowrap;
-}
-.bball-keybar-flash.ok { background: #065f46; color: #d1fae5; }
-.bball-keybar-flash.hint { background: #78350f; color: #fde68a; }
-
-/* Selected row — the target of the next keystroke. The first cell needs its own
-   rule because the sticky-column background above would otherwise paint over
-   the row tint and hide the selection exactly where the name is. */
-.bball-tracker tbody tr.bball-row-sel td { background: #12233f; }
-.bball-tracker tbody tr.bball-row-sel td:first-child {
-  background: #12233f;
-  box-shadow: inset 3px 0 0 #3b82f6;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .bball-tracker tbody tr td { transition: background 120ms ease; }
+  font-size: 10px; line-height: 1; padding: 3px 5px; border-radius: 4px; color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-.bball-tracker select, .bball-tracker .input {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+.bb2-flash {
+  position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+  padding: 7px 16px; border-radius: 999px; font-weight: 700; font-size: 13px;
+  white-space: nowrap; pointer-events: none; z-index: 5;
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.6);
+}
+.bb2-flash.ok { background: #065f46; color: #d1fae5; }
+.bb2-flash.hint { background: #78350f; color: #fde68a; }
+.bb2-flash.bad { background: #7f1d1d; color: #fecaca; }
+
+/* ── Roster rails ────────────────────────────────────────── */
+
+.bb2-rail {
+  display: flex; flex-direction: column; gap: 8px;
+  background: #0b1220; border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px; padding: 10px;
+}
+.bb2-rail-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.bb2-rail-head strong { font-size: 14px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb2-rail-pts { font-size: 18px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.bb2-rail-list { display: flex; flex-direction: column; gap: 4px; }
+.bb2-rail-foot { display: flex; gap: 6px; padding-top: 6px; }
+.bb2-rail-foot .bb2-btn { flex: 1; }
+.bb2-rail-hint { margin: 0; font-size: 11px; color: #94a3b8; line-height: 1.4; }
+
+.bb2-chip {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center; gap: 8px; width: 100%; text-align: left;
+  padding: 6px 8px; border-radius: 8px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
   color: #e5e7eb;
 }
+.bb2-chip:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); }
+.bb2-chip:disabled { opacity: 0.5; cursor: not-allowed; }
+.bb2-chip.bench { opacity: 0.62; }
+.bb2-chip.on { background: rgba(34, 197, 94, 0.09); }
+/* The armed player. A left bar rather than a fill: the chip already carries an
+   on-court tint, and two overlapping background colours read as neither. */
+.bb2-chip.picked { border-color: #3b82f6; box-shadow: inset 3px 0 0 #3b82f6; background: rgba(59, 130, 246, 0.14); opacity: 1; }
+.bb2-chip.subout.picked { border-color: #f87171; box-shadow: inset 3px 0 0 #f87171; background: rgba(248, 113, 113, 0.16); }
+.bb2-chip.subin.picked { border-color: #4ade80; box-shadow: inset 3px 0 0 #4ade80; background: rgba(74, 222, 128, 0.16); }
+.bb2-chip.fouledout { opacity: 0.45; }
 
-.bball-tracker .btn {
+.bb2-chip-num {
+  font-size: 17px; font-weight: 800; text-align: center;
+  font-variant-numeric: tabular-nums; color: #fff;
+}
+.bb2-chip-body { display: flex; flex-direction: column; min-width: 0; }
+.bb2-chip-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb2-chip-line { font-size: 10px; color: #94a3b8; white-space: nowrap; }
+.bb2-chip-tail { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.bb2-chip-pf { font-size: 11px; color: #9ca3af; font-variant-numeric: tabular-nums; }
+.bb2-chip-pf.warn { color: #fbbf24; font-weight: 700; }
+.bb2-chip-pf.out { color: #f87171; font-weight: 800; }
+.bb2-chip-flag {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.05em;
+  padding: 1px 4px; border-radius: 3px; background: #7f1d1d; color: #fecaca;
+}
+
+/* ── Selected player panel ───────────────────────────────── */
+
+.bb2-selected {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 340px); gap: 12px;
+  background: #0b1220; border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px; padding: 12px;
+}
+@media (max-width: 860px) { .bb2-selected { grid-template-columns: 1fr; } }
+
+.bb-playerline { display: flex; flex-direction: column; gap: 10px; }
+.bb-playerline-head { display: flex; align-items: baseline; gap: 10px; }
+.bb-playerline-jersey {
+  font-size: 26px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums;
+}
+.bb-playerline-name { font-size: 16px; font-weight: 700; color: #fff; }
+.bb-playerline-min { margin-left: auto; font-size: 12px; color: #94a3b8; }
+
+.bb-statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
+.bb-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 4px; border-radius: 8px; background: rgba(255, 255, 255, 0.04);
+}
+.bb-stat.key { background: rgba(59, 130, 246, 0.14); }
+.bb-stat-v { font-size: 18px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.bb-stat-l { font-size: 10px; color: #94a3b8; letter-spacing: 0.05em; }
+
+/* ── Shot charts ─────────────────────────────────────────── */
+
+.bb-chart { display: flex; flex-direction: column; gap: 8px; }
+.bb-chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.bb-chart-sum { font-size: 12px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.bb-chart-box { position: relative; }
+.bb-halfcourt { display: block; width: 100%; height: auto; background: #0b1220; border-radius: 8px; }
+.bb-chart-empty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #94a3b8; font-size: 12px; text-align: center; padding: 20px; pointer-events: none;
+}
+
+.bb-chart-tip {
+  position: absolute; z-index: 6; pointer-events: none;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 7px 10px; border-radius: 8px; white-space: nowrap;
+  background: rgba(2, 6, 23, 0.96); border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
+}
+.bb-tip-who { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #fff; }
+.bb-tip-jersey {
+  font-size: 11px; font-weight: 800; padding: 1px 5px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14); font-variant-numeric: tabular-nums;
+}
+.bb-tip-result { font-size: 11px; font-weight: 800; letter-spacing: 0.05em; }
+.bb-tip-result.made { color: #4ade80; }
+.bb-tip-result.miss { color: #f87171; }
+.bb-tip-meta { font-size: 10px; color: #94a3b8; }
+
+.bb2-chartmodal { width: min(560px, 92vw); }
+.bb2-chartmodal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bb2-chartmodal-head h3 { margin: 0; font-size: 16px; }
+.bb2-chartmodal-hint { margin: 10px 0 0; font-size: 11px; color: #94a3b8; line-height: 1.5; }
+
+/* ── Recent entries (the removal surface) ────────────────── */
+
+.bb2-recent {
+  background: #0b1220; border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px; padding: 10px 12px;
+}
+.bb2-recent-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.bb2-recent-head strong { font-size: 13px; }
+.bb2-recent-head span { font-size: 11px; color: #94a3b8; }
+.bb2-recent-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.bb2-recent-list li {
+  display: grid; grid-template-columns: 74px 34px minmax(0, 1fr) auto 30px;
+  align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; font-size: 12px;
+}
+.bb2-recent-list li:nth-child(odd) { background: rgba(255, 255, 255, 0.025); }
+.bb2-recent-list li.pending { opacity: 0.55; }
+.bb2-recent-q { color: #94a3b8; font-variant-numeric: tabular-nums; font-size: 11px; }
+.bb2-recent-num { font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
+.bb2-recent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bb2-recent-kind { color: #cbd5e1; font-weight: 600; }
+.bb2-recent-del {
+  width: 26px; height: 26px; border-radius: 6px; cursor: pointer; padding: 0;
+  background: rgba(239, 68, 68, 0.16); border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fecaca; font-size: 17px; font-weight: 800; line-height: 1;
+}
+.bb2-recent-del:hover:not(:disabled) { background: rgba(239, 68, 68, 0.3); }
+.bb2-recent-del:disabled { opacity: 0.3; cursor: not-allowed; }
+.bb2-recent-foot { margin-top: 6px; font-size: 11px; color: #64748b; }
+
+/* ── Box score ───────────────────────────────────────────── */
+
+.bb2 .bb-box {
+  background: #0b1220; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px;
+  overflow: hidden;
+}
+.bb-box-toggle {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 10px 14px; cursor: pointer;
+  background: transparent; border: none; color: #e5e7eb;
+}
+.bb-box-toggle:hover { background: rgba(255, 255, 255, 0.04); }
+.bb-box-toggle-label { font-size: 13px; font-weight: 700; }
+.bb-box-toggle-score {
+  margin-left: auto; font-size: 16px; font-weight: 800;
+  font-variant-numeric: tabular-nums; color: #fff;
+}
+.bb-box-toggle-score .dash { color: #64748b; margin: 0 6px; }
+.bb-box-chev { color: #94a3b8; font-size: 11px; }
+.bb-box-body { display: grid; gap: 12px; padding: 0 12px 12px; }
+
+.bb-box-team-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 8px 0 6px; font-size: 13px;
+}
+.bb-box-team-head strong { color: #fff; }
+.bb-box-scroll { overflow-x: auto; }
+.bb-box-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.bb-box-table th, .bb-box-table td { padding: 5px 6px; white-space: nowrap; text-align: right; }
+.bb-box-table th { color: #94a3b8; font-weight: 600; font-size: 11px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.bb-box-table th.pl, .bb-box-table td.pl { text-align: left; }
+.bb-box-table td.num { font-variant-numeric: tabular-nums; }
+.bb-box-table td.strong { font-weight: 800; color: #fff; }
+.bb-box-table td.dim { color: #94a3b8; }
+.bb-box-table tbody tr { cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
+.bb-box-table tbody tr:hover { background: rgba(255, 255, 255, 0.04); }
+.bb-box-table tbody tr.sel { background: rgba(59, 130, 246, 0.16); }
+.bb-box-table tbody tr.tot { font-weight: 700; background: rgba(255, 255, 255, 0.03); cursor: default; }
+.bb-box-jersey {
+  display: inline-block; min-width: 20px; margin-right: 6px;
+  font-weight: 800; font-variant-numeric: tabular-nums; color: #fff;
+}
+.bb-box-name { display: inline-block; max-width: 150px; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+.bb-box-on {
+  margin-left: 6px; padding: 1px 5px; border-radius: 999px; font-size: 9px; font-weight: 800;
+  background: rgba(34, 197, 94, 0.2); color: #bbf7d0;
+}
+
+/* ── Pre-match modals ────────────────────────────────────── */
+/* Scoped to the modal itself, not to a tracker wrapper: these render at the root
+   of the page while the entry surface is still mounting. */
+
+.bball-modal-backdrop {
+  position: fixed; inset: 0; background: rgba(2, 6, 23, 0.7);
+  display: flex; align-items: center; justify-content: center; z-index: 60;
+  padding: 16px;
+}
+.bball-modal {
+  background: #0b1220; padding: 20px; border-radius: 12px;
+  box-shadow: 0 8px 34px rgba(2, 6, 23, 0.75);
+  color: #e5e7eb; max-height: 90vh; overflow-y: auto;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+}
+.bball-modal h3 { color: #fff; }
+.bball-modal .card { background: #111827; padding: 14px; border-radius: 8px; }
+.bball-modal .btn {
   background: linear-gradient(180deg, #2563eb, #1e40af);
   color: #fff; border: none; padding: 8px 12px; border-radius: 8px;
-  cursor: pointer; font-weight: 600; box-shadow: 0 4px 8px rgba(2, 6, 23, 0.6);
+  cursor: pointer; font-weight: 600;
 }
-.bball-tracker .btn.secondary {
-  background: transparent; border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #cbd5e1; box-shadow: none;
+.bball-modal .btn.secondary {
+  background: transparent; border: 1px solid rgba(255, 255, 255, 0.14); color: #cbd5e1;
 }
+.bball-modal .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-.bball-tracker .card { background: #0f172a; padding: 20px; border-radius: 8px; }
-
-.bball-tracker .badge-on {
-  margin-left: 6px; padding: 2px 6px; border-radius: 999px; font-size: 10px;
-  background: #22c55e33; color: #bbf7d0;
-}
-.bball-tracker .badge-bench {
-  margin-left: 6px; padding: 2px 6px; border-radius: 999px; font-size: 10px;
-  background: #f9731633; color: #fed7aa;
-}
-
-/* Jersey number editor */
-.bball-tracker .jersey-row,
 .bball-modal .jersey-row {
-  display: grid; grid-template-columns: 46px 1fr auto;
-  align-items: center; gap: 10px;
+  display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 10px;
 }
 .bball-modal .jersey-input {
   width: 46px; padding: 6px 4px; text-align: center;
@@ -232,28 +411,6 @@
   background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); color: #fecaca;
 }
 
-/* Modal (starters) */
-.bball-modal-backdrop {
-  position: fixed; inset: 0; background: rgba(2, 6, 23, 0.6);
-  display: flex; align-items: center; justify-content: center; z-index: 60;
-}
-.bball-modal {
-  background: #0b1220; padding: 20px; border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(2, 6, 23, 0.7); color: #e5e7eb;
-}
-
-/* Amber DSEG7-style game clock */
-.bball-clock {
-  padding: 10px 14px; border-radius: 10px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.3));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.35);
-  color: #ffd27a; display: flex; align-items: center; gap: 10px;
-}
-.bball-clock-q { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #ffe8b5; }
-.bball-clock-time {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace;
-  font-weight: 400; font-size: 34px; line-height: 1; letter-spacing: 1px;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 10px rgba(255, 153, 0, 0.55), 0 0 18px rgba(255, 153, 0, 0.35), 0 0 28px rgba(255, 153, 0, 0.18);
+@media (prefers-reduced-motion: no-preference) {
+  .bb2-chip, .bb2-act, .bb2-btn { transition: background 120ms ease, box-shadow 120ms ease; }
 }

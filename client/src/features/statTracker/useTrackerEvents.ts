@@ -56,12 +56,23 @@ export function useTrackerEvents({
   awayTeamId,
   quarterMs,
   enabled = true,
+  local = false,
 }: {
   matchId: string;
   homeTeamId: string | null;
   awayTeamId: string | null;
   quarterMs: number;
   enabled?: boolean;
+  /**
+   * Keep the log in memory and never touch the network.
+   *
+   * The public demo sandbox runs the real tracker against a fabricated session
+   * whose ids aren't in any database. Without this it would fire appends at
+   * endpoints that reject them and sit in a retry loop behind a "not saved"
+   * warning, which is a poor advert for a tool whose whole pitch is that it
+   * doesn't lose your data.
+   */
+  local?: boolean;
 }): TrackerEventsController {
   const [events, setEvents] = useState<TrackerEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -121,13 +132,13 @@ export function useTrackerEvents({
   }, [matchId]);
 
   useEffect(() => {
-    if (!enabled) { setLoading(false); return; }
+    if (!enabled || local) { setLoading(false); return; }
     void loadAll();
-  }, [enabled, loadAll]);
+  }, [enabled, local, loadAll]);
 
   // ── Live feed ─────────────────────────────────────────────
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || local) return;
     let mounted = true;
     void auth.currentUser?.getIdToken().then((token) => {
       if (!mounted) return;
@@ -162,7 +173,7 @@ export function useTrackerEvents({
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [matchId, enabled, upsert, markRemoved]);
+  }, [matchId, enabled, local, upsert, markRemoved]);
 
   // ── Append, with retry ────────────────────────────────────
   const send = useCallback(async (clientId: string, entry: PendingAppend) => {
@@ -214,11 +225,15 @@ export function useTrackerEvents({
       deletedAt: null,
     };
     setEvents((prev) => [...prev, optimistic]);
+    // In local mode the optimistic entry IS the entry — there is no server copy
+    // coming to replace it, so it must not be left queued as unsaved forever.
+    if (local) return;
     setPending((p) => ({ ...p, [clientId]: { draft: full, attempt: 0 } }));
     void send(clientId, { draft: full, attempt: 0 });
-  }, [matchId, send]);
+  }, [matchId, send, local]);
 
   const remove = useCallback(async (eventId: string) => {
+    if (local) { markRemoved(eventId); return; }
     // Draw the removal straight away — the analyst is fixing a mistake mid-play
     // and needs to see it gone — then confirm.
     markRemoved(eventId);
@@ -232,7 +247,7 @@ export function useTrackerEvents({
       // everybody else — and the published result — will see.
       void loadAll();
     }
-  }, [matchId, markRemoved, loadAll]);
+  }, [matchId, markRemoved, loadAll, local]);
 
   useEffect(() => {
     const timers = retryTimers.current;

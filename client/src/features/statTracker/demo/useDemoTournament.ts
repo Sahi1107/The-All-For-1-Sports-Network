@@ -130,6 +130,10 @@ export function useDemoTournament(sport: TrackerSport) {
           loading: false,
           loadError: null, // demo never fails to load — it's fully client-side
           saveState: 'saved', // demo is client-only — nothing to persist
+          // Keeps the basketball tracker's event log in memory. These ids exist
+          // nowhere but this browser tab, so appending them to the real endpoint
+          // would only produce rejections and a false "not saved" warning.
+          local: true,
           updateState,
           setStatus,
           flush: async () => {},

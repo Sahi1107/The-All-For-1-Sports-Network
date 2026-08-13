@@ -217,5 +217,8 @@ export function useTrackerMatch(matchId: string) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, []);
 
-  return { match, session, loading, loadError, saveState, updateState, setStatus, flush, setMatch, setSession, saveJerseys };
+  // Real matches persist through the API. The demo sandbox substitutes a
+  // controller with `local: true`, which is what tells the basketball tracker to
+  // keep its event log in memory instead of appending to a match that has no row.
+  return { match, session, loading, loadError, saveState, local: false, updateState, setStatus, flush, setMatch, setSession, saveJerseys };
 }

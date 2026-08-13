@@ -296,6 +296,57 @@ export function parseClockToElapsedMs(input: string, quarterMs: number): number 
   return quarterMs - remainingMs;
 }
 
+/**
+ * The legacy `TrackerMatch.state` shape, derived from a fold.
+ *
+ * The log is the source of truth; this is a READ CONVENIENCE that keeps every
+ * surface which already reads `state` — the publish derivation, the spreadsheet
+ * export, the stat-leader boards — working without each of them learning to fold
+ * events. One definition, shared by the server's materialiser and the
+ * client-only demo sandbox, so the two can't describe the same match differently.
+ */
+export interface BasketballSnapshot {
+  quarter: number;
+  quarterSeconds: number;
+  clockSeconds: number;
+  clockRunning: boolean;
+  onCourtHome: string[];
+  onCourtAway: string[];
+  players: Record<string, BoxScoreLine>;
+  teamFoulsHome: number[];
+  teamFoulsAway: number[];
+  /** Shot locations, so a finished match still charts without the log. */
+  shots: {
+    eventId: string; playerId: string; teamId: string | null;
+    made: boolean; value: 2 | 3; quarter: number; clockMs: number;
+    x: number; y: number; basket: Basket;
+  }[];
+  /** Marks the blob as derived, so nothing is tempted to write back to it. */
+  derivedFromEvents: true;
+  derivedAt: string;
+}
+
+export function toSnapshot(s: DerivedState, quarterSeconds: number): BasketballSnapshot {
+  return {
+    quarter: s.quarter,
+    quarterSeconds,
+    clockSeconds: s.clockMs / 1000,
+    clockRunning: s.clockRunning,
+    onCourtHome: s.onCourtHome,
+    onCourtAway: s.onCourtAway,
+    players: s.players,
+    teamFoulsHome: s.teamFoulsHome,
+    teamFoulsAway: s.teamFoulsAway,
+    shots: s.shots.map((sh) => ({
+      eventId: sh.eventId, playerId: sh.playerId, teamId: sh.teamId,
+      made: sh.made, value: sh.value, quarter: sh.quarter, clockMs: sh.clockMs,
+      x: sh.x, y: sh.y, basket: sh.basket,
+    })),
+    derivedFromEvents: true,
+    derivedAt: new Date().toISOString(),
+  };
+}
+
 /** Team totals from a set of lines — the box score's footer row. */
 export function teamTotals(
   players: Record<string, BoxScoreLine>,
