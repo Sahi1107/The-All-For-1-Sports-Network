@@ -16,16 +16,16 @@
 
 # Web client: only its package.json is needed (for workspace resolution); its
 # source and large assets are not part of the API image.
-client/src
-client/public
-client/index.html
-client/vite.config.ts
-client/prerender
-client/src/assets/Gemini_Generated_Image_*.png
+apps/web/src
+apps/web/public
+apps/web/index.html
+apps/web/vite.config.ts
+apps/web/prerender
+apps/web/src/assets/Gemini_Generated_Image_*.png
 
 # Local-only / large artifacts + anything secret-shaped.
 graphify-out
 **/*firebase-adminsdk*.json
-server/cloudinary-to-gcs-mapping.json
-server/neon-backup.dump
-server/scripts
+apps/server/cloudinary-to-gcs-mapping.json
+apps/server/neon-backup.dump
+apps/server/scripts

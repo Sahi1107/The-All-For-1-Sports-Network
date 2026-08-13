@@ -4,7 +4,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const schemaPath = fileURLToPath(new URL('../../../server/prisma/schema.prisma', import.meta.url));
+const schemaPath = fileURLToPath(new URL('../../../apps/server/prisma/schema.prisma', import.meta.url));
 const outPath = fileURLToPath(new URL('../src/enums.ts', import.meta.url));
 
 const schema = readFileSync(schemaPath, 'utf8');

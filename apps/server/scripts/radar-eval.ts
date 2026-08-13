@@ -75,7 +75,7 @@ async function main() {
   const model = modelIdx !== -1 ? args[modelIdx + 1] : RADAR_MODEL;
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('\nANTHROPIC_API_KEY is not set. Export it (or add to server/.env) and re-run.\n');
+    console.error('\nANTHROPIC_API_KEY is not set. Export it (or add to apps/server/.env) and re-run.\n');
     process.exit(1);
   }
 

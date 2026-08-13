@@ -11,7 +11,7 @@
  *   --resume      Skip assets already present in the GCS bucket
  *
  * Output:
- *   server/cloudinary-to-gcs-mapping.json
+ *   apps/server/cloudinary-to-gcs-mapping.json
  *     A JSON map of { cloudinaryUrl: gcsKey } that the rewrite-media-urls
  *     script consumes in the next phase.
  *

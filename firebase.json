@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "client/dist",
+    "public": "apps/web/dist",
     "cleanUrls": true,
     "trailingSlash": false,
     "ignore": [

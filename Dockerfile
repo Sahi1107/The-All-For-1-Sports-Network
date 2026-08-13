@@ -18,34 +18,34 @@ WORKDIR /app
 
 # Workspace manifests + lockfile → a deterministic, server-scoped install.
 # Copying every workspace's package.json lets npm validate the workspace tree;
-# `-w server` then installs ONLY the server's dependency graph (no web client),
+# `-w apps/server` then installs ONLY the server's dependency graph (no web client),
 # so the runtime node_modules stays lean. packages/ is copied so npm links the
 # server's @af1/* deps and can resolve them at build + runtime. Add each new
 # server-consumed package to the `npm run build -w` line below.
 COPY package.json package-lock.json ./
-COPY server/package.json ./server/package.json
-COPY client/package.json ./client/package.json
+COPY apps/server/package.json ./apps/server/package.json
+COPY apps/web/package.json ./apps/web/package.json
 COPY packages ./packages
 # The root `prepare` script installs local git hooks — irrelevant and absent in
 # the image. Drop it from the in-image manifest only (repo unchanged) so it
 # doesn't run on install; dependency install scripts still run.
 RUN npm pkg delete scripts.prepare
-RUN npm ci --workspace server
+RUN npm ci --workspace apps/server
 
 # Server source only.
-COPY server/tsconfig.json ./server/tsconfig.json
-COPY server/prisma ./server/prisma
-COPY server/src ./server/src
-COPY server/assets ./server/assets
+COPY apps/server/tsconfig.json ./apps/server/tsconfig.json
+COPY apps/server/prisma ./apps/server/prisma
+COPY apps/server/src ./apps/server/src
+COPY apps/server/assets ./apps/server/assets
 
 # Build the server-consumed @af1/* packages to JS first (the server runs plain
 # node and requires their compiled dist), then build the server.
 RUN npm run build -w @af1/validation -w @af1/core
-# Build: prisma client + tsc → server/dist.
-RUN npm run build --workspace server
+# Build: prisma client + tsc → apps/server/dist.
+RUN npm run build --workspace apps/server
 
 # Drop the server workspace's dev deps for a lean runtime node_modules.
-RUN npm prune --omit=dev --workspace server
+RUN npm prune --omit=dev --workspace apps/server
 
 # ─── Runner ──────────────────────────────────────────────────────────────────
 FROM node:20-bookworm-slim AS runner
@@ -73,10 +73,10 @@ RUN groupadd --system --gid 1001 app \
 # node_modules symlinks resolve to.
 COPY --from=builder --chown=app:app /app/node_modules      ./node_modules
 COPY --from=builder --chown=app:app /app/packages          ./packages
-COPY --from=builder --chown=app:app /app/server/dist       ./dist
-COPY --from=builder --chown=app:app /app/server/prisma     ./prisma
-COPY --from=builder --chown=app:app /app/server/assets     ./assets
-COPY --from=builder --chown=app:app /app/server/package.json ./package.json
+COPY --from=builder --chown=app:app /app/apps/server/dist       ./dist
+COPY --from=builder --chown=app:app /app/apps/server/prisma     ./prisma
+COPY --from=builder --chown=app:app /app/apps/server/assets     ./assets
+COPY --from=builder --chown=app:app /app/apps/server/package.json ./package.json
 
 # Create logs directory so Winston doesn't fail at startup.
 RUN mkdir -p /app/logs && chown app:app /app/logs

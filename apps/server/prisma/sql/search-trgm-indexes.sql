@@ -6,7 +6,7 @@
 -- keeps /api/search fast as the User/Team/Tournament tables grow.
 --
 -- Apply ONCE against the production database (idempotent — safe to re-run):
---   psql "$DATABASE_URL" -f server/prisma/sql/search-trgm-indexes.sql
+--   psql "$DATABASE_URL" -f apps/server/prisma/sql/search-trgm-indexes.sql
 --
 -- Not part of `prisma db push` (Prisma doesn't manage extensions / GIN opclasses
 -- cleanly), so it's a separate one-time step. CREATE EXTENSION needs privileges

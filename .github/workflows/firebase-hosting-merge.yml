@@ -1,4 +1,4 @@
-# Deploys client/ to Firebase Hosting on push to main.
+# Deploys apps/web/ to Firebase Hosting on push to main.
 #
 # Target: the `allfor1-prod` Hosting site in project allfor1-prod — this is what
 # the custom domain allfor1.pro now serves. Auth is keyless Workload Identity
@@ -25,12 +25,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cd client && npm install && npm run build
+      # Workspace-aware install (root lockfile) so apps/web can consume @af1/*
+      # packages; then build only the web workspace.
+      - run: npm ci --workspace apps/web && npm run build --workspace apps/web
       # Stamp the deployed commit so "what client is live?" is a 5-second curl of
       # https://allfor1.pro/version.json (this incident was a STALE CLIENT, which
       # the server's /api/version can't reveal). Served no-cache via firebase.json.
       - name: Stamp deployed version
-        run: echo "{\"sha\":\"${{ github.sha }}\",\"ref\":\"${{ github.ref_name }}\",\"builtAt\":\"$(date -u +%FT%TZ)\"}" > client/dist/version.json
+        run: echo "{\"sha\":\"${{ github.sha }}\",\"ref\":\"${{ github.ref_name }}\",\"builtAt\":\"$(date -u +%FT%TZ)\"}" > apps/web/dist/version.json
       - uses: google-github-actions/auth@v2
         with:
           project_id: allfor1-prod

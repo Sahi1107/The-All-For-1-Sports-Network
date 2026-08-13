@@ -15,7 +15,7 @@ failure mode.
 ## Verified facts (from the schema)
 
 - **Database:** PostgreSQL. Schema is applied by `prisma db push` on server boot
-  (see `server/Dockerfile`), not migration files.
+  (see the root `Dockerfile`), not migration files.
 - **Table name:** `"User"` — the schema has no `@@map`, so Prisma uses the model
   name verbatim. The capital `U` means it **must be double-quoted** in SQL.
 - **Columns:** `discoverable` (no `@map`), `guardian_managed`, `age`,
@@ -48,7 +48,7 @@ backfill `UPDATE` can only run once the column exists. Two safe orderings:
 Confirm your DB provider first, then ensure a **restorable** backup exists before
 touching any data.
 
-**If Google Cloud SQL** (this project uses a Cloud SQL proxy — `server/cloud-sql-proxy`):
+**If Google Cloud SQL** (this project uses a Cloud SQL proxy — `apps/server/cloud-sql-proxy`):
 ```bash
 # On-demand backup
 gcloud sql backups create --instance=INSTANCE_NAME --project=PROJECT_ID

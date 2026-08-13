@@ -28,7 +28,7 @@ A professional social network for athletes, coaches, and scouts. Users sign up w
 ```
 The_AllFor1_Network/
 ├── package.json                 # Root workspace config + concurrently dev script
-├── server/
+├── apps/server/
 │   ├── package.json
 │   ├── .env                     # DB url, JWT secrets, Cloudinary keys (PORT=3001)
 │   ├── prisma/
@@ -45,7 +45,7 @@ The_AllFor1_Network/
 │       │   └── announcement.routes.ts
 │       ├── utils/               # crypto.ts, logger.ts, jwt.ts 
 │       └── validation/          # Zod schemas for user, team, tournaments, auth, admin, etc.
-└── client/
+└── apps/web/
     ├── package.json
     ├── vite.config.ts           # Tailwind v4 plugin, API proxy → :3001
     ├── capacitor.config.ts      # Capacitor config for native mobile builds
@@ -172,7 +172,7 @@ The_AllFor1_Network/
 # Clone and install all dependencies
 npm install
 
-# Edit server/.env to use your correct PostgreSQL URL, Cloudinary API configuration, and SMTP setup details.
+# Edit apps/server/.env to use your correct PostgreSQL URL, Cloudinary API configuration, and SMTP setup details.
 
 # Generate tables
 cd server && npx prisma db push
@@ -186,7 +186,7 @@ npm run dev
 
 ### Development (Mobile Apps)
 ```bash
-cd client
+cd apps/web
 npm run build
 npx cap sync       # Copies web assets to native mobile project folders
 npx cap open ios   # Opens Xcode to build and run iOS app

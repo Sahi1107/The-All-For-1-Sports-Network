@@ -10,7 +10,7 @@ node_modules/
 # .env.production
 .env.staging
 .env.test
-# Matches server/.env, client/.env.local, etc. anywhere in the tree
+# Matches apps/server/.env, apps/web/.env.local, etc. anywhere in the tree
 **/.env
 **/.env.local
 **/.env.*.local
@@ -20,8 +20,8 @@ dist/
 build/
 
 # Prisma
-server/prisma/*.db
-server/prisma/migrations/
+apps/server/prisma/*.db
+apps/server/prisma/migrations/
 
 # IDE
 .vscode/
@@ -37,7 +37,7 @@ Thumbs.db
 *.log
 npm-debug.log*
 logs/
-server/logs/
+apps/server/logs/
 
 # Uploads
 uploads/
@@ -49,12 +49,12 @@ coverage/
 *firebase-adminsdk*.json
 
 # Migration artifacts (contain live URLs / keys)
-server/cloudinary-to-gcs-mapping.json
-server/neon-backup.dump
+apps/server/cloudinary-to-gcs-mapping.json
+apps/server/neon-backup.dump
 
 .claude/
 skills-lock.json
 .firebase/
-server/cloud-sql-proxy
+apps/server/cloud-sql-proxy
 graphify-out/
 _test-seed/

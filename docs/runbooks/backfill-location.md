@@ -8,7 +8,7 @@ State, Country") into the new structured columns `city` / `state` / `region` /
 `country`, so Radar can do exact-city → state → region → country widening. It
 only fills rows that aren't structured yet (idempotent) and never overwrites.
 
-**Script:** `server/scripts/backfill-location.ts` — reads only in dry run; writes
+**Script:** `apps/server/scripts/backfill-location.ts` — reads only in dry run; writes
 only with `--commit`. Region resolution and parsing live in
 `server/src/data/locations.ts` (six India macro-regions).
 

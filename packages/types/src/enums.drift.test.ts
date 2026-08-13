@@ -9,7 +9,7 @@ import { ENUMS } from './enums';
 // regenerated (`npm run gen -w @af1/types`), these fail.
 
 const schema = readFileSync(
-  join(__dirname, '../../../server/prisma/schema.prisma'),
+  join(__dirname, '../../../apps/server/prisma/schema.prisma'),
   'utf8',
 );
 

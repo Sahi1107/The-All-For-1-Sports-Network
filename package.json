@@ -3,15 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "workspaces": [
-    "server",
-    "client",
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev:server": "npm run dev --workspace=server",
-    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=apps/server",
+    "dev:client": "npm run dev --workspace=apps/web",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "build": "npm run build --workspace=server && npm run build --workspace=client",
+    "build": "npm run build --workspace=apps/server && npm run build --workspace=apps/web",
     "scan:secrets": "bash scripts/scan-secrets.sh",
     "prepare": "bash scripts/install-hooks.sh"
   },

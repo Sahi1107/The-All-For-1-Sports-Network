@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const css = readFileSync(fileURLToPath(new URL('./index.css', import.meta.url)), 'utf8');
 const tokens = JSON.parse(
-  readFileSync(fileURLToPath(new URL('../../packages/tokens/tokens.json', import.meta.url)), 'utf8'),
+  readFileSync(fileURLToPath(new URL('../../../packages/tokens/tokens.json', import.meta.url)), 'utf8'),
 ) as {
   fonts: Record<string, string>;
   color: Record<string, { dark: string; light?: string }>;
