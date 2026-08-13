@@ -323,6 +323,7 @@ model User {
   organizersGranted       TournamentOrganizer[]    @relation("OrganizersGranted")
   organizerAuditsSubject  OrganizerAudit[]         @relation("OrganizerAuditsSubject")
   organizerAuditsActor    OrganizerAudit[]         @relation("OrganizerAuditsActor")
+  trackerEventsEntered    TrackerEvent[]           @relation("TrackerEventActor")
   basketballStats         BasketballStats[]
   footballStats           FootballStats[]
   cricketStats            CricketStats[]
@@ -687,8 +688,63 @@ model TrackerMatch {
   updatedAt        DateTime           @updatedAt
 
   session TrackerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  events  TrackerEvent[]
 
   @@index([sessionId])
+}
+
+/// One recorded action in a live match — the tracker's source of truth.
+///
+/// Basketball scoring is a multi-operator job: a lead analyst and a co-scorer
+/// work the same game at once. They used to each PATCH TrackerMatch.state with a
+/// whole snapshot, so the later write silently erased whatever the other had
+/// entered in the preceding half-second. Appending here instead makes concurrent
+/// entry a union rather than a replace, and the box score, clock, on-court five
+/// and shot chart are all folded from these rows (see @af1/core foldEvents).
+///
+/// Rows are never hard-deleted. Removing a wrong entry sets deletedAt, so the
+/// fold skips it while the audit trail — who entered what, and who took it back
+/// out — survives a disputed result.
+model TrackerEvent {
+  id       String @id @default(uuid())
+  matchId  String
+  /// Server-assigned total order. Globally monotonic rather than per-match: the
+  /// database assigns it atomically, which two co-scorers appending in the same
+  /// millisecond require and a read-then-max-plus-one cannot guarantee. Only the
+  /// ordering within a match is meaningful, so gaps are expected and harmless.
+  seq      BigInt @default(autoincrement())
+  kind     String
+  playerId String?
+  teamId   String?
+  /// Shot location, normalised to the full court as rendered (0..1 on each
+  /// axis). Null for free throws and for non-shot events.
+  x        Float?
+  y        Float?
+  /// Which basket the shooting side was attacking, so the chart folds both ends
+  /// onto one half without re-deriving history across the halftime swap.
+  basket   String?
+  quarter  Int    @default(1)
+  /// Game clock elapsed in the quarter, in ms, when the action happened.
+  clockMs  Int    @default(0)
+  /// Control-event payload (clock set, quarter, substitutions, lineups).
+  payload  Json?
+
+  /// Idempotency key from the client. A retried append after a flaky connection
+  /// must not record the same basket twice.
+  clientId String
+
+  /// The admin who entered it.
+  actorId   String?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+  /// Who removed it, when deletedAt is set.
+  deletedBy String?
+
+  match TrackerMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  actor User?        @relation("TrackerEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, clientId])
+  @@index([matchId, seq])
 }
 
 model TournamentTeam {

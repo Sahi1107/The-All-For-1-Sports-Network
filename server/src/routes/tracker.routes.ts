@@ -1,6 +1,13 @@
 import { Router, Response } from 'express';
-import { Prisma } from '@prisma/client';
+import { Prisma, type TrackerEvent as TrackerEventRow } from '@prisma/client';
 import prisma from '../config/db';
+import {
+  pointsFor,
+  type TrackerEvent as CoreTrackerEvent,
+  type EventKind,
+  type Basket,
+  type ControlPayload,
+} from '@af1/core';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireTournamentAccess, fromParamTournamentId, fromBodyTournamentId, fromTrackerMatchId } from '../middleware/tournamentAccess';
 import { validate } from '../middleware/validate';
@@ -41,6 +48,9 @@ import {
   JerseysBody,
   IdParam,
   TournamentIdParam,
+  TrackerEventBody,
+  TrackerEventQuery,
+  TrackerEventIdParam,
 } from '@af1/validation';
 
 const DONE_STATUS = (s: string) => s === 'COMPLETED' || s === 'PUBLISHED';
@@ -999,6 +1009,237 @@ router.patch(
       res.json({ match: updated });
     } catch (err) {
       console.error('Patch tracker match error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// ─── Live event log ──────────────────────────────────────────
+// The basketball tracker's write path. Appending here — rather than PATCHing a
+// whole state blob — is what lets a lead analyst and a co-scorer work the same
+// game at once without erasing each other; see the TrackerEvent model comment.
+
+/** Shape one row for the wire. `seq` is a BigInt in the DB and must not reach
+ *  res.json() as one — JSON.stringify throws on BigInt and would 500 the whole
+ *  live feed. */
+function serializeEvent(e: TrackerEventRow): CoreTrackerEvent {
+  return {
+    id: e.id,
+    matchId: e.matchId,
+    seq: Number(e.seq),
+    kind: e.kind as EventKind,
+    playerId: e.playerId,
+    teamId: e.teamId,
+    x: e.x,
+    y: e.y,
+    basket: e.basket as Basket | null,
+    quarter: e.quarter,
+    clockMs: e.clockMs,
+    payload: (e.payload ?? null) as ControlPayload | null,
+    actorId: e.actorId,
+    createdAt: e.createdAt.toISOString(),
+    deletedAt: e.deletedAt ? e.deletedAt.toISOString() : null,
+  };
+}
+
+/**
+ * Re-derive both scores from the log and persist them.
+ *
+ * The score columns feed standings and bracket advancement, so they must agree
+ * with the events exactly. Appends adjust them by a delta (O(1) on the hot path,
+ * and exact because points are additive); this full re-fold backs that up
+ * wherever the cheap path can't apply — a removal, or a repair.
+ */
+async function recomputeScoresFromEvents(
+  matchId: string,
+  homeTeamId: string | null,
+  awayTeamId: string | null,
+): Promise<{ homeScore: number; awayScore: number }> {
+  const rows = await prisma.trackerEvent.findMany({
+    where: { matchId, deletedAt: null },
+    orderBy: { seq: 'asc' },
+    select: { kind: true, teamId: true },
+  });
+  let homeScore = 0;
+  let awayScore = 0;
+  for (const r of rows) {
+    const pts = pointsFor(r.kind);
+    if (!pts) continue;
+    if (r.teamId && r.teamId === homeTeamId) homeScore += pts;
+    else if (r.teamId && r.teamId === awayTeamId) awayScore += pts;
+  }
+  await prisma.trackerMatch.update({ where: { id: matchId }, data: { homeScore, awayScore } });
+  return { homeScore, awayScore };
+}
+
+// Read the log — the whole thing on open, or just the tail after a reconnect.
+router.get(
+  '/matches/:id/events',
+  requireTournamentAccess(fromTrackerMatchId),
+  validate({ params: IdParam, query: TrackerEventQuery }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const { since, limit } = req.query as unknown as { since?: number; limit?: number };
+      const rows = await prisma.trackerEvent.findMany({
+        // Soft-deleted rows are returned too: a client holding the removed event
+        // needs to be told it died, and a client loading fresh needs the same
+        // audit trail the fold already knows to skip.
+        where: { matchId: id, ...(since ? { seq: { gt: BigInt(since) } } : {}) },
+        orderBy: { seq: 'asc' },
+        take: limit ?? 5000,
+      });
+      res.json({ events: rows.map(serializeEvent) });
+    } catch (err) {
+      console.error('List tracker events error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// Append one event.
+router.post(
+  '/matches/:id/events',
+  requireTournamentAccess(fromTrackerMatchId),
+  validate({ params: IdParam, body: TrackerEventBody }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const body = req.body as {
+        kind: string; playerId?: string | null; teamId?: string | null;
+        x?: number | null; y?: number | null; basket?: string | null;
+        quarter: number; clockMs: number; payload?: unknown; clientId: string;
+      };
+
+      const match = await prisma.trackerMatch.findUnique({
+        where: { id },
+        select: { id: true, status: true, homeTeamId: true, awayTeamId: true },
+      });
+      if (!match) {
+        res.status(404).json({ error: 'Match not found' });
+        return;
+      }
+      if (match.status === 'PUBLISHED') {
+        res.status(409).json({ error: 'Match already published — unpublish it first to make changes' });
+        return;
+      }
+
+      let created: TrackerEventRow;
+      try {
+        created = await prisma.trackerEvent.create({
+          data: {
+            matchId: id,
+            kind: body.kind,
+            playerId: body.playerId ?? null,
+            teamId: body.teamId ?? null,
+            x: body.x ?? null,
+            y: body.y ?? null,
+            basket: body.basket ?? null,
+            quarter: body.quarter,
+            clockMs: body.clockMs,
+            payload: (body.payload ?? Prisma.DbNull) as Prisma.InputJsonValue,
+            clientId: body.clientId,
+            actorId: req.user?.userId ?? null,
+          },
+        });
+      } catch (err) {
+        // Idempotency: a retry after a flaky connection carries the same
+        // clientId. Returning the row already stored — rather than a second one
+        // — is what stops one basket being credited twice when an analyst's
+        // network blips mid-tap.
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          const existing = await prisma.trackerEvent.findFirst({
+            where: { matchId: id, clientId: body.clientId },
+          });
+          if (existing) {
+            res.status(200).json({ event: serializeEvent(existing), duplicate: true });
+            return;
+          }
+        }
+        throw err;
+      }
+
+      // Keep the score columns in step. Additive, so the cheap path is exact.
+      let scores: { homeScore: number; awayScore: number } | null = null;
+      const pts = pointsFor(body.kind);
+      if (pts > 0 && body.teamId) {
+        const side = body.teamId === match.homeTeamId ? 'homeScore'
+          : body.teamId === match.awayTeamId ? 'awayScore' : null;
+        if (side) {
+          const updated = await prisma.trackerMatch.update({
+            where: { id },
+            data: { [side]: { increment: pts } },
+            select: { homeScore: true, awayScore: true },
+          });
+          scores = updated;
+        }
+      }
+
+      const payload = { event: serializeEvent(created), ...(scores ?? {}) };
+      try {
+        // Fan out to every other operator and spectator on this match. The
+        // sender applied it optimistically and reconciles on its own response.
+        getIO().to(`tracker:${id}`).emit('tracker:event', payload);
+      } catch {
+        /* socket not initialised in some contexts — non-fatal */
+      }
+      res.status(201).json(payload);
+    } catch (err) {
+      console.error('Append tracker event error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
+// Remove a wrong entry — the "−" control. A soft delete: the fold stops counting
+// it, and the row survives so a disputed result can still be audited back to who
+// entered it and who took it out.
+router.delete(
+  '/matches/:id/events/:eventId',
+  requireTournamentAccess(fromTrackerMatchId),
+  validate({ params: TrackerEventIdParam }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const id = req.params.id as string;
+      const eventId = req.params.eventId as string;
+
+      const match = await prisma.trackerMatch.findUnique({
+        where: { id },
+        select: { id: true, status: true, homeTeamId: true, awayTeamId: true },
+      });
+      if (!match) {
+        res.status(404).json({ error: 'Match not found' });
+        return;
+      }
+      if (match.status === 'PUBLISHED') {
+        res.status(409).json({ error: 'Match already published — unpublish it first to make changes' });
+        return;
+      }
+
+      const existing = await prisma.trackerEvent.findFirst({ where: { id: eventId, matchId: id } });
+      if (!existing) {
+        res.status(404).json({ error: 'Entry not found' });
+        return;
+      }
+      // Already removed — succeed quietly. Two operators can hit "−" on the same
+      // wrong entry at once and neither should see an error for agreeing.
+      if (!existing.deletedAt) {
+        await prisma.trackerEvent.update({
+          where: { id: eventId },
+          data: { deletedAt: new Date(), deletedBy: req.user?.userId ?? null },
+        });
+      }
+
+      const scores = await recomputeScoresFromEvents(id, match.homeTeamId, match.awayTeamId);
+      const payload = { eventId, ...scores };
+      try {
+        getIO().to(`tracker:${id}`).emit('tracker:event:removed', payload);
+      } catch {
+        /* non-fatal */
+      }
+      res.json(payload);
+    } catch (err) {
+      console.error('Remove tracker event error:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
   },

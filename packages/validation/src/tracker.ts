@@ -45,6 +45,97 @@ export const PatchMatchBody = z.object({
   court: z.string().trim().max(80).nullable().optional(),
 });
 
+// ─── Live basketball event log ───────────────────────────────
+// The tracker's write path. Unlike `state` above these are validated in full:
+// they're the source of truth a published box score is folded from, so a
+// malformed event is a wrong result rather than a cosmetic glitch.
+
+export const TrackerEventKindEnum = z.enum([
+  // shots
+  'FG2_MADE', 'FG2_MISS', 'FG3_MADE', 'FG3_MISS', 'FT_MADE', 'FT_MISS',
+  // other stats
+  'AST', 'OREB', 'DREB', 'STL', 'BLK', 'TO', 'PF',
+  // game control
+  'CLOCK_START', 'CLOCK_STOP', 'CLOCK_SET', 'QUARTER_SET',
+  'SUB', 'LINEUP_SET', 'PERIOD_BASKETS_SWAP',
+]);
+
+export const BasketEnum = z.enum(['LEFT', 'RIGHT']);
+
+const ControlPayload = z.object({
+  clockMs: z.coerce.number().int().min(0).max(3_600_000).optional(),
+  quarter: z.coerce.number().int().min(1).max(12).optional(),
+  outIds: z.array(z.string().uuid()).max(15).optional(),
+  inIds: z.array(z.string().uuid()).max(15).optional(),
+  side: z.enum(['home', 'away']).optional(),
+  lineup: z.array(z.string().uuid()).max(15).optional(),
+  homeAttacks: BasketEnum.optional(),
+}).strict();
+
+const FIELD_GOAL_KINDS = new Set(['FG2_MADE', 'FG2_MISS', 'FG3_MADE', 'FG3_MISS']);
+
+export const TrackerEventBody = z.object({
+  kind: TrackerEventKindEnum,
+  playerId: z.string().uuid().nullable().optional(),
+  teamId: z.string().uuid().nullable().optional(),
+  // Normalised court position (0..1 on each axis) as rendered.
+  x: z.coerce.number().min(0).max(1).nullable().optional(),
+  y: z.coerce.number().min(0).max(1).nullable().optional(),
+  basket: BasketEnum.nullable().optional(),
+  quarter: z.coerce.number().int().min(1).max(12),
+  clockMs: z.coerce.number().int().min(0).max(3_600_000),
+  payload: ControlPayload.nullable().optional(),
+  // Idempotency key: a retried append after a flaky connection must not record
+  // the same basket twice, so the server treats a repeat as the same event.
+  clientId: z.string().min(8).max(64),
+})
+  .superRefine((v, ctx) => {
+    // A field goal without a location is a hole in the shot chart that nobody
+    // can fill in afterwards — the analyst is the only one who saw it. Reject at
+    // the boundary rather than storing an attempt that can never be plotted.
+    if (FIELD_GOAL_KINDS.has(v.kind)) {
+      if (v.x == null || v.y == null) {
+        ctx.addIssue({ code: 'custom', path: ['x'], message: 'A field-goal attempt must carry its court position' });
+      }
+      if (!v.basket) {
+        ctx.addIssue({ code: 'custom', path: ['basket'], message: 'A field-goal attempt must say which basket was attacked' });
+      }
+    }
+    // Every stat event belongs to a player; control events never do.
+    const isControl = v.kind.startsWith('CLOCK_') || v.kind === 'QUARTER_SET'
+      || v.kind === 'SUB' || v.kind === 'LINEUP_SET' || v.kind === 'PERIOD_BASKETS_SWAP';
+    if (!isControl && !v.playerId) {
+      ctx.addIssue({ code: 'custom', path: ['playerId'], message: 'A stat event must name the player it belongs to' });
+    }
+    // The side is required, not inferred. The server credits a made basket to a
+    // team's score the moment it lands, and guessing the side from who happens
+    // to be on court would mis-score any stat entered for a player the lineup
+    // hasn't caught up with yet.
+    if (!isControl && !v.teamId) {
+      ctx.addIssue({ code: 'custom', path: ['teamId'], message: 'A stat event must name the team it belongs to' });
+    }
+    // Paired substitution arrays — an unbalanced sub would drop a player off the
+    // floor entirely and quietly stop crediting their minutes.
+    if (v.kind === 'SUB') {
+      const outs = v.payload?.outIds?.length ?? 0;
+      const ins = v.payload?.inIds?.length ?? 0;
+      if (outs === 0 || outs !== ins) {
+        ctx.addIssue({ code: 'custom', path: ['payload'], message: 'A substitution needs the same number of players coming off and coming on' });
+      }
+    }
+  });
+
+/** Catch-up read: everything after a sequence the client already holds. */
+export const TrackerEventQuery = z.object({
+  since: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().min(1).max(5000).optional(),
+});
+
+export const TrackerEventIdParam = z.object({
+  id: uuidParam,
+  eventId: uuidParam,
+});
+
 // Bulk / sequential auto-scheduling across one or more courts.
 export const ScheduleBody = z.object({
   startAt: z.coerce.date(),
