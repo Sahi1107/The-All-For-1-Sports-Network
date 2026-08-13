@@ -3,6 +3,7 @@ import BallLoader from '../components/BallLoader';
 import { useState, useRef, useEffect } from 'react';
 import { track } from '../config/analytics';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInvalidateSocialCounts } from '../hooks/useInvalidateSocialCounts';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
@@ -515,6 +516,7 @@ export default function Profile() {
   const { user: me } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const invalidateSocial = useInvalidateSocialCounts();
 
   const isOwnProfile = me?.id === id;
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
@@ -568,7 +570,7 @@ export default function Profile() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['profile', id] });
+      invalidateSocial();
       toast.success(isFollowing ? 'Unfollowed' : 'Following!');
     },
     onError: () => toast.error('Action failed'),
@@ -579,8 +581,7 @@ export default function Profile() {
   // pending / incoming pending / accepted.
   const iSentRequest = connection?.senderId === me?.id;
   const refreshRelationship = () => {
-    queryClient.invalidateQueries({ queryKey: ['profile', id] });
-    queryClient.invalidateQueries({ queryKey: ['connection-requests'] });
+    invalidateSocial();
   };
   const connectMutation = useMutation({
     mutationFn: () => api.post(`/connections/request/${id}`),
@@ -971,7 +972,7 @@ export default function Profile() {
                                     await api.post(`/users/block/${id}`);
                                     toast.success('User blocked');
                                   }
-                                  queryClient.invalidateQueries({ queryKey: ['profile', id] });
+                                  invalidateSocial();
                                 } catch {
                                   toast.error('Action failed');
                                 }
@@ -1079,6 +1080,11 @@ export default function Profile() {
                 <span className="font-bold text-foreground">{profile._count?.following ?? 0}</span>
                 <span className="text-foreground/70 ml-1">Following</span>
               </button>
+              {/* Connections (mutual, accepted) — a separate system from Follow. */}
+              <div>
+                <span className="font-bold text-foreground">{profile._count?.connections ?? 0}</span>
+                <span className="text-foreground/70 ml-1">Connections</span>
+              </div>
               <div>
                 <span className="font-bold text-foreground">{highlights.length}</span>
                 <span className="text-foreground/70 ml-1">Highlights</span>

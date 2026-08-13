@@ -543,8 +543,11 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       }
     }
 
-    // Check if current user follows/is connected to / has blocked this user
-    const [isFollowing, connection, blockRow] = await Promise.all([
+    // Check if current user follows/is connected to / has blocked this user, and
+    // the profile user's TOTAL accepted-connection count. Connections (mutual) are
+    // a separate system from followers/following (one-directional) and get their
+    // own count — the union of accepted edges in either direction.
+    const [isFollowing, connection, blockRow, connectionCount] = await Promise.all([
       prisma.follow.findUnique({
         where: { followerId_followingId: { followerId: req.user!.userId, followingId: req.params.id as string } },
       }),
@@ -559,7 +562,17 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response) => {
       isSelf ? Promise.resolve(null) : prisma.block.findUnique({
         where: { blockerId_blockedId: { blockerId: req.user!.userId, blockedId: req.params.id as string } },
       }),
+      prisma.connection.count({
+        where: {
+          status: 'ACCEPTED',
+          OR: [{ senderId: req.params.id as string }, { receiverId: req.params.id as string }],
+        },
+      }),
     ]);
+    // Expose it alongside followers/following so the profile can render all three
+    // counts from one payload (kept out of the Prisma _count select because that
+    // can't filter by status across the two sender/receiver relations).
+    (user as any)._count.connections = connectionCount;
 
     // Contact email is connection-gated and adult-only. Returned to the owner, or
     // to an ACCEPTED connection when the target is a known adult (age >= 18). Fail

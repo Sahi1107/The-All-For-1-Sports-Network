@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link2, Clock, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../api/client';
+import { useInvalidateSocialCounts } from '../hooks/useInvalidateSocialCounts';
 
 type St = 'idle' | 'requested' | 'connected';
 
@@ -26,6 +27,7 @@ export default function ConnectButton({
 }: { userId: string; className?: string; status?: string }) {
   const [st, setSt] = useState<St>(stateFromStatus(status));
   const [busy, setBusy] = useState(false);
+  const invalidateSocial = useInvalidateSocialCounts();
 
   const send = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -44,6 +46,9 @@ export default function ConnectButton({
       else toast.error(msg || 'Could not send request');
     } finally {
       setBusy(false);
+      // Refresh counts everywhere — an auto-accept (or a discovered
+      // already-connected state) moves connection totals on other surfaces.
+      invalidateSocial();
     }
   };
 

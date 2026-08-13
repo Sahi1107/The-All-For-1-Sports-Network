@@ -1,14 +1,15 @@
 import BallLoader from '../components/BallLoader';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import Avatar from '../components/Avatar';
 import ConnectButton from '../components/ConnectButton';
 import { UserPlus, UserCheck, UserX, TrendingUp, Handshake, Clock, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useInvalidateSocialCounts } from '../hooks/useInvalidateSocialCounts';
 
 export default function Grow() {
-  const qc = useQueryClient();
+  const invalidateSocial = useInvalidateSocialCounts();
 
   // Pending connection requests (incoming)
   const { data: reqData, isLoading: reqLoading } = useQuery({
@@ -43,8 +44,7 @@ export default function Grow() {
   const acceptMutation = useMutation({
     mutationFn: (id: string) => api.put(`/connections/${id}/accept`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['connection-requests'] });
-      qc.invalidateQueries({ queryKey: ['suggestions'] });
+      invalidateSocial();
       toast.success('Connection accepted!');
     },
     onError: () => toast.error('Failed to accept'),
@@ -53,7 +53,7 @@ export default function Grow() {
   const rejectMutation = useMutation({
     mutationFn: (id: string) => api.put(`/connections/${id}/reject`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['connection-requests'] });
+      invalidateSocial();
       toast.success('Request declined');
     },
     onError: () => toast.error('Failed to decline'),
@@ -62,7 +62,7 @@ export default function Grow() {
   const followMutation = useMutation({
     mutationFn: (userId: string) => api.post(`/connections/follow/${userId}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['suggestions'] });
+      invalidateSocial();
       toast.success('Following!');
     },
     onError: (err: any) => {
@@ -73,7 +73,7 @@ export default function Grow() {
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/connections/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['connections-outgoing'] }); toast('Request cancelled'); },
+    onSuccess: () => { invalidateSocial(); toast('Request cancelled'); },
     onError: () => toast.error('Failed to cancel'),
   });
 

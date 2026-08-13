@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import ConnectButton from '../ConnectButton';
 import Avatar from '../Avatar';
 import { VerifiedTick } from './FeedBits';
+import { useInvalidateSocialCounts } from '../../hooks/useInvalidateSocialCounts';
 
 const SPORT_EMOJI: Record<string, string> = { BASKETBALL: '🏀', FOOTBALL: '⚽', CRICKET: '🏏' };
 const cap = (s?: string | null) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : '');
@@ -135,8 +136,10 @@ function SuggestedFollows() {
     queryFn: async () => (await api.get('/connections/suggestions')).data.suggestions as any[],
     staleTime: 120_000,
   });
+  const invalidateSocial = useInvalidateSocialCounts();
   const follow = useMutation({
     mutationFn: (id: string) => api.post(`/connections/follow/${id}`),
+    onSuccess: () => invalidateSocial(),
   });
   const people = (data ?? []).filter((p) => !dismissed.has(p.id)).slice(0, 4);
   if (people.length === 0) return null;
