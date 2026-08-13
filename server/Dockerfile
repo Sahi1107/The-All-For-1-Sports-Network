@@ -67,5 +67,16 @@ USER app
 
 EXPOSE 8080
 
-# Sync schema to DB on boot (additive, no data loss), then start the server.
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss=false && node dist/index.js"]
+# ⚠ THIS FILE IS SUPERSEDED by the root ./Dockerfile and can no longer build the
+# API: it installs from the server/ context alone and never copies packages/, so
+# the server's @af1/validation and @af1/core dependencies cannot resolve. Confirm
+# the Cloud Build trigger uses ./Dockerfile (context = repo root), then delete
+# this file — a Dockerfile that looks current but cannot build is a trap.
+
+# Sync schema to DB on boot, then start the server.
+#
+# The flag is OMITTED, never `--accept-data-loss=false`. Prisma declares it as a
+# Boolean and passes it to `push({ force })`; the arg parser evaluates
+# Boolean("false") for `--flag=value`, which is TRUE — so that spelling accepts
+# data loss rather than forbidding it. Absent is the only spelling meaning false.
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]
