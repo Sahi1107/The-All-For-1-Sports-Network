@@ -1036,6 +1036,7 @@ function serializeEvent(e: TrackerEventRow): CoreTrackerEvent {
     quarter: e.quarter,
     clockMs: e.clockMs,
     payload: (e.payload ?? null) as ControlPayload | null,
+    clientId: e.clientId,
     actorId: e.actorId,
     createdAt: e.createdAt.toISOString(),
     deletedAt: e.deletedAt ? e.deletedAt.toISOString() : null,

@@ -107,6 +107,13 @@ export interface TrackerEvent {
   clockMs: number;
   /** Payload for control events (see ControlPayload). */
   payload: ControlPayload | null;
+  /**
+   * The client's idempotency key, echoed back. This is what lets a client match
+   * the server's authoritative copy to the entry it already drew on screen —
+   * both the POST response and the room broadcast carry it, and without it the
+   * analyst's own event would arrive back as a second, duplicate basket.
+   */
+  clientId: string;
   /** The admin who entered it — audit, and "who typed this" in the log. */
   actorId: string | null;
   actorName?: string | null;

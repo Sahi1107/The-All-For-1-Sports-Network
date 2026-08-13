@@ -16,6 +16,11 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Shared domain logic, resolved to source to match the Vite alias. */
+    "paths": {
+      "@af1/core": ["../packages/core/src/index.ts"]
+    },
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

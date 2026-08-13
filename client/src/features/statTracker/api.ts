@@ -1,4 +1,5 @@
 import api from '../../api/client';
+import type { TrackerEvent, EventDraft } from '@af1/core';
 import type {
   TrackerSession,
   TrackerMatch,
@@ -57,5 +58,35 @@ export async function saveJerseyNumbers(
 
 export async function publishMatch(matchId: string): Promise<{ matchId: string; playerCount: number }> {
   const { data } = await api.post(`/tracker/matches/${matchId}/publish`);
+  return data;
+}
+
+// ─── Live event log (basketball) ─────────────────────────────
+
+/** The whole log on open, or just the tail after a reconnect. */
+export async function getTrackerEvents(
+  matchId: string,
+  since?: number,
+): Promise<TrackerEvent[]> {
+  const { data } = await api.get(`/tracker/matches/${matchId}/events`, {
+    params: since ? { since } : undefined,
+  });
+  return data.events;
+}
+
+export async function appendTrackerEvent(
+  matchId: string,
+  draft: EventDraft,
+): Promise<{ event: TrackerEvent; homeScore?: number; awayScore?: number }> {
+  const { data } = await api.post(`/tracker/matches/${matchId}/events`, draft);
+  return data;
+}
+
+/** Remove a wrong entry. Soft on the server — the row survives for audit. */
+export async function removeTrackerEvent(
+  matchId: string,
+  eventId: string,
+): Promise<{ eventId: string; homeScore: number; awayScore: number }> {
+  const { data } = await api.delete(`/tracker/matches/${matchId}/events/${eventId}`);
   return data;
 }
