@@ -84,5 +84,17 @@ RUN mkdir -p /app/logs && chown app:app /app/logs
 USER app
 EXPOSE 8080
 
-# Sync schema to DB on boot (additive, no data loss), then start the server.
-CMD ["sh", "-c", "npx prisma db push --skip-generate --accept-data-loss=false && node dist/index.js"]
+# Sync schema to DB on boot, then start the server.
+#
+# The flag is OMITTED, never passed as `--accept-data-loss=false`. Prisma
+# declares it as a Boolean and hands it straight to `push({ force })`; the arg
+# parser, given `--flag=value` on a Boolean, evaluates Boolean("false") — which
+# is TRUE. That spelling therefore accepts data loss, the exact opposite of what
+# it reads like, and would let a destructive diff drop production columns on a
+# container boot with no warning and no record. Absent is the only spelling that
+# means false.
+#
+# With it absent, a destructive diff makes `db push` refuse and the container
+# fail to start. That is deliberate: an API that won't boot is a page, whereas
+# silently dropped columns are discovered weeks later by their absence.
+CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/index.js"]
