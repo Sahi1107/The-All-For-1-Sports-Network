@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { shouldRetryWithFreshToken, shouldRedirectToLogin } from './authRetry.ts';
+import { shouldRetryWithFreshToken, shouldRedirectToLogin } from './authRetry';
 
 // The rule that stops a scorer being dumped to /login on a transient 401, while
 // still redirecting on a genuinely-dead session.

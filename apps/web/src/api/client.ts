@@ -1,67 +1,36 @@
-import axios, { type InternalAxiosRequestConfig } from 'axios';
+import { createApiClient } from '@af1/api-client';
 import { auth } from '../config/firebase';
-import { shouldRetryWithFreshToken, shouldRedirectToLogin } from './authRetry';
 
-// axios request config, plus our one-retry flag (never retry more than once).
-type RetryConfig = InternalAxiosRequestConfig & { _retried?: boolean };
-
+// The web adapter over the shared @af1/api-client. The instance, the auth-header
+// attachment, and the transient-401 recovery all live in the package (so mobile
+// behaves identically); this file only supplies the web-specific seams: the Vite
+// build-time API origin, the Firebase Web SDK for tokens, and a browser redirect
+// on a dead session.
+//
 // In development the Vite dev proxy forwards /api to the server automatically.
 // In production set VITE_API_URL to the public API origin.
 // NEVER put secret values (API keys, JWT secrets, database URLs) in VITE_ vars.
-const baseURL = (import.meta.env.VITE_API_URL ?? '') + '/api';
+const api = createApiClient({
+  baseURL: (import.meta.env.VITE_API_URL ?? '') + '/api',
 
-const api = axios.create({
-  baseURL,
-  headers: { 'Content-Type': 'application/json' },
-});
+  // The Firebase SDK auto-refreshes the token near expiry, so the plain call
+  // always returns a valid token without manual retry logic.
+  getToken: async () => (auth.currentUser ? auth.currentUser.getIdToken() : null),
 
-// Attach a fresh Firebase ID token before every request.
-// The Firebase SDK automatically refreshes the token when it is near expiry,
-// so getIdToken() always returns a valid token without manual retry logic.
-api.interceptors.request.use(async (config) => {
-  const firebaseUser = auth.currentUser;
-  if (firebaseUser) {
-    const token = await firebaseUser.getIdToken();
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// On 401: recover a transient failure by refreshing the token and retrying ONCE
-// before giving up. Only a genuinely-unrecoverable 401 (revoked session, or a 401
-// that survives the retry) sends the user to /login — so a token blip never dumps
-// someone mid-task (a scorer mid-match, especially). A 403 (e.g. a revoked
-// tournament role) is NOT handled here — the caller shows it in place.
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const status: number | undefined = error.response?.status;
-    const code: string | undefined = error.response?.data?.code;
-    const config = error.config as RetryConfig | undefined;
-
-    if (config && shouldRetryWithFreshToken(status, code, config.url, config._retried ?? false)) {
-      const firebaseUser = auth.currentUser;
-      if (firebaseUser) {
-        try {
-          await firebaseUser.getIdToken(true); // force a fresh token
-          config._retried = true;              // per-request flag — at most one retry
-          return await api(config);            // the request interceptor attaches the fresh token
-        } catch {
-          /* refresh itself failed — fall through to the redirect decision */
-        }
-      }
-    }
-
-    if (shouldRedirectToLogin(status, config?.url)) {
-      if (code === 'SESSION_REVOKED') {
-        // Clear the Firebase session too so this device doesn't loop back in stale.
-        auth.signOut().catch(() => {}).finally(() => { window.location.href = '/login'; });
-      } else {
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(error);
+  // Force a fresh token for the single 401 retry.
+  refreshToken: async () => {
+    if (auth.currentUser) await auth.currentUser.getIdToken(true);
   },
-);
+
+  // A genuinely-unrecoverable 401. On an explicitly revoked session, clear the
+  // Firebase session too so this device doesn't loop back in stale.
+  onSessionExpired: (code) => {
+    if (code === 'SESSION_REVOKED') {
+      auth.signOut().catch(() => {}).finally(() => { window.location.href = '/login'; });
+    } else {
+      window.location.href = '/login';
+    }
+  },
+});
 
 export default api;

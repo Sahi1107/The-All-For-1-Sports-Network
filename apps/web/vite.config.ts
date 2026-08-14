@@ -13,6 +13,7 @@ export default defineConfig({
       // before it showed up — and would silently serve a stale box score until
       // someone remembered. Vite compiles the TS directly, so HMR just works.
       '@af1/core': fileURLToPath(new URL('../packages/core/src/index.ts', import.meta.url)),
+      '@af1/api-client': fileURLToPath(new URL('../packages/api-client/src/index.ts', import.meta.url)),
     },
   },
   build: {

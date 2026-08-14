@@ -1,0 +1,19 @@
+{
+  "name": "@af1/api-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared HTTP client — one axios instance + auth-recovery policy for web and mobile. Platform bits (base URL, token, session-expiry) are injected.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --require ts-node/register --test 'src/**/*.test.ts'"
+  },
+  "dependencies": {
+    "axios": "^1.13.6"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
