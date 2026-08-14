@@ -7,6 +7,7 @@ import { attachConnectionStatus } from '../services/connectionState';
 import { socialListUsers } from '../services/social';
 import { searchablePeopleWhere, isSearchablePerson } from '../services/search/gate';
 import { blockedUserIds } from '../services/blocks';
+import { linkConnectionFollows, unlinkConnectionFollows } from '../services/connectionFollows';
 
 const router = Router();
 
@@ -24,6 +25,9 @@ const CONNECTION_USER_SELECT = {
 // connection id (profile / grow) or only the other user's id (notification row).
 async function acceptPendingConnection(conn: { id: string; senderId: string }, me: string) {
   const updated = await prisma.connection.update({ where: { id: conn.id }, data: { status: 'ACCEPTED' } });
+  // A connection is a stronger relationship than a follow → accepting makes the two
+  // people follow each other (both directions), counting in their numbers.
+  await linkConnectionFollows(conn.senderId, me);
   // Keep the bell count in sync — mark the originating request notification read.
   await prisma.notification.updateMany({
     where: { userId: me, type: 'CONNECTION_REQUEST', referenceId: conn.senderId, read: false },
@@ -134,6 +138,8 @@ router.post('/request/:userId', authenticate, socialLimiter, async (req: AuthReq
         // They already asked me → pressing Connect accepts their request (no 2nd row).
         if (existing.senderId === target) {
           const accepted = await prisma.connection.update({ where: { id: existing.id }, data: { status: 'ACCEPTED' } });
+          // Pressing Connect on someone who already asked you = accept = mutual follow.
+          await linkConnectionFollows(target, me);
           await prisma.notification.updateMany({
             where: { userId: me, type: 'CONNECTION_REQUEST', referenceId: target, read: false },
             data: { read: true },
@@ -203,6 +209,10 @@ router.delete('/:id', authenticate, socialLimiter, async (req: AuthRequest, res:
       res.status(400).json({ error: 'Decline the request instead' });
       return;
     }
+    // Disconnecting removes the follows the connection created (only those — an organic
+    // follow, or one the user chose to keep/drop, is left alone). Pending cancels never
+    // created follows, so only ACCEPTED needs unlinking.
+    if (conn.status === 'ACCEPTED') await unlinkConnectionFollows(conn.senderId, conn.receiverId);
     await prisma.connection.delete({ where: { id: conn.id } });
     res.json({ message: 'Connection removed' });
   } catch (error) {

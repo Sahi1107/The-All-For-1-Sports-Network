@@ -362,6 +362,10 @@ model Follow {
   id          String   @id @default(uuid())
   followerId  String
   followingId String
+  // True when this follow was created by an accepted connection (LinkedIn-style
+  // mutual follow), not an organic Follow tap. Disconnecting removes only these,
+  // leaving any organic follow intact. See services/connectionFollows.
+  viaConnection Boolean @default(false) @map("via_connection")
   createdAt   DateTime @default(now())
 
   follower  User @relation("FollowInitiator", fields: [followerId], references: [id], onDelete: Cascade)
@@ -370,6 +374,13 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followerId])
   @@index([followingId])
+}
+
+/// Tracks one-off, run-once data migrations applied at boot (idempotent). Used by
+/// the connection-follow backfill so it runs exactly once. See services/connectionFollows.
+model AppMigration {
+  key       String   @id
+  appliedAt DateTime @default(now())
 }
 
 model Connection {

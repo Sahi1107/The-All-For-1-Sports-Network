@@ -8,6 +8,7 @@ import { initIO } from './config/socket';
 import logger from './utils/logger';
 import { getAuth } from 'firebase-admin/auth';
 import prisma from './config/db';
+import { runConnectionFollowsBackfill } from './services/connectionFollows';
 
 // ─── Crash handlers ───────────────────────────────────────────
 // Log unhandled errors before the process exits so they appear in the
@@ -126,6 +127,9 @@ server.listen(env.PORT, () => {
     env:     env.NODE_ENV,
     pid:     process.pid,
   });
+  // One-time, non-blocking: give existing accepted connections their mutual follows
+  // so current users' numbers are correct immediately (guarded to run exactly once).
+  runConnectionFollowsBackfill();
 });
 
 // ─── Graceful shutdown ───────────────────────────────────────
