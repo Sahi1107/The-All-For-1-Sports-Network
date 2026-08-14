@@ -593,22 +593,6 @@ export default function Profile() {
 
   const isFollowing = data?.isFollowing ?? false;
   const connection = data?.connection;
-
-  const followMutation = useMutation({
-    mutationFn: async () => {
-      if (isFollowing) {
-        await api.delete(`/connections/unfollow/${id}`);
-      } else {
-        await api.post(`/connections/follow/${id}`);
-      }
-    },
-    onSuccess: () => {
-      invalidateSocial();
-      toast.success(isFollowing ? 'Unfollowed' : 'Following!');
-    },
-    onError: () => toast.error('Action failed'),
-  });
-
   // Connection is mutual and unlocks messaging (distinct from Follow). The row
   // carries who sent it, so the button reflects the exact state: none / outgoing
   // pending / incoming pending / accepted.
@@ -623,6 +607,38 @@ export default function Profile() {
       toast.success(res?.data?.autoAccepted ? 'Connected!' : 'Connection request sent!');
     },
     onError: (e: any) => toast.error(e?.response?.data?.error || 'Could not send request'),
+  });
+
+  const followMutation = useMutation({
+    mutationFn: async () => {
+      if (isFollowing) {
+        await api.delete(`/connections/unfollow/${id}`);
+      } else {
+        await api.post(`/connections/follow/${id}`);
+      }
+    },
+    onSuccess: () => {
+      const didFollow = !isFollowing;
+      invalidateSocial();
+      if (!didFollow) { toast.success('Unfollowed'); return; }
+      // Follow and Connect stay separate, deliberate actions — a follow NEVER
+      // auto-sends a connection request. After following, just OFFER connecting as
+      // an optional prompt (skip it if a request/connection already exists).
+      const alreadyLinked = connection?.status === 'ACCEPTED' || connection?.status === 'PENDING';
+      if (alreadyLinked) { toast.success('Following!'); return; }
+      toast((t) => (
+        <span className="flex items-center gap-2.5 text-sm">
+          <span>Following {data?.user?.name ?? 'them'}. Connect too?</span>
+          <button
+            onClick={() => { connectMutation.mutate(); toast.dismiss(t.id); }}
+            className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary text-on-primary text-xs font-semibold hover:bg-primary-dark"
+          >
+            <Link2 size={12} /> Connect
+          </button>
+        </span>
+      ), { duration: 6000 });
+    },
+    onError: () => toast.error('Action failed'),
   });
   const acceptConnectionMutation = useMutation({
     mutationFn: () => api.put(`/connections/${connection?.id}/accept`),
@@ -1021,14 +1037,23 @@ export default function Profile() {
                     <button
                       onClick={() => followMutation.mutate()}
                       disabled={followMutation.isPending}
-                      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      title={isFollowing ? 'Following — click to unfollow' : undefined}
+                      className={`group/fol flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors ${
                         isFollowing
-                          ? 'bg-elevated hover:bg-surface border border-line text-foreground'
+                          ? 'bg-elevated border border-line text-foreground font-medium hover:bg-red-500/15 hover:border-red-500/30 hover:text-red-400'
                           : 'bg-primary hover:bg-primary-dark text-on-primary font-semibold'
                       }`}
                     >
-                      {isFollowing ? <UserMinus size={14} /> : <UserPlus size={14} />}
-                      {isFollowing ? 'Unfollow' : 'Follow'}
+                      {isFollowing ? (
+                        <>
+                          <UserCheck size={14} className="group-hover/fol:hidden" />
+                          <UserMinus size={14} className="hidden group-hover/fol:block" />
+                          <span className="group-hover/fol:hidden">Following</span>
+                          <span className="hidden group-hover/fol:block">Unfollow</span>
+                        </>
+                      ) : (
+                        <><UserPlus size={14} /> Follow</>
+                      )}
                     </button>
                     {connection?.status === 'ACCEPTED' ? (
                       <button
@@ -1072,7 +1097,12 @@ export default function Profile() {
                       <button
                         onClick={() => connectMutation.mutate()}
                         disabled={connectMutation.isPending}
-                        className="flex items-center gap-2 px-4 py-2 bg-elevated hover:bg-surface border border-line text-foreground text-sm font-medium rounded-lg transition-colors"
+                        title={isFollowing ? 'You already follow them — connect to unlock messaging' : undefined}
+                        className={`flex items-center gap-2 px-4 py-2 text-sm rounded-lg transition-colors ${
+                          isFollowing
+                            ? 'bg-primary hover:bg-primary-dark text-on-primary font-semibold'
+                            : 'bg-elevated hover:bg-surface border border-line text-foreground font-medium'
+                        }`}
                       >
                         <Link2 size={14} />
                         Connect
