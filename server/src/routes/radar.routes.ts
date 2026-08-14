@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
+import prisma from '../config/db';
 import { searchAthletes } from '../data/radarSearch';
 import { parseScoutingQuery } from '../data/radarParse';
 import { attachConnectionStatus } from '../services/connectionState';
@@ -60,6 +61,8 @@ router.post(
       // empty result (e.g. a sport with no athletes yet) is a normal 200 with an honest
       // emptyReason the client renders — NOT an error.
       const { results, total, widened, relaxed, emptyReason } = await searchAthletes(filters);
+      // Log the search for the admin overview — fire-and-forget, never blocks the response.
+      void prisma.radarSearch.create({ data: { searcherId: req.user!.userId } }).catch(() => { /* non-fatal */ });
       // Block filter (viewer-dependent, so applied here — the engine stays pure): a
       // scout never sees an athlete in a block relationship with them, either way.
       const blocked = new Set(await blockedUserIds(req.user!.userId));

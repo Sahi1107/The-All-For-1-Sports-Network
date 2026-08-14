@@ -6,6 +6,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRole } from '../middleware/roles';
 import { writeLimiter } from '../middleware/rateLimiter';
 import { validate } from '../middleware/validate';
+import { getAdminOverview } from '../services/adminOverview';
 import {
   AdminUserListQuery, AdminUpdateRoleBody, AdminVerifyBody, CreateAdminBody,
   BulkProvisionBody, BulkProvisionParams, StandaloneBulkProvisionBody,
@@ -630,6 +631,18 @@ router.get('/stats', async (_req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error('Admin stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// GET /api/admin/overview — the live platform pulse: signups + trend, the real
+// user base (people vs organiser shells), activity feed, tournaments, engagement,
+// sport split. Built from cheap aggregates, cached ~20s; ?force=1 bypasses cache.
+router.get('/overview', async (req: AuthRequest, res: Response) => {
+  try {
+    res.json(await getAdminOverview(req.query.force === '1'));
+  } catch (error) {
+    console.error('Admin overview error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

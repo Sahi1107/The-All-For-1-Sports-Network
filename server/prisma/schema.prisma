@@ -983,6 +983,17 @@ model ProfileView {
   @@index([targetId, createdAt])
 }
 
+/// A logged Radar (AI scout) search, for the admin overview only — fire-and-forget
+/// on each search, never user-facing. searcherId is a plain id (no FK) so the log
+/// survives account deletion; searches before this table existed aren't counted.
+model RadarSearch {
+  id         String   @id @default(uuid())
+  searcherId String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // Web push subscription (one per browser/device). deliverPush sends to these.
 model PushSubscription {
   id        String   @id @default(uuid())

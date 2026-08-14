@@ -11,8 +11,9 @@ import { SPORTS } from '../data/sports';
 import RosterEditorModal from '../features/tournaments/RosterEditorModal';
 import AddTeamModal from '../features/tournaments/AddTeamModal';
 import DeleteTournamentModal from '../features/tournaments/DeleteTournamentModal';
+import AdminOverview from './AdminOverview';
 
-type Tab = 'users' | 'stats' | 'reports' | 'appeals' | 'new-profile' | 'link-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
+type Tab = 'overview' | 'users' | 'stats' | 'reports' | 'appeals' | 'new-profile' | 'link-profile' | 'new-team' | 'create-admin' | 'tournaments' | 'feed-preview';
 
 const EMPTY_LINK_FORM = { email: '', guardianEmail: '' };
 
@@ -277,7 +278,7 @@ function TournamentRegistrationsPanel({ tournamentId }: { tournamentId: string }
 export default function AdminDashboard() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>('users');
+  const [tab, setTab] = useState<Tab>('overview');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -685,6 +686,7 @@ export default function AdminDashboard() {
       {/* Tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
         {([
+          ['overview',     'Overview',       Activity],
           ['users',        'Users',          Users],
           ['stats',        'Platform Stats', BarChart3],
           ['reports',      'Reports',        Flag],
@@ -710,6 +712,9 @@ export default function AdminDashboard() {
           </button>
         ))}
       </div>
+
+      {/* ── Overview Tab ──────────────────────────────────────────── */}
+      {tab === 'overview' && <AdminOverview />}
 
       {/* ── Users Tab ─────────────────────────────────────────────── */}
       {tab === 'users' && (
