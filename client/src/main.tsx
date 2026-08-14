@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import ErrorBoundary from './components/ErrorBoundary.tsx'
 import { initSentry } from './config/sentry.ts'
+import { startVersionWatch } from './config/versionWatch.tsx'
 
 // Recover from a failed dynamic import — a stale/missing chunk after a deploy, or
 // a transient fetch failure — instead of leaving a blank screen the user has to
@@ -34,6 +35,11 @@ const idle = (cb: () => void) =>
     ? (window as unknown as { requestIdleCallback: (c: () => void) => void }).requestIdleCallback(cb)
     : setTimeout(cb, 1);
 idle(() => { void initSentry() })
+
+// Detect a new deploy while this tab stays open and offer a reload — so a shipped
+// client fix actually reaches users who never closed the app (the recurring
+// "shipped but still looks broken" trap of a SPA + service worker).
+startVersionWatch()
 
 // Register the service worker (offline shell + web push) in production only,
 // so dev never caches stale assets.
