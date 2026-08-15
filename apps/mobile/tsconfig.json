@@ -1,0 +1,13 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@af1/api-client": ["../../packages/api-client/src/index.ts"],
+      "@af1/core": ["../../packages/core/src/index.ts"],
+      "@af1/validation": ["../../packages/validation/src/index.ts"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules"]
+}

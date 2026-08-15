@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "All For 1",
+    "slug": "all-for-1",
+    "scheme": "allfor1",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": { "supportsTablet": true, "bundleIdentifier": "pro.allfor1.app" },
+    "android": { "package": "pro.allfor1.app" },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": { "typedRoutes": true },
+    "extra": {
+      "//": "Public API origin. Override per-build with EXPO_PUBLIC_API_URL. No secrets here — this ships in the app bundle.",
+      "apiUrl": "https://allfor1-api-857208844426.asia-south1.run.app"
+    }
+  }
+}
