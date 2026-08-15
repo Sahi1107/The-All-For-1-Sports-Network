@@ -18,8 +18,8 @@
 
     /* Shared domain logic, resolved to source to match the Vite alias. */
     "paths": {
-      "@af1/core": ["../packages/core/src/index.ts"],
-      "@af1/api-client": ["../packages/api-client/src/index.ts"]
+      "@af1/core": ["../../packages/core/src/index.ts"],
+      "@af1/api-client": ["../../packages/api-client/src/index.ts"]
     },
 
     /* Linting */
