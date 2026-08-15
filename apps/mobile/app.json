@@ -7,13 +7,29 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "ios": { "supportsTablet": true, "bundleIdentifier": "pro.allfor1.app" },
-    "android": { "package": "pro.allfor1.app" },
-    "plugins": ["expo-router", "expo-secure-store"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "pro.allfor1.app",
+      "usesAppleSignIn": true,
+      "googleServicesFile": "./GoogleService-Info.plist"
+    },
+    "android": {
+      "package": "pro.allfor1.app",
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-apple-authentication",
+      "@react-native-firebase/app",
+      ["expo-build-properties", { "ios": { "useFrameworks": "static" } }],
+      ["@react-native-google-signin/google-signin", { "iosUrlScheme": "REPLACE_WITH_REVERSED_IOS_CLIENT_ID" }]
+    ],
     "experiments": { "typedRoutes": true },
     "extra": {
-      "//": "Public API origin. Override per-build with EXPO_PUBLIC_API_URL. No secrets here — this ships in the app bundle.",
-      "apiUrl": "https://allfor1-api-857208844426.asia-south1.run.app"
+      "//": "Public config baked into the bundle. No secrets — the Firebase API key lives in the native google-services files, which are themselves not secret.",
+      "apiUrl": "https://allfor1-api-857208844426.asia-south1.run.app",
+      "googleWebClientId": "REPLACE_WITH_FIREBASE_WEB_CLIENT_ID.apps.googleusercontent.com"
     }
   }
 }

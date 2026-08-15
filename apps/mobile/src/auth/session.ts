@@ -1,34 +1,33 @@
-// The mobile auth seam that @af1/api-client is wired to. It mirrors the web
-// adapter's three responsibilities — hand out a token, force-refresh it, react
-// to a dead session — but with a native implementation.
-//
-// SCAFFOLD STATE: there is no mobile sign-in yet, so this holds a token in memory
-// (settable once auth is built) and no-ops the refresh. When Firebase Auth (or
-// whichever provider) lands on mobile, replace the bodies below:
-//   • getToken      → the SDK's cached-token getter
-//   • refreshToken  → a forced refresh
-//   • onSessionExpired → reset the navigation stack to the sign-in screen
-// The token should live in expo-secure-store, NOT AsyncStorage. Until then, an
-// unauthenticated request (e.g. GET /version) still works end-to-end.
+import { currentIdToken } from './firebase';
+import { readToken, clearToken } from './secureToken';
 
-let currentToken: string | null = null;
+// The seam @af1/api-client is wired to (src/api/client.ts). Real now, not a stub:
+//   getToken      → the live Firebase ID token (auto-refreshed near expiry by the
+//                   SDK), cached to secure storage; falls back to the cached token
+//                   on a cold start before the SDK has rehydrated the user.
+//   refreshToken  → force a fresh token for the single 401 retry.
+//   onSessionExpired → a genuinely-dead session: drop the cached token and let the
+//                   registered handler (AuthProvider) reset to signed-out.
 
-/** Set the current auth token (called by the sign-in flow once it exists). */
-export function setAuthToken(token: string | null): void {
-  currentToken = token;
+let expiredHandler: (code: string | undefined) => void = () => {};
+
+/** AuthProvider registers here so a dead 401 can reset app state without this
+ *  low-level module importing the router (which would be a cycle). */
+export function setSessionExpiredHandler(fn: (code: string | undefined) => void): void {
+  expiredHandler = fn;
 }
 
-/** Return a valid token, or null when signed out. */
 export async function getToken(): Promise<string | null> {
-  return currentToken;
+  const live = await currentIdToken(false);
+  if (live) return live;
+  return readToken();
 }
 
-/** Force a fresh token before the single 401 retry. No-op until auth is wired. */
 export async function refreshToken(): Promise<void> {
-  // TODO(mobile-auth): force-refresh via the auth SDK and update currentToken.
+  await currentIdToken(true);
 }
 
-/** A genuinely-dead session. TODO(mobile-auth): navigate to the sign-in screen. */
-export function onSessionExpired(_code: string | undefined): void {
-  currentToken = null;
+export function onSessionExpired(code: string | undefined): void {
+  void clearToken();
+  expiredHandler(code);
 }

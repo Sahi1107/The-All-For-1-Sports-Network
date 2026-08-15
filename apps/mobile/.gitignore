@@ -13,3 +13,7 @@ web-build/
 
 # Env
 .env*.local
+
+# Firebase native config (per-project secrets — download from the console, never commit)
+google-services.json
+GoogleService-Info.plist

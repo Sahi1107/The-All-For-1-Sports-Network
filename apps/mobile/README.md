@@ -1,61 +1,94 @@
 # mobile
 
-The All For 1 native app — **Expo (React Native) + expo-router + TypeScript**.
+The All For 1 native app — **Expo (React Native) + expo-router + TypeScript**, on
+the shared `@af1/*` packages. Native UI, not the web components; `apps/web` keeps
+its Capacitor shell separately.
 
-This is a scaffold. It shares business logic with the web app through the
-workspace packages and ships its own native UI (it does **not** reuse the web
-React components — `apps/web` covers the Capacitor-wrapped web build separately).
+## What's built (Phase 0)
 
-## Shared packages
+- **Auth** — `@react-native-firebase/auth` on the **same Firebase project** as web,
+  so a user's Firebase UID is shared across web and mobile. Native **Google** sign-in
+  and **Sign in with Apple** (iOS, App Store rule 4.8). Tokens cached in the
+  keychain/keystore via `expo-secure-store`; the shared `@af1/api-client` attaches
+  them and does the transient-401 retry identically to web.
+- **Identity model** — Firebase UID is the account key, never email. Apple private-
+  relay addresses are treated as contact-only, never a dedup key; cross-provider
+  dedup is by explicit link (the server already returns `409
+  ACCOUNT_EXISTS_DIFFERENT_CREDENTIAL` → the app shows a connect-your-account notice).
+- **Theme** — reads `@af1/tokens` (`src/theme`), following the OS light/dark setting.
+- **Fonts** — Archivo / Inter / Saira Semi Condensed, loaded behind the native splash.
+- **Navigation** — Expo Router: a gated `index` routes by auth status →
+  `(auth)/sign-in`, `(auth)/onboarding`, or `(app)/profile`.
+- **Primitives** (`src/components`) — Button (volt pill), Card, StatTile, Avatar +
+  crest, VerifiedBadge, Chip, EmptyState, themed Text, Screen.
+- **Profile shell** (`app/(app)/profile.tsx`) — renders the signed-in user's real
+  `GET /api/auth/me` data, with pull-to-refresh and a keep-last-good offline notice.
 
-| Package            | Purpose                                                        |
-| ------------------ | ------------------------------------------------------------- |
-| `@af1/api-client`  | The axios instance + auth-recovery policy. `src/api/client.ts` wires the native seams (API origin, token source). |
-| `@af1/core`        | Pure domain logic (ranking config, positions, message policy). |
-| `@af1/validation`  | Zod request/response schemas.                                 |
+Every state is deliberate: loading (splash → spinner), empty/error/offline
+(`EmptyState`), and per-button sign-in loading + silent cancel.
 
-## Layout
+## Prerequisites — only you can do these (accounts + secrets)
 
-```
-app/                 expo-router routes
-  _layout.tsx        root stack + safe-area + status bar
-  index.tsx          home screen — proves @af1/api-client reaches the API
-src/
-  api/client.ts      createApiClient() wired to the native seams
-  auth/session.ts    the token seam (getToken / refreshToken / onSessionExpired)
-  config/env.ts      API origin from app.json `extra.apiUrl` (or EXPO_PUBLIC_API_URL)
-metro.config.js      monorepo-aware Metro (watches the workspace, pins node_modules)
-```
+**1. Firebase (same `allfor1-prod` project as web)**
+- Console → Project settings → add an **iOS app** (bundle id `pro.allfor1.app`) and an
+  **Android app** (package `pro.allfor1.app`).
+- Download **`GoogleService-Info.plist`** (iOS) and **`google-services.json`** (Android)
+  into `apps/mobile/`. (Referenced by `app.json`; they're git-ignored — do not commit.)
+- Authentication → Sign-in method → enable **Google** and **Apple**.
 
-## Setup & run
+**2. Google sign-in IDs → into `app.json`**
+- `extra.googleWebClientId` = the **Web client** OAuth id (Firebase → Authentication →
+  Google → Web SDK configuration). Not the iOS/Android client id.
+- `plugins → @react-native-google-signin` `iosUrlScheme` = the **reversed iOS client
+  id** from `GoogleService-Info.plist` (`REVERSED_CLIENT_ID`).
 
-From the **repo root** (workspaces are hoisted there):
+**3. Sign in with Apple**
+- Apple Developer → Identifiers → your App ID → enable **Sign in with Apple**.
+- Create a **Services ID** + **Sign in with Apple key**, and register them in Firebase
+  (Authentication → Apple).
+- **Register your email sending domain** with Apple (Sign in with Apple → email
+  communication) — otherwise private-relay users receive **no** verification/notification
+  emails. This is the operational catch called out in the identity pitch.
 
+## Build & run (native dev client — `@react-native-firebase` can't run in Expo Go)
+
+From the **repo root**:
 ```bash
 npm install
-# Align Expo's native dependency versions to the installed SDK:
-npx expo install --fix --workspace mobile
 ```
-
-Then, from `apps/mobile`:
-
+Then:
 ```bash
-npm run start        # Expo dev server (press i / a for a simulator)
-npm run ios          # iOS simulator
-npm run android      # Android emulator
-npm run typecheck    # tsc --noEmit
+cd apps/mobile
+npx expo prebuild            # generates ios/ + android/ from app.json (git-ignored)
+npx expo run:ios             # or: npx expo run:android   (device or simulator/emulator)
 ```
+`npm run typecheck` runs `tsc --noEmit`. Metro resolves `@af1/*` from source, so no
+package prebuild is needed.
 
-The `@af1/*` packages are consumed from their built `dist/`, so build them once
-(or after changes): `npm run build --workspace=@af1/api-client` (and `core`,
-`validation`). Metro also watches their source via `watchFolders`.
+> iOS uses `useFrameworks: static` (required by `@react-native-firebase`) — a clean
+> `pod install` happens inside `prebuild`. If CocoaPods caches bite, `cd ios && pod
+> install --repo-update`.
 
-## Not done yet (scaffold boundaries)
+## Verify the deliverable
 
-- **Auth**: `src/auth/session.ts` holds an in-memory token and no-ops refresh.
-  Wire it to the mobile auth provider (store the token in `expo-secure-store`,
-  reset navigation to sign-in on `onSessionExpired`). Until then, unauthenticated
-  requests (e.g. `GET /version`) work end-to-end — which the home screen proves.
-- **UI**: `app/index.tsx` is a placeholder connectivity check, not real product UI.
-- **Native builds**: no `ios/` / `android/` checked in (managed workflow); run
-  `npx expo prebuild` or use EAS Build when you need native binaries.
+1. App **boots** on iOS and Android (splash → sign-in in the bundled fonts).
+2. **Sign in** with Google; on iOS, with Apple.
+3. The **profile shell** renders your real name, role, sport, verified badge, location
+   and “joined”, pulled live from `/api/auth/me`. Pull-to-refresh re-fetches.
+
+The live API is already on the merged build (`/api/version` → `28486f2…`), so a valid
+Firebase token is the only thing between sign-in and real data.
+
+## Deliberately held (not shipped rough)
+
+- **Native onboarding wizard** — new-user profile creation. Signing in works; a new
+  account currently lands on an honest holding screen. Existing accounts (e.g. yours)
+  go straight to the profile.
+- **Tab bar** — deferred until there's a second real destination; a one-tab bar or
+  empty placeholder tabs would read as unfinished. The Expo Router structure is in place.
+- **Auto re-auth link flow** — the 409 conflict is detected and explained; the one-tap
+  “sign in with your original method to link” UX is a fast-follow.
+- **Server relay-dedup** — excluding `@privaterelay.appleid.com` emails from the
+  server's orphan-match + flagging `emailIsPrivateRelay`. A focused, deliberate prod
+  change to land **before** the app reaches real users (no risk until Apple sign-in
+  ships to users). Tracked separately from this client build.
