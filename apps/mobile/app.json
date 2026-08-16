@@ -20,16 +20,18 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-system-ui",
       "expo-apple-authentication",
       "@react-native-firebase/app",
+      "./plugins/withFirebaseAppDelegate",
       ["expo-build-properties", { "ios": { "useFrameworks": "static" } }],
-      ["@react-native-google-signin/google-signin", { "iosUrlScheme": "REPLACE_WITH_REVERSED_IOS_CLIENT_ID" }]
+      ["@react-native-google-signin/google-signin", { "iosUrlScheme": "com.googleusercontent.apps.857208844426-3ib26g217vn0lf9rdojjscto59n1vnqa" }]
     ],
     "experiments": { "typedRoutes": true },
     "extra": {
       "//": "Public config baked into the bundle. No secrets — the Firebase API key lives in the native google-services files, which are themselves not secret.",
       "apiUrl": "https://allfor1-api-857208844426.asia-south1.run.app",
-      "googleWebClientId": "REPLACE_WITH_FIREBASE_WEB_CLIENT_ID.apps.googleusercontent.com"
+      "googleWebClientId": "857208844426-1dqf8490q4c5t24vsg3k5ektih136cg7.apps.googleusercontent.com"
     }
   }
 }
