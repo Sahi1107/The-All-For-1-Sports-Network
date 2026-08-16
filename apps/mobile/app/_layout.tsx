@@ -4,10 +4,12 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { View } from 'react-native';
 import { fontMap } from '../src/theme/fonts';
 import { ThemeProvider, useTheme } from '../src/theme/ThemeProvider';
 import { AuthProvider } from '../src/auth/AuthProvider';
+import { queryClient } from '../src/api/queryClient';
 
 // Hold the native splash until the fonts are in memory, so the first frame the
 // user sees is already in Archivo/Inter/Saira — no flash of system font.
@@ -36,12 +38,14 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <AuthProvider>
-          <ThemedStatusBar />
-          <View style={{ flex: 1 }} onLayout={onLayout}>
-            <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
-          </View>
-        </AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <ThemedStatusBar />
+            <View style={{ flex: 1 }} onLayout={onLayout}>
+              <Stack screenOptions={{ headerShown: false, animation: 'fade' }} />
+            </View>
+          </AuthProvider>
+        </QueryClientProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
