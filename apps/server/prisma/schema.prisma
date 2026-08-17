@@ -364,6 +364,7 @@ model User {
   appeals                 Appeal[]                 @relation("AppealUser")
   appealsReviewed         Appeal[]                 @relation("AppealReviewer")
   moderationActions       ModerationAction[]       @relation("ModeratedUser")
+  policyAcceptances       PolicyAcceptance[]
 
   @@index([role])
   @@index([sport])
@@ -371,6 +372,38 @@ model User {
   @@index([name]) // search: helps ORDER BY name; pg_trgm GIN (see prisma/sql) accelerates the ILIKE
   @@index([claimStatus]) // rankings/visibility carve-outs filter on this
   @@index([claimCodeHash]) // claim redemption looks the row up by hashed code
+}
+
+enum PolicyDocument {
+  TERMS
+  PRIVACY
+}
+
+enum PolicyAcceptanceActor {
+  SELF     // the account holder accepted (self-serve signup / in-app re-acknowledge)
+  GUARDIAN // a parent/legal guardian accepted on behalf of an under-18
+}
+
+// Append-only, auditable record of who accepted which version of which legal
+// document, when, and — for guardian consent — the exact statement they were shown.
+// This is the source of truth for "which version did user X accept", and it drives
+// the notify-and-acknowledge re-consent prompt: a user with no row at the current
+// POLICY_VERSION is asked to acknowledge on next login. Never updated in place;
+// only removed by the owning user's account cascade.
+model PolicyAcceptance {
+  id          String                @id @default(uuid())
+  userId      String                @map("user_id")
+  document    PolicyDocument
+  version     String // matches @af1/core POLICY_VERSION, e.g. "2026-08-24"
+  actor       PolicyAcceptanceActor @default(SELF)
+  consentText String?               @map("consent_text") // exact wording shown (always for GUARDIAN)
+  ipAddress   String?               @map("ip_address")
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, document])
+  @@index([document, version])
 }
 
 // ─── Social: Follow & Connect ────────────────────────────

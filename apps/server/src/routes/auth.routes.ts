@@ -15,6 +15,8 @@ import { previewClaim, claimProfile } from '../services/unclaimedPlayer';
 import { decideProviderOutcome } from '../services/providerSignin';
 import { profileCompleteness, isProfileComplete } from '../services/profileCompleteness';
 import { attributeReferral } from '../services/referral';
+import { recordPolicyAcceptance, hasAcceptedCurrentPolicy } from '../services/policyAcceptance';
+import { POLICY_VERSION, GUARDIAN_CONSENT_STATEMENT } from '@af1/core';
 import { env } from '../config/env';
 import logger from '../utils/logger';
 import { signMediaDeep } from '../services/storage';
@@ -261,6 +263,10 @@ router.post('/sync', async (req: Request, res: Response) => {
     // Set custom claims so the client's next getIdToken(true) includes them
     await admin.auth().setCustomUserClaims(decoded.uid, { userId: user.id, role: user.role });
 
+    // Record acceptance of the current Terms + Privacy version. The client gates
+    // signup on the acceptance checkbox; the server stamps which version that was.
+    await recordPolicyAcceptance({ userId: user.id, actor: 'SELF', ipAddress: req.ip ?? null });
+
     await attributeReferral(user.id, parse.data.referralCode);
 
     logger.info('auth.register', { userId: user.id, role: user.role, sport: user.sport, guardianManaged });
@@ -358,9 +364,26 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     // Role-aware completeness so the client nag matches the verified-badge rule
     // exactly (one source of truth) and never nags a non-athlete for player fields.
     const pc = profileCompleteness(user);
-    res.json({ user: { ...user, profileComplete: pc.complete, profileMissing: pc.missing } });
+    // Whether the user has accepted the current legal-document version. When false,
+    // the client shows the notify-and-acknowledge prompt (not a hard block).
+    const acceptedCurrentPolicy = await hasAcceptedCurrentPolicy(req.user!.userId);
+    res.json({ user: { ...user, profileComplete: pc.complete, profileMissing: pc.missing }, acceptedCurrentPolicy, policyVersion: POLICY_VERSION });
   } catch (error) {
     logger.error('Me error', { error: String(error) });
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /api/auth/accept-policy ────────────────────────────────────────────────
+// The notify-and-acknowledge action: an existing user acknowledges the current
+// Terms + Privacy version from the in-app prompt. Idempotent — acknowledging twice
+// records nothing new. Not a hard gate; the client simply stops prompting.
+router.post('/accept-policy', authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    await recordPolicyAcceptance({ userId: req.user!.userId, actor: 'SELF', ipAddress: req.ip ?? null });
+    res.json({ ok: true, version: POLICY_VERSION });
+  } catch (error) {
+    logger.error('Accept policy error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -643,6 +666,15 @@ router.post('/guardian-consent', validate({ body: HandoverConsentBody }), async 
         logger.warn('auth.guardian_consent.welcome_email_failed', { userId: user.id, error: String(err) });
       }
     }
+
+    // Record the guardian's acceptance on the child's behalf — version + the exact
+    // consent statement shown — so the chain of consent is auditable (Privacy s.9.1).
+    await recordPolicyAcceptance({
+      userId: user.id,
+      actor: 'GUARDIAN',
+      consentText: GUARDIAN_CONSENT_STATEMENT,
+      ipAddress: req.ip ?? null,
+    });
 
     logger.info('auth.guardian_consent.consented', { userId: user.id });
     res.json({ status: 'CONSENTED', athleteName: user.name });
