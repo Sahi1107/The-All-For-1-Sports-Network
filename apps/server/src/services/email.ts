@@ -4,6 +4,7 @@ import logger from '../utils/logger';
 import {
   emailShell, emailParagraph, emailButton, emailCredBox, emailNote, emailList, escapeHtml,
 } from './emailLayout';
+import { DATA_FIDUCIARY_LEGAL_NAME, POLICY_EFFECTIVE_DATE } from '@af1/core';
 
 // ─── Transactional email service ─────────────────────────────────────────────
 //
@@ -455,6 +456,51 @@ export async function sendPasswordResetEmail(to: string, name: string | null, re
 
 export async function sendEmailVerification(to: string, name: string | null, verifyUrl: string): Promise<void> {
   const { subject, html, text } = composeEmailVerification(name, verifyUrl);
+  await sendMail({ to, subject, html, text });
+}
+
+// ─── Legal notice: updated Terms & Privacy Policy ────────────────────────────
+// A plain notice (not marketing): what changed, when it takes effect, and where to
+// read the documents. Sent by the operator-triggered notify-policy-update script.
+const TERMS_URL = `${APP_URL}/terms`;
+const PRIVACY_URL = `${APP_URL}/privacy`;
+const LINK = (url: string, label: string) =>
+  `<a href="${url}" style="color:#dbff5a;text-decoration:underline;">${label}</a>`;
+
+export function composePolicyUpdateNotice(name: string | null): Built {
+  const hi = name ? `${escapeHtml(name)},` : 'Dear User,';
+  const changes = [
+    'We do not sell your personal data. The data-sale provisions of the previous documents have been removed.',
+    'Protections for athletes under 18 are strengthened: no tracking, no targeted advertising, and no monetisation of a child’s personal data.',
+    `The Data Fiduciary is named as ${DATA_FIDUCIARY_LEGAL_NAME}, and a Grievance Officer and registered address are published in the documents.`,
+  ];
+  return {
+    subject: 'Notice: Updated Terms & Conditions and Privacy Policy — All For 1',
+    text:
+      `${name ? `${name},` : 'Dear User,'}\n\n` +
+      `This is a notice that ${DATA_FIDUCIARY_LEGAL_NAME}, operator of All For 1, has updated its Terms & Conditions and Privacy Policy, effective ${POLICY_EFFECTIVE_DATE}.\n\n` +
+      `What is changing:\n` +
+      changes.map((c) => `- ${c}`).join('\n') +
+      `\n\nThe updated documents take effect on ${POLICY_EFFECTIVE_DATE}. Continued use of the Platform on or after that date constitutes acceptance.\n\n` +
+      `Terms & Conditions: ${TERMS_URL}\nPrivacy Policy: ${PRIVACY_URL}\n\n` +
+      `If you do not agree to the updated documents, you may stop using the Platform and delete your account at any time via Settings. Questions or grievances: info@allfor1.pro.`,
+    html: emailShell({
+      preheader: `We do not sell personal data; strengthened under-18 protections. Effective ${POLICY_EFFECTIVE_DATE}.`,
+      heading: 'Updated Terms & Privacy Policy',
+      contentHtml:
+        emailParagraph(`${hi} this is a notice that ${escapeHtml(DATA_FIDUCIARY_LEGAL_NAME)}, operator of All For 1, has updated its Terms &amp; Conditions and Privacy Policy, effective ${POLICY_EFFECTIVE_DATE}.`) +
+        emailParagraph('What is changing:') +
+        emailList(changes.map(escapeHtml)) +
+        emailParagraph(`The updated documents take effect on ${POLICY_EFFECTIVE_DATE}. Continued use of the Platform on or after that date constitutes acceptance. You may review them here: ${LINK(TERMS_URL, 'Terms &amp; Conditions')} · ${LINK(PRIVACY_URL, 'Privacy Policy')}.`) +
+        emailNote('If you do not agree to the updated documents, you may stop using the Platform and delete your account at any time via Settings. Questions or grievances: info@allfor1.pro.'),
+    }),
+  };
+}
+
+/** Send the legal notice to one recipient (the account holder, or the guardian for
+ *  a guardian-managed under-18 account). */
+export async function sendPolicyUpdateNotice(to: string, name: string | null): Promise<void> {
+  const { subject, html, text } = composePolicyUpdateNotice(name);
   await sendMail({ to, subject, html, text });
 }
 

@@ -7,7 +7,10 @@
 // sections are deliberately held (see §2.5 forward-looking note) and go live with
 // the feature, matching how the marketing pages describe it.
 import type { Block, Section } from '../pages/legal/LegalDoc';
-import { DATA_FIDUCIARY_LEGAL_NAME as ENTITY, POLICY_EFFECTIVE_DATE, POLICY_SUPERSEDES_DATE } from '@af1/core';
+import {
+  DATA_FIDUCIARY_LEGAL_NAME as ENTITY, POLICY_EFFECTIVE_DATE, POLICY_SUPERSEDES_DATE,
+  GRIEVANCE_OFFICER_NAME, GRIEVANCE_OFFICER_TITLE, GRIEVANCE_OFFICER_ADDRESS, CONTACT_EMAIL,
+} from '@af1/core';
 
 const INTRO: Block[] = [
   {
@@ -267,8 +270,10 @@ const SECTIONS: Section[] = [
       {
         kind: 'kv',
         rows: [
-          { label: 'Grievance Officer', value: ENTITY },
-          { label: 'Email', value: 'info@allfor1.pro', href: 'mailto:info@allfor1.pro' },
+          { label: 'Grievance Officer', value: `${GRIEVANCE_OFFICER_NAME}, ${GRIEVANCE_OFFICER_TITLE}` },
+          { label: 'Company', value: ENTITY },
+          { label: 'Registered Address', value: GRIEVANCE_OFFICER_ADDRESS },
+          { label: 'Email', value: CONTACT_EMAIL, href: `mailto:${CONTACT_EMAIL}` },
         ],
       },
       { kind: 'p', text: 'You also have the right to approach the Data Protection Board of India, once constituted under the DPDP Act, if your grievance is not resolved to your satisfaction.' },

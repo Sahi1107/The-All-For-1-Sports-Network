@@ -17,8 +17,16 @@ export const POLICY_EFFECTIVE_DATE = '24 August 2026';
 export const POLICY_SUPERSEDES_DATE = '30 April 2026';
 
 /** The registered company that is the Data Fiduciary under the DPDP Act — the
- *  contracting legal entity, not the trading name. */
-export const DATA_FIDUCIARY_LEGAL_NAME = 'All For One Sports Technologies Pvt Ltd';
+ *  contracting legal entity, not the trading name. Exact registered name. */
+export const DATA_FIDUCIARY_LEGAL_NAME = 'ALLFORONE SPORTS TECHNOLOGIES PRIVATE LIMITED';
+
+/** The named Grievance Officer and registered address published in both documents,
+ *  as required by SPDI Rule 5(9) and expected under DPDP s.13. */
+export const GRIEVANCE_OFFICER_NAME = 'Mann Agarwal';
+export const GRIEVANCE_OFFICER_TITLE = 'Director';
+export const GRIEVANCE_OFFICER_ADDRESS =
+  'House No M-229/12(5), C-6/S-1, Milroc Woods, Corlim, Corlim IE, Tiswadi, North Goa 403110, Goa';
+export const CONTACT_EMAIL = 'info@allfor1.pro';
 
 /** The exact statement a parent/legal guardian agrees to when consenting on behalf
  *  of an under-18 (DPDP Act s.9). Stored verbatim with each guardian acceptance so
