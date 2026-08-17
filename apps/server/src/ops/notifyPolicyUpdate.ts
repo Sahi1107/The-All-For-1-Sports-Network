@@ -4,22 +4,20 @@
  *
  * SAFE BY DEFAULT: dry run unless you pass --send. The dry run sends nothing; it
  * reports how many recipients there are and shows a sample. Run the dry run first,
- * review, then re-run with --send (and SMTP_* configured) when you're ready.
+ * review, then re-run with --send when you're ready.
  *
- * USAGE
- *   cd apps/server
- *   # 1. Dry run — no email sent, just counts + a sample:
- *   DATABASE_URL=postgres://... npx ts-node scripts/notify-policy-update.ts
- *   # 2. Only when ready, with SMTP configured:
- *   DATABASE_URL=postgres://... SMTP_HOST=... SMTP_USER=... SMTP_PASS=... \
- *     npx ts-node scripts/notify-policy-update.ts --send
+ * The prod DB is private-IP only, so this can't run from a laptop. It lives under
+ * src/ so the normal build compiles it into dist/ops/, and it runs as a Cloud Run
+ * Job on the same image + VPC connector + secrets as the API (see the runbook):
+ *   node dist/ops/notifyPolicyUpdate.js           # dry run — count + sample
+ *   node dist/ops/notifyPolicyUpdate.js --send     # actually notify
  *
  * Recipient is the guardian's email for guardian-managed under-18 accounts (they
  * operate the account), otherwise the account email. Deduped by recipient address
  * so a guardian of several athletes gets one notice. Paced to avoid hammering SMTP.
  */
-import prisma from '../src/config/db';
-import { sendPolicyUpdateNotice } from '../src/services/email';
+import prisma from '../config/db';
+import { sendPolicyUpdateNotice } from '../services/email';
 
 const SEND = process.argv.includes('--send');
 const DELAY_MS = 200;
@@ -65,6 +63,10 @@ async function main() {
   console.log(`\nDone. Sent ${sent}, failed ${failed}.`);
 }
 
-main()
-  .catch((e) => { console.error(e); process.exit(1); })
-  .finally(() => prisma.$disconnect());
+// Only run when executed directly (as the Cloud Run Job entry), never on import —
+// this module lives in src/ so it's compiled into the image, but nothing imports it.
+if (require.main === module) {
+  main()
+    .catch((e) => { console.error(e); process.exit(1); })
+    .finally(() => prisma.$disconnect());
+}
