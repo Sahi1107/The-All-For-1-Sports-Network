@@ -1,0 +1,77 @@
+# Independent deploy-health backstop. The web (Firebase Hosting) and the API
+# (Cloud Run) deploy through separate pipelines; when the web pipeline failed
+# silently for two days, allfor1.pro served the old data-sale policy while the API
+# moved on. This compares the two live version stamps on a schedule and raises a
+# visible, deduped GitHub issue when they diverge (a likely failed deploy) or when
+# a version endpoint is unreachable — and auto-resolves the issue once they match.
+name: Deploy skew check
+on:
+  schedule:
+    - cron: '*/30 * * * *'   # every 30 minutes
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+env:
+  WEB_VERSION_URL: https://allfor1.pro/version.json
+  API_VERSION_URL: https://allfor1-api-857208844426.asia-south1.run.app/api/version
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare web vs API version (with a recheck to ignore deploy windows)
+        id: cmp
+        run: |
+          sha() { curl -fsS --max-time 20 "$1" | jq -r '.sha // ""' 2>/dev/null || echo ""; }
+          web=$(sha "$WEB_VERSION_URL"); api=$(sha "$API_VERSION_URL")
+          echo "web=$web  api=$api"
+          state=ok
+          if [ -z "$web" ] || [ -z "$api" ]; then
+            state=unreachable
+          elif [ "$web" != "$api" ]; then
+            # A brief mismatch is normal mid-deploy (one pipeline lands before the
+            # other). Wait and recheck; only a persistent mismatch is a real alert.
+            sleep 120
+            web=$(sha "$WEB_VERSION_URL"); api=$(sha "$API_VERSION_URL")
+            echo "recheck: web=$web  api=$api"
+            if [ -z "$web" ] || [ -z "$api" ]; then state=unreachable
+            elif [ "$web" != "$api" ]; then state=skew; fi
+          fi
+          {
+            echo "web=$web"; echo "api=$api"; echo "state=$state";
+          } >> "$GITHUB_OUTPUT"
+      - name: Raise or resolve the alert
+        uses: actions/github-script@v7
+        env:
+          WEB: ${{ steps.cmp.outputs.web }}
+          API: ${{ steps.cmp.outputs.api }}
+          STATE: ${{ steps.cmp.outputs.state }}
+        with:
+          script: |
+            const label = 'deploy-skew';
+            const { WEB, API, STATE } = process.env;
+            const owner = context.repo.owner, repo = context.repo.repo;
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const { data: open } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: label });
+
+            if (STATE === 'ok') {
+              for (const issue of open) {
+                await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body: `Resolved: web and API are both on \`${WEB}\`.` });
+                await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: 'closed' });
+              }
+              return;
+            }
+
+            const title = STATE === 'unreachable'
+              ? '⚠️ Deploy check: a version endpoint is unreachable'
+              : '⚠️ Deploy version skew: web ≠ API';
+            const body = STATE === 'unreachable'
+              ? `A live version endpoint didn't respond.\n- web (allfor1.pro/version.json): \`${WEB || 'unreachable'}\`\n- api (/api/version): \`${API || 'unreachable'}\`\n\nCould be an outage or a hard deploy failure. Run: ${runUrl}`
+              : `The two production surfaces are on different builds — a deploy likely failed.\n- web (allfor1.pro/version.json): \`${WEB}\`\n- api (/api/version): \`${API}\`\n\nRun: ${runUrl}`;
+
+            if (open.length) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: open[0].number, body });
+            } else {
+              await github.rest.issues.create({ owner, repo, title, body, labels: [label] });
+            }
+            core.setFailed(`Deploy ${STATE}: web=${WEB || '∅'} api=${API || '∅'}`);
