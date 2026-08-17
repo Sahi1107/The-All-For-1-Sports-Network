@@ -364,10 +364,11 @@ router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
     // Role-aware completeness so the client nag matches the verified-badge rule
     // exactly (one source of truth) and never nags a non-athlete for player fields.
     const pc = profileCompleteness(user);
-    // Whether the user has accepted the current legal-document version. When false,
-    // the client shows the notify-and-acknowledge prompt (not a hard block).
+    // Whether the user has accepted the current legal-document version. Folded into
+    // the user object (flows through the client's setUser). When false, the client
+    // shows the notify-and-acknowledge prompt — not a hard block.
     const acceptedCurrentPolicy = await hasAcceptedCurrentPolicy(req.user!.userId);
-    res.json({ user: { ...user, profileComplete: pc.complete, profileMissing: pc.missing }, acceptedCurrentPolicy, policyVersion: POLICY_VERSION });
+    res.json({ user: { ...user, profileComplete: pc.complete, profileMissing: pc.missing, acceptedCurrentPolicy }, policyVersion: POLICY_VERSION });
   } catch (error) {
     logger.error('Me error', { error: String(error) });
     res.status(500).json({ error: 'Internal server error' });

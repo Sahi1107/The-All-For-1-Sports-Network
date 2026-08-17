@@ -52,6 +52,9 @@ interface User {
   profileComplete?: boolean;
   /** Which role-relevant fields are still missing (for tailored prompts). */
   profileMissing?: string[];
+  /** False when the current Terms/Privacy version hasn't been accepted — drives the
+   *  non-blocking notify-and-acknowledge prompt. Undefined on older responses. */
+  acceptedCurrentPolicy?: boolean;
 }
 
 interface RegisterData {

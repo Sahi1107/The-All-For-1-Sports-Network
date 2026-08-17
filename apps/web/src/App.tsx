@@ -14,6 +14,7 @@ import BallLoader from './components/BallLoader';
 import ScrollManager from './components/ScrollManager';
 import AnalyticsManager from './components/AnalyticsManager';
 import ConsentBanner from './components/ConsentBanner';
+import PolicyUpdatePrompt from './components/PolicyUpdatePrompt';
 import InstallPrompt from './components/InstallPrompt';
 import OfflineIndicator from './components/OfflineIndicator';
 import { getConsent, setConsent, type Consent } from './config/consent';
@@ -259,6 +260,7 @@ export default function App() {
             <ScrollManager />
             <AppRoutes />
             <ConsentGate />
+            <PolicyUpdatePrompt />
             <InstallPrompt />
             <OfflineIndicator />
             <Toaster
