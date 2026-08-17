@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { type BoxScoreLine, type DerivedState, emptyLine, teamTotals } from '@af1/core';
+import {
+  type BoxScoreLine, type DerivedState, type BasketballRules, emptyLine, teamTotals,
+} from '@af1/core';
 import type { RosterTeam } from '../types';
 
 // A live box score in the shape a basketball reader expects, in our theme and
@@ -10,10 +12,20 @@ import type { RosterTeam } from '../types';
 const pct = (made: number, att: number) => (att === 0 ? '–' : `${Math.round((made / att) * 100)}`);
 const mins = (secs: number) => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
 
-const COLUMNS = [
-  'MIN', 'PTS', 'FG', 'FG%', '3PT', '3P%', 'FT', 'FT%',
-  'OR', 'DR', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF',
-] as const;
+/**
+ * The behind-the-arc columns are named for what the shot is WORTH under this
+ * code: "3PT"/"3P%" in 5v5, "2PT"/"2P%" in 3x3. The underlying counters are the
+ * same zone either way — a reader seeing "3PT" on a 3x3 sheet would take the
+ * points column to be wrong.
+ */
+function columnsFor(rules: BasketballRules): string[] {
+  const deep = `${rules.values.behindArc}PT`;
+  const deepPct = `${rules.values.behindArc}P%`;
+  return [
+    'MIN', 'PTS', 'FG', 'FG%', deep, deepPct, 'FT', 'FT%',
+    'OR', 'DR', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF',
+  ];
+}
 
 function LineCells({ line }: { line: BoxScoreLine }) {
   return (
@@ -38,9 +50,10 @@ function LineCells({ line }: { line: BoxScoreLine }) {
   );
 }
 
-function TeamTable({ team, derived, onCourt, onPick, selectedId }: {
+function TeamTable({ team, derived, rules, onCourt, onPick, selectedId }: {
   team: RosterTeam;
   derived: DerivedState;
+  rules: BasketballRules;
   onCourt: Set<string>;
   onPick: (playerId: string) => void;
   selectedId: string | null;
@@ -64,7 +77,7 @@ function TeamTable({ team, derived, onCourt, onPick, selectedId }: {
           <thead>
             <tr>
               <th scope="col" className="pl">Player</th>
-              {COLUMNS.map((c) => <th key={c} scope="col">{c}</th>)}
+              {columnsFor(rules).map((c) => <th key={c} scope="col">{c}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -101,10 +114,11 @@ function TeamTable({ team, derived, onCourt, onPick, selectedId }: {
  * rails are the entry surface, and a table that pushed them off-screen mid-game
  * would cost exactly the seconds this redesign is meant to save.
  */
-export function BoxScorePanel({ homeTeam, awayTeam, derived, onPickPlayer, selectedId }: {
+export function BoxScorePanel({ homeTeam, awayTeam, derived, rules, onPickPlayer, selectedId }: {
   homeTeam: RosterTeam;
   awayTeam: RosterTeam;
   derived: DerivedState;
+  rules: BasketballRules;
   onPickPlayer: (playerId: string) => void;
   selectedId: string | null;
 }) {
@@ -129,8 +143,8 @@ export function BoxScorePanel({ homeTeam, awayTeam, derived, onPickPlayer, selec
       </button>
       {open && (
         <div className="bb-box-body">
-          <TeamTable team={homeTeam} derived={derived} onCourt={onCourt} onPick={onPickPlayer} selectedId={selectedId} />
-          <TeamTable team={awayTeam} derived={derived} onCourt={onCourt} onPick={onPickPlayer} selectedId={selectedId} />
+          <TeamTable team={homeTeam} derived={derived} rules={rules} onCourt={onCourt} onPick={onPickPlayer} selectedId={selectedId} />
+          <TeamTable team={awayTeam} derived={derived} rules={rules} onCourt={onCourt} onPick={onPickPlayer} selectedId={selectedId} />
         </div>
       )}
     </section>
@@ -138,10 +152,11 @@ export function BoxScorePanel({ homeTeam, awayTeam, derived, onPickPlayer, selec
 }
 
 /** One player's live line — what opens when their tab is clicked. */
-export function PlayerStatLine({ name, jersey, line }: {
+export function PlayerStatLine({ name, jersey, line, rules }: {
   name: string;
   jersey: number | null;
   line: BoxScoreLine;
+  rules: BasketballRules;
 }) {
   const stat = (label: string, value: string | number, tone?: 'key') => (
     <div className={`bb-stat${tone ? ' key' : ''}`} key={label}>
@@ -161,7 +176,7 @@ export function PlayerStatLine({ name, jersey, line }: {
         {stat('REB', line.reb, 'key')}
         {stat('AST', line.ast, 'key')}
         {stat('FG', `${line.fg}/${line.fga}`)}
-        {stat('3PT', `${line.tp}/${line.tpa}`)}
+        {stat(`${rules.values.behindArc}PT`, `${line.tp}/${line.tpa}`)}
         {stat('FT', `${line.ft}/${line.fta}`)}
         {stat('OR', line.oreb)}
         {stat('DR', line.dreb)}

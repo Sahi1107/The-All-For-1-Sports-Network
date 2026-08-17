@@ -28,9 +28,20 @@ const TournamentFormatEnum = z.enum(['TEAM', 'INDIVIDUAL', 'DOUBLES'], {
   error: 'format must be TEAM, INDIVIDUAL, or DOUBLES',
 });
 
+/** Which basketball code. Ignored for every other sport. */
+export const BasketballVariantEnum = z.enum(['FIVE_V_FIVE', 'THREE_X_THREE'], {
+  error: 'variant must be FIVE_V_FIVE or THREE_X_THREE',
+});
+
 export const CreateTournamentBody = z.object({
   name:           reqStr(100, 'Tournament name'),
   sport:          SportEnum,
+  // Set at creation and never editable afterwards, for exactly the reason sport
+  // is not: it decides what a basket is worth, how long a game runs and which
+  // ranking board the tournament is scored on. Flipping it once fixtures exist
+  // would re-score played games — a match won 21–19 would become 33–30 and the
+  // published box scores would no longer add up to the result on the bracket.
+  variant:        BasketballVariantEnum.optional().default('FIVE_V_FIVE'),
   category:       optStr(50,  'Category'),
   description:    optStr(1000, 'Description'),
   venue:          optStr(100, 'Venue'),

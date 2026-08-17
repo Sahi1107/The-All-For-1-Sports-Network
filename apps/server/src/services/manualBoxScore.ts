@@ -1,4 +1,5 @@
 import type { Sport } from '@prisma/client';
+import { rulesFor, type BasketballVariant } from '@af1/core';
 import prisma from '../config/db';
 import { writeMatchPlayerStats, type PlayerStatEntry } from './matchStats';
 import { backfillGenderFromTournament } from './genderBackfill';
@@ -98,14 +99,24 @@ export function deriveTeamScore(sport: Sport, lines: BoxScoreLine[]): number {
  * subject to, so failing them means a typo, not an unusual game:
  *
  *   • makes never exceed attempts, at every level
- *   • three-pointers are a SUBSET of field goals (the sample format's FGM/FGA are
- *     totals including threes — the schema stores twoPointers = FGM − 3PM, which
- *     goes negative and corrupts the stat line if 3PM > FGM)
- *   • points must equal 2·(FGM−3PM) + 3·3PM + FTM exactly. Basketball scoring is
+ *   • behind-the-arc shots are a SUBSET of field goals (the sample format's
+ *     FGM/FGA are totals including them — the schema stores twoPointers =
+ *     FGM − 3PM, which goes negative and corrupts the stat line if 3PM > FGM)
+ *   • points must equal the shooting line exactly. Basketball scoring is
  *     closed-form, so any disagreement is an error rather than a judgement call.
  *   • offensive + defensive rebounds cannot exceed the total
+ *
+ * THE POINTS CHECK IS CODE-DEPENDENT. The same line is worth 33 in 5v5 and 21 in
+ * 3x3, so a hard-coded 2/3/1 would reject every correct 3x3 sheet an organiser
+ * typed — telling them their 21-point game "should be 33" — and make manual
+ * entry impossible for the format. The values come from the tournament's rules.
  */
-function validateBasketballLine(s: Record<string, number>, where: string): void {
+function validateBasketballLine(
+  s: Record<string, number>,
+  where: string,
+  variant?: BasketballVariant | null,
+): void {
+  const values = rulesFor(variant).values;
   const fgm = n(s.fieldGoalsMade), fga = n(s.fieldGoalAttempts);
   const tpm = n(s.threePointers), tpa = n(s.threePointAttempts);
   const ftm = n(s.freeThrows), fta = n(s.freeThrowAttempts);
@@ -113,15 +124,15 @@ function validateBasketballLine(s: Record<string, number>, where: string): void 
   const reb = n(s.rebounds), oreb = n(s.offRebounds), dreb = n(s.defRebounds);
 
   if (fgm > fga) throw new BoxScoreError(`Field goals made (${fgm}) exceed attempts (${fga})`, 'INVALID_BOX_SCORE', `${where}.fieldGoalsMade`);
-  if (tpm > tpa) throw new BoxScoreError(`3-pointers made (${tpm}) exceed attempts (${tpa})`, 'INVALID_BOX_SCORE', `${where}.threePointers`);
+  if (tpm > tpa) throw new BoxScoreError(`${values.behindArc}-pointers made (${tpm}) exceed attempts (${tpa})`, 'INVALID_BOX_SCORE', `${where}.threePointers`);
   if (ftm > fta) throw new BoxScoreError(`Free throws made (${ftm}) exceed attempts (${fta})`, 'INVALID_BOX_SCORE', `${where}.freeThrows`);
-  if (tpm > fgm) throw new BoxScoreError(`3-pointers made (${tpm}) exceed total field goals (${fgm}) — FGM includes threes`, 'INVALID_BOX_SCORE', `${where}.threePointers`);
-  if (tpa > fga) throw new BoxScoreError(`3-point attempts (${tpa}) exceed total field-goal attempts (${fga}) — FGA includes threes`, 'INVALID_BOX_SCORE', `${where}.threePointAttempts`);
+  if (tpm > fgm) throw new BoxScoreError(`${values.behindArc}-pointers made (${tpm}) exceed total field goals (${fgm}) — FGM includes them`, 'INVALID_BOX_SCORE', `${where}.threePointers`);
+  if (tpa > fga) throw new BoxScoreError(`Behind-the-arc attempts (${tpa}) exceed total field-goal attempts (${fga}) — FGA includes them`, 'INVALID_BOX_SCORE', `${where}.threePointAttempts`);
 
-  const expected = 2 * (fgm - tpm) + 3 * tpm + ftm;
+  const expected = values.insideArc * (fgm - tpm) + values.behindArc * tpm + values.freeThrow * ftm;
   if (pts !== expected) {
     throw new BoxScoreError(
-      `Points (${pts}) don't match the shooting line — ${fgm - tpm}×2 + ${tpm}×3 + ${ftm}×1 = ${expected}`,
+      `Points (${pts}) don't match the shooting line — ${fgm - tpm}×${values.insideArc} + ${tpm}×${values.behindArc} + ${ftm}×${values.freeThrow} = ${expected}`,
       'POINTS_MISMATCH', `${where}.points`,
     );
   }
@@ -169,7 +180,12 @@ function validateCricketLine(s: Record<string, number>, where: string): void {
  * Validate one side of the box score. Pure — no I/O — so the client can run the
  * same rules as it types and the server can enforce them without trusting it.
  */
-export function validateSide(sport: Sport, lines: BoxScoreLine[], side: 'home' | 'away'): void {
+export function validateSide(
+  sport: Sport,
+  lines: BoxScoreLine[],
+  side: 'home' | 'away',
+  variant?: BasketballVariant | null,
+): void {
   const seen = new Set<string>();
   lines.forEach((line, i) => {
     if (!line?.userId) throw new BoxScoreError('A box score line has no player', 'INVALID_BOX_SCORE', `${side}.${i}`);
@@ -187,19 +203,25 @@ export function validateSide(sport: Sport, lines: BoxScoreLine[], side: 'home' |
     }
 
     const where = `${side}.${i}`;
-    if (sport === 'BASKETBALL') validateBasketballLine(s, where);
+    if (sport === 'BASKETBALL') validateBasketballLine(s, where, variant);
     else if (sport === 'FOOTBALL') validateFootballLine(s, where);
     else if (sport === 'CRICKET') validateCricketLine(s, where);
   });
 }
 
-/** Validate the whole box score. At least one player must have actually played. */
-export function validateBoxScore(sport: Sport, input: BoxScoreInput): void {
+/** Validate the whole box score. At least one player must have actually played.
+ *  `variant` is the basketball code — a 3x3 sheet is scored 1/2/1, so validating
+ *  it as 5v5 would reject every correct entry. */
+export function validateBoxScore(
+  sport: Sport,
+  input: BoxScoreInput,
+  variant?: BasketballVariant | null,
+): void {
   if (!BOX_SCORE_SPORTS.has(sport as string)) {
     throw new BoxScoreError(`Box scores aren't supported for ${sport} yet`, 'UNSUPPORTED_SPORT');
   }
-  validateSide(sport, input.home ?? [], 'home');
-  validateSide(sport, input.away ?? [], 'away');
+  validateSide(sport, input.home ?? [], 'home', variant);
+  validateSide(sport, input.away ?? [], 'away', variant);
 
   const played = [...(input.home ?? []), ...(input.away ?? [])].filter((l) => l.played);
   if (played.length === 0) {
@@ -343,6 +365,9 @@ export async function assertBoxScoreRosters(
 export interface PublishBoxScoreArgs {
   tournamentId: string;
   sport: Sport;
+  /** Basketball code, so the points check scores the sheet the way the game was
+   *  actually played. Absent ⇒ 5v5. */
+  variant?: BasketballVariant | null;
   homeTeamId: string;
   awayTeamId: string;
   boxScore: BoxScoreInput;
@@ -374,9 +399,9 @@ export interface PublishBoxScoreResult {
  * stat row (and a game in their per-game average) forever.
  */
 export async function publishBoxScore(args: PublishBoxScoreArgs): Promise<PublishBoxScoreResult> {
-  const { tournamentId, sport, homeTeamId, awayTeamId, boxScore, enteredById } = args;
+  const { tournamentId, sport, variant, homeTeamId, awayTeamId, boxScore, enteredById } = args;
 
-  validateBoxScore(sport, boxScore);
+  validateBoxScore(sport, boxScore, variant);
 
   const homeScore = deriveTeamScore(sport, boxScore.home ?? []);
   const awayScore = deriveTeamScore(sport, boxScore.away ?? []);

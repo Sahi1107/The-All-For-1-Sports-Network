@@ -46,10 +46,12 @@ const blankStats = (cols: StatColumn[]) =>
   Object.fromEntries(cols.map((c) => [c.key, 0])) as Record<string, number>;
 
 export default function BoxScoreModal({
-  tournamentId, sport, teams, matchId, trackerMatchId, onClose,
+  tournamentId, sport, variant, teams, matchId, trackerMatchId, onClose,
 }: {
   tournamentId: string;
   sport: string;
+  /** Basketball code — decides the column names and the points arithmetic. */
+  variant?: string | null;
   teams: TeamOption[];
   /** Set to correct an existing standalone manual box score. */
   matchId?: string;
@@ -58,8 +60,8 @@ export default function BoxScoreModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const cols = useMemo(() => columnsFor(sport), [sport]);
-  const derived = useMemo(() => derivedFor(sport), [sport]);
+  const cols = useMemo(() => columnsFor(sport, variant), [sport, variant]);
+  const derived = useMemo(() => derivedFor(sport, variant), [sport, variant]);
   const scoreField = scoreFieldFor(sport);
 
   // Anchored to a fixture from the draw: the match already exists, so the teams
@@ -161,12 +163,12 @@ export default function BoxScoreModal({
     (['home', 'away'] as const).forEach((side) => {
       (side === 'home' ? home : away).forEach((r, i) => {
         if (!r.played) return;
-        const e = validateRow(sport, r.stats);
+        const e = validateRow(sport, r.stats, variant);
         if (e) errs.set(`${side}-${i}`, e);
       });
     });
     return errs;
-  }, [home, away, sport]);
+  }, [home, away, sport, variant]);
 
   const anyPlayed = [...home, ...away].some((r) => r.played);
   const teamsPicked = !!homeTeamId && !!awayTeamId && homeTeamId !== awayTeamId;
@@ -324,7 +326,7 @@ export default function BoxScoreModal({
               <span className="flex-1 min-w-0"><span className="font-medium">{r.name}</span>: {err.message}</span>
               {err.key === 'points' && (
                 <button
-                  onClick={() => patch(side, i, 'points', impliedPoints(r.stats))}
+                  onClick={() => patch(side, i, 'points', impliedPoints(r.stats, variant))}
                   className="flex items-center gap-1 px-2 py-0.5 rounded border border-line text-gray-custom hover:text-foreground shrink-0"
                 >
                   <Wand2 size={10} /> Fix

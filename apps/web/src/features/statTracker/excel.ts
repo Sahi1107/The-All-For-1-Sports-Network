@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { TrackerSession, TrackerMatch } from './types';
+import { rulesFor } from '@af1/core';
 import { footballPlayerRows, basketballPlayerRows } from './stats';
 
 const pctOf = (n: number, d: number) => (d ? Math.round((n / d) * 1000) / 10 : 0);
@@ -39,6 +40,14 @@ function widths(ws: XLSX.WorkSheet, wch: number[]) {
   return ws;
 }
 
+/**
+ * What the behind-the-arc columns are called for this tournament's code — "3P"
+ * in 5v5, "2P" in 3x3. The `tp`/`tpa` counters underneath are the same in both
+ * (behind-the-arc makes and attempts); only what they are worth differs, and a
+ * spreadsheet headed "3P" for a game played to 21 reads as an error in the data.
+ */
+const deepLabel = (session: TrackerSession) => `${rulesFor(session.variant).values.behindArc}P`;
+
 const finishedMatches = (session: TrackerSession) =>
   session.matches.filter((m) => DONE(m.status) && m.state && m.homeTeamId && m.awayTeamId);
 
@@ -66,6 +75,7 @@ export function exportMatchExcel(match: TrackerMatch, session: TrackerSession) {
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, safeSheetName(label));
   } else {
+    const deep = deepLabel(session);
     const rows = basketballPlayerRows(match, session).map((r) => ({
       Player: r.name,
       Team: r.teamName,
@@ -82,9 +92,9 @@ export function exportMatchExcel(match: TrackerMatch, session: TrackerSession) {
       FG: r.fg,
       FGA: r.fga,
       'FG%': pctOf(r.fg, r.fga),
-      '3P': r.tp,
-      '3PA': r.tpa,
-      '3P%': pctOf(r.tp, r.tpa),
+      [deep]: r.tp,
+      [`${deep}A`]: r.tpa,
+      [`${deep}%`]: pctOf(r.tp, r.tpa),
       FT: r.ft,
       FTA: r.fta,
       'FT%': pctOf(r.ft, r.fta),
@@ -130,22 +140,22 @@ function bbAggregate(session: TrackerSession, matches: TrackerMatch[]) {
   return agg;
 }
 
-const bbTotalRow = (r: BbAgg) => ({
+const bbTotalRow = (r: BbAgg, deep: string) => ({
   Player: r.name, Team: r.teamName, GP: r.games, MIN: Math.round(r.min * 10) / 10,
   PTS: r.pts, OREB: r.oreb, DREB: r.dreb, REB: r.reb, AST: r.ast, STL: r.stl,
   BLK: r.blk, TO: r.to, PF: r.pf,
   FG: r.fg, FGA: r.fga, 'FG%': pctOf(r.fg, r.fga),
-  '3P': r.tp, '3PA': r.tpa, '3P%': pctOf(r.tp, r.tpa),
+  [deep]: r.tp, [`${deep}A`]: r.tpa, [`${deep}%`]: pctOf(r.tp, r.tpa),
   FT: r.ft, FTA: r.fta, 'FT%': pctOf(r.ft, r.fta),
 });
 
-const bbAvgRow = (r: BbAgg) => ({
+const bbAvgRow = (r: BbAgg, deep: string) => ({
   Player: r.name, Team: r.teamName, GP: r.games, MPG: per(r.min, r.games),
   PPG: per(r.pts, r.games), ORPG: per(r.oreb, r.games), DRPG: per(r.dreb, r.games),
   RPG: per(r.reb, r.games), APG: per(r.ast, r.games), SPG: per(r.stl, r.games),
   BPG: per(r.blk, r.games), TOPG: per(r.to, r.games), PFPG: per(r.pf, r.games),
   'FGM/G': per(r.fg, r.games), 'FGA/G': per(r.fga, r.games), 'FG%': pctOf(r.fg, r.fga),
-  '3PM/G': per(r.tp, r.games), '3PA/G': per(r.tpa, r.games), '3P%': pctOf(r.tp, r.tpa),
+  [`${deep}M/G`]: per(r.tp, r.games), [`${deep}A/G`]: per(r.tpa, r.games), [`${deep}%`]: pctOf(r.tp, r.tpa),
   'FTM/G': per(r.ft, r.games), 'FTA/G': per(r.fta, r.games), 'FT%': pctOf(r.ft, r.fta),
 });
 
@@ -155,8 +165,9 @@ const BB_AVG_W = [22, 20, 5, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 
 /** Per-team sheet: every match, every player's line, with a team total per game. */
 function bbTeamMatchSheet(session: TrackerSession, matches: TrackerMatch[], teamId: string) {
   const aoa: (string | number)[][] = [];
+  const deep = deepLabel(session);
   const head = ['Player', 'MIN', 'PTS', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF',
-    'FG', 'FGA', 'FG%', '3P', '3PA', '3P%', 'FT', 'FTA', 'FT%'];
+    'FG', 'FGA', 'FG%', deep, `${deep}A`, `${deep}%`, 'FT', 'FTA', 'FT%'];
 
   for (const m of matches) {
     if (m.homeTeamId !== teamId && m.awayTeamId !== teamId) continue;
@@ -240,7 +251,7 @@ function bbTeamDashboard(
     ['TEAM PER GAME'],
     ['PTS', per(pf, gp), 'REB', per(sum('reb'), gp), 'AST', per(sum('ast'), gp)],
     ['STL', per(sum('stl'), gp), 'BLK', per(sum('blk'), gp), 'TO', per(sum('to'), gp)],
-    ['FG%', pctOf(sum('fg'), sum('fga')), '3P%', pctOf(sum('tp'), sum('tpa')), 'FT%', pctOf(sum('ft'), sum('fta'))],
+    ['FG%', pctOf(sum('fg'), sum('fga')), `${deepLabel(session)}%`, pctOf(sum('tp'), sum('tpa')), 'FT%', pctOf(sum('ft'), sum('fta'))],
     [],
     ['RESULTS'],
     ...results,
@@ -253,7 +264,7 @@ function bbTeamDashboard(
     ['Blocks', ...best('blk')],
     [],
     ['PLAYER LINES'],
-    ['Player', 'GP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'FG%', '3P%', 'FT%', 'PPG', 'RPG', 'APG'],
+    ['Player', 'GP', 'MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'FG%', `${deepLabel(session)}%`, 'FT%', 'PPG', 'RPG', 'APG'],
     ...squad.map((r) => [
       r.name, r.games, Math.round(r.min * 10) / 10, r.pts, r.reb, r.ast, r.stl, r.blk, r.to, r.pf,
       pctOf(r.fg, r.fga), pctOf(r.tp, r.tpa), pctOf(r.ft, r.fta),
@@ -326,11 +337,11 @@ export function exportTournamentExcel(session: TrackerSession, tournamentName: s
     const squad = [...agg.values()].sort((a, b) => b.pts - a.pts);
 
     XLSX.utils.book_append_sheet(
-      wb, widths(XLSX.utils.json_to_sheet(squad.map(bbTotalRow)), BB_TOTAL_W), name('Player Totals'),
+      wb, widths(XLSX.utils.json_to_sheet(squad.map((r) => bbTotalRow(r, deepLabel(session)))), BB_TOTAL_W), name('Player Totals'),
     );
     XLSX.utils.book_append_sheet(
       wb,
-      widths(XLSX.utils.json_to_sheet([...squad].sort((a, b) => per(b.pts, b.games) - per(a.pts, a.games)).map(bbAvgRow)), BB_AVG_W),
+      widths(XLSX.utils.json_to_sheet([...squad].sort((a, b) => per(b.pts, b.games) - per(a.pts, a.games)).map((r) => bbAvgRow(r, deepLabel(session)))), BB_AVG_W),
       name('Player Averages'),
     );
 

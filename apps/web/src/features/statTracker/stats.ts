@@ -8,7 +8,8 @@ import type {
 } from './types';
 // Explicit extension: the repo's test runner is `node --experimental-strip-types`,
 // which resolves as native ESM and won't infer one.
-import { orderGroup } from './groupRanking.ts';
+import { orderGroup, resultPoints } from './groupRanking.ts';
+import { disciplineKey } from '@af1/core';
 
 export interface FootballPlayerRow {
   userId: string;
@@ -154,16 +155,23 @@ export function standingsFor(
       && (m.status === 'COMPLETED' || m.status === 'PUBLISHED')
       && m.homeTeamId && m.awayTeamId,
   );
+  // 3x3 pays a point for a loss (FIBA), so the scheme is chosen by the code, not
+  // the sport. This table and the server's must agree or the tracker will show
+  // an organiser one qualifier while the bracket seeds another.
+  const discipline = disciplineKey(session.sport, session.variant);
+  const win = resultPoints(discipline, 'win');
+  const loss = resultPoints(discipline, 'loss');
+  const draw = resultPoints(discipline, 'draw');
   groupMatches.forEach((m) => {
     const h = table.get(m.homeTeamId!), a = table.get(m.awayTeamId!);
     if (!h || !a) return;
     h.played++; a.played++;
     h.goalsFor += m.homeScore; h.goalsAgainst += m.awayScore;
     a.goalsFor += m.awayScore; a.goalsAgainst += m.homeScore;
-    if (m.homeScore > m.awayScore) { h.wins++; a.losses++; h.points += 3; }
-    else if (m.homeScore < m.awayScore) { a.wins++; h.losses++; a.points += 3; }
-    else { h.draws++; a.draws++; h.points++; a.points++; }
+    if (m.homeScore > m.awayScore) { h.wins++; a.losses++; h.points += win; a.points += loss; }
+    else if (m.homeScore < m.awayScore) { a.wins++; h.losses++; a.points += win; h.points += loss; }
+    else { h.draws++; a.draws++; h.points += draw; a.points += draw; }
   });
   table.forEach((s) => { s.goalDifference = s.goalsFor - s.goalsAgainst; });
-  return orderGroup([...table.values()], groupMatches, session.sport);
+  return orderGroup([...table.values()], groupMatches, discipline);
 }

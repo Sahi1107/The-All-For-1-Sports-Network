@@ -67,6 +67,23 @@ enum TournamentFormat {
   DOUBLES
 }
 
+// Which basketball code a tournament is played under. 3x3 is the same SPORT as
+// 5v5 — the same players, positions, radar and profiles — but a different
+// competition: a basket is worth 1 or 2 instead of 2 or 3, the game is played to
+// 21 on one basket, and it is ranked on its own board.
+//
+// A discriminator rather than a Sport value, so every surface that reads
+// `sport == BASKETBALL` (search, radar, career stats, profile stat cards,
+// notifications) keeps working, and only the places where the rules actually
+// differ have to know. See packages/core/src/basketball/variant.ts for the rules
+// this selects, and disciplineKey() for how it reaches the ranking boards.
+//
+// Ignored for every non-basketball sport.
+enum BasketballVariant {
+  FIVE_V_FIVE
+  THREE_X_THREE
+}
+
 // Where a match's result and per-player stats came from. Guards the two entry
 // paths against each other: a manual box score must never overwrite a match the
 // live tracker owns (the next tracker publish would silently revert it), and the
@@ -628,6 +645,9 @@ model Tournament {
   thumbnailUrl   String?
   status         TournamentStatus @default(UPCOMING)
   format         TournamentFormat @default(TEAM)
+  // Basketball only. The default makes every existing tournament 5v5, which is
+  // what they all were.
+  variant        BasketballVariant @default(FIVE_V_FIVE)
   minRosterSize  Int?
   maxRosterSize  Int?
   // Knockout third-place playoff. The stored default (used at draw generation and
@@ -663,6 +683,11 @@ model TrackerSession {
   id           String               @id @default(uuid())
   tournamentId String               @unique
   sport        Sport
+  // Snapshotted from the tournament when the session is created, alongside
+  // `sport`, for the same reason: the fold that decides what a basket was worth
+  // must not change under a tournament that is edited mid-competition. A game
+  // scored to 21 stays scored to 21.
+  variant      BasketballVariant    @default(FIVE_V_FIVE)
   format       TrackerBracketFormat
   groups       Json? // [{ id, name, teamIds[] }] for LEAGUE / MIXED
   bracket      Json? // knockout structure: { stages[], slots[] }

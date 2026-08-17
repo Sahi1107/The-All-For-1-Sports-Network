@@ -13,9 +13,10 @@
 
 import prisma from '../config/db';
 import {
-  foldEvents, toSnapshot,
+  foldEvents, toSnapshot, rulesFor,
   type TrackerEvent as CoreTrackerEvent,
   type BasketballSnapshot as BasketballStateSnapshot,
+  type BasketballVariant,
 } from '@af1/core';
 
 export type { BasketballSnapshot as BasketballStateSnapshot } from '@af1/core';
@@ -57,12 +58,16 @@ export function buildSnapshot(events: CoreTrackerEvent[], opts: {
   homeTeamId: string | null;
   awayTeamId: string | null;
   quarterSeconds: number;
+  /** Which code the match was played under. Absent ⇒ 5v5, which is what every
+   *  match logged before 3x3 existed was. */
+  variant?: BasketballVariant;
 }): BasketballStateSnapshot {
   return toSnapshot(
     foldEvents(events, {
       homeTeamId: opts.homeTeamId,
       awayTeamId: opts.awayTeamId,
       quarterMs: opts.quarterSeconds * 1000,
+      variant: opts.variant,
     }),
     opts.quarterSeconds,
   );
@@ -89,7 +94,7 @@ export async function materializeBasketballState(matchId: string): Promise<{
     where: { id: matchId },
     select: {
       id: true, homeTeamId: true, awayTeamId: true,
-      session: { select: { sport: true, config: true } },
+      session: { select: { sport: true, variant: true, config: true } },
     },
   });
   if (!match || match.session.sport !== 'BASKETBALL') return null;
@@ -104,10 +109,14 @@ export async function materializeBasketballState(matchId: string): Promise<{
   if (rows.length === 0) return null;
 
   const config = (match.session.config ?? {}) as { quarterSeconds?: number };
+  const variant = match.session.variant as BasketballVariant;
   const snapshot = buildSnapshot(rows.map(toCoreEvent), {
     homeTeamId: match.homeTeamId,
     awayTeamId: match.awayTeamId,
-    quarterSeconds: config.quarterSeconds ?? 720,
+    // A 3x3 period is 10 minutes, not 12 — the fold clamps court time to it, so
+    // taking the 5v5 default here would credit minutes nobody played.
+    quarterSeconds: config.quarterSeconds ?? rulesFor(variant).defaultPeriodSeconds,
+    variant,
   });
 
   let homeScore = 0;

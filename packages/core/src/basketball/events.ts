@@ -15,12 +15,35 @@
 // carries its court coordinates, "remove a wrong entry" is a soft-delete of one
 // id, and a per-player shot chart is a filter.
 
-/** Stat-producing actions. Split 2PT from 3PT so a shot's value is intrinsic to
- *  its kind rather than something the fold has to infer from coordinates. */
+import { type ShotValues, rulesFor } from './variant';
+
+/** Point values for the default code, so existing callers of pointsFor() that
+ *  predate 3x3 keep scoring 2/3/1 without having to pass anything. */
+const FIVE_V_FIVE_VALUES: ShotValues = rulesFor('FIVE_V_FIVE').values;
+
+/**
+ * Stat-producing actions. Split inside-arc from behind-arc so a shot's ZONE is
+ * intrinsic to its kind rather than something the fold has to infer from
+ * coordinates.
+ *
+ * THE NAMES SAY "FG2"/"FG3" AND MEAN "INSIDE"/"BEHIND". They were coined when
+ * 5v5 was the only code, where the two coincide. In 3x3 the same two zones are
+ * worth 1 and 2, so the value is NOT in the kind — it comes from the variant's
+ * rules (see variant.ts) and is applied by the fold.
+ *
+ * The names were kept rather than migrated because the kind is a stored wire
+ * value: renaming it would rewrite every event row ever logged, and would make a
+ * tournament whose variant is corrected after tip-off need a data migration
+ * instead of a config change. `shotZone()` below is the name to reach for in new
+ * code.
+ */
 export type ShotKind =
   | 'FG2_MADE' | 'FG2_MISS'
   | 'FG3_MADE' | 'FG3_MISS'
   | 'FT_MADE' | 'FT_MISS';
+
+/** Where a shot was taken from, independent of what it was worth. */
+export type ShotZone = 'INSIDE_ARC' | 'BEHIND_ARC' | 'FREE_THROW';
 
 export type NonShotKind =
   | 'AST' | 'OREB' | 'DREB' | 'STL' | 'BLK' | 'TO' | 'PF';
@@ -63,14 +86,39 @@ export function isFieldGoal(kind: string): boolean {
 export function isMade(kind: string): boolean {
   return kind === 'FG2_MADE' || kind === 'FG3_MADE' || kind === 'FT_MADE';
 }
-/** Points a shot kind is worth (0 for a miss). */
-export function pointsFor(kind: string): number {
+
+/** The zone a shot kind belongs to, or null if it isn't a shot. */
+export function shotZone(kind: string): ShotZone | null {
   switch (kind) {
-    case 'FG3_MADE': return 3;
-    case 'FG2_MADE': return 2;
-    case 'FT_MADE': return 1;
+    case 'FG2_MADE': case 'FG2_MISS': return 'INSIDE_ARC';
+    case 'FG3_MADE': case 'FG3_MISS': return 'BEHIND_ARC';
+    case 'FT_MADE': case 'FT_MISS': return 'FREE_THROW';
+    default: return null;
+  }
+}
+
+/**
+ * Points a shot kind is worth under a given code (0 for a miss).
+ *
+ * `values` comes from the variant's rules — 2/3/1 in 5v5, 1/2/1 in 3x3. It
+ * defaults to 5v5 so every existing caller keeps its behaviour, but anything
+ * that can see a 3x3 match MUST pass the right values or it will score the game
+ * on the wrong scale.
+ */
+export function pointsFor(kind: string, values: ShotValues = FIVE_V_FIVE_VALUES): number {
+  switch (kind) {
+    case 'FG3_MADE': return values.behindArc;
+    case 'FG2_MADE': return values.insideArc;
+    case 'FT_MADE': return values.freeThrow;
     default: return 0;
   }
+}
+
+/** Points a made shot from this zone is worth — what a UI labels a button with. */
+export function zoneValue(zone: ShotZone, values: ShotValues = FIVE_V_FIVE_VALUES): number {
+  if (zone === 'BEHIND_ARC') return values.behindArc;
+  if (zone === 'INSIDE_ARC') return values.insideArc;
+  return values.freeThrow;
 }
 
 /** Which basket a team is attacking. Stored per shot so the chart stays correct

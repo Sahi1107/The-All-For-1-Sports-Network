@@ -37,6 +37,33 @@
 .bb2-board-fouls { font-size: 11px; color: #9ca3af; letter-spacing: 0.02em; }
 .bb2-board-fouls.bonus { color: #fca5a5; font-weight: 700; }
 
+/* 3x3 only: how many more points close the game out. The single most important
+   number on a target-score scoreboard, so it gets the accent rather than the
+   muted treatment the foul line has. */
+.bb2-board-target {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  color: #7dd3fc; text-transform: uppercase;
+}
+
+/* The end-of-game prompts. Deliberately a banner with a button rather than an
+   automatic transition — the scorer confirms the result. */
+.bb2-endgame {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin-top: 10px; padding: 12px 16px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.bb2-endgame strong { font-size: 16px; color: #fff; }
+.bb2-endgame span { color: #cbd5e1; font-size: 13px; }
+.bb2-endgame button { margin-left: auto; }
+.bb2-endgame.won {
+  background: linear-gradient(180deg, rgba(34, 197, 94, 0.16), rgba(34, 197, 94, 0.06));
+  border-color: rgba(34, 197, 94, 0.4);
+}
+.bb2-endgame.tied {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.16), rgba(245, 158, 11, 0.06));
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
 .bb2-board-score {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 44px; line-height: 1; font-variant-numeric: tabular-nums;
@@ -126,6 +153,12 @@
 .bb-court-wrap { position: relative; border-radius: 10px; overflow: hidden; }
 .bb-court-wrap.armed { box-shadow: 0 0 0 2px #38bdf8, 0 0 24px rgba(56, 189, 248, 0.45); }
 .bb-court-wrap.armed .bb-court { cursor: crosshair; }
+
+/* A 3x3 floor is 15 × 11 — nearly square, where a 5v5 floor is close to 2:1.
+   Given the full column width it would tower over the action bar and push the
+   entry controls off-screen, so it is capped and centred instead. The tap
+   targets staying visible is what the whole layout is for. */
+.bb-court-wrap.half { max-width: min(100%, 620px); margin: 0 auto; }
 
 /* The armed banner sits ON the court and is click-through: it tells the analyst
    what's pending without ever swallowing the click that completes it. */

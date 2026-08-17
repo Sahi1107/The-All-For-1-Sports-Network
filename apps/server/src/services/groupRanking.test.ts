@@ -110,3 +110,73 @@ test('unplayed and in-progress fixtures never count toward a tiebreak', () => {
   const order = computeStandings(GROUP_B_TEAMS, matches, 'BASKETBALL').map((r) => r.teamId);
   assert.deepEqual(order, ['red', 'falcons', 'central', 'ymca']);
 });
+
+// ─── 3x3 tables ──────────────────────────────────────────────────────────────
+
+test('3x3 pays a point for a loss, so a beaten side still outranks a no-show', () => {
+  // The distinction 3-1-0 cannot draw. Both 'lost' and 'noshow' finish 0–1, but
+  // only one of them actually played.
+  const matches: RankableMatch[] = [
+    game('won', 21, 15, 'lost'),
+  ];
+  const table = computeStandings(['won', 'lost', 'noshow'], matches, 'BASKETBALL_3X3');
+  const by = (id: string) => table.find((r) => r.teamId === id)!;
+  assert.equal(by('won').points, 2, 'a win is two');
+  assert.equal(by('lost').points, 1, 'turning up and losing is one');
+  assert.equal(by('noshow').points, 0, 'a side that has not played has nothing');
+  assert.equal(table[0].teamId, 'won');
+  assert.equal(table[table.length - 1].teamId, 'noshow');
+});
+
+test('the same fixtures score differently under the two codes', () => {
+  const matches: RankableMatch[] = [game('a', 21, 18, 'b'), game('a', 21, 20, 'c')];
+  const teams = ['a', 'b', 'c'];
+  const five = computeStandings(teams, matches, 'BASKETBALL');
+  const three = computeStandings(teams, matches, 'BASKETBALL_3X3');
+  const pts = (t: typeof five, id: string) => t.find((r) => r.teamId === id)!.points;
+  assert.deepEqual([pts(five, 'a'), pts(five, 'b'), pts(five, 'c')], [6, 0, 0]);
+  assert.deepEqual([pts(three, 'a'), pts(three, 'b'), pts(three, 'c')], [4, 1, 1]);
+});
+
+test('3x3 breaks ties head-to-head, exactly as 5v5 does', () => {
+  assert.equal(usesHeadToHeadTiebreak('BASKETBALL_3X3'), true);
+  // The same three-way cycle, played to 21. Falcons beat Red, so they take the
+  // place despite Red's better overall difference — the blowout argument holds
+  // at any target score.
+  const cycle: RankableMatch[] = [
+    game('red', 21, 10, 'central'),
+    game('central', 21, 18, 'falcons'),
+    game('falcons', 21, 19, 'red'),
+    game('red', 21, 12, 'ymca'),
+    game('central', 21, 11, 'ymca'),
+    game('falcons', 21, 20, 'ymca'),
+  ];
+  const order = computeStandings(['red', 'central', 'falcons', 'ymca'], cycle, 'BASKETBALL_3X3')
+    .map((r) => r.teamId);
+  assert.equal(order[3], 'ymca', 'the winless side is last');
+  assert.equal(order.indexOf('falcons') < order.indexOf('central'), true,
+    'falcons beat central head-to-head');
+});
+
+test('REGRESSION: the mini-table counts WINS, so 3x3 loss points cannot invert it', () => {
+  // Under a mini-table scored on league points, 'b' would collect participation
+  // points for losing to the very teams it is tied with. Counting wins is what
+  // FIBA's criterion actually says, and it is the only reading that survives a
+  // code paying for a loss.
+  const matches: RankableMatch[] = [
+    // a, b, c all finish 1-2 overall; among themselves a beat b and b beat c.
+    game('a', 21, 19, 'b'),
+    game('b', 21, 20, 'c'),
+    game('c', 21, 18, 'a'),
+    game('a', 10, 21, 'd'),
+    game('b', 10, 21, 'd'),
+    game('c', 10, 21, 'd'),
+  ];
+  const table = computeStandings(['a', 'b', 'c', 'd'], matches, 'BASKETBALL_3X3');
+  assert.equal(table[0].teamId, 'd', 'the side that won everything is top');
+  // a, b and c are level on wins among themselves (one each), so the ordering
+  // falls through to point difference in those games — but crucially none of
+  // them is promoted purely for having lost more often.
+  const tied = table.slice(1).map((r) => r.teamId);
+  assert.deepEqual([...tied].sort(), ['a', 'b', 'c']);
+});

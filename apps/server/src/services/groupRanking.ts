@@ -50,15 +50,41 @@ export interface RankableMatch {
 const isPlayed = (status: string): boolean => status === 'COMPLETED' || status === 'PUBLISHED';
 
 /**
- * Sports whose ties are decided on head-to-head results before overall figures.
+ * Disciplines whose ties are decided on head-to-head results before overall
+ * figures.
  *
  * Basketball only, for now: FIBA is explicit about it, and it is the sport whose
  * group tables here actually reach a knockout. Football keeps the FIFA ordering
  * it already had — changing that quietly would re-rank finished tournaments in a
  * sport nobody asked about.
+ *
+ * BOTH basketball codes. The blowout argument applies to a game played to 21
+ * exactly as it does to one played to 80, and FIBA 3x3 breaks ties head-to-head
+ * as well.
  */
-export function usesHeadToHeadTiebreak(sport?: string | null): boolean {
-  return sport === 'BASKETBALL';
+export function usesHeadToHeadTiebreak(discipline?: string | null): boolean {
+  return discipline === 'BASKETBALL' || discipline === 'BASKETBALL_3X3';
+}
+
+/**
+ * League-table points for one result, by discipline.
+ *
+ * 3x3 is the odd one out and deliberately so: FIBA 3x3 awards TWO for a win and
+ * ONE for a loss, because a side that turns up and loses must finish above one
+ * that forfeits — a distinction 3-1-0 cannot draw, since it pays a walkover and
+ * a one-point defeat the same nothing.
+ *
+ * The consequence to expect in a 3x3 table: every side that plays gains points,
+ * so the points column separates teams less than a 3-1-0 league's does and the
+ * head-to-head tiebreak below does correspondingly more of the work. That is the
+ * rule working, not the table failing to sort.
+ */
+export function resultPoints(
+  discipline: string | null | undefined,
+  result: 'win' | 'draw' | 'loss',
+): number {
+  if (discipline === 'BASKETBALL_3X3') return result === 'win' ? 2 : 1;
+  return result === 'win' ? 3 : result === 'draw' ? 1 : 0;
 }
 
 /** Overall ordering: record, then how they did across the whole group. */
@@ -89,8 +115,17 @@ function headToHeadOrder<T extends RankableRow>(tied: T[], matches: RankableMatc
   if (tied.length <= 1) return tied;
 
   // The mini round-robin: ONLY games in which both sides are still tied.
+  //
+  // WINS, not league points. FIBA's first criterion is "games won among the tied
+  // teams", and counting wins is the only reading that survives both codes: 3x3
+  // pays a point for a LOSS, so a mini-table scored on league points would give
+  // a team credit for turning up and losing to the very side it is tied with —
+  // and where the tied teams have played unequal numbers of games against each
+  // other (an unfinished group), those participation points do not cancel and
+  // can invert the order outright. For 5v5 this changes nothing: basketball has
+  // no draws, so 3-1-0 was already three times the win count.
   const ids = new Set(tied.map((t) => t.teamId));
-  const mini = new Map(tied.map((t) => [t.teamId, { points: 0, for: 0, against: 0 }]));
+  const mini = new Map(tied.map((t) => [t.teamId, { wins: 0, for: 0, against: 0 }]));
   for (const m of matches) {
     if (!isPlayed(m.status) || !m.homeTeamId || !m.awayTeamId) continue;
     if (!ids.has(m.homeTeamId) || !ids.has(m.awayTeamId)) continue;
@@ -98,9 +133,8 @@ function headToHeadOrder<T extends RankableRow>(tied: T[], matches: RankableMatc
     const a = mini.get(m.awayTeamId)!;
     h.for += m.homeScore; h.against += m.awayScore;
     a.for += m.awayScore; a.against += m.homeScore;
-    if (m.homeScore > m.awayScore) h.points += 3;
-    else if (m.awayScore > m.homeScore) a.points += 3;
-    else { h.points += 1; a.points += 1; }
+    if (m.homeScore > m.awayScore) h.wins += 1;
+    else if (m.awayScore > m.homeScore) a.wins += 1;
   }
 
   const stat = (row: T) => mini.get(row.teamId)!;
@@ -110,7 +144,7 @@ function headToHeadOrder<T extends RankableRow>(tied: T[], matches: RankableMatc
   // rebuilt sub-table; we do NOT carry on down this list with figures that
   // include a team which has already been separated out.
   const CRITERIA: ((row: T) => number)[] = [
-    (row) => stat(row).points,                    // games won among the tied teams
+    (row) => stat(row).wins,                      // games won among the tied teams
     (row) => stat(row).for - stat(row).against,   // point difference in those games
     (row) => stat(row).for,                       // points scored in those games
   ];

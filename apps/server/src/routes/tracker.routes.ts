@@ -3,10 +3,13 @@ import { Prisma, type TrackerEvent as TrackerEventRow } from '@prisma/client';
 import prisma from '../config/db';
 import {
   pointsFor,
+  rulesFor,
+  disciplineKey,
   type TrackerEvent as CoreTrackerEvent,
   type EventKind,
   type Basket,
   type ControlPayload,
+  type BasketballVariant,
 } from '@af1/core';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireTournamentAccess, fromParamTournamentId, fromBodyTournamentId, fromTrackerMatchId } from '../middleware/tournamentAccess';
@@ -182,11 +185,28 @@ async function propagateBracket(
   }
 }
 
+/**
+ * Fill in the period length the code is actually played to, unless the organiser
+ * set one.
+ *
+ * A 3x3 period is 10 minutes where a 5v5 quarter is 12. The fold clamps court
+ * time to this value, so leaving the 5v5 default in place on a 3x3 session would
+ * credit two minutes nobody played to every line in the box score.
+ */
+function withVariantDefaults(
+  config: Record<string, unknown> | undefined,
+  variant: BasketballVariant,
+): Record<string, unknown> {
+  const rules = rulesFor(variant);
+  return { ...(config ?? {}), quarterSeconds: config?.quarterSeconds ?? rules.defaultPeriodSeconds };
+}
+
 /** For MIXED sessions: once every group match is finished, seed the first
  *  knockout round from group standings. No-op if already seeded or incomplete. */
 async function maybeSeedKnockout(session: {
   id: string;
   sport: string;
+  variant: string;
   groups: unknown;
   bracket: unknown;
   config: unknown;
@@ -220,7 +240,9 @@ async function maybeSeedKnockout(session: {
     computeStandings(
       g.teamIds,
       groupMatches.filter((m) => m.groupId === g.id),
-      session.sport,
+      // The discipline, not the bare sport: 3x3 pays a point for a loss, so the
+      // table it seeds from is not the same table 5v5 would produce.
+      disciplineKey(session.sport, session.variant),
     ),
   );
   const order = seedOrderFromGroups(groups, standings, advancePerGroup);
@@ -307,7 +329,7 @@ router.post(
 
       const tournament = await prisma.tournament.findUnique({
         where: { id: tournamentId },
-        select: { id: true, sport: true, name: true },
+        select: { id: true, sport: true, variant: true, name: true },
       });
       if (!tournament) {
         res.status(404).json({ error: 'Tournament not found' });
@@ -366,10 +388,13 @@ router.post(
         data: {
           tournamentId,
           sport: tournament.sport,
+          // Snapshotted alongside sport: editing the tournament later must not
+          // silently re-score games that have already been played to 21.
+          variant: tournament.variant,
           format,
           groups: draw.groups as object,
           bracket: (draw.bracket as object) ?? undefined,
-          config: (config as object) ?? undefined,
+          config: (withVariantDefaults(config, tournament.variant) as object) ?? undefined,
           roster: roster as object,
           createdById: req.user!.userId,
           matches: {
@@ -1067,16 +1092,18 @@ async function recomputeScoresFromEvents(
   matchId: string,
   homeTeamId: string | null,
   awayTeamId: string | null,
+  variant: BasketballVariant,
 ): Promise<{ homeScore: number; awayScore: number }> {
   const rows = await prisma.trackerEvent.findMany({
     where: { matchId, deletedAt: null },
     orderBy: { seq: 'asc' },
     select: { kind: true, teamId: true },
   });
+  const values = rulesFor(variant).values;
   let homeScore = 0;
   let awayScore = 0;
   for (const r of rows) {
-    const pts = pointsFor(r.kind);
+    const pts = pointsFor(r.kind, values);
     if (!pts) continue;
     if (r.teamId && r.teamId === homeTeamId) homeScore += pts;
     else if (r.teamId && r.teamId === awayTeamId) awayScore += pts;
@@ -1126,7 +1153,12 @@ router.post(
 
       const match = await prisma.trackerMatch.findUnique({
         where: { id },
-        select: { id: true, status: true, homeTeamId: true, awayTeamId: true },
+        select: {
+          id: true, status: true, homeTeamId: true, awayTeamId: true,
+          // The code decides what an event is worth — 2 in 5v5, 1 in 3x3 for the
+          // same tap — and this route writes the score column.
+          session: { select: { variant: true } },
+        },
       });
       if (!match) {
         res.status(404).json({ error: 'Match not found' });
@@ -1174,7 +1206,9 @@ router.post(
 
       // Keep the score columns in step. Additive, so the cheap path is exact.
       let scores: { homeScore: number; awayScore: number } | null = null;
-      const pts = pointsFor(body.kind);
+      // Under the match's OWN code: the identical tap is 2 in 5v5 and 1 in 3x3,
+      // and this column is what standings and bracket advancement read.
+      const pts = pointsFor(body.kind, rulesFor(match.session.variant).values);
       if (pts > 0 && body.teamId) {
         const side = body.teamId === match.homeTeamId ? 'homeScore'
           : body.teamId === match.awayTeamId ? 'awayScore' : null;
@@ -1223,7 +1257,12 @@ router.delete(
 
       const match = await prisma.trackerMatch.findUnique({
         where: { id },
-        select: { id: true, status: true, homeTeamId: true, awayTeamId: true },
+        select: {
+          id: true, status: true, homeTeamId: true, awayTeamId: true,
+          // The code decides what an event is worth — 2 in 5v5, 1 in 3x3 for the
+          // same tap — and this route writes the score column.
+          session: { select: { variant: true } },
+        },
       });
       if (!match) {
         res.status(404).json({ error: 'Match not found' });
@@ -1248,7 +1287,9 @@ router.delete(
         });
       }
 
-      const scores = await recomputeScoresFromEvents(id, match.homeTeamId, match.awayTeamId);
+      const scores = await recomputeScoresFromEvents(
+        id, match.homeTeamId, match.awayTeamId, match.session.variant,
+      );
       const payload = { eventId, ...scores };
       try {
         getIO().to(`tracker:${id}`).emit('tracker:event:removed', payload);
@@ -1470,7 +1511,7 @@ router.post(
 async function boxScoreFixture(trackerMatchId: string) {
   const trackerMatch = await prisma.trackerMatch.findUnique({
     where: { id: trackerMatchId },
-    include: { session: { select: { tournamentId: true, sport: true, roster: true } } },
+    include: { session: { select: { tournamentId: true, sport: true, variant: true, roster: true } } },
   });
   if (!trackerMatch) throw new BoxScoreError('Fixture not found', 'NOT_FOUND');
   if (!trackerMatch.homeTeamId || !trackerMatch.awayTeamId) {
@@ -1585,7 +1626,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const trackerMatch = await boxScoreFixture(req.params.id as string);
-      const { tournamentId, sport } = trackerMatch.session;
+      const { tournamentId, sport, variant } = trackerMatch.session;
       const homeTeamId = trackerMatch.homeTeamId!;
       const awayTeamId = trackerMatch.awayTeamId!;
       const b = req.body as {
@@ -1599,7 +1640,9 @@ router.post(
       await assertBoxScoreRosters(tournamentId, homeTeamId, awayTeamId, b.home, b.away);
 
       const result = await publishBoxScore({
-        tournamentId, sport,
+        // The code the fixture was played under: a 3x3 sheet is scored 1/2/1, so
+        // validating it as 5v5 would reject a correct 21-point game.
+        tournamentId, sport, variant,
         homeTeamId, awayTeamId,
         boxScore: { home: b.home, away: b.away },
         // The fixture owns the when/where; a box score supplies numbers, not

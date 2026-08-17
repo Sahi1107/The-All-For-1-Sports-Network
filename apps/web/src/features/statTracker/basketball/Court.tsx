@@ -1,66 +1,84 @@
 import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
-import {
-  COURT_LENGTH_M, COURT_WIDTH_M, BASKET_INSET_M, THREE_RADIUS_M, CORNER_INSET_M,
-  KEY_WIDTH_M, KEY_DEPTH_M, CIRCLE_RADIUS_M, RESTRICTED_RADIUS_M, HALF_LENGTH_M,
-} from '@af1/core';
+import { courtFor, type CourtGeometry, type BasketballVariant } from '@af1/core';
 
 // The court is drawn in metres and scaled by the viewBox, so every line sits
 // exactly where @af1/core's geometry says it does. A click therefore lands on
 // the same coordinates the shot chart will later plot it at — if this were
 // hand-tuned in pixels the two would drift and shots would render off-spot.
+//
+// ONE COMPONENT, TWO FLOORS. A 5v5 court is 28 × 15 with a basket at each end; a
+// 3x3 court is 15 × 11 with one. Both are read from the CourtGeometry the
+// variant selects, so the markings, the click mapping and the chart can never
+// disagree about which floor is being played on.
 
 /** Line colour/width shared by both the entry court and the chart. */
 const LINE = 'rgba(255,255,255,0.55)';
 const LINE_W = 0.08;
 
 /** Where the arc meets the straight corner section, as a depth from baseline. */
-const CORNER_HALF_SPAN = COURT_WIDTH_M / 2 - CORNER_INSET_M;
-const ARC_MEETS_CORNER_DEPTH =
-  BASKET_INSET_M + Math.sqrt(Math.max(0, THREE_RADIUS_M ** 2 - CORNER_HALF_SPAN ** 2));
+function cornerGeometry(geo: CourtGeometry) {
+  const halfSpan = geo.widthM / 2 - geo.cornerInsetM;
+  return {
+    halfSpan,
+    arcMeetsDepth: geo.basketInsetM + Math.sqrt(Math.max(0, geo.threeRadiusM ** 2 - halfSpan ** 2)),
+  };
+}
 
 /**
  * One end's markings, drawn from the baseline at x = 0 running to +x.
  * `flip` mirrors it onto the far end so a single definition serves both.
  */
-function HalfCourtMarkings({ flip = false }: { flip?: boolean }) {
-  const t = flip ? `translate(${COURT_LENGTH_M} 0) scale(-1 1)` : undefined;
-  const cy = COURT_WIDTH_M / 2;
+function HalfCourtMarkings({ geo, flip = false }: { geo: CourtGeometry; flip?: boolean }) {
+  const t = flip ? `translate(${geo.lengthM} 0) scale(-1 1)` : undefined;
+  const cy = geo.widthM / 2;
+  const { halfSpan, arcMeetsDepth } = cornerGeometry(geo);
   // The 3pt arc: from where it meets one corner line, round to the other.
   const arc = [
-    `M ${ARC_MEETS_CORNER_DEPTH} ${cy - CORNER_HALF_SPAN}`,
-    `A ${THREE_RADIUS_M} ${THREE_RADIUS_M} 0 0 1 ${ARC_MEETS_CORNER_DEPTH} ${cy + CORNER_HALF_SPAN}`,
+    `M ${arcMeetsDepth} ${cy - halfSpan}`,
+    `A ${geo.threeRadiusM} ${geo.threeRadiusM} 0 0 1 ${arcMeetsDepth} ${cy + halfSpan}`,
   ].join(' ');
 
   return (
     <g transform={t} fill="none" stroke={LINE} strokeWidth={LINE_W}>
       {/* corner threes — straight sections from the baseline to the arc */}
-      <line x1={0} y1={cy - CORNER_HALF_SPAN} x2={ARC_MEETS_CORNER_DEPTH} y2={cy - CORNER_HALF_SPAN} />
-      <line x1={0} y1={cy + CORNER_HALF_SPAN} x2={ARC_MEETS_CORNER_DEPTH} y2={cy + CORNER_HALF_SPAN} />
+      <line x1={0} y1={cy - halfSpan} x2={arcMeetsDepth} y2={cy - halfSpan} />
+      <line x1={0} y1={cy + halfSpan} x2={arcMeetsDepth} y2={cy + halfSpan} />
       <path d={arc} />
       {/* key + free-throw circle */}
-      <rect x={0} y={cy - KEY_WIDTH_M / 2} width={KEY_DEPTH_M} height={KEY_WIDTH_M} />
-      <circle cx={KEY_DEPTH_M} cy={cy} r={CIRCLE_RADIUS_M} />
+      <rect x={0} y={cy - geo.keyWidthM / 2} width={geo.keyDepthM} height={geo.keyWidthM} />
+      <circle cx={geo.keyDepthM} cy={cy} r={geo.circleRadiusM} />
       {/* no-charge semicircle + backboard + ring */}
-      <path d={`M ${BASKET_INSET_M} ${cy - RESTRICTED_RADIUS_M} A ${RESTRICTED_RADIUS_M} ${RESTRICTED_RADIUS_M} 0 0 1 ${BASKET_INSET_M} ${cy + RESTRICTED_RADIUS_M}`} />
+      <path d={`M ${geo.basketInsetM} ${cy - geo.restrictedRadiusM} A ${geo.restrictedRadiusM} ${geo.restrictedRadiusM} 0 0 1 ${geo.basketInsetM} ${cy + geo.restrictedRadiusM}`} />
       <line x1={1.2} y1={cy - 0.9} x2={1.2} y2={cy + 0.9} strokeWidth={LINE_W * 1.6} />
-      <circle cx={BASKET_INSET_M} cy={cy} r={0.225} />
+      <circle cx={geo.basketInsetM} cy={cy} r={0.225} />
     </g>
   );
 }
 
-/** Full-court outline, centre line and centre circle. */
-function CourtBase() {
-  const cy = COURT_WIDTH_M / 2;
+/**
+ * The playing area's outline plus its markings.
+ *
+ * A two-basket floor gets both ends, a centre line and a centre circle. A
+ * one-basket floor gets neither: 3x3 has no halfway line to draw and no jump
+ * ball at centre, so drawing them would render a court that does not exist.
+ */
+function CourtBase({ geo }: { geo: CourtGeometry }) {
+  const cy = geo.widthM / 2;
+  const mid = geo.lengthM / 2;
   return (
     <>
       <rect
-        x={0} y={0} width={COURT_LENGTH_M} height={COURT_WIDTH_M}
+        x={0} y={0} width={geo.lengthM} height={geo.widthM}
         fill="url(#af1-court-floor)" stroke={LINE} strokeWidth={LINE_W}
       />
-      <line x1={HALF_LENGTH_M} y1={0} x2={HALF_LENGTH_M} y2={COURT_WIDTH_M} stroke={LINE} strokeWidth={LINE_W} />
-      <circle cx={HALF_LENGTH_M} cy={cy} r={CIRCLE_RADIUS_M} fill="none" stroke={LINE} strokeWidth={LINE_W} />
-      <HalfCourtMarkings />
-      <HalfCourtMarkings flip />
+      {geo.twoBaskets && (
+        <>
+          <line x1={mid} y1={0} x2={mid} y2={geo.widthM} stroke={LINE} strokeWidth={LINE_W} />
+          <circle cx={mid} cy={cy} r={geo.circleRadiusM} fill="none" stroke={LINE} strokeWidth={LINE_W} />
+        </>
+      )}
+      <HalfCourtMarkings geo={geo} />
+      {geo.twoBaskets && <HalfCourtMarkings geo={geo} flip />}
     </>
   );
 }
@@ -78,7 +96,7 @@ function FloorGradient() {
 }
 
 export interface CourtClick {
-  /** Normalised to the full court as rendered, 0..1 on each axis. */
+  /** Normalised to the rendered playing area, 0..1 on each axis. */
   x: number;
   y: number;
 }
@@ -88,11 +106,14 @@ export interface CourtClick {
  * what that means (it's only live while a shot is armed).
  */
 export function EntryCourt({
+  variant,
   armed,
   onPick,
   overlay,
   children,
 }: {
+  /** Which floor to draw. Absent ⇒ 5v5. */
+  variant?: BasketballVariant | null;
   /** Whether a shot is waiting for a location. Drives the cursor and the glow. */
   armed: boolean;
   onPick: (p: CourtClick) => void;
@@ -102,6 +123,7 @@ export function EntryCourt({
   children?: ReactNode;
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const geo = courtFor(variant);
 
   function handle(e: ReactPointerEvent<SVGSVGElement>) {
     if (!armed) return;
@@ -118,18 +140,18 @@ export function EntryCourt({
   }
 
   return (
-    <div className={`bb-court-wrap${armed ? ' armed' : ''}`}>
+    <div className={`bb-court-wrap${armed ? ' armed' : ''}${geo.twoBaskets ? '' : ' half'}`}>
       <svg
         ref={svgRef}
         className="bb-court"
-        viewBox={`0 0 ${COURT_LENGTH_M} ${COURT_WIDTH_M}`}
+        viewBox={`0 0 ${geo.lengthM} ${geo.widthM}`}
         preserveAspectRatio="xMidYMid meet"
         onPointerDown={handle}
         role={armed ? 'button' : undefined}
         aria-label={armed ? 'Click the spot the shot was taken from' : 'Court'}
       >
         <FloorGradient />
-        <CourtBase />
+        <CourtBase geo={geo} />
         {children}
       </svg>
       {overlay}
@@ -137,25 +159,28 @@ export function EntryCourt({
   );
 }
 
-/** A half-court frame for shot charts. Baseline at the bottom, midcourt at top. */
-export function HalfCourt({ children }: { children?: ReactNode }) {
+/** A half-court frame for shot charts. Baseline at the bottom, far edge at top. */
+export function HalfCourt({ variant, children }: {
+  variant?: BasketballVariant | null;
+  children?: ReactNode;
+}) {
+  const geo = courtFor(variant);
   return (
     <svg
       className="bb-halfcourt"
-      // Rotated presentation: width = court width, height = half the length,
+      // Rotated presentation: width = court width, height = the charted depth,
       // with the baseline along the bottom edge, which is how a shot chart reads.
-      viewBox={`0 0 ${COURT_WIDTH_M} ${HALF_LENGTH_M}`}
+      viewBox={`0 0 ${geo.widthM} ${geo.chartDepthM}`}
       preserveAspectRatio="xMidYMid meet"
     >
       <FloorGradient />
-      {/* Draw the standard half-court markings, then rotate them into the
-          chart's orientation so this shares CourtBase's geometry exactly. */}
-      <g transform={`rotate(-90) translate(${-HALF_LENGTH_M} 0) scale(1 1)`}>
-        <rect x={0} y={0} width={HALF_LENGTH_M} height={COURT_WIDTH_M} fill="url(#af1-court-floor)" stroke={LINE} strokeWidth={LINE_W} />
-        <HalfCourtMarkings />
+      {/* Draw the standard markings, then rotate them into the chart's
+          orientation so this shares CourtBase's geometry exactly. */}
+      <g transform={`rotate(-90) translate(${-geo.chartDepthM} 0) scale(1 1)`}>
+        <rect x={0} y={0} width={geo.chartDepthM} height={geo.widthM} fill="url(#af1-court-floor)" stroke={LINE} strokeWidth={LINE_W} />
+        <HalfCourtMarkings geo={geo} />
       </g>
       {children}
     </svg>
   );
 }
-

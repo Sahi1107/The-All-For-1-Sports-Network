@@ -310,6 +310,7 @@ export default function TournamentManage() {
         <BoxScoreModal
           tournamentId={id!}
           sport={t.sport}
+          variant={t.variant}
           teams={boxScoreTeams}
           matchId={editBoxScore ?? undefined}
           onClose={() => { setShowBoxScore(false); setEditBoxScore(null); }}

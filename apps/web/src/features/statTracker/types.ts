@@ -2,6 +2,8 @@
 // server stores on TrackerMatch.state and what server/src/services/trackerStats.ts
 // reads at publish time — keep the field names in sync with that file.
 
+import type { BasketballVariant } from '@af1/core';
+
 export type TrackerFormat = 'LEAGUE' | 'KNOCKOUT' | 'MIXED';
 export type TrackerSport = 'BASKETBALL' | 'FOOTBALL';
 export type TrackerMatchStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'PUBLISHED';
@@ -65,6 +67,11 @@ export interface TrackerSession {
   id: string;
   tournamentId: string;
   sport: TrackerSport;
+  /**
+   * Which basketball code. Absent on a session created before 3x3 existed (and
+   * on every football session), which reads as 5v5 through rulesFor().
+   */
+  variant?: BasketballVariant | null;
   format: TrackerFormat;
   groups: GroupDef[] | null;
   bracket: BracketDef | null;
@@ -78,6 +85,8 @@ export interface TrackerConfig {
   advancePerGroup?: number;
   thirdPlace?: boolean;
   halfLengthSeconds?: number;
+  /** Length of one period. A 3x3 period is 10 minutes, a 5v5 quarter 12 — the
+   *  server fills the right default in when a session is created. */
   quarterSeconds?: number;
 }
 

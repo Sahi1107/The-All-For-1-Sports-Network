@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
-import type { DerivedShot } from '@af1/core';
-import { COURT_LENGTH_M, COURT_WIDTH_M, HALF_LENGTH_M } from '@af1/core';
+import type { DerivedShot, BasketballVariant, CourtGeometry } from '@af1/core';
+import { courtFor, rulesFor } from '@af1/core';
 import { HalfCourt } from './Court';
 
 /** Where a half-court point sits in the HalfCourt viewBox. */
-function halfCourtXY(hx: number, hy: number): { cx: number; cy: number } {
+function halfCourtXY(hx: number, hy: number, geo: CourtGeometry): { cx: number; cy: number } {
   return {
-    cx: hx * COURT_WIDTH_M,
-    // hy runs baseline→midcourt, but the chart puts the baseline at the BOTTOM,
+    cx: hx * geo.widthM,
+    // hy runs baseline→far edge, but the chart puts the baseline at the BOTTOM,
     // so it inverts.
-    cy: HALF_LENGTH_M - hy * HALF_LENGTH_M,
+    cy: geo.chartDepthM - hy * geo.chartDepthM,
   };
 }
 
@@ -32,35 +32,47 @@ interface HoverState {
 /**
  * Team or player shot chart.
  *
- * Both ends of the floor fold onto one half-court frame (see @af1/core's
+ * In 5v5 both ends of the floor fold onto one half-court frame (see @af1/core's
  * toHalfCourt), so a team's whole game reads as a single picture rather than two
- * half-empty ones that swap over at the interval.
+ * half-empty ones that swap over at the interval. In 3x3 there is only ever one
+ * end, so the frame IS the court and nothing is folded.
  */
 export function ShotChart({
   shots,
   lookup,
   title,
+  variant,
   emptyHint = 'No field-goal attempts recorded yet.',
 }: {
   shots: DerivedShot[];
   lookup: ShotPlayerLookup;
   title?: string;
+  /** The code being played — sets the floor and what a made shot is worth. */
+  variant?: BasketballVariant | null;
   emptyHint?: string;
 }) {
   const [hover, setHover] = useState<HoverState | null>(null);
+  const geo = courtFor(variant);
+  const rules = rulesFor(variant);
 
   const summary = useMemo(() => {
     const made = shots.filter((s) => s.made).length;
-    const three = shots.filter((s) => s.value === 3);
-    const threeMade = three.filter((s) => s.made).length;
+    // Filtered on ZONE, not on point value: in 3x3 a behind-the-arc shot is
+    // worth 2, which is what an inside-the-arc shot is worth in 5v5 — matching
+    // on the number would put layups in the "long range" column.
+    const deep = shots.filter((s) => s.zone === 'BEHIND_ARC');
+    const deepMade = deep.filter((s) => s.made).length;
     return {
       made,
       attempts: shots.length,
       pct: shots.length ? Math.round((made / shots.length) * 100) : 0,
-      threeMade,
-      threeAtt: three.length,
+      deepMade,
+      deepAtt: deep.length,
     };
   }, [shots]);
+
+  // "3PT" in 5v5, "2PT" in 3x3 — the same zone, named for what it pays here.
+  const deepLabel = `${rules.values.behindArc}PT`;
 
   return (
     <div className="bb-chart">
@@ -69,14 +81,14 @@ export function ShotChart({
           <strong>{title}</strong>
           <span className="bb-chart-sum">
             {summary.made}/{summary.attempts} FG ({summary.pct}%)
-            {summary.threeAtt > 0 && <> · {summary.threeMade}/{summary.threeAtt} 3PT</>}
+            {summary.deepAtt > 0 && <> · {summary.deepMade}/{summary.deepAtt} {deepLabel}</>}
           </span>
         </div>
       )}
       <div className="bb-chart-box" onPointerLeave={() => setHover(null)}>
-        <HalfCourt>
+        <HalfCourt variant={variant}>
           {shots.map((s) => {
-            const { cx, cy } = halfCourtXY(s.half.hx, s.half.hy);
+            const { cx, cy } = halfCourtXY(s.half.hx, s.half.hy, geo);
             return (
               <g key={s.eventId}>
                 {/* A wider transparent disc under each marker: the visible dot is
@@ -87,8 +99,8 @@ export function ShotChart({
                   style={{ cursor: 'pointer' }}
                   onPointerEnter={() => setHover({
                     shot: s,
-                    left: (cx / COURT_WIDTH_M) * 100,
-                    top: (cy / (COURT_LENGTH_M / 2)) * 100,
+                    left: (cx / geo.widthM) * 100,
+                    top: (cy / geo.chartDepthM) * 100,
                   })}
                 />
                 {s.made ? (
@@ -111,6 +123,7 @@ export function ShotChart({
           <ShotTooltip
             shot={hover.shot}
             who={lookup(hover.shot.playerId)}
+            periodLabel={rules.periodLabel}
             left={hover.left}
             top={hover.top}
           />
@@ -122,9 +135,10 @@ export function ShotChart({
   );
 }
 
-function ShotTooltip({ shot, who, left, top }: {
+function ShotTooltip({ shot, who, periodLabel, left, top }: {
   shot: DerivedShot;
   who: { name: string; jersey: number | null } | undefined;
+  periodLabel: string;
   left: number;
   top: number;
 }) {
@@ -147,10 +161,11 @@ function ShotTooltip({ shot, who, left, top }: {
         {who?.name ?? 'Unknown player'}
       </span>
       <span className={`bb-tip-result ${shot.made ? 'made' : 'miss'}`}>
+        {/* The value under THIS code — a corner shot reads 2PT in 3x3, 3PT in 5v5. */}
         {shot.value}PT {shot.made ? 'MADE' : 'MISS'}
       </span>
       <span className="bb-tip-meta">
-        Q{shot.quarter} · {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')} ·{' '}
+        {periodLabel}{shot.quarter} · {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')} ·{' '}
         {shot.half.distanceM.toFixed(1)}m
       </span>
     </div>
@@ -158,15 +173,19 @@ function ShotTooltip({ shot, who, left, top }: {
 }
 
 /**
- * Live shot markers drawn on the full entry court, so an analyst can see what
- * they've already logged this game without leaving the entry surface.
+ * Live shot markers drawn on the entry court, so an analyst can see what they've
+ * already logged this game without leaving the entry surface.
  */
-export function LiveShotLayer({ shots }: { shots: DerivedShot[] }) {
+export function LiveShotLayer({ shots, variant }: {
+  shots: DerivedShot[];
+  variant?: BasketballVariant | null;
+}) {
+  const geo = courtFor(variant);
   return (
     <g pointerEvents="none">
       {shots.map((s) => {
-        const cx = s.x * COURT_LENGTH_M;
-        const cy = s.y * COURT_WIDTH_M;
+        const cx = s.x * geo.lengthM;
+        const cy = s.y * geo.widthM;
         return s.made ? (
           <circle key={s.eventId} cx={cx} cy={cy} r={0.3} fill={MADE} fillOpacity={0.75} />
         ) : (

@@ -16,8 +16,10 @@
 // game on every board. The pure pieces (scoreBoard/rankBoard) carry no DB
 // dependency and unit-test directly; recalculate persists via an injectable db.
 import prismaDefault from '../config/db';
-import type { Sport } from '@prisma/client';
-import { RANKING_CONFIG, FOUL_OUT_LIMIT, applyTransform, normalizeScore, type Board } from '@af1/core';
+import type { Sport, BasketballVariant } from '@prisma/client';
+import {
+  RANKING_CONFIG, FOUL_OUT_LIMIT, applyTransform, normalizeScore, disciplineKey, type Board,
+} from '@af1/core';
 
 export type RankSport = 'BASKETBALL' | 'FOOTBALL' | 'CRICKET';
 const RANK_SPORTS = new Set<string>(['BASKETBALL', 'FOOTBALL', 'CRICKET']);
@@ -78,7 +80,10 @@ export function rankBoard(board: Board, rows: Array<Record<string, unknown>>): R
 
 // Minimal Prisma shape this service touches — injectable so tests need no DB.
 export interface RankingDb {
-  tournament: { findUnique: (a: { where: { id: string }; select: { sport: true } }) => Promise<{ sport: Sport } | null> };
+  tournament: {
+    findUnique: (a: { where: { id: string }; select: { sport: true; variant: true } })
+      => Promise<{ sport: Sport; variant: BasketballVariant | null } | null>;
+  };
   user: { findMany: (a: { where: { id: { in: string[] } }; select: { id: true; position: true } }) => Promise<Array<{ id: string; position: string | null }>> };
   playerRanking: {
     deleteMany: (a: { where: { tournamentId: string } }) => Promise<unknown>;
@@ -99,24 +104,33 @@ export async function recalculateTournamentRankings(
   tournamentId: string,
   db: RankingDb = prismaDefault as unknown as RankingDb,
 ): Promise<number> {
-  const tournament = await db.tournament.findUnique({ where: { id: tournamentId }, select: { sport: true } });
+  const tournament = await db.tournament.findUnique({ where: { id: tournamentId }, select: { sport: true, variant: true } });
   if (!tournament) return 0;
   const sport = tournament.sport as string;
+  // 3x3 is the same sport but a different competition, scored on a different
+  // scale (a basket is 1 or 2, a game ends at 21). It gets its own board — see
+  // RANKING_CONFIG.BASKETBALL_3X3 — while the stats table, the sport filter and
+  // everything else stay shared.
+  const discipline = disciplineKey(sport, tournament.variant);
+  const isThreeXThree = discipline === 'BASKETBALL_3X3';
 
   // Always clear first, so an un-publish (or a sport with no boards) leaves nothing stale.
   await db.playerRanking.deleteMany({ where: { tournamentId } });
   if (!RANK_SPORTS.has(sport)) return 0;
 
-  const cfg = RANKING_CONFIG[sport];
+  const cfg = RANKING_CONFIG[discipline];
   const rows = await db[MODEL_BY_SPORT[sport as RankSport]].findMany({ where: { tournamentId } });
   if (!rows.length) return 0;
 
-  // Position per player (for grouping) + foul-out flag (basketball only).
+  // Position per player (for grouping) + foul-out flag (5v5 basketball only).
   const userIds = [...new Set(rows.map((r) => r.userId).filter((id): id is string => typeof id === 'string'))];
   const users = userIds.length ? await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, position: true } }) : [];
   const positionOf = new Map(users.map((u) => [u.id, u.position]));
   const fouledOut = new Set<string>();
-  if (sport === 'BASKETBALL') {
+  // 3x3 does not disqualify a player on personal fouls at all, so the flag is
+  // never set there — showing "fouled out" against a player who was entitled to
+  // keep playing would be a false accusation on a public leaderboard.
+  if (sport === 'BASKETBALL' && !isThreeXThree) {
     for (const r of rows) {
       if (typeof r.userId === 'string' && n(r.personalFouls) >= FOUL_OUT_LIMIT) fouledOut.add(r.userId);
     }

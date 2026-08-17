@@ -12,6 +12,7 @@ import { writeMatchPlayerStats } from '../services/matchStats';
 import { notify } from '../services/notifications/notify';
 import { isStatSport, CAREER_STAT_FIELDS, type StatSport } from '../data/careerStats';
 import { computeStandings, type BracketDef } from '../services/trackerDraw';
+import { disciplineKey } from '@af1/core';
 import {
   bracketHasSemis, thirdPlaceMatch, thirdPlaceRemovalNeedsConfirm, applyThirdPlaceChange,
 } from '../services/thirdPlace';
@@ -75,7 +76,7 @@ router.post(
   async (req: AuthRequest, res: Response) => {
     try {
       const {
-        name, sport, category, description, venue, city,
+        name, sport, variant, category, description, venue, city,
         startDate, endDate, prizePool, entryFee, maxTeams,
         ageCategory, genderCategory, format, minRosterSize, maxRosterSize,
       } = req.body;
@@ -101,6 +102,8 @@ router.post(
           thumbnailUrl,
           status: 'UPCOMING',
           format: format ?? 'TEAM',
+          // Basketball only; every other sport keeps the default and ignores it.
+          variant: sport === 'BASKETBALL' ? (variant ?? 'FIVE_V_FIVE') : 'FIVE_V_FIVE',
           minRosterSize: minRosterSize != null ? parseInt(minRosterSize) : null,
           maxRosterSize: maxRosterSize != null ? parseInt(maxRosterSize) : null,
           createdById: req.user!.userId,
@@ -574,7 +577,9 @@ router.get('/:id/fixtures', authenticate, async (req: AuthRequest, res: Response
       const standings = computeStandings(
         g.teamIds,
         gMatches.map((m) => ({ homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId, homeScore: m.homeScore, awayScore: m.awayScore, status: m.status })),
-        session.sport,
+        // 3x3 pays a point for a loss, so its public table is not the table the
+        // bare sport would produce — and this is the one the viewer sees.
+        disciplineKey(session.sport, session.variant),
       );
       return { id: g.id, name: g.name, teamIds: g.teamIds, standings, matches: gMatches.map(lite) };
     });

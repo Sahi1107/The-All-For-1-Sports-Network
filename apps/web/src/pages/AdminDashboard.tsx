@@ -52,6 +52,8 @@ const TOURNAMENT_FORMATS = [
 interface TournamentForm {
   name: string;
   sport: string;
+  /** Basketball code — 'FIVE_V_FIVE' | 'THREE_X_THREE'. Ignored for other sports. */
+  variant: string;
   description: string;
   venue: string;
   city: string;
@@ -68,7 +70,7 @@ interface TournamentForm {
 }
 
 const emptyTournamentForm: TournamentForm = {
-  name: '', sport: 'BASKETBALL', description: '', venue: '', city: '',
+  name: '', sport: 'BASKETBALL', variant: 'FIVE_V_FIVE', description: '', venue: '', city: '',
   startDate: '', endDate: '', entryFee: '', prizePool: '', maxTeams: '',
   ageCategory: '', genderCategory: '',
   format: 'TEAM', minRosterSize: '', maxRosterSize: '',
@@ -592,6 +594,9 @@ export default function AdminDashboard() {
       const fd = new FormData();
       fd.append('name', tournamentForm.name);
       fd.append('sport', tournamentForm.sport);
+      // Basketball only. Sent always so the server sees an explicit value; it
+      // forces 5v5 for every other sport regardless.
+      fd.append('variant', tournamentForm.variant);
       // Backend expects ISO-8601. <input type="date"> gives YYYY-MM-DD, so we
       // append a fixed time-of-day to keep the payload well-formed.
       fd.append('startDate', new Date(`${tournamentForm.startDate}T00:00:00Z`).toISOString());
@@ -1159,6 +1164,33 @@ export default function AdminDashboard() {
                   </select>
                 </div>
               </div>
+
+              {/* Basketball code. Offered only for basketball, and only at
+                  creation: it fixes what a basket is worth, how a game ends and
+                  which ranking board the tournament scores on, so changing it
+                  after fixtures exist would re-score played games. */}
+              {tournamentForm.sport === 'BASKETBALL' && (
+                <div>
+                  <label className="block text-sm text-gray-custom mb-2">Format *</label>
+                  <select
+                    required
+                    value={tournamentForm.variant}
+                    onChange={(e) => setTournamentForm((f) => ({ ...f, variant: e.target.value }))}
+                    className="w-full px-4 py-2.5 bg-surface border border-line rounded-lg focus:outline-none focus:border-primary text-foreground text-sm"
+                  >
+                    <option value="FIVE_V_FIVE">5v5 — full court, 4 quarters</option>
+                    <option value="THREE_X_THREE">3x3 — half court, first to 21</option>
+                  </select>
+                  <p className="text-xs text-gray-custom mt-1.5">
+                    {tournamentForm.variant === 'THREE_X_THREE'
+                      ? 'FIBA 3x3: one basket, 1 point inside the arc and 2 behind it, first to 21 or 10 minutes. Ranked on its own board.'
+                      : 'FIBA 5v5: full court, 2 and 3 points, four quarters.'}
+                  </p>
+                  <p className="text-xs text-amber-400/80 mt-1">
+                    Cannot be changed after the tournament is created.
+                  </p>
+                </div>
+              )}
 
               {/* Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

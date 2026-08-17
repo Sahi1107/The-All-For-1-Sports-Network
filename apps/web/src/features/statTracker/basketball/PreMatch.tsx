@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { BasketballRules } from '@af1/core';
 import type { RosterTeam } from '../types';
 import type { JerseyEdit } from '../useTrackerMatch';
 
@@ -146,24 +147,32 @@ function StartersCol({ team, sel, set, need }: {
   );
 }
 
-/** Set the starting five for both sides. Saving emits a LINEUP_SET per team, so
- *  minutes start accruing against the log the moment the clock does. */
-export function StartersModal({ homeTeam, awayTeam, onSave, onBack }: {
+/** Set the starting lineup for both sides — five in 5v5, THREE in 3x3. Saving
+ *  emits a LINEUP_SET per team, so minutes start accruing against the log the
+ *  moment the clock does.
+ *
+ *  The count comes from the rules rather than a constant: locking it at five
+ *  would make a 3x3 fixture impossible to start, since a four-player squad can
+ *  never satisfy it. */
+export function StartersModal({ homeTeam, awayTeam, rules, onSave, onBack }: {
   homeTeam: RosterTeam; awayTeam: RosterTeam;
+  rules: BasketballRules;
   onSave: (home: string[], away: string[]) => void;
   onBack: () => void;
 }) {
-  const needH = Math.min(5, homeTeam.players.length);
-  const needA = Math.min(5, awayTeam.players.length);
+  const onCourt = rules.playersOnCourt;
+  // A short-handed squad still has to be able to start: clamp to what is there.
+  const needH = Math.min(onCourt, homeTeam.players.length);
+  const needA = Math.min(onCourt, awayTeam.players.length);
   const [h, setH] = useState<string[]>([]);
   const [a, setA] = useState<string[]>([]);
 
   return (
     <div className="bball-modal-backdrop">
       <div className="bball-modal" style={{ width: 720, maxWidth: '92vw' }}>
-        <h3 style={{ marginTop: 0 }}>Set Starting 5</h3>
+        <h3 style={{ marginTop: 0 }}>Set Starting {onCourt}</h3>
         <div style={{ color: '#9ca3af', marginTop: 4 }}>
-          Select {needH === 5 ? '5' : needH} players for each team. Use the rails either side
+          Select {needH} player{needH === 1 ? '' : 's'} for each team. Use the rails either side
           of the court to substitute during the game.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>

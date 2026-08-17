@@ -6,6 +6,7 @@ import {
   type TrackerEvent,
   type EventDraft,
   type DerivedState,
+  type BasketballVariant,
 } from '@af1/core';
 import { getTrackerEvents, appendTrackerEvent, removeTrackerEvent } from './api';
 import { retryDelayMs } from './saveState';
@@ -55,6 +56,7 @@ export function useTrackerEvents({
   homeTeamId,
   awayTeamId,
   quarterMs,
+  variant,
   enabled = true,
   local = false,
 }: {
@@ -62,6 +64,9 @@ export function useTrackerEvents({
   homeTeamId: string | null;
   awayTeamId: string | null;
   quarterMs: number;
+  /** Which basketball code — decides what each shot in the log is worth. Absent
+   *  ⇒ 5v5, which is what every match logged before 3x3 existed was. */
+  variant?: BasketballVariant | null;
   enabled?: boolean;
   /**
    * Keep the log in memory and never touch the network.
@@ -255,8 +260,8 @@ export function useTrackerEvents({
   }, []);
 
   const derived = useMemo(
-    () => foldEvents(events, { homeTeamId, awayTeamId, quarterMs }),
-    [events, homeTeamId, awayTeamId, quarterMs],
+    () => foldEvents(events, { homeTeamId, awayTeamId, quarterMs, variant: variant ?? undefined }),
+    [events, homeTeamId, awayTeamId, quarterMs, variant],
   );
 
   const unconfirmed = Object.keys(pending).length;

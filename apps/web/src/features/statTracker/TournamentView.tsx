@@ -330,6 +330,7 @@ export default function TournamentView({
         <BoxScoreModal
           tournamentId={session.tournamentId}
           sport={session.sport}
+          variant={session.variant}
           // Teams and rosters are loaded from the fixture itself, so the picker
           // list this prop feeds isn't used in fixture mode.
           teams={[]}

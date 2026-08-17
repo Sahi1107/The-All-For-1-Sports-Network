@@ -21,10 +21,14 @@ import { normalizePosition } from './positions';
 // per-board so a point guard's 85 and a centre's 85 mean comparably strong games.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A player fouls out at 5 personal fouls (FIBA) — mirrors basketball/rules.ts.
- *  Used only to FLAG a foul-out (a visible signal on profile + leaderboard); it
- *  does NOT add extra score penalty (fouls are already a small negative weight,
- *  naturally capped at this limit since the player is then ejected). */
+/** A player fouls out at 5 personal fouls (FIBA 5v5) — mirrors the 5v5 rules in
+ *  basketball/variant.ts. Used only to FLAG a foul-out (a visible signal on
+ *  profile + leaderboard); it does NOT add extra score penalty (fouls are
+ *  already a small negative weight, naturally capped at this limit since the
+ *  player is then ejected).
+ *
+ *  3x3 has NO personal-foul disqualification, so the flag never applies there —
+ *  see rankingService, which only sets it for the 5v5 board. */
 export const FOUL_OUT_LIMIT = 5;
 
 /** Optional transform applied to a raw stat before weighting. */
@@ -157,6 +161,58 @@ export const RANKING_CONFIG: Record<string, SportRanking> = {
       ] },
     ],
     groupOf: bball,
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // BASKETBALL 3x3 — a SEPARATE board, not the 5v5 one with different numbers.
+  //
+  // Four things make 5v5 weights wrong here, and each pushed a weight below:
+  //
+  //  1. THE SCALE. A basket is worth 1 or 2, not 2 or 3, and a game ends at 21.
+  //     A strong 3x3 game is 6–9 points, where a strong 5v5 game is ~20. Scoring
+  //     the two on one REF would put every 3x3 player near the bottom of a
+  //     shared board, so `points` is weighted up AND the REF is dropped to ~9.
+  //
+  //  2. POSSESSION IS THE GAME. There are no quarters to trade and no long
+  //     stretches to recover in — a 10-minute game to 21 turns on roughly 30
+  //     possessions. An offensive rebound is a whole extra possession in a game
+  //     that has few, so it carries the heaviest non-scoring weight; a turnover
+  //     hands one straight back and is penalised harder than in 5v5.
+  //
+  //  3. FEWER PASSES PER POSSESSION. Three players and a 12-second shot clock
+  //     mean far fewer assists per game, and much of the creation is a screen or
+  //     a drive that never shows up as one. Weighting assists at the 5v5 level
+  //     would leave the board measuring a stat that barely occurs; it stays a
+  //     real positive but no longer rivals scoring.
+  //
+  //  4. FOULS ARE CHEAPER. Nobody fouls out in 3x3, so a foul costs possession
+  //     and free throws but never a player's night. The penalty stays small.
+  //
+  // POSITIONLESS BY DESIGN — no position boards. Three players cover the whole
+  // floor; a "3x3 centre" is not a thing you can rank against other centres, and
+  // grouping on the profile's 5v5 position would sort players by a role they are
+  // not playing in this competition.
+  //
+  // These are DEFAULTS, tunable like the 5v5 weights above — the same one-file
+  // edit when the coach comes back with adjustments.
+  // ───────────────────────────────────────────────────────────────────────────
+  BASKETBALL_3X3: {
+    overall: {
+      key: 'OVERALL', label: 'Overall', ref: 9,
+      factors: [
+        { field: 'points', weight: 0.55 },
+        { field: 'offRebounds', weight: 0.55 },
+        { field: 'defRebounds', weight: 0.35 },
+        { field: 'steals', weight: 0.35 },
+        { field: 'blocks', weight: 0.30 },
+        { field: 'assists', weight: 0.25 },
+        { field: 'freeThrows', weight: 0.10 },
+        { field: 'turnovers', weight: -0.30 },
+        { field: 'personalFouls', weight: -0.08 },
+      ],
+    },
+    positions: [],
+    groupOf: () => null,
   },
 
   FOOTBALL: {

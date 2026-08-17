@@ -115,13 +115,18 @@ test('the guard board does not let creation bury a scoring guard (PG and SG shar
 
 // ─── Persisted recompute (injected fake db): overall + position + foul-out ────
 
-function fakeDb(sport: string, statsByCall: Array<Array<Record<string, unknown>>>, positions: Record<string, string | null> = {}): {
+function fakeDb(
+  sport: string,
+  statsByCall: Array<Array<Record<string, unknown>>>,
+  positions: Record<string, string | null> = {},
+  variant: string = 'FIVE_V_FIVE',
+): {
   db: RankingDb; created: Array<Array<Record<string, unknown>>>;
 } {
   const created: Array<Array<Record<string, unknown>>> = [];
   let call = 0;
   const db: RankingDb = {
-    tournament: { findUnique: async () => ({ sport: sport as never }) },
+    tournament: { findUnique: async () => ({ sport: sport as never, variant: variant as never }) },
     user: { findMany: async (a) => a.where.id.in.map((id) => ({ id, position: positions[id] ?? null })) },
     playerRanking: {
       deleteMany: async () => ({}),
@@ -187,7 +192,7 @@ test('UN-PUBLISH (no stats remain) clears rankings, recreates nothing', async ()
 
 test('a non-stat sport clears any stale rankings and stops', async () => {
   const db: RankingDb = {
-    tournament: { findUnique: async () => ({ sport: 'TENNIS' as never }) },
+    tournament: { findUnique: async () => ({ sport: 'TENNIS' as never, variant: 'FIVE_V_FIVE' as never }) },
     user: { findMany: async () => [] },
     playerRanking: { deleteMany: async () => ({}), createMany: async () => { throw new Error('should not create'); } },
     basketballStats: { findMany: async () => [] }, footballStats: { findMany: async () => [] }, cricketStats: { findMany: async () => [] },
@@ -200,4 +205,44 @@ test('the raw floor is 0.05 (a sub-floor average renders as ~0)', () => {
   assert.equal(isRankable(0), false);
   assert.equal(isRankable(0.04), false);
   assert.equal(isRankable(0.05), true);
+});
+
+// ─── 3x3 ranks on its own board ──────────────────────────────────────────────
+
+test('a 3x3 tournament ranks on the 3x3 board, positionless', async () => {
+  // The same profile positions as the 5v5 test above. 3x3 must NOT split them
+  // onto guard/forward/centre boards: three players cover the whole floor, so
+  // grouping on a 5v5 role sorts players by something they are not playing.
+  const { db, created } = fakeDb('BASKETBALL',
+    [[bball('pg', { assists: 4, points: 7 }), bball('big', { offRebounds: 5, defRebounds: 4, points: 8 })]],
+    { pg: 'Point Guard', big: 'Center' },
+    'THREE_X_THREE');
+  const overallCount = await recalculateTournamentRankings('t1', db);
+  const rows = created[0] as Array<{ userId: string; category: string; score: number }>;
+  assert.equal(overallCount, 2);
+  assert.deepEqual([...new Set(rows.map((r) => r.category))], ['OVERALL']);
+  assert.equal(rows.every((r) => r.score > 0 && r.score <= 100), true);
+});
+
+test('the 3x3 board scores its own scale — a 5v5 REF would bury every 3x3 player', async () => {
+  // A strong 3x3 line: 9 points (a game ends at 21), 4 offensive boards.
+  const line = { points: 9, offRebounds: 4, defRebounds: 3, assists: 2, steals: 2 };
+  const three = fakeDb('BASKETBALL', [[bball('x', line)]], {}, 'THREE_X_THREE');
+  const five = fakeDb('BASKETBALL', [[bball('x', line)]], {}, 'FIVE_V_FIVE');
+  await recalculateTournamentRankings('t1', three.db);
+  await recalculateTournamentRankings('t1', five.db);
+  const scoreOf = (c: Array<Array<Record<string, unknown>>>) =>
+    (c[0] as Array<{ category: string; score: number }>).find((r) => r.category === 'OVERALL')!.score;
+  assert.ok(scoreOf(three.created) > scoreOf(five.created),
+    'the same line reads as a strong game on the 3x3 board and a modest one on the 5v5 board');
+});
+
+test('3x3 never flags a foul-out — the code has no personal-foul limit', async () => {
+  const { db, created } = fakeDb('BASKETBALL',
+    [[bball('heavy', { points: 8, personalFouls: 6 })]], {}, 'THREE_X_THREE');
+  await recalculateTournamentRankings('t1', db);
+  const rows = created[0] as Array<{ userId: string; fouledOut: boolean }>;
+  // Six fouls would disqualify in 5v5 and is legal in 3x3. Flagging it would be
+  // a false accusation on a public leaderboard.
+  assert.equal(rows.every((r) => r.fouledOut === false), true);
 });

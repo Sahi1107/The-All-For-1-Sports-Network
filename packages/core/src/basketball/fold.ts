@@ -7,10 +7,14 @@
 // there is no local state to merge, only a log to re-fold.
 
 import {
-  type TrackerEvent, type Basket, type ControlPayload,
-  isShot, isFieldGoal, isMade, pointsFor,
+  type TrackerEvent, type Basket, type ControlPayload, type ShotZone,
+  isShot, isFieldGoal, isMade, pointsFor, shotZone,
 } from './events';
-import { toHalfCourt, type HalfCourtPoint } from './court';
+import { toHalfCourt, courtFor, type HalfCourtPoint, type CourtGeometry } from './court';
+import {
+  type BasketballVariant, type BasketballRules, type GameStatus,
+  rulesFor, gameStatus,
+} from './variant';
 
 export interface BoxScoreLine {
   teamId: string | null;
@@ -38,13 +42,19 @@ export interface DerivedShot {
   teamId: string | null;
   kind: string;
   made: boolean;
-  value: 2 | 3;
+  /** What it was actually worth under this match's code: 2 or 3 in 5v5, 1 or 2
+   *  in 3x3. A miss carries the value it WOULD have been worth, which is what a
+   *  chart legend and a tooltip need to say. */
+  value: number;
+  /** Where it came from, independent of value — the stable thing to filter on. */
+  zone: Exclude<ShotZone, 'FREE_THROW'>;
   quarter: number;
   clockMs: number;
   x: number;
   y: number;
   basket: Basket;
-  /** Projected into the one half-court frame both ends fold onto. */
+  /** Projected into the chart's frame (both ends folded together in 5v5; the
+   *  single floor as-is in 3x3). */
   half: HalfCourtPoint;
 }
 
@@ -60,25 +70,44 @@ export interface DerivedState {
   clockAnchorWallMs: number | null;
   teamFoulsHome: number[];
   teamFoulsAway: number[];
-  /** Which basket the home side is attacking right now. */
+  /**
+   * Points each side scored in each period (index = period − 1).
+   *
+   * Aggregate score can't answer "who has scored two in overtime", because 3x3
+   * overtime is won by SCORING two, not by leading by two — a side that trails
+   * by one and scores two has won. That question is only answerable per period,
+   * so the fold carries it.
+   */
+  periodPointsHome: number[];
+  periodPointsAway: number[];
+  /** Which basket the home side is attacking right now. Always 'LEFT' where the
+   *  code has a single basket. */
   homeAttacks: Basket;
   shots: DerivedShot[];
   lastSeq: number;
+  /** The code this log was folded under — so a consumer of DerivedState alone
+   *  can label, score and end the game correctly. */
+  variant: BasketballVariant;
 }
 
 export interface FoldOptions {
   homeTeamId: string | null;
   awayTeamId: string | null;
-  /** Quarter length in ms — the clock is clamped to it so a quarter someone
-   *  forgot to stop can't credit 40 minutes of court time to five players. */
+  /** Period length in ms — the clock is clamped to it so a period someone forgot
+   *  to stop can't credit 40 minutes of court time to a lineup. */
   quarterMs: number;
+  /** Which code the match is played under. Defaults to 5v5, so every log written
+   *  and every caller compiled before 3x3 existed folds exactly as it did. */
+  variant?: BasketballVariant;
 }
 
-function blankState(homeAttacks: Basket = 'LEFT'): DerivedState {
+function blankState(variant: BasketballVariant, homeAttacks: Basket = 'LEFT'): DerivedState {
   return {
     players: {}, onCourtHome: [], onCourtAway: [],
     quarter: 1, clockMs: 0, clockRunning: false, clockAnchorWallMs: null,
-    teamFoulsHome: [], teamFoulsAway: [], homeAttacks, shots: [], lastSeq: 0,
+    teamFoulsHome: [], teamFoulsAway: [],
+    periodPointsHome: [], periodPointsAway: [],
+    homeAttacks, shots: [], lastSeq: 0, variant,
   };
 }
 
@@ -91,17 +120,25 @@ function bumpQuarterArray(arr: number[], quarter: number, by: number): number[] 
   return out;
 }
 
-/** Apply one stat event's effect to a line. Kept separate so a removal is
- *  expressed as the same arithmetic with dir = -1 in tests. */
-function applyStat(line: BoxScoreLine, kind: string, dir: 1 | -1): BoxScoreLine {
+/**
+ * Apply one stat event's effect to a line. Kept separate so a removal is
+ * expressed as the same arithmetic with dir = -1 in tests.
+ *
+ * `rules` supplies the point values. The shot COUNTERS are code-independent —
+ * `tp`/`tpa` count behind-the-arc shots whatever they're worth, so FG% and the
+ * arc split stay derivable in both codes — while `pts` is the only field that
+ * moves with the variant.
+ */
+function applyStat(line: BoxScoreLine, kind: string, dir: 1 | -1, rules: BasketballRules): BoxScoreLine {
   const n = { ...line };
   const c = (v: number) => Math.max(0, v);
+  const v = rules.values;
   switch (kind) {
-    case 'FG2_MADE': n.fg = c(n.fg + dir); n.fga = c(n.fga + dir); n.pts = c(n.pts + 2 * dir); break;
+    case 'FG2_MADE': n.fg = c(n.fg + dir); n.fga = c(n.fga + dir); n.pts = c(n.pts + v.insideArc * dir); break;
     case 'FG2_MISS': n.fga = c(n.fga + dir); break;
-    case 'FG3_MADE': n.tp = c(n.tp + dir); n.tpa = c(n.tpa + dir); n.fg = c(n.fg + dir); n.fga = c(n.fga + dir); n.pts = c(n.pts + 3 * dir); break;
+    case 'FG3_MADE': n.tp = c(n.tp + dir); n.tpa = c(n.tpa + dir); n.fg = c(n.fg + dir); n.fga = c(n.fga + dir); n.pts = c(n.pts + v.behindArc * dir); break;
     case 'FG3_MISS': n.tpa = c(n.tpa + dir); n.fga = c(n.fga + dir); break;
-    case 'FT_MADE': n.ft = c(n.ft + dir); n.fta = c(n.fta + dir); n.pts = c(n.pts + dir); break;
+    case 'FT_MADE': n.ft = c(n.ft + dir); n.fta = c(n.fta + dir); n.pts = c(n.pts + v.freeThrow * dir); break;
     case 'FT_MISS': n.fta = c(n.fta + dir); break;
     case 'AST': n.ast = c(n.ast + dir); break;
     case 'OREB': n.oreb = c(n.oreb + dir); n.reb = c(n.reb + dir); break;
@@ -125,7 +162,9 @@ export function foldEvents(
   events: readonly TrackerEvent[],
   opts: FoldOptions,
 ): DerivedState {
-  const s = blankState();
+  const rules = rulesFor(opts.variant);
+  const geo: CourtGeometry = courtFor(rules.variant);
+  const s = blankState(rules.variant);
   const { homeTeamId, awayTeamId, quarterMs } = opts;
 
   let onHome = new Set<string>();
@@ -133,6 +172,8 @@ export function foldEvents(
   const players = s.players;
   let teamFoulsHome = s.teamFoulsHome;
   let teamFoulsAway = s.teamFoulsAway;
+  let periodPointsHome = s.periodPointsHome;
+  let periodPointsAway = s.periodPointsAway;
 
   const lineFor = (playerId: string, teamId: string | null): BoxScoreLine => {
     const cur = players[playerId];
@@ -206,7 +247,12 @@ export function foldEvents(
         anchorWall = wall;
         break;
       case 'PERIOD_BASKETS_SWAP':
-        homeAttacks = p.homeAttacks ?? (homeAttacks === 'LEFT' ? 'RIGHT' : 'LEFT');
+        // Ignored where the code has a single basket: there is no other end to
+        // change to, and honouring a stray swap would mirror every subsequent
+        // 3x3 shot onto the wrong side of the chart.
+        if (rules.twoBaskets) {
+          homeAttacks = p.homeAttacks ?? (homeAttacks === 'LEFT' ? 'RIGHT' : 'LEFT');
+        }
         break;
       case 'SUB': {
         advanceTo(wall);
@@ -233,23 +279,33 @@ export function foldEvents(
         // Stat event.
         if (!e.playerId) break;
         const teamId = e.teamId ?? (onHome.has(e.playerId) ? homeTeamId : onAway.has(e.playerId) ? awayTeamId : null);
-        players[e.playerId] = applyStat(lineFor(e.playerId, teamId), e.kind, 1);
+        players[e.playerId] = applyStat(lineFor(e.playerId, teamId), e.kind, 1, rules);
         if (e.kind === 'PF') {
           if (teamId === homeTeamId) teamFoulsHome = bumpQuarterArray(teamFoulsHome, e.quarter, 1);
           else if (teamId === awayTeamId) teamFoulsAway = bumpQuarterArray(teamFoulsAway, e.quarter, 1);
         }
+        const scored = pointsFor(e.kind, rules.values);
+        if (scored > 0) {
+          if (teamId === homeTeamId) periodPointsHome = bumpQuarterArray(periodPointsHome, e.quarter, scored);
+          else if (teamId === awayTeamId) periodPointsAway = bumpQuarterArray(periodPointsAway, e.quarter, scored);
+        }
         if (isShot(e.kind) && isFieldGoal(e.kind) && e.x != null && e.y != null && e.basket) {
+          const zone = shotZone(e.kind) === 'BEHIND_ARC' ? 'BEHIND_ARC' as const : 'INSIDE_ARC' as const;
           s.shots.push({
             eventId: e.id,
             playerId: e.playerId,
             teamId,
             kind: e.kind,
             made: isMade(e.kind),
-            value: pointsFor(e.kind) === 3 || e.kind === 'FG3_MISS' ? 3 : 2,
+            // The value the zone is worth under THIS code — so a missed shot
+            // still reports what it would have been worth, which is what the
+            // chart tooltip says.
+            value: zone === 'BEHIND_ARC' ? rules.values.behindArc : rules.values.insideArc,
+            zone,
             quarter: e.quarter,
             clockMs: e.clockMs,
             x: e.x, y: e.y, basket: e.basket,
-            half: toHalfCourt(e.x, e.y, e.basket),
+            half: toHalfCourt(e.x, e.y, e.basket, geo),
           });
         }
         break;
@@ -265,8 +321,32 @@ export function foldEvents(
   s.clockAnchorWallMs = clockRunning ? anchorWall : null;
   s.teamFoulsHome = teamFoulsHome;
   s.teamFoulsAway = teamFoulsAway;
+  s.periodPointsHome = periodPointsHome;
+  s.periodPointsAway = periodPointsAway;
   s.homeAttacks = homeAttacks;
   return s;
+}
+
+/**
+ * Has this match been decided on score? Reads the fold's own totals so a caller
+ * can't ask the question with a score that disagrees with the box score.
+ *
+ * Always `over: false` in a code with no target score (5v5) — there, the
+ * organiser ends the match, exactly as before.
+ */
+export function derivedGameStatus(
+  s: DerivedState,
+  homeTeamId: string | null,
+  awayTeamId: string | null,
+): GameStatus {
+  const i = s.quarter - 1;
+  return gameStatus(rulesFor(s.variant), {
+    homeScore: teamScore(s.players, homeTeamId),
+    awayScore: teamScore(s.players, awayTeamId),
+    period: s.quarter,
+    homePeriodPoints: s.periodPointsHome[i] ?? 0,
+    awayPeriodPoints: s.periodPointsAway[i] ?? 0,
+  });
 }
 
 /**
@@ -315,10 +395,19 @@ export interface BasketballSnapshot {
   players: Record<string, BoxScoreLine>;
   teamFoulsHome: number[];
   teamFoulsAway: number[];
+  periodPointsHome: number[];
+  periodPointsAway: number[];
+  /**
+   * The code this was scored under. Stamped into the blob because a snapshot
+   * outlives the session row a reader would otherwise have to join to, and a
+   * 3x3 box score read as 5v5 would double every point on it.
+   */
+  variant: BasketballVariant;
   /** Shot locations, so a finished match still charts without the log. */
   shots: {
     eventId: string; playerId: string; teamId: string | null;
-    made: boolean; value: 2 | 3; quarter: number; clockMs: number;
+    made: boolean; value: number; zone: Exclude<ShotZone, 'FREE_THROW'>;
+    quarter: number; clockMs: number;
     x: number; y: number; basket: Basket;
   }[];
   /** Marks the blob as derived, so nothing is tempted to write back to it. */
@@ -337,9 +426,13 @@ export function toSnapshot(s: DerivedState, quarterSeconds: number): BasketballS
     players: s.players,
     teamFoulsHome: s.teamFoulsHome,
     teamFoulsAway: s.teamFoulsAway,
+    periodPointsHome: s.periodPointsHome,
+    periodPointsAway: s.periodPointsAway,
+    variant: s.variant,
     shots: s.shots.map((sh) => ({
       eventId: sh.eventId, playerId: sh.playerId, teamId: sh.teamId,
-      made: sh.made, value: sh.value, quarter: sh.quarter, clockMs: sh.clockMs,
+      made: sh.made, value: sh.value, zone: sh.zone,
+      quarter: sh.quarter, clockMs: sh.clockMs,
       x: sh.x, y: sh.y, basket: sh.basket,
     })),
     derivedFromEvents: true,

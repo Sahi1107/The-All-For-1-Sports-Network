@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../api/client';
 import { createSession } from './api';
+import { rulesFor } from '@af1/core';
 import { describeDraw } from './drawPreview';
 import DrawPreviewPanel from './DrawPreviewPanel';
 import { exportTournamentExcel } from './excel';
@@ -104,6 +105,7 @@ export default function TrackerDashboard() {
         <CreateSessionForm
           tournamentId={tournamentId!}
           sport={tournament?.sport}
+          variant={tournament?.variant}
           teamCount={tournament?.teams?.length ?? 0}
           registrationOpen={isRegistrationOpen(tournament?.status)}
           defaultThirdPlace={tournament?.thirdPlace ?? true}
@@ -174,6 +176,7 @@ export default function TrackerDashboard() {
 function CreateSessionForm({
   tournamentId,
   sport,
+  variant,
   teamCount,
   registrationOpen,
   defaultThirdPlace,
@@ -181,6 +184,9 @@ function CreateSessionForm({
 }: {
   tournamentId: string;
   sport?: string;
+  /** Basketball code. Decides the default period length and what the field is
+   *  called — a 3x3 game has one 10-minute period, not four 12-minute quarters. */
+  variant?: string | null;
   teamCount: number;
   registrationOpen: boolean;
   defaultThirdPlace: boolean;
@@ -190,7 +196,11 @@ function CreateSessionForm({
   const [groupsCount, setGroupsCount] = useState(2);
   const [advancePerGroup, setAdvancePerGroup] = useState(2);
   const [thirdPlace, setThirdPlace] = useState(defaultThirdPlace);
-  const [periodMinutes, setPeriodMinutes] = useState(sport === 'BASKETBALL' ? 12 : 45);
+  const rules = rulesFor(variant);
+  const isBasketball = sport === 'BASKETBALL';
+  const [periodMinutes, setPeriodMinutes] = useState(
+    isBasketball ? Math.round(rules.defaultPeriodSeconds / 60) : 45,
+  );
   const preview = describeDraw(format, teamCount, { groupsCount, advancePerGroup });
 
   const mutation = useMutation({
@@ -202,7 +212,7 @@ function CreateSessionForm({
           groupsCount,
           advancePerGroup,
           thirdPlace,
-          ...(sport === 'BASKETBALL'
+          ...(isBasketball
             ? { quarterSeconds: periodMinutes * 60 }
             : { halfLengthSeconds: periodMinutes * 60 }),
         },
@@ -252,7 +262,13 @@ function CreateSessionForm({
 
       <div className="grid grid-cols-2 gap-4 items-end">
         <NumberField
-          label={sport === 'BASKETBALL' ? 'Quarter length (min)' : 'Half length (min)'}
+          label={
+            !isBasketball ? 'Half length (min)'
+              // 3x3 is a single period, so "quarter" would be wrong on the label
+              // and misleading about how long a fixture takes to schedule.
+              : rules.periods === 1 ? 'Period length (min)'
+                : 'Quarter length (min)'
+          }
           value={periodMinutes} min={1} max={60} onChange={setPeriodMinutes}
         />
         {showKnockout && (

@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { foldEvents, liveClockMs, formatClock, parseClockToElapsedMs, teamScore } from './fold';
+import {
+  foldEvents, liveClockMs, formatClock, parseClockToElapsedMs, teamScore,
+  derivedGameStatus, toSnapshot,
+} from './fold';
 import type { TrackerEvent, EventKind, ControlPayload } from './events';
 
 const HOME = 'team-home';
@@ -199,4 +202,170 @@ test('a stat entered for a player with no prior row creates one', () => {
   const s = foldEvents([ev('STL', { playerId: 'late-add', teamId: AWAY })], opts);
   assert.equal(s.players['late-add'].stl, 1);
   assert.equal(s.players['late-add'].teamId, AWAY);
+});
+
+// ─── 3x3 ─────────────────────────────────────────────────────────────────────
+
+const opts3 = { homeTeamId: HOME, awayTeamId: AWAY, quarterMs: QUARTER_MS, variant: 'THREE_X_THREE' as const };
+
+test('3x3 scores the SAME event kinds at 1 and 2 points', () => {
+  reset();
+  const s = foldEvents([
+    ev('FG2_MADE', { playerId: 'p1', teamId: HOME, x: 0.1, y: 0.5, basket: 'LEFT' }),
+    ev('FG3_MADE', { playerId: 'p1', teamId: HOME, x: 0.6, y: 0.5, basket: 'LEFT' }),
+    ev('FT_MADE', { playerId: 'p1', teamId: HOME }),
+  ], opts3);
+  // 1 + 2 + 1. The identical log folded as 5v5 would read 2 + 3 + 1 = 6.
+  assert.equal(s.players.p1.pts, 4);
+  assert.equal(teamScore(s.players, HOME), 4);
+});
+
+test('the shot COUNTERS are code-independent — only the points move', () => {
+  reset();
+  const log = [
+    ev('FG3_MADE', { playerId: 'p1', teamId: HOME, x: 0.6, y: 0.5, basket: 'LEFT' }),
+    ev('FG3_MISS', { playerId: 'p1', teamId: HOME, x: 0.7, y: 0.4, basket: 'LEFT' }),
+    ev('FG2_MISS', { playerId: 'p1', teamId: HOME, x: 0.1, y: 0.5, basket: 'LEFT' }),
+  ];
+  const five = foldEvents(log, opts);
+  const three = foldEvents(log, opts3);
+  // Behind-the-arc attempts count as such in both codes, so FG% and the arc
+  // split stay derivable from a published 3x3 box score.
+  for (const s of [five, three]) {
+    assert.equal(s.players.p1.tp, 1);
+    assert.equal(s.players.p1.tpa, 2);
+    assert.equal(s.players.p1.fga, 3);
+  }
+  assert.equal(five.players.p1.pts, 3);
+  assert.equal(three.players.p1.pts, 2);
+});
+
+test('a 3x3 shot carries the value its zone is worth in THIS code', () => {
+  reset();
+  const s = foldEvents([
+    ev('FG3_MISS', { playerId: 'p1', teamId: HOME, x: 0.6, y: 0.5, basket: 'LEFT' }),
+  ], opts3);
+  const shot = s.shots[0];
+  assert.equal(shot.zone, 'BEHIND_ARC');
+  // A miss still reports what it would have been worth — that is what the chart
+  // tooltip reads out.
+  assert.equal(shot.value, 2);
+  assert.equal(shot.made, false);
+});
+
+test('REGRESSION: a swap-ends event is ignored on a one-basket court', () => {
+  // 3x3 has one hoop. Honouring a stray swap — a mis-tap, or a fixture whose
+  // variant was corrected after tip-off — would mirror every later shot onto the
+  // wrong side of the chart for the rest of the game.
+  reset();
+  const s = foldEvents([ev('PERIOD_BASKETS_SWAP', { payload: { homeAttacks: 'RIGHT' } })], opts3);
+  assert.equal(s.homeAttacks, 'LEFT');
+});
+
+test('points are tallied per period — what overtime is decided on', () => {
+  reset();
+  const s = foldEvents([
+    ev('FG3_MADE', { playerId: 'p1', teamId: HOME, quarter: 1, x: 0.6, y: 0.5, basket: 'LEFT' }),
+    ev('QUARTER_SET', { payload: { quarter: 2 }, atMs: 1000 }),
+    ev('FG2_MADE', { playerId: 'p1', teamId: HOME, quarter: 2, x: 0.1, y: 0.5, basket: 'LEFT' }),
+    ev('FG2_MADE', { playerId: 'p9', teamId: AWAY, quarter: 2, x: 0.1, y: 0.5, basket: 'LEFT' }),
+  ], opts3);
+  assert.deepEqual(s.periodPointsHome, [2, 1]);
+  assert.deepEqual(s.periodPointsAway, [0, 1]);
+});
+
+test('3x3 ends at the target score; 5v5 never ends itself', () => {
+  reset();
+  // 10 behind-the-arc makes = 20, one more inside = 21.
+  const log = [];
+  for (let i = 0; i < 10; i++) {
+    log.push(ev('FG3_MADE', { playerId: 'p1', teamId: HOME, x: 0.6, y: 0.5, basket: 'LEFT' }));
+  }
+  log.push(ev('FG2_MADE', { playerId: 'p1', teamId: HOME, x: 0.1, y: 0.5, basket: 'LEFT' }));
+
+  const three = derivedGameStatus(foldEvents(log, opts3), HOME, AWAY);
+  assert.equal(three.over, true);
+  assert.equal(three.winner, 'HOME');
+  assert.equal(three.reason, 'TARGET_SCORE');
+
+  // The identical log under 5v5 is worth 33 and the game is still running — the
+  // organiser ends a 5v5 match, exactly as before.
+  const five = derivedGameStatus(foldEvents(log, opts), HOME, AWAY);
+  assert.equal(five.over, false);
+  assert.equal(five.homeToTarget, null);
+});
+
+test('the target readout counts down what is still needed', () => {
+  reset();
+  const s = foldEvents([
+    ev('FG3_MADE', { playerId: 'p1', teamId: HOME, x: 0.6, y: 0.5, basket: 'LEFT' }),
+    ev('FG2_MADE', { playerId: 'p9', teamId: AWAY, x: 0.1, y: 0.5, basket: 'LEFT' }),
+  ], opts3);
+  const g = derivedGameStatus(s, HOME, AWAY);
+  assert.equal(g.over, false);
+  assert.equal(g.homeToTarget, 19);
+  assert.equal(g.awayToTarget, 20);
+});
+
+test('3x3 overtime is won by SCORING two, not by leading by two', () => {
+  reset();
+  // Regulation ends 20–20; overtime is period 2 (3x3 has one scheduled period).
+  const log = [];
+  for (let i = 0; i < 10; i++) {
+    log.push(ev('FG3_MADE', { playerId: 'p1', teamId: HOME, quarter: 1, x: 0.6, y: 0.5, basket: 'LEFT' }));
+    log.push(ev('FG3_MADE', { playerId: 'p9', teamId: AWAY, quarter: 1, x: 0.6, y: 0.5, basket: 'LEFT' }));
+  }
+  log.push(ev('QUARTER_SET', { payload: { quarter: 2 }, atMs: 1000 }));
+
+  const level = derivedGameStatus(foldEvents(log, opts3), HOME, AWAY);
+  assert.equal(level.over, false);
+  assert.equal(level.inOvertime, true);
+
+  // One free throw in overtime: a 21–20 LEAD, and 21 is the target score — but
+  // the game is not over, because overtime is decided on points scored in it.
+  const oneFt = [...log, ev('FT_MADE', { playerId: 'p1', teamId: HOME, quarter: 2 })];
+  const after1 = derivedGameStatus(foldEvents(oneFt, opts3), HOME, AWAY);
+  assert.equal(after1.over, false, 'leading by one in OT does not end it');
+
+  const twoFt = [...oneFt, ev('FT_MADE', { playerId: 'p1', teamId: HOME, quarter: 2 })];
+  const after2 = derivedGameStatus(foldEvents(twoFt, opts3), HOME, AWAY);
+  assert.equal(after2.over, true);
+  assert.equal(after2.winner, 'HOME');
+  assert.equal(after2.reason, 'OVERTIME_TARGET');
+});
+
+test('a side that trails by one and scores two in overtime WINS', () => {
+  reset();
+  // The case a "lead by 2" reading gets wrong: away leads 21–20 into the last
+  // exchange, home scores a two and takes it 22–21.
+  const log = [];
+  for (let i = 0; i < 10; i++) {
+    log.push(ev('FG3_MADE', { playerId: 'p1', teamId: HOME, quarter: 1, x: 0.6, y: 0.5, basket: 'LEFT' }));
+    log.push(ev('FG3_MADE', { playerId: 'p9', teamId: AWAY, quarter: 1, x: 0.6, y: 0.5, basket: 'LEFT' }));
+  }
+  log.push(ev('QUARTER_SET', { payload: { quarter: 2 }, atMs: 1000 }));
+  log.push(ev('FT_MADE', { playerId: 'p9', teamId: AWAY, quarter: 2 }));
+  log.push(ev('FG3_MADE', { playerId: 'p1', teamId: HOME, quarter: 2, x: 0.6, y: 0.5, basket: 'LEFT' }));
+
+  const g = derivedGameStatus(foldEvents(log, opts3), HOME, AWAY);
+  assert.equal(g.over, true);
+  assert.equal(g.winner, 'HOME', 'scored two in OT while only one point ahead overall');
+});
+
+test('the snapshot stamps the code it was scored under', () => {
+  reset();
+  const s = foldEvents([ev('FG2_MADE', { playerId: 'p1', teamId: HOME, x: 0.1, y: 0.5, basket: 'LEFT' })], opts3);
+  const snap = toSnapshot(s, QUARTER_MS / 1000);
+  // Without this a 3x3 box score read later, with no session row to join to,
+  // would be re-derived as 5v5 and double every point on it.
+  assert.equal(snap.variant, 'THREE_X_THREE');
+  assert.equal(snap.players.p1.pts, 1);
+  assert.equal(snap.shots[0].zone, 'INSIDE_ARC');
+});
+
+test('an absent variant folds as 5v5 — every log written before 3x3 existed', () => {
+  reset();
+  const s = foldEvents([ev('FG3_MADE', { playerId: 'p1', teamId: HOME, x: 0.6, y: 0.5, basket: 'LEFT' })], opts);
+  assert.equal(s.variant, 'FIVE_V_FIVE');
+  assert.equal(s.players.p1.pts, 3);
 });

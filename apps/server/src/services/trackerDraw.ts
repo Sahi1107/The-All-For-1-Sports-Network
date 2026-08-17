@@ -4,7 +4,7 @@
 // plus the session-level `groups` and `bracket` JSON structures.
 
 import { randomUUID } from 'crypto';
-import { orderGroup } from './groupRanking';
+import { orderGroup, resultPoints } from './groupRanking';
 
 export type Stage =
   | 'group'
@@ -404,11 +404,15 @@ export interface Standing {
  * `matches` must be that group's own matches and `teamIds` its own teams —
  * basketball breaks ties on the games the tied teams played against each other,
  * which is only meaningful inside a single group.
+ *
+ * `discipline` is the sport, or 'BASKETBALL_3X3' for a 3x3 competition (see
+ * disciplineKey in @af1/core). It selects both the points scheme and the
+ * tiebreak, which differ between the two basketball codes.
  */
 export function computeStandings(
   teamIds: string[],
   matches: { homeTeamId?: string | null; awayTeamId?: string | null; homeScore: number; awayScore: number; status: string }[],
-  sport?: string | null,
+  discipline?: string | null,
 ): Standing[] {
   const table = new Map<string, Standing>();
   teamIds.forEach((id) =>
@@ -426,12 +430,15 @@ export function computeStandings(
     h.played++; a.played++;
     h.goalsFor += m.homeScore; h.goalsAgainst += m.awayScore;
     a.goalsFor += m.awayScore; a.goalsAgainst += m.homeScore;
-    if (m.homeScore > m.awayScore) { h.wins++; a.losses++; h.points += 3; }
-    else if (m.homeScore < m.awayScore) { a.wins++; h.losses++; a.points += 3; }
-    else { h.draws++; a.draws++; h.points++; a.points++; }
+    const win = resultPoints(discipline, 'win');
+    const loss = resultPoints(discipline, 'loss');
+    const draw = resultPoints(discipline, 'draw');
+    if (m.homeScore > m.awayScore) { h.wins++; a.losses++; h.points += win; a.points += loss; }
+    else if (m.homeScore < m.awayScore) { a.wins++; h.losses++; a.points += win; h.points += loss; }
+    else { h.draws++; a.draws++; h.points += draw; a.points += draw; }
   });
   table.forEach((s) => { s.goalDifference = s.goalsFor - s.goalsAgainst; });
-  return orderGroup([...table.values()], matches, sport);
+  return orderGroup([...table.values()], matches, discipline);
 }
 
 /**
