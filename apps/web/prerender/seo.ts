@@ -5,11 +5,12 @@
 import type { Block, Section } from '../src/pages/legal/LegalDoc';
 import { TERMS_DOC } from '../src/content/terms';
 import { PRIVACY_DOC } from '../src/content/privacy';
+import { DATA_FIDUCIARY_LEGAL_NAME } from '@af1/core';
 
 export const SITE = {
   url: 'https://allfor1.pro',
   name: 'All For 1',
-  legalName: 'The AllFor1 Network',
+  legalName: DATA_FIDUCIARY_LEGAL_NAME,
   // ── Canonical entity descriptions — used verbatim across EVERY surface
   //    (Organization JSON-LD, meta/OG/Twitter, marketing copy, FAQ) so search &
   //    AI engines form ONE confident, citable entity. Do not paraphrase per page. ──
@@ -61,12 +62,14 @@ function renderBlock(b: Block): string {
   }
 }
 
-function renderLegalDoc(doc: { title: string; effectiveDate: string; intro: Block[]; sections: Section[] }): string {
+function renderLegalDoc(doc: { title: string; effectiveDate: string; supersedes?: string; intro: Block[]; sections: Section[] }): string {
   const intro = doc.intro.map(renderBlock).join('');
   const sections = doc.sections
     .map((s) => `<section><h2>${esc(s.num)}. ${esc(s.title)}</h2>${s.blocks.map(renderBlock).join('')}</section>`)
     .join('');
-  return `<main><article><h1>${esc(doc.title)}</h1><p><strong>Effective:</strong> ${esc(doc.effectiveDate)}</p>${intro}${sections}</article></main>`;
+  const meta = `<strong>Effective:</strong> ${esc(doc.effectiveDate)}`
+    + (doc.supersedes ? ` · <strong>Supersedes:</strong> ${esc(doc.supersedes)}` : '');
+  return `<main><article><h1>${esc(doc.title)}</h1><p>${meta}</p>${intro}${sections}</article></main>`;
 }
 
 export interface RouteSEO {

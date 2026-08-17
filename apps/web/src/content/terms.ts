@@ -1,11 +1,17 @@
 // Shared legal-document content — the single source of truth for both the SPA
 // page (LegalDoc) and the build-time SEO prerender, so the two can't drift.
+//
+// Entity name / effective date / version come from @af1/core (one source, no
+// drift with the server's acceptance records). DigiLocker identity verification is
+// NOT yet built — its active sections are held to a forward-looking note (§3.5)
+// and go live with the feature.
 import type { Block, Section } from '../pages/legal/LegalDoc';
+import { DATA_FIDUCIARY_LEGAL_NAME as ENTITY, POLICY_EFFECTIVE_DATE, POLICY_SUPERSEDES_DATE } from '@af1/core';
 
 const INTRO: Block[] = [
   {
     kind: 'p',
-    text: 'These Terms and Conditions ("Terms") constitute a legally binding agreement between you ("User," "you," or "your") and The AllFor1 Network ("AllFor1," "we," "our," or "us"), a company registered in India, governing your access to and use of the AllFor1 platform, including all websites, mobile applications (iOS and Android), and related services (collectively, the "Platform").',
+    text: `These Terms and Conditions ("Terms") constitute a legally binding agreement between you ("User," "you," or "your") and ${ENTITY} ("AllFor1," "we," "our," or "us"), a company registered in India, governing your access to and use of the AllFor1 platform, including all websites, mobile applications (iOS and Android), and related services (collectively, the "Platform").`,
   },
   {
     kind: 'callout',
@@ -13,7 +19,11 @@ const INTRO: Block[] = [
   },
   {
     kind: 'p',
-    text: 'Your use of the Platform constitutes an "electronic record" within the meaning of the IT Act, 2000, and does not require a physical or digital signature to be binding.',
+    text: 'Your use of the Platform constitutes an "electronic record" within the meaning of the Information Technology Act, 2000 ("IT Act"), and does not require a physical or digital signature to be binding.',
+  },
+  {
+    kind: 'callout',
+    text: 'IMPORTANT: As described in Section 4.1 and Section 8, athlete profile data is shared with verified tournament recruiters and scouts. This is a core function of the Platform. AllFor1 does not sell personal data.',
   },
 ];
 
@@ -29,19 +39,19 @@ const SECTIONS: Section[] = [
     num: '2',
     title: 'Eligibility',
     blocks: [
-      { kind: 'p', text: 'You must be at least 18 years of age to independently enter into a legally binding contract under the Indian Contract Act, 1872. Users between the ages of 13 and 17 may use the Platform only with the verified consent of a parent or legal guardian, who accepts these Terms on their behalf.' },
+      { kind: 'p', text: 'You must be at least 18 years of age to independently enter into a legally binding contract under the Indian Contract Act, 1872. A person between the ages of 13 and 17 may use the Platform only through an account registered and managed by their parent or legal guardian, who accepts these Terms on the child’s behalf and provides verifiable consent under Section 9 of the Digital Personal Data Protection Act, 2023. This mirrors Section 9 of our Privacy Policy.' },
       { kind: 'p', text: 'By registering, you represent and warrant that:' },
       {
         kind: 'ul',
         items: [
           'You are at least 13 years of age',
-          'If you are between 13 and 17, your parent or legal guardian has reviewed and consented to these Terms and the Privacy Policy on your behalf',
+          'If the account relates to a person between 13 and 17, you are that person’s parent or legal guardian, you have reviewed these Terms and the Privacy Policy, and you provide consent on their behalf',
           'You have the legal capacity to enter into binding agreements under applicable Indian law',
           'You are not barred from using the Platform under any applicable law or court order',
-          'All registration information you provide is accurate, current, and complete',
+          'All registration information you provide is accurate, current, and complete, including the date of birth of any athlete on whose behalf you register',
         ],
       },
-      { kind: 'p', text: 'AllFor1 reserves the right to terminate any account where eligibility requirements are not satisfied.' },
+      { kind: 'p', text: 'AllFor1 reserves the right to terminate any account where eligibility requirements are not satisfied, or where an athlete’s stated age is found to be false.' },
     ],
   },
   {
@@ -50,8 +60,8 @@ const SECTIONS: Section[] = [
     blocks: [
       { kind: 'h3', text: '3.1 Account Creation' },
       { kind: 'p', text: 'To access the Platform, you must register and create an account by selecting your role (Athlete, Coach, Scout, Team/Academy, or Agent/Talent Manager), your primary sport, and providing personal information including your name, email address, and a secure password. Date of birth, location, and height may also be collected to enable talent-discovery features.' },
-      { kind: 'h3', text: '3.2 Role and Sport — Permanent Selection' },
-      { kind: 'p', text: 'Your selected role and primary sport are permanent and cannot be changed after registration. These fields determine your account type and the nature of data we process and share on your behalf. Choose carefully.' },
+      { kind: 'h3', text: '3.2 Role and Sport: Permanent Selection' },
+      { kind: 'p', text: 'Your selected role and primary sport are permanent and cannot be changed after registration. These fields determine your account type and the nature of the data we process and share on your behalf. Choose carefully.' },
       { kind: 'h3', text: '3.3 Account Security' },
       { kind: 'p', text: 'You are solely responsible for maintaining the confidentiality of your login credentials. You agree to:' },
       {
@@ -65,7 +75,9 @@ const SECTIONS: Section[] = [
       },
       { kind: 'p', text: 'AllFor1 shall not be liable for any loss resulting from your failure to maintain account security.' },
       { kind: 'h3', text: '3.4 Verified Badge' },
-      { kind: 'p', text: 'To earn a Verified badge, you must complete email verification, OTP-based phone verification, and provide a complete profile (name, bio, avatar, location, age, and position). AllFor1 may revoke verification status if any information is found to be false or misleading.' },
+      { kind: 'p', text: 'To earn a Verified badge, you must complete email verification, OTP-based phone verification, and provide a complete profile (name, biography, avatar, location, age, and position). AllFor1 may revoke verification status if any information is found to be false or misleading.' },
+      { kind: 'h3', text: '3.5 Identity Verification (Planned)' },
+      { kind: 'p', text: 'Separately from the Verified badge in Section 3.4, an optional Identity Verified badge obtained through DigiLocker (via the Meri Pehchaan Single Sign-On service operated by the Government of India) is planned and is not yet available. When it launches it will be optional and initiated only by you, its own consent will be captured on a dedicated screen at the point of use, and these Terms and the Privacy Policy will be updated to describe it in full before it goes live. No DigiLocker or Aadhaar-linked identity data is collected today.' },
     ],
   },
   {
@@ -78,15 +90,15 @@ const SECTIONS: Section[] = [
         kind: 'ul',
         items: [
           'Your profile data will be visible to all registered users of the Platform',
-          'Your profile data — including performance metrics, highlight videos, rankings, and contact information — will be shared with scouts, coaches, agents, and recruiters affiliated with verified tournaments on the Platform',
-          'Your personal data may be sold to third-party recruitment platforms, analytics firms, advertising networks, and API consumers as described in the Privacy Policy',
+          'Your profile data, including performance metrics, highlight videos, rankings, and public contact information, will be shared with scouts, coaches, agents, and recruiters affiliated with verified tournaments on the Platform',
           'The Radar AI feature enables coaches, scouts, and agents to discover your profile through natural-language athlete searches',
         ],
       },
       { kind: 'h3', text: '4.2 Coaches, Scouts, and Agents' },
       { kind: 'p', text: 'These roles grant access to athlete discovery tools including the Explore page, Rankings, Radar, and direct messaging with athletes and teams. Users in these roles represent and warrant that they are legitimate sports professionals with genuine recruitment or talent development purposes, and agree not to use athlete data for any other purpose.' },
+      { kind: 'p', text: 'Users in these roles further agree that where an athlete is under the age of 18, all contact will be conducted in a manner consistent with applicable child protection law and, where required, through the athlete’s parent, legal guardian, or affiliated academy.' },
       { kind: 'h3', text: '4.3 Teams and Academies' },
-      { kind: 'p', text: 'Team/Academy accounts represent club or organisational entities. These accounts may recruit athletes and connect with coaches, scouts, and agents through the Platform. Team accounts are not required to provide date of birth.' },
+      { kind: 'p', text: 'Team and Academy accounts represent club or organisational entities. These accounts may recruit athletes and connect with coaches, scouts, and agents through the Platform. Team accounts are not required to provide a date of birth.' },
     ],
   },
   {
@@ -100,10 +112,10 @@ const SECTIONS: Section[] = [
         items: [
           'Displaying your content to other Platform users',
           'Sharing your content with verified tournament recruiters and scouts',
-          'Making your content available to third-party API consumers and data partners',
           'Promotional and marketing materials for AllFor1 and the Platform',
         ],
       },
+      { kind: 'p', text: 'This licence terminates when you delete the User Content or your account, except to the extent the content has already been incorporated into promotional materials published before deletion, and except for reasonable backup copies retained in accordance with Section 7 of the Privacy Policy.' },
       { kind: 'h3', text: '5.2 Content Standards' },
       { kind: 'p', text: 'You agree that your User Content shall not:' },
       {
@@ -114,11 +126,11 @@ const SECTIONS: Section[] = [
           'Include obscene, sexually explicit, or graphically violent content',
           'Impersonate any person or entity or misrepresent your identity or professional credentials',
           'Constitute spam, unsolicited commercial messages, or malicious code',
-          'Violate any provision of the IT Act, 2000, the Indian Penal Code, or any other applicable law',
+          'Violate any provision of the IT Act, 2000, the Bharatiya Nyaya Sanhita, 2023, or any other applicable law',
         ],
       },
       { kind: 'h3', text: '5.3 Content Moderation' },
-      { kind: 'p', text: 'AllFor1 reserves the right (but not the obligation) to review, remove, or restrict any User Content that violates these Terms or that we reasonably believe to be harmful to the Platform or its users. As an Intermediary under Section 2(w) of the IT Act, AllFor1 will act on valid takedown notices in compliance with the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 ("Intermediary Guidelines").' },
+      { kind: 'p', text: 'AllFor1 reserves the right, but not the obligation, to review, remove, or restrict any User Content that violates these Terms or that we reasonably believe to be harmful to the Platform or its users. As an Intermediary under Section 2(w) of the IT Act, AllFor1 will act on valid takedown notices in compliance with the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021 ("Intermediary Guidelines").' },
     ],
   },
   {
@@ -126,24 +138,24 @@ const SECTIONS: Section[] = [
     title: 'Tournaments and Rankings',
     blocks: [
       { kind: 'h3', text: '6.1 Tournament Participation' },
-      { kind: 'p', text: 'The Platform provides tournament registration, management, and results tracking. By registering for a tournament, you agree to the rules and terms of the tournament organiser in addition to these Terms. AllFor1 is not responsible for conduct occurring at physical tournament venues.' },
+      { kind: 'p', text: 'The Platform provides tournament registration, management, and results tracking. By registering for a tournament, you agree to the rules and terms of the tournament organiser in addition to these Terms. AllFor1 is not responsible for conduct occurring at physical tournament venues. Eligibility determinations for age-group categories are made by the tournament organiser, not by AllFor1.' },
       { kind: 'h3', text: '6.2 Player Rankings' },
-      { kind: 'p', text: 'Player rankings are computed based on tournament participation and performance data submitted through the Platform. Rankings are publicly visible on Athlete profiles and may be shared with and sold to third-party recruitment platforms and analytics providers.' },
+      { kind: 'p', text: 'Player rankings are computed based on tournament participation and performance data submitted through the Platform. Rankings are publicly visible on Athlete profiles and may be shared with verified tournament recruiters and tournament operators under Section 8. Rankings are not sold to third parties.' },
       { kind: 'h3', text: '6.3 Recruiter Access via Tournaments' },
-      { kind: 'p', text: 'Tournament organisers and their affiliated recruitment staff who are verified on the Platform are granted access to Athlete data from their tournaments, including contact details, performance statistics, highlight videos, and profile information. An Athlete’s participation in a verified tournament constitutes explicit consent to this data access and sharing.' },
+      { kind: 'p', text: 'Tournament organisers and their affiliated recruitment staff who are verified on the Platform are granted access to Athlete data from their tournaments, including public contact details, performance statistics, highlight videos, and profile information. An Athlete’s participation in a verified tournament constitutes explicit consent to this data access and sharing.' },
     ],
   },
   {
     num: '7',
     title: 'Radar',
     blocks: [
-      { kind: 'p', text: 'Radar is an AI-powered talent discovery tool available to Scout, Coach, Agent, and Team accounts. It enables users to query the Athlete database using natural-language prompts (e.g., "Show me left-arm fast bowlers under 19 in Tamil Nadu with 20+ wickets").' },
+      { kind: 'p', text: 'Radar is an AI-powered talent discovery tool available to Scout, Coach, Agent, and Team accounts. It enables users to query the Athlete database using natural-language prompts, for example "Show me left-arm fast bowlers under 19 in Tamil Nadu with 20+ wickets".' },
       { kind: 'p', text: 'By using Radar:' },
       {
         kind: 'ul',
         items: [
           'Users in scouting and recruiting roles represent that they are using the feature solely for legitimate talent evaluation purposes',
-          'Athletes consent that their data — name, age, location, sport, position, height, statistics, and profile content — may be returned as results of Radar queries and included in reports delivered to tournament operators and third-party partners',
+          'Athletes consent that their data, including name, age, location, sport, position, height, statistics, and profile content, may be returned as results of Radar queries and included in reports delivered to verified tournament operators',
           'AllFor1 does not guarantee the accuracy, completeness, or timeliness of Radar results',
           'Users must not use Radar output to contact athletes for commercial purposes unrelated to sports recruitment',
         ],
@@ -152,20 +164,21 @@ const SECTIONS: Section[] = [
   },
   {
     num: '8',
-    title: 'Data Monetisation — Express Consent',
+    title: 'Data Sharing: Express Consent',
     blocks: [
-      { kind: 'p', text: 'In addition to the consents given under the Privacy Policy, by accepting these Terms you expressly and unconditionally consent to the following data monetisation practices of AllFor1:' },
+      { kind: 'p', text: `${ENTITY} does not sell personal data. In addition to the consents given under the Privacy Policy, by accepting these Terms you expressly consent to the following data sharing practices:` },
       {
         kind: 'ul',
         items: [
-          'Recruiter Data Sharing: AllFor1 shares your profile, performance, and contact data with verified tournament recruiters and their affiliated scouts, coaches, and agents.',
-          'Third-Party Data Sale: AllFor1 sells user personal data — including profile information, usage analytics, and content metadata — to advertising networks, API consumers, recruitment technology platforms, and market research firms for commercial consideration.',
-          'Targeted Advertising: AllFor1 uses your personal data to serve targeted advertisements on the Platform. Third-party advertisers may receive segmented or anonymised data to facilitate ad targeting.',
-          'Commercial API Access: Third parties may access structured user data via AllFor1’s commercial API, which may include athlete profiles, rankings, and event participation records.',
-          'Sports Analytics: AllFor1 and its partners analyse user data to generate sports participation insights, talent identification reports, and market analytics products for commercial sale.',
+          'Recruiter data sharing: AllFor1 shares your profile, performance, and public contact data with verified tournament recruiters and their affiliated scouts, coaches, and agents, as described in Section 5.1 of the Privacy Policy.',
+          'Tournament operator reporting: AllFor1 provides data exports and performance reports to the operators of tournaments in which you have participated.',
+          'Targeted advertising: AllFor1 may use your personal data to serve advertisements on the Platform. AllFor1 does not serve targeted or behavioural advertising to users under the age of 18.',
+          'Service providers: AllFor1 engages processors, including cloud hosting, authentication, media storage, and email delivery providers, who process data solely on AllFor1’s instructions under written data processing agreements.',
+          'Aggregated insights: AllFor1 may produce and publish aggregated or anonymised statistics about sport participation and Platform usage. Such statistics contain no identifiable personal data and are not personal data under the DPDP Act.',
         ],
       },
-      { kind: 'callout', text: 'Withdrawal of Consent: You may withdraw consent for data sale by deleting your account or submitting a written withdrawal request to info@allfor1.pro. Withdrawal is effective from the date of receipt and does not affect data already processed or sold before that date. Withdrawal of consent for data sale may limit access to certain Platform features.' },
+      { kind: 'p', text: 'Excluded from all of the above: the content of private messages exchanged between users.' },
+      { kind: 'callout', text: 'Withdrawal of consent: You may withdraw consent for any of the above by adjusting your Settings where available, by submitting a written request to info@allfor1.pro, or by deleting your account. Withdrawal is effective from the date of receipt and does not affect the lawfulness of processing carried out before that date. Withdrawal may limit access to certain Platform features.' },
     ],
   },
   {
@@ -178,13 +191,14 @@ const SECTIONS: Section[] = [
         items: [
           'Harass, threaten, stalk, or abuse other users in any manner',
           'Create fictitious profiles, impersonate another person, or misrepresent your professional credentials',
+          'Misstate an age or date of birth, or submit false documentation, in order to obtain entry to an age-group competition category',
           'Scrape, crawl, or use automated tools to extract data from the Platform without prior written authorisation from AllFor1',
           'Attempt to bypass security features, rate limits, authentication controls, or access restricted areas',
           'Upload viruses, malware, spyware, or any code designed to disrupt, damage, or gain unauthorised access',
           'Use athlete contact information obtained through the Platform for purposes other than legitimate sports recruitment or development',
-          'Transmit unsolicited commercial messages (spam) or solicit users for commercial purposes unrelated to sports',
+          'Transmit unsolicited commercial messages or solicit users for commercial purposes unrelated to sports',
           'Engage in match-fixing, doping promotion, or any activity prohibited under Indian sports law or regulations',
-          'Violate any applicable provision of Indian law, including the IT Act, the Indian Penal Code, and consumer protection regulations',
+          'Violate any applicable provision of Indian law, including the IT Act, the Bharatiya Nyaya Sanhita, 2023, and consumer protection regulations',
         ],
       },
     ],
@@ -194,16 +208,16 @@ const SECTIONS: Section[] = [
     title: 'Intellectual Property',
     blocks: [
       { kind: 'h3', text: '10.1 AllFor1 Intellectual Property' },
-      { kind: 'p', text: 'The Platform — including its software, design, branding, logos, features, and compiled content (excluding User Content) — is the exclusive property of The AllFor1 Network and is protected under the Copyright Act, 1957, the Trade Marks Act, 1999, and other applicable Indian intellectual property laws. You may not reproduce, distribute, modify, or create derivative works of Platform materials without our prior written consent.' },
+      { kind: 'p', text: `The Platform, including its software, design, branding, logos, features, and compiled content (excluding User Content), is the exclusive property of ${ENTITY} and is protected under the Copyright Act, 1957, the Trade Marks Act, 1999, and other applicable Indian intellectual property laws. You may not reproduce, distribute, modify, or create derivative works of Platform materials without our prior written consent.` },
       { kind: 'h3', text: '10.2 Feedback' },
       { kind: 'p', text: 'If you submit suggestions, ideas, or feedback about the Platform, you grant AllFor1 an irrevocable, perpetual, royalty-free licence to use such feedback in any manner and for any purpose without any obligation or compensation to you.' },
     ],
   },
   {
     num: '11',
-    title: 'Third-Party Services and Links',
+    title: 'Third-Party Services',
     blocks: [
-      { kind: 'p', text: 'The Platform integrates with third-party services including Firebase (Google LLC), Cloudinary, and others. Your use of those services is governed by their respective terms of service and privacy policies. AllFor1 is not responsible for the data practices or conduct of any third-party service provider.' },
+      { kind: 'p', text: 'The Platform integrates with third-party services, including Firebase and Google Cloud (Google LLC) for authentication, hosting, storage, and notifications, and email delivery providers for transactional communications. Your use of those services is governed by their respective terms of service and privacy policies. AllFor1 is not responsible for the data practices or conduct of any third-party service provider.' },
     ],
   },
   {
@@ -219,7 +233,7 @@ const SECTIONS: Section[] = [
     title: 'Termination',
     blocks: [
       { kind: 'h3', text: '13.1 By You' },
-      { kind: 'p', text: 'You may terminate your account at any time through Settings > Danger Zone > Delete Account, subject to password re-authentication. Upon deletion, your active profile is removed from production systems within 30 days. Data already sold or shared with third parties prior to deletion is not affected.' },
+      { kind: 'p', text: 'You may terminate your account at any time through Settings, Danger Zone, Delete Account, subject to password re-authentication. Upon deletion, your active profile is removed from production systems within 30 days. Data already shared with verified recruiters or tournament operators before deletion is not retrievable by AllFor1.' },
       { kind: 'h3', text: '13.2 By AllFor1' },
       { kind: 'p', text: 'AllFor1 may suspend or terminate your account, with or without prior notice, for violation of these Terms, fraudulent or abusive activity, harm to other users, or any other reason at AllFor1’s sole discretion. Termination does not affect any rights or obligations accrued before termination.' },
     ],
@@ -235,15 +249,15 @@ const SECTIONS: Section[] = [
     num: '15',
     title: 'Limitation of Liability',
     blocks: [
-      { kind: 'caps', text: 'TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE INDIAN LAW, ALLFOR1, ITS DIRECTORS, OFFICERS, EMPLOYEES, AGENTS, AND PARTNERS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES — INCLUDING LOSS OF PROFITS, BUSINESS, DATA, OR GOODWILL — ARISING FROM YOUR USE OF OR INABILITY TO USE THE PLATFORM. ALLFOR1’S TOTAL CUMULATIVE LIABILITY TO YOU SHALL NOT EXCEED THE GREATER OF (A) ₹10,000 (INDIAN RUPEES TEN THOUSAND ONLY) OR (B) THE TOTAL FEES, IF ANY, PAID BY YOU TO ALLFOR1 IN THE TWELVE MONTHS PRECEDING THE CLAIM.' },
-      { kind: 'p', text: 'Nothing in these Terms limits AllFor1’s liability for death or personal injury caused by negligence, fraud, or any other liability that cannot be excluded under Indian law.' },
+      { kind: 'caps', text: 'TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE INDIAN LAW, ALLFOR1, ITS DIRECTORS, OFFICERS, EMPLOYEES, AGENTS, AND PARTNERS SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING LOSS OF PROFITS, BUSINESS, DATA, OR GOODWILL, ARISING FROM YOUR USE OF OR INABILITY TO USE THE PLATFORM. ALLFOR1’S TOTAL CUMULATIVE LIABILITY TO YOU SHALL NOT EXCEED THE GREATER OF (A) ₹10,000 (INDIAN RUPEES TEN THOUSAND ONLY) OR (B) THE TOTAL FEES, IF ANY, PAID BY YOU TO ALLFOR1 IN THE TWELVE MONTHS PRECEDING THE CLAIM.' },
+      { kind: 'p', text: 'Nothing in these Terms limits AllFor1’s liability for death or personal injury caused by negligence, for fraud, or for any other liability that cannot be excluded under Indian law.' },
     ],
   },
   {
     num: '16',
     title: 'Indemnification',
     blocks: [
-      { kind: 'p', text: 'You agree to indemnify, defend, and hold harmless AllFor1 and its affiliates, directors, officers, employees, and agents from and against any claims, demands, liabilities, damages, losses, costs, and expenses (including reasonable legal fees) arising from: (a) your use of the Platform; (b) your User Content; (c) your violation of these Terms; or (d) your infringement of any third-party right.' },
+      { kind: 'p', text: 'You agree to indemnify, defend, and hold harmless AllFor1 and its affiliates, directors, officers, employees, and agents from and against any claims, demands, liabilities, damages, losses, costs, and expenses (including reasonable legal fees) arising from: (a) your use of the Platform; (b) your User Content; (c) your violation of these Terms; (d) your infringement of any third-party right; or (e) any false statement of age, identity, or eligibility made by you or on your behalf.' },
     ],
   },
   {
@@ -259,11 +273,11 @@ const SECTIONS: Section[] = [
     num: '18',
     title: 'Grievance Redressal',
     blocks: [
-      { kind: 'p', text: 'In accordance with the IT Act and the Intermediary Guidelines, AllFor1 has designated a Grievance Officer to receive and address complaints from users regarding the Platform, User Content, or data processing. Complaints are acknowledged within 24 hours and resolved within 15 days of receipt.' },
+      { kind: 'p', text: `In accordance with the IT Act and the Intermediary Guidelines, ${ENTITY} has designated a Grievance Officer to receive and address complaints from users regarding the Platform, User Content, or data processing. Complaints are acknowledged within 24 hours and resolved within 15 days of receipt. The same officer and the same timelines apply to grievances raised under the Privacy Policy.` },
       {
         kind: 'kv',
         rows: [
-          { label: 'Grievance Officer', value: 'The AllFor1 Network' },
+          { label: 'Grievance Officer', value: ENTITY },
           { label: 'Email', value: 'info@allfor1.pro', href: 'mailto:info@allfor1.pro' },
         ],
       },
@@ -287,9 +301,10 @@ const SECTIONS: Section[] = [
 ];
 
 export const TERMS_DOC = {
-  eyebrow: 'The AllFor1 Network · Legal',
+  eyebrow: 'All For 1 · Legal',
   title: 'Terms & Conditions',
-  effectiveDate: '30 April 2026',
+  effectiveDate: POLICY_EFFECTIVE_DATE,
+  supersedes: POLICY_SUPERSEDES_DATE,
   jurisdiction: 'Republic of India',
   intro: INTRO,
   sections: SECTIONS,

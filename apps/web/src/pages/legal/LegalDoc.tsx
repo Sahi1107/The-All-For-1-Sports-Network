@@ -23,6 +23,7 @@ interface LegalDocProps {
   eyebrow: string;
   title: string;
   effectiveDate: string;
+  supersedes?: string;
   jurisdiction: string;
   intro: Block[];
   sections: Section[];
@@ -37,6 +38,7 @@ export function LegalDocContent({
   eyebrow,
   title,
   effectiveDate,
+  supersedes,
   jurisdiction,
   intro,
   sections,
@@ -47,6 +49,12 @@ export function LegalDocContent({
       <h1 className="legal-title">{title}</h1>
       <p className="legal-meta">
         <span><strong>Effective:</strong> {effectiveDate}</span>
+        {supersedes && (
+          <>
+            <span className="legal-meta__sep">·</span>
+            <span><strong>Supersedes:</strong> {supersedes}</span>
+          </>
+        )}
         <span className="legal-meta__sep">·</span>
         <span><strong>Jurisdiction:</strong> {jurisdiction}</span>
       </p>
