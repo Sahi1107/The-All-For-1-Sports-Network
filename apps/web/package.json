@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run build --workspace @af1/core",
     "build": "tsc -b && vite build && cp public/_redirects dist/_redirects && npm run prerender",
     "prerender": "tsx prerender/prerender.ts",
     "lint": "eslint .",
@@ -13,6 +14,7 @@
   },
   "dependencies": {
     "@af1/api-client": "*",
+    "@af1/core": "*",
     "@capacitor/android": "^8.2.0",
     "@capacitor/app": "^8.0.1",
     "@capacitor/cli": "^8.2.0",
