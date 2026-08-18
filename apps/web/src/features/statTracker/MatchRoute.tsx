@@ -7,7 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTrackerMatch } from './useTrackerMatch';
 import { publishMatch } from './api';
 import { invalidatePublishedStats } from '../tournaments/publishedStats';
-import { exportMatchExcel } from './excel';
+import api from '../../api/client';
 import FullscreenShell from './FullscreenShell';
 import FootballMatch from './football/FootballMatch';
 import BasketballMatch from './basketball/BasketballMatch';
@@ -121,8 +121,22 @@ export default function MatchRoute() {
       {/* Publish / export bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-dark-light border-t border-dark-lighter px-4 py-3 flex items-center justify-end gap-2 z-30">
         <button
-          onClick={() => exportMatchExcel(match, session)}
-          className="flex items-center gap-2 px-4 py-2 bg-dark border border-dark-lighter hover:border-primary rounded-lg text-sm"
+          onClick={async () => {
+            if (!match.publishedMatchId) return;
+            const t = toast.loading('Building box score…');
+            try {
+              const res = await api.get(`/tournaments/matches/${match.publishedMatchId}/stats-export`, { responseType: 'blob' });
+              const fname = (res.headers['content-disposition'] as string | undefined)
+                ?.match(/filename="?([^"]+)"?/)?.[1] ?? 'box_score.xlsx';
+              const url = URL.createObjectURL(res.data as Blob);
+              const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+              URL.revokeObjectURL(url);
+              toast.dismiss(t);
+            } catch { toast.dismiss(t); toast.error('Could not build the box score'); }
+          }}
+          disabled={!match.publishedMatchId}
+          title={match.publishedMatchId ? 'Download the box score' : 'Publish the match to export its box score'}
+          className="flex items-center gap-2 px-4 py-2 bg-dark border border-dark-lighter hover:border-primary rounded-lg text-sm disabled:opacity-40"
         >
           <Download size={15} /> Download Excel
         </button>

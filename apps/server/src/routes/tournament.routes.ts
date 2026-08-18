@@ -20,7 +20,7 @@ import { recalculateTournamentRankings } from '../services/rankingService';
 import { captureException } from '../config/sentry';
 import { getOrCompute, bustTournament } from '../services/tournamentCache';
 import { deletionImpact, decideDeletion } from '../services/tournamentDeletion';
-import { buildTournamentWorkbook } from '../services/tournamentStatsExport';
+import { buildTournamentWorkbook, buildMatchExport } from '../services/tournamentStatsExport';
 import logger from '../utils/logger';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
@@ -2003,6 +2003,23 @@ router.get('/:id/stats-export', authenticate, requireTournamentAccess(fromParamI
   } catch (error) {
     logger.error('Tournament stats export error', { error: String(error) });
     res.status(500).json({ error: 'Failed to build the stats workbook' });
+  }
+});
+
+// ─── GET /api/tournaments/matches/:matchId/stats-export ──────────────────────
+// One match's box score, built server-side from the persisted stat rows — so a
+// manually-entered game exports identically to a tracker-recorded one (the old
+// client export read the tracker state and produced an empty sheet for manual
+// games). Organiser/admin only, gated by the match's tournament.
+router.get('/matches/:matchId/stats-export', authenticate, requireTournamentAccess(fromMatchId), async (req: AuthRequest, res: Response) => {
+  try {
+    const { buffer, filename } = await buildMatchExport(String(req.params.matchId));
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buffer);
+  } catch (error) {
+    logger.error('Match stats export error', { error: String(error) });
+    res.status(500).json({ error: 'Failed to build the match box score' });
   }
 });
 

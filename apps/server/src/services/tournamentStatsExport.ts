@@ -143,6 +143,53 @@ export function gamesPlayedSummary(d: ExportData) {
 
 const DEEP = (d: ExportData) => (d.variant === 'THREE_V_THREE' ? '2P' : '3P');
 
+// ── Per-match box score (shared by the tournament Box Scores sheet and the
+//    single-match export, so both render an identical box regardless of how the
+//    game was entered) ──────────────────────────────────────────────────────────
+const BB_BOX_COLS = [26, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 6, 7, 5, 6, 7, 5, 6, 7];
+const FB_BOX_COLS = [26, 6, 5, 5, 7, 8, 8, 7, 5, 5];
+
+/** One basketball game's box: a header line, then each team's per-player lines and
+ *  a TEAM total. Players are placed on their team via the roster (stat rows carry no
+ *  teamId). Works for tracker and manual games alike — it reads the stat rows. */
+function bbMatchRows(m: ExportMatch, d: ExportData, deep: string): (string | number)[][] {
+  const head = ['Player', 'MIN', 'PTS', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'FG', 'FGA', 'FG%', deep, `${deep}A`, `${deep}%`, 'FT', 'FTA', 'FT%'];
+  const label = m.round ? `${m.round}` : 'Match';
+  const out: (string | number)[][] = [];
+  out.push([`${label}: ${m.homeTeamName} ${m.homeScore}–${m.awayScore} ${m.awayTeamName}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', `(${m.statsSource === 'MANUAL' ? 'manual' : 'tracked'})`]);
+  for (const teamId of [m.homeTeamId, m.awayTeamId]) {
+    const teamName = teamId === m.homeTeamId ? m.homeTeamName : m.awayTeamName;
+    const rows = m.bb.filter((s) => teamOf(s.userId, m, d.rosters) === teamId);
+    if (!rows.length) continue;
+    out.push([teamName]); out.push(head);
+    const tot = { min: 0, pts: 0, oreb: 0, dreb: 0, reb: 0, ast: 0, stl: 0, blk: 0, to: 0, pf: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0 };
+    for (const s of rows) {
+      const fg = s.twoPointers + s.threePointers;
+      tot.min += s.minutesPlayed; tot.pts += s.points; tot.oreb += s.offRebounds; tot.dreb += s.defRebounds; tot.reb += s.rebounds;
+      tot.ast += s.assists; tot.stl += s.steals; tot.blk += s.blocks; tot.to += s.turnovers; tot.pf += s.personalFouls;
+      tot.fg += fg; tot.fga += s.fieldGoalAttempts; tot.tp += s.threePointers; tot.tpa += s.threePointAttempts; tot.ft += s.freeThrows; tot.fta += s.freeThrowAttempts;
+      out.push([d.playerName.get(s.userId) ?? s.userId, r1(s.minutesPlayed), s.points, s.offRebounds, s.defRebounds, s.rebounds, s.assists, s.steals, s.blocks, s.turnovers, s.personalFouls, fg, s.fieldGoalAttempts, pct(fg, s.fieldGoalAttempts), s.threePointers, s.threePointAttempts, pct(s.threePointers, s.threePointAttempts), s.freeThrows, s.freeThrowAttempts, pct(s.freeThrows, s.freeThrowAttempts)]);
+    }
+    out.push(['TEAM', r1(tot.min), tot.pts, tot.oreb, tot.dreb, tot.reb, tot.ast, tot.stl, tot.blk, tot.to, tot.pf, tot.fg, tot.fga, pct(tot.fg, tot.fga), tot.tp, tot.tpa, pct(tot.tp, tot.tpa), tot.ft, tot.fta, pct(tot.ft, tot.fta)]);
+  }
+  return out;
+}
+
+/** One football game's box: header line, then each team's per-player lines. */
+function fbMatchRows(m: ExportMatch, d: ExportData): (string | number)[][] {
+  const head = ['Player', 'MIN', 'G', 'A', 'Shots', 'Passes', 'Tackles', 'Saves', 'YC', 'RC'];
+  const out: (string | number)[][] = [];
+  out.push([`${m.round ?? 'Match'}: ${m.homeTeamName} ${m.homeScore}–${m.awayScore} ${m.awayTeamName}`, '', '', '', '', '', '', '', '', `(${m.statsSource === 'MANUAL' ? 'manual' : 'tracked'})`]);
+  for (const teamId of [m.homeTeamId, m.awayTeamId]) {
+    const teamName = teamId === m.homeTeamId ? m.homeTeamName : m.awayTeamName;
+    const rows = m.fb.filter((s) => teamOf(s.userId, m, d.rosters) === teamId);
+    if (!rows.length) continue;
+    out.push([teamName]); out.push(head);
+    for (const s of rows) out.push([d.playerName.get(s.userId) ?? s.userId, r1(s.minutesPlayed), s.goals, s.assists, s.shots, s.passes, s.tackles, s.saves, s.yellowCards, s.redCards]);
+  }
+  return out;
+}
+
 // ── Workbook ──────────────────────────────────────────────────────────────────
 function nameSheet() {
   const used = new Set<string>();
@@ -197,29 +244,9 @@ function buildBasketballWorkbook(d: ExportData): XLSX.WorkBook {
   XLSX.utils.book_append_sheet(wb, withCols(XLSX.utils.json_to_sheet(averages), [22, 20, 5, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]), sheet('Player Averages'));
 
   // ── Box Scores — every game, both teams, per-player line + team total ──
-  const head = ['Player', 'MIN', 'PTS', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'FG', 'FGA', 'FG%', deep, `${deep}A`, `${deep}%`, 'FT', 'FTA', 'FT%'];
   const box: (string | number)[][] = [];
-  for (const m of d.matches) {
-    const label = m.round ? `${m.round}` : 'Match';
-    box.push([`${label}: ${m.homeTeamName} ${m.homeScore}–${m.awayScore} ${m.awayTeamName}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', `(${m.statsSource === 'MANUAL' ? 'manual' : 'tracked'})`]);
-    for (const teamId of [m.homeTeamId, m.awayTeamId]) {
-      const teamName = teamId === m.homeTeamId ? m.homeTeamName : m.awayTeamName;
-      const rows = m.bb.filter((s) => teamOf(s.userId, m, d.rosters) === teamId);
-      if (!rows.length) continue;
-      box.push([teamName]); box.push(head);
-      const tot = { min: 0, pts: 0, oreb: 0, dreb: 0, reb: 0, ast: 0, stl: 0, blk: 0, to: 0, pf: 0, fg: 0, fga: 0, tp: 0, tpa: 0, ft: 0, fta: 0 };
-      for (const s of rows) {
-        const fg = s.twoPointers + s.threePointers;
-        tot.min += s.minutesPlayed; tot.pts += s.points; tot.oreb += s.offRebounds; tot.dreb += s.defRebounds; tot.reb += s.rebounds;
-        tot.ast += s.assists; tot.stl += s.steals; tot.blk += s.blocks; tot.to += s.turnovers; tot.pf += s.personalFouls;
-        tot.fg += fg; tot.fga += s.fieldGoalAttempts; tot.tp += s.threePointers; tot.tpa += s.threePointAttempts; tot.ft += s.freeThrows; tot.fta += s.freeThrowAttempts;
-        box.push([d.playerName.get(s.userId) ?? s.userId, r1(s.minutesPlayed), s.points, s.offRebounds, s.defRebounds, s.rebounds, s.assists, s.steals, s.blocks, s.turnovers, s.personalFouls, fg, s.fieldGoalAttempts, pct(fg, s.fieldGoalAttempts), s.threePointers, s.threePointAttempts, pct(s.threePointers, s.threePointAttempts), s.freeThrows, s.freeThrowAttempts, pct(s.freeThrows, s.freeThrowAttempts)]);
-      }
-      box.push(['TEAM', r1(tot.min), tot.pts, tot.oreb, tot.dreb, tot.reb, tot.ast, tot.stl, tot.blk, tot.to, tot.pf, tot.fg, tot.fga, pct(tot.fg, tot.fga), tot.tp, tot.tpa, pct(tot.tp, tot.tpa), tot.ft, tot.fta, pct(tot.ft, tot.fta)]);
-    }
-    box.push([]);
-  }
-  XLSX.utils.book_append_sheet(wb, withCols(XLSX.utils.aoa_to_sheet(box), [26, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 6, 7, 5, 6, 7, 5, 6, 7]), sheet('Box Scores'));
+  for (const m of d.matches) { box.push(...bbMatchRows(m, d, deep)); box.push([]); }
+  XLSX.utils.book_append_sheet(wb, withCols(XLSX.utils.aoa_to_sheet(box), BB_BOX_COLS), sheet('Box Scores'));
 
   // ── Per-team dashboards ──
   const teamIds = [...new Set(d.matches.flatMap((m) => [m.homeTeamId, m.awayTeamId]))];
@@ -317,20 +344,9 @@ function buildFootballWorkbook(d: ExportData): XLSX.WorkBook {
   }));
   XLSX.utils.book_append_sheet(wb, withCols(XLSX.utils.json_to_sheet(averages), [22, 20, 5, 8, 7, 7, 9, 10, 9]), sheet('Player Averages'));
 
-  const head = ['Player', 'MIN', 'G', 'A', 'Shots', 'Passes', 'Tackles', 'Saves', 'YC', 'RC'];
   const box: (string | number)[][] = [];
-  for (const m of d.matches) {
-    box.push([`${m.round ?? 'Match'}: ${m.homeTeamName} ${m.homeScore}–${m.awayScore} ${m.awayTeamName}`, '', '', '', '', '', '', '', '', `(${m.statsSource === 'MANUAL' ? 'manual' : 'tracked'})`]);
-    for (const teamId of [m.homeTeamId, m.awayTeamId]) {
-      const teamName = teamId === m.homeTeamId ? m.homeTeamName : m.awayTeamName;
-      const rows = m.fb.filter((s) => teamOf(s.userId, m, d.rosters) === teamId);
-      if (!rows.length) continue;
-      box.push([teamName]); box.push(head);
-      for (const s of rows) box.push([d.playerName.get(s.userId) ?? s.userId, r1(s.minutesPlayed), s.goals, s.assists, s.shots, s.passes, s.tackles, s.saves, s.yellowCards, s.redCards]);
-    }
-    box.push([]);
-  }
-  XLSX.utils.book_append_sheet(wb, withCols(XLSX.utils.aoa_to_sheet(box), [26, 6, 5, 5, 7, 8, 8, 7, 5, 5]), sheet('Box Scores'));
+  for (const m of d.matches) { box.push(...fbMatchRows(m, d)); box.push([]); }
+  XLSX.utils.book_append_sheet(wb, withCols(XLSX.utils.aoa_to_sheet(box), FB_BOX_COLS), sheet('Box Scores'));
 
   return wb;
 }
@@ -348,4 +364,69 @@ export async function buildTournamentWorkbook(tournamentId: string) {
   const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
   const filename = `${data.tournamentName.replace(/[^\w]+/g, '_')}_stats.xlsx`;
   return { buffer, filename, summary: gamesPlayedSummary(data) };
+}
+
+// ── Single-match export ─────────────────────────────────────────────────────────
+// Same source as everything else: the persisted stat rows. The old per-match export
+// was client-side and read the tracker `state`, so a manually-entered game exported
+// an empty sheet. This reads the stat tables, so a manual game exports identically.
+
+/** Fetch one match's box-score data — the match, its two rosters, and player names —
+ *  as a single-match ExportData. Reads BasketballStats/FootballStats, not tracker state. */
+export async function fetchMatchExportData(matchId: string): Promise<{ data: ExportData; match: ExportMatch }> {
+  const m = await prisma.match.findUniqueOrThrow({
+    where: { id: matchId },
+    select: {
+      id: true, round: true, matchDate: true, statsSource: true,
+      homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true,
+      homeTeam: { select: { name: true } }, awayTeam: { select: { name: true } },
+      tournament: { select: { name: true, sport: true, variant: true } },
+      basketballStats: true, footballStats: true,
+    },
+  });
+  const sport = m.tournament.sport as Sport;
+  const match: ExportMatch = {
+    id: m.id, round: m.round, matchDate: m.matchDate, statsSource: m.statsSource,
+    homeTeamId: m.homeTeamId, awayTeamId: m.awayTeamId,
+    homeTeamName: m.homeTeam?.name ?? 'Home', awayTeamName: m.awayTeam?.name ?? 'Away',
+    homeScore: m.homeScore, awayScore: m.awayScore,
+    bb: sport === 'BASKETBALL' ? ((m as { basketballStats?: BbRow[] }).basketballStats ?? []) : [],
+    fb: sport === 'FOOTBALL' ? ((m as { footballStats?: FbRow[] }).footballStats ?? []) : [],
+  };
+
+  const members = await prisma.teamMember.findMany({
+    where: { teamId: { in: [m.homeTeamId, m.awayTeamId] } }, select: { teamId: true, userId: true },
+  });
+  const rosters = new Map<string, Set<string>>();
+  for (const mem of members) {
+    (rosters.get(mem.teamId) ?? rosters.set(mem.teamId, new Set()).get(mem.teamId)!).add(mem.userId);
+  }
+
+  const userIds = [...new Set([...match.bb, ...match.fb].map((r) => r.userId))];
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } });
+  const playerName = new Map(users.map((u) => [u.id, u.name] as const));
+
+  const data: ExportData = { tournamentName: m.tournament.name, sport, variant: m.tournament.variant, matches: [match], rosters, playerName };
+  return { data, match };
+}
+
+/** Build a single-match box-score workbook (one sheet) from already-fetched data.
+ *  Pure — no DB. Exposed for tests. */
+export function buildMatchWorkbook(data: ExportData, match: ExportMatch): XLSX.WorkBook {
+  const wb = XLSX.utils.book_new();
+  const body = data.sport === 'FOOTBALL' ? fbMatchRows(match, data) : bbMatchRows(match, data, DEEP(data));
+  const cols = data.sport === 'FOOTBALL' ? FB_BOX_COLS : BB_BOX_COLS;
+  const aoa: (string | number)[][] = [['BOX SCORE', data.tournamentName], [], ...body];
+  XLSX.utils.book_append_sheet(wb, withCols(XLSX.utils.aoa_to_sheet(aoa), cols), 'Box Score');
+  return wb;
+}
+
+/** Build the single-match workbook straight from a match id. Returns the xlsx bytes,
+ *  a filename, and whether the game was manually entered. */
+export async function buildMatchExport(matchId: string) {
+  const { data, match } = await fetchMatchExportData(matchId);
+  const wb = buildMatchWorkbook(data, match);
+  const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  const slug = `${data.tournamentName}_${match.round ?? 'match'}`.replace(/[^\w]+/g, '_');
+  return { buffer, filename: `${slug}_box.xlsx`, statsSource: match.statsSource };
 }

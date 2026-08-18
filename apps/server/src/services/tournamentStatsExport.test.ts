@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
-import { aggregateBasketball, gamesPlayedSummary, buildWorkbook, type ExportData } from './tournamentStatsExport';
+import { aggregateBasketball, gamesPlayedSummary, buildWorkbook, buildMatchWorkbook, type ExportData } from './tournamentStatsExport';
 
 // The bug: the old export read the tracker `state`, so manually-entered games (no
 // state) were invisible — a player's games-played and stats omitted them. The fix
@@ -78,4 +78,17 @@ test('the workbook builds with the expected tabs and includes the manual game', 
   const alice = totals.find((r) => r.Player === 'Alice');
   assert.equal(alice?.PTS, 63);
   assert.equal(alice?.GP, 3);
+});
+
+test('the single-match export renders a manual game identically to a tracked one', () => {
+  const d = fixture();
+  const manual = d.matches.find((m) => m.statsSource === 'MANUAL')!; // the game the old per-match export left blank
+
+  const wb = buildMatchWorkbook({ ...d, matches: [manual] }, manual);
+  assert.deepEqual(wb.SheetNames, ['Box Score']);
+  const csv = XLSX.utils.sheet_to_csv(wb.Sheets['Box Score']);
+  assert.match(csv, /R3/, 'the match header is present');
+  assert.match(csv, /manual/, 'and it is labelled manually entered');
+  assert.match(csv, /Alice/, "the manual game's players and lines are rendered");
+  assert.match(csv, /Bob/);
 });
