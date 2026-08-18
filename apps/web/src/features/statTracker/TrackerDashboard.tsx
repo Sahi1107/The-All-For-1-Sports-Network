@@ -9,7 +9,6 @@ import { createSession } from './api';
 import { rulesFor } from '@af1/core';
 import { describeDraw } from './drawPreview';
 import DrawPreviewPanel from './DrawPreviewPanel';
-import { exportTournamentExcel } from './excel';
 import TournamentView from './TournamentView';
 import type { TrackerFormat, TrackerSession } from './types';
 import { Download, Trophy, RotateCcw, AlertTriangle, GraduationCap, Settings } from 'lucide-react';
@@ -74,7 +73,23 @@ export default function TrackerDashboard() {
           {session && (
             <>
             <button
-              onClick={() => exportTournamentExcel(session, tournament?.name ?? 'tournament')}
+              onClick={async () => {
+                // Built server-side from the persisted stat tables, so every published
+                // game is included (tracker AND manual box scores), not just tracked ones.
+                const t = toast.loading('Building workbook…');
+                try {
+                  const res = await api.get(`/tournaments/${tournamentId}/stats-export`, { responseType: 'blob' });
+                  const fname = (res.headers['content-disposition'] as string | undefined)
+                    ?.match(/filename="?([^"]+)"?/)?.[1] ?? `${tournament?.name ?? 'tournament'}_stats.xlsx`;
+                  const url = URL.createObjectURL(res.data as Blob);
+                  const a = document.createElement('a'); a.href = url; a.download = fname; a.click();
+                  URL.revokeObjectURL(url);
+                  toast.dismiss(t);
+                } catch {
+                  toast.dismiss(t);
+                  toast.error('Could not build the stats workbook');
+                }
+              }}
               className="flex items-center gap-2 px-3 py-2 bg-card border border-line hover:border-primary rounded-lg text-xs transition-colors"
             >
               <Download size={14} /> Full stats workbook

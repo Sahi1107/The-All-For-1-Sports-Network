@@ -20,6 +20,7 @@ import { recalculateTournamentRankings } from '../services/rankingService';
 import { captureException } from '../config/sentry';
 import { getOrCompute, bustTournament } from '../services/tournamentCache';
 import { deletionImpact, decideDeletion } from '../services/tournamentDeletion';
+import { buildTournamentWorkbook } from '../services/tournamentStatsExport';
 import logger from '../utils/logger';
 import {
   CreateTournamentBody, UpdateTournamentBody, TournamentListQuery,
@@ -1982,6 +1983,26 @@ router.delete('/:id/box-scores/:matchId', authenticate, requireTournamentAccess(
   } catch (error) {
     console.error('Delete box score error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── GET /api/tournaments/:id/stats-export ───────────────────────────────────
+// The full stats workbook, built server-side from the persisted stat tables so
+// EVERY published game is included regardless of how it was entered (tracker or
+// manual box score). Organiser/admin only.
+router.get('/:id/stats-export', authenticate, requireTournamentAccess(fromParamId), async (req: AuthRequest, res: Response) => {
+  try {
+    const { buffer, filename, summary } = await buildTournamentWorkbook(String(req.params.id));
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    // Surface the games-played split so a caller can confirm manual games are counted.
+    res.setHeader('X-Games-Total', String(summary.totalGames));
+    res.setHeader('X-Games-Tracker', String(summary.trackerGames));
+    res.setHeader('X-Games-Manual', String(summary.manualGames));
+    res.send(buffer);
+  } catch (error) {
+    logger.error('Tournament stats export error', { error: String(error) });
+    res.status(500).json({ error: 'Failed to build the stats workbook' });
   }
 });
 
