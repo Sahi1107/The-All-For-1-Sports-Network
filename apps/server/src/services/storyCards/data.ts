@@ -2,6 +2,7 @@ import prisma from '../../config/db';
 import { ageFromDob } from '../provisionAthlete';
 import { stateOnly } from '../og/eligibility';
 import { signMediaUrl } from '../storage';
+import { classifyMediaValue } from '../mediaUrlPolicy';
 import { isStatSport, careerTotalsForUsers, tournamentTotalsForUser, type StatSport } from '../../data/careerStats';
 
 // Data layer for shareable story cards. EVERYTHING here reads the persisted stat
@@ -78,22 +79,13 @@ export interface CardIdentity {
 
 const AVATAR_MAX_BYTES = 4 * 1024 * 1024;
 
-// Only these hosts are ever fetched server-side. `User.avatar` is not strictly
-// validated (the profile upload writes a GCS key, but the Firebase `picture`
-// claim writes whatever the identity provider supplies), and signMediaUrl passes
-// unknown http(s) values through unchanged — so without an allowlist this fetch
-// would be an SSRF primitive from inside the VPC (link-local metadata, internal
-// services). Anything else falls back to the initials avatar.
-const AVATAR_HOSTS = /(^|\.)(storage\.googleapis\.com|res\.cloudinary\.com|googleusercontent\.com)$/;
-
-/** Whether a resolved avatar URL may be fetched server-side. Exported for tests. */
+/** Whether a resolved avatar URL may be fetched server-side. Defence in depth:
+ *  the column is guarded on write (services/mediaUrlPolicy, enforced in
+ *  config/db), but this fetch reaches the network from inside the VPC, so it
+ *  re-checks rather than trusting the stored value — including legacy rows
+ *  written before that guard existed. Exported for tests. */
 export function avatarFetchAllowed(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'https:' && AVATAR_HOSTS.test(parsed.hostname);
-  } catch {
-    return false;
-  }
+  return classifyMediaValue(url) === 'allowed-host';
 }
 
 /** Fetch the avatar into a data URI so satori can embed it. Best-effort with a

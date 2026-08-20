@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { bustTournament, bustAllTournaments } from '../services/tournamentCache';
+import { assertSafeMediaWrite, GUARDED_MEDIA_FIELDS } from '../services/mediaUrlPolicy';
 
 // ── Explicit connection pool sizing ─────────────────────────────────────────
 // maxScale (8) × this must stay under the DB's usable connection budget (~47 on
@@ -36,6 +37,18 @@ const prisma = base.$extends({
   query: {
     $allModels: {
       async $allOperations({ model, operation, args, query }) {
+        // ── Media-column write guard ────────────────────────────────────────
+        // Enforced here rather than at each call site because this is the only
+        // chokepoint every write goes through, including ones written later.
+        // See services/mediaUrlPolicy for why the column must never hold an
+        // arbitrary URL (server-side readers would become an SSRF primitive).
+        if (model && WRITE_ACTIONS.has(operation) && GUARDED_MEDIA_FIELDS[model]) {
+          const a = args as { data?: unknown; create?: unknown; update?: unknown };
+          assertSafeMediaWrite(model, a.data);
+          assertSafeMediaWrite(model, a.create);
+          assertSafeMediaWrite(model, a.update);
+        }
+
         const result = await query(args);
         if (model && CACHE_MODELS.has(model) && WRITE_ACTIONS.has(operation)) {
           const r = result as { id?: unknown; tournamentId?: unknown } | null;
