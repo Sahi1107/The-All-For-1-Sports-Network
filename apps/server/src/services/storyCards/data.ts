@@ -78,13 +78,31 @@ export interface CardIdentity {
 
 const AVATAR_MAX_BYTES = 4 * 1024 * 1024;
 
+// Only these hosts are ever fetched server-side. `User.avatar` is not strictly
+// validated (the profile upload writes a GCS key, but the Firebase `picture`
+// claim writes whatever the identity provider supplies), and signMediaUrl passes
+// unknown http(s) values through unchanged — so without an allowlist this fetch
+// would be an SSRF primitive from inside the VPC (link-local metadata, internal
+// services). Anything else falls back to the initials avatar.
+const AVATAR_HOSTS = /(^|\.)(storage\.googleapis\.com|res\.cloudinary\.com|googleusercontent\.com)$/;
+
+/** Whether a resolved avatar URL may be fetched server-side. Exported for tests. */
+export function avatarFetchAllowed(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && AVATAR_HOSTS.test(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** Fetch the avatar into a data URI so satori can embed it. Best-effort with a
- *  timeout and size cap; any failure falls back to the initials avatar. */
+ *  host allowlist, timeout and size cap; any failure falls back to initials. */
 async function avatarDataUri(avatar: string | null): Promise<string | null> {
   if (!avatar) return null;
   try {
     const url = await signMediaUrl(avatar);
-    if (!url || !/^https?:\/\//.test(url)) return null;
+    if (!url || !avatarFetchAllowed(url)) return null;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 3500);
     const res = await fetch(url, { signal: ctrl.signal });
@@ -240,7 +258,7 @@ export async function tournamentCardData(userId: string, tournamentId: string, s
       { value: String(sum('runs')), label: 'RUNS', sub: `${per(sum('runs'), games)} per game` },
       { value: String(sum('wickets')), label: 'WICKETS', sub: `${per(sum('wickets'), games)} per game` },
       { value: String(sum('fours')), label: 'FOURS', sub: `${sum('sixes')} sixes` },
-      { value: String(per(sum('runs'), Math.max(1, sum('ballsFaced'))) * 100 ? r1((sum('runs') / Math.max(1, sum('ballsFaced'))) * 100) : 0), label: 'STRIKE RATE', sub: `${sum('ballsFaced')} balls` },
+      { value: String(pct(sum('runs'), sum('ballsFaced'))), label: 'STRIKE RATE', sub: `${sum('ballsFaced')} balls` },
     ];
   }
 

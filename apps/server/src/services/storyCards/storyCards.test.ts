@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bandFor, ageGroup, initialsOf, slugFor, per, pct, type CardIdentity, type MatchCardData } from './data';
+import { bandFor, ageGroup, initialsOf, slugFor, per, pct, avatarFetchAllowed, type CardIdentity, type MatchCardData } from './data';
 import { renderCardPng } from './render';
 import {
   matchCardStory, matchCardSquare, tournamentCardStory, careerCardStory,
@@ -41,6 +41,24 @@ test('identity helpers', () => {
   assert.equal(per(63, 3), 21);
   assert.equal(pct(36, 100), 36);
   assert.equal(pct(1, 0), 0, 'zero attempts renders 0, never NaN');
+});
+
+test('the avatar fetch is restricted to our own media hosts (SSRF guard)', () => {
+  // User.avatar is not strictly validated (the Firebase `picture` claim writes
+  // whatever the IdP supplies) and signMediaUrl passes unknown http(s) values
+  // through, so the card renderer must never fetch an arbitrary host.
+  assert.equal(avatarFetchAllowed('https://storage.googleapis.com/bucket/a.jpg?X-Goog-Signature=x'), true);
+  assert.equal(avatarFetchAllowed('https://res.cloudinary.com/demo/image/upload/a.jpg'), true);
+  assert.equal(avatarFetchAllowed('https://lh3.googleusercontent.com/a/default-user'), true);
+
+  assert.equal(avatarFetchAllowed('http://169.254.169.254/computeMetadata/v1/'), false, 'link-local metadata blocked');
+  assert.equal(avatarFetchAllowed('https://169.254.169.254/computeMetadata/v1/'), false);
+  assert.equal(avatarFetchAllowed('http://localhost:8080/internal'), false);
+  assert.equal(avatarFetchAllowed('https://10.0.0.5/admin'), false, 'private range blocked');
+  assert.equal(avatarFetchAllowed('https://evil.com/a.png'), false);
+  assert.equal(avatarFetchAllowed('https://storage.googleapis.com.evil.com/a.png'), false, 'suffix spoofing blocked');
+  assert.equal(avatarFetchAllowed('file:///etc/passwd'), false);
+  assert.equal(avatarFetchAllowed('not a url'), false);
 });
 
 // ── Render: every template produces a real PNG from fixture data ──────────────

@@ -978,15 +978,14 @@ export default function Profile() {
                           </button>
                         )}
                         {isOwnProfile && profile.role === 'ATHLETE' && (
-                          <div onClick={() => setShareMenuOpen(false)}>
-                            <ShareCardButton
-                              path="/share-cards/profile"
-                              filename="profile-card.png"
-                              label="Story card"
-                              type="profile"
-                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
-                            />
-                          </div>
+                          <ShareCardButton
+                            path="/share-cards/profile"
+                            filename="profile-card.png"
+                            label="Story card"
+                            type="profile"
+                            onDone={() => setShareMenuOpen(false)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
+                          />
                         )}
                       </div>
                     </>
