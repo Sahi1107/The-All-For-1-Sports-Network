@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { BadgeCheck, Award, ChevronDown } from 'lucide-react';
 import api from '../api/client';
+import { useAuth } from '../contexts/AuthContext';
+import ShareCardButton from './ShareCardButton';
 
 export interface MatchLine {
   matchId: string;
@@ -105,9 +107,9 @@ const shortDate = (d: string) =>
 
 /** Per-match stat lines for one tournament, plus that tournament's totals and
  *  averages — the full detail behind an averaged leaderboard figure. */
-function MatchLineTable({ sport, lines, totals, averages, matches }: {
+function MatchLineTable({ sport, lines, totals, averages, matches, own = false }: {
   sport: string; lines: MatchLine[]; totals: Record<string, number>;
-  averages?: Record<string, number>; matches: number;
+  averages?: Record<string, number>; matches: number; own?: boolean;
 }) {
   const cols = MATCH_COLS[sport] ?? [];
   if (!cols.length) return null;
@@ -120,6 +122,7 @@ function MatchLineTable({ sport, lines, totals, averages, matches }: {
           <tr className="text-gray-custom">
             <th className="py-1 pr-2 text-left font-medium">Match</th>
             {cols.map((c) => <th key={c.key} className="px-1.5 py-1 text-right font-medium">{c.label}</th>)}
+            {own && <th className="py-1 pl-1.5" aria-label="Share" />}
           </tr>
         </thead>
         <tbody>
@@ -135,16 +138,29 @@ function MatchLineTable({ sport, lines, totals, averages, matches }: {
               {cols.map((c) => (
                 <td key={c.key} className="px-1.5 py-1 text-right">{num(l.stats[c.key] ?? 0)}</td>
               ))}
+              {own && (
+                <td className="py-1 pl-1.5 text-right">
+                  <ShareCardButton
+                    path={`/share-cards/match/${l.matchId}`}
+                    filename="match-card.png"
+                    label=""
+                    type="match"
+                    className="inline-flex items-center p-1.5 rounded-md text-gray-custom hover:text-primary transition-colors"
+                  />
+                </td>
+              )}
             </tr>
           ))}
           <tr className="border-t border-line font-semibold text-foreground">
             <td className="py-1 pr-2">Total · {matches} match{matches === 1 ? '' : 'es'}</td>
             {cols.map((c) => <td key={c.key} className="px-1.5 py-1 text-right">{num(totals[c.key] ?? 0)}</td>)}
+            {own && <td />}
           </tr>
           {averages && matches > 1 && (
             <tr className="text-gray-custom">
               <td className="py-1 pr-2">Per game</td>
               {cols.map((c) => <td key={c.key} className="px-1.5 py-1 text-right">{num(averages[c.key] ?? 0)}</td>)}
+              {own && <td />}
             </tr>
           )}
         </tbody>
@@ -154,7 +170,7 @@ function MatchLineTable({ sport, lines, totals, averages, matches }: {
 }
 
 /** Pure presentational card — takes the /performance-card payload. */
-export function PerformanceCardView({ data, initialOpen = false }: { data: PCData; initialOpen?: boolean }) {
+export function PerformanceCardView({ data, initialOpen = false, own = false }: { data: PCData; initialOpen?: boolean; own?: boolean }) {
   const [open, setOpen] = useState(initialOpen);
   // One tournament's match lines open at a time — the card sits inside a profile
   // page, so expanding every tournament at once would bury everything below it.
@@ -181,9 +197,17 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
       {/* ── Hero band — recorded (verified) headline metrics ── */}
       {career && (
         <div className="rounded-xl border border-primary/25 bg-primary/[0.06] px-4 py-4">
-          <p className="flex items-center gap-1.5 font-display font-bold tracking-[0.1em] text-[10px] text-primary/90 mb-3">
-            <BadgeCheck size={12} /> RECORDED BY ALL FOR 1
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="flex items-center gap-1.5 font-display font-bold tracking-[0.1em] text-[10px] text-primary/90">
+              <BadgeCheck size={12} /> RECORDED BY ALL FOR 1
+            </p>
+            {own && (
+              <div className="flex gap-1.5">
+                <ShareCardButton path="/share-cards/career" filename="performance-card.png" label="Share" type="career" />
+                {topRank && <ShareCardButton path="/share-cards/ranking" filename="ranking-card.png" label="Rank" type="ranking" />}
+              </div>
+            )}
+          </div>
           {/* PER-MATCH, not career totals. A total is a function of how many
               games someone happened to play, so it ranks a squad player who
               turned out ten times above a star who played two — the opposite of
@@ -241,10 +265,22 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
                     )}
                   </button>
                   {expanded && sport && (
-                    <MatchLineTable
-                      sport={sport} lines={lines} totals={t.totals}
-                      averages={t.averages} matches={t.matches}
-                    />
+                    <>
+                      {own && (
+                        <div className="mt-2 flex justify-end">
+                          <ShareCardButton
+                            path={`/share-cards/tournament/${t.id}`}
+                            filename="tournament-card.png"
+                            label="Share tournament card"
+                            type="tournament"
+                          />
+                        </div>
+                      )}
+                      <MatchLineTable
+                        sport={sport} lines={lines} totals={t.totals}
+                        averages={t.averages} matches={t.matches} own={own}
+                      />
+                    </>
                   )}
                 </div>
               );
@@ -346,11 +382,14 @@ export function PerformanceCardView({ data, initialOpen = false }: { data: PCDat
  * recorded data yet. Renders nothing until the (auth'd) fetch resolves.
  */
 export default function PerformanceCard({ id }: { id: string }) {
+  const { user: me } = useAuth();
   const { data } = useQuery({
     queryKey: ['performance-card', id],
     queryFn: async () => (await api.get(`/users/${id}/performance-card`)).data as PCData,
     enabled: !!id,
   });
   if (!data) return null;
-  return <PerformanceCardView data={data} />;
+  // Share buttons only on the athlete's own card — the card endpoints are
+  // self-only on the server, so showing them to anyone else would just 404.
+  return <PerformanceCardView data={data} own={me?.id === id} />;
 }

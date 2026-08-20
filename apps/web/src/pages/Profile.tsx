@@ -15,6 +15,7 @@ import ImageCarousel from '../components/ImageCarousel';
 import PostActions from '../components/PostActions';
 import PostDetailModal from '../components/PostDetailModal';
 import PerformanceCard from '../components/PerformanceCard';
+import ShareCardButton from '../components/ShareCardButton';
 import ProfileViewsCard from '../components/profile/ProfileViewsCard';
 import EmptyState from '../components/EmptyState';
 
@@ -975,6 +976,17 @@ export default function Profile() {
                           >
                             <Share2 size={14} /> Share to…
                           </button>
+                        )}
+                        {isOwnProfile && profile.role === 'ATHLETE' && (
+                          <div onClick={() => setShareMenuOpen(false)}>
+                            <ShareCardButton
+                              path="/share-cards/profile"
+                              filename="profile-card.png"
+                              label="Story card"
+                              type="profile"
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/80 hover:bg-surface transition-colors text-left"
+                            />
+                          </div>
                         )}
                       </div>
                     </>
