@@ -19,9 +19,10 @@ import logger from '../utils/logger';
 export interface NewsItem {
   id: string;
   title: string;
-  source: string;   // publication name (shown as attribution)
-  url: string;      // opens in a new tab
-  category: string; // short tag, e.g. "Grassroots"
+  source: string;      // publication name (shown as attribution)
+  url: string;         // opens in a new tab
+  category: string;    // short tag, e.g. "Grassroots"
+  sport?: string | null; // Sport enum value the headline is about, when it is about one
 }
 
 // ─── Allow-listed sources ────────────────────────────────────────────────────
@@ -42,28 +43,61 @@ const SOURCES: Source[] = [
 
 // ─── Relevance + safety ──────────────────────────────────────────────────────
 
-/** Topics this platform exists for, most-wanted first. The first group a
- *  headline matches supplies both its ranking weight and its displayed tag. */
-const TOPICS: { tag: string; weight: number; re: RegExp }[] = [
-  { tag: 'Grassroots',   weight: 5, re: /\b(grassroot|academy|academies|school|inter-school|junior|sub-junior|youth|under[- ]?\d{2}|u-?\d{2}|khelo india|talent (hunt|search)|scholarship)\b/i },
-  { tag: 'Sports Ministry', weight: 5, re: /\b(sports ministry|ministry of youth affairs|sports authority of india|\bSAI\b|khelo india|national sports (policy|bill|governance)|sports minister|mandaviya)\b/i },
+/** Cross-cutting themes: what this platform is about, whatever the sport. These
+ *  outrank a bare sport match, so a Khelo India basketball story reads as
+ *  "Grassroots" rather than "Basketball". */
+const THEMES: { tag: string; weight: number; re: RegExp }[] = [
+  { tag: 'Grassroots',      weight: 5, re: /\b(grassroot|academy|academies|school|inter-school|junior|sub-junior|youth|under[- ]?\d{2}|u-?\d{2}|khelo india|talent (hunt|search)|scholarship)\b/i },
+  { tag: 'Sports Ministry', weight: 5, re: /\b(sports ministry|ministry of youth affairs|sports authority of india|\bSAI\b|khelo india|national sports (policy|bill|governance)|sports minister)\b/i },
   { tag: 'Olympic pathway', weight: 4, re: /\b(olympic|olympics|paralympic|asian games|commonwealth games|world championship|world c'?ship|qualifier|IOA|indian olympic association)\b/i },
-  { tag: 'Nationals',    weight: 4, re: /\b(national (games|championship|meet)|nationals|state (league|championship)|ranji|santosh trophy|federation cup)\b/i },
-  { tag: 'Leagues',      weight: 3, re: /\b(indian super league|\bISL\b|I-League|\bIPL\b|pro kabaddi|prime volleyball|ultimate kho kho|premier handball|\bNBA India\b|hockey india league)\b/i },
-  { tag: 'Basketball',   weight: 2, re: /\b(basketball|3x3)\b/i },
-  { tag: 'Football',     weight: 2, re: /\bfootball\b/i },
-  { tag: 'Athletics',    weight: 2, re: /\b(athletics|javelin|sprint|marathon|long jump|shot put)\b/i },
-  { tag: 'Hockey',       weight: 2, re: /\bhockey\b/i },
-  { tag: 'Badminton',    weight: 2, re: /\b(badminton|BWF)\b/i },
-  { tag: 'Wrestling',    weight: 2, re: /\b(wrestling|kabaddi|boxing|judo|weightlifting|archery|shooting)\b/i },
-  { tag: 'Cricket',      weight: 1, re: /\bcricket\b/i },
+  { tag: 'Nationals',       weight: 4, re: /\b(national (games|championship|meet)|nationals|state (league|championship)|ranji|santosh trophy|federation cup)\b/i },
+  { tag: 'Leagues',         weight: 3, re: /\b(indian super league|\bISL\b|I-League|\bIPL\b|pro kabaddi|prime volleyball|ultimate kho kho|premier handball|\bNBA India\b|hockey india league)\b/i },
 ];
+
+/** Which sport a headline is about, keyed by the platform's Sport enum, so the
+ *  rail can lead with the viewer's own sport. A headline matching none of these
+ *  has no sport and is only ever general filler. */
+const SPORTS: Record<string, RegExp> = {
+  BASKETBALL:   /\b(basketball|3x3|\bNBA\b|\bWNBA\b|hoops)\b/i,
+  FOOTBALL:     /\b(football|soccer|indian super league|\bISL\b|I-League|\bAIFF\b|\bFIFA\b|santosh trophy)\b/i,
+  CRICKET:      /\b(cricket|\bBCCI\b|ranji|\bIPL\b|test match|\bODI\b|\bT20\b|batter|bowler)\b/i,
+  FIELD_HOCKEY: /\b(hockey|\bFIH\b|hockey india)\b/i,
+  BADMINTON:    /\b(badminton|\bBWF\b|shuttler|\bBAI\b)\b/i,
+  ATHLETICS:    /\b(athletics|javelin|sprint(er)?|marathon|long jump|triple jump|high jump|shot put|discus|relay|steeplechase)\b/i,
+  WRESTLING:    /\b(wrestling|wrestler|kushti|\bWFI\b)\b/i,
+  BOXING:       /\b(boxing|boxer|pugilist)\b/i,
+  SHOOTING:     /\b(shooting|shooter|rifle|pistol|trap|skeet|\bNRAI\b)\b/i,
+  WEIGHTLIFTING:/\b(weightlifting|weightlifter|snatch|clean and jerk)\b/i,
+  ARCHERY:      /\b(archery|archer|recurve|compound bow)\b/i,
+  // Negative lookbehind so "table tennis" never reads as tennis.
+  TENNIS:       /\b(?<!table )(tennis|\bATP\b|\bWTA\b|grand slam)\b/i,
+  TABLE_TENNIS: /\b(table tennis|paddler|\bTTFI\b)\b/i,
+  RUGBY:        /\brugby\b/i,
+  SWIMMING:     /\b(swimming|swimmer|freestyle|backstroke|breaststroke|butterfly stroke)\b/i,
+  VOLLEYBALL:   /\b(volleyball|prime volleyball)\b/i,
+};
+
+/** Display label for a sport tag when no theme claims the headline. */
+const SPORT_LABEL: Record<string, string> = {
+  BASKETBALL: 'Basketball', FOOTBALL: 'Football', CRICKET: 'Cricket',
+  FIELD_HOCKEY: 'Hockey', BADMINTON: 'Badminton', ATHLETICS: 'Athletics',
+  WRESTLING: 'Wrestling', BOXING: 'Boxing', SHOOTING: 'Shooting',
+  WEIGHTLIFTING: 'Weightlifting', ARCHERY: 'Archery', TENNIS: 'Tennis',
+  TABLE_TENNIS: 'Table tennis', RUGBY: 'Rugby', SWIMMING: 'Swimming',
+  VOLLEYBALL: 'Volleyball',
+};
 
 /** India-facing coverage gets a lift: these outlets also carry global wires. */
 const INDIA = /\b(india|indian|bharat|bengaluru|mumbai|delhi|chennai|kolkata|hyderabad|pune|goa|kerala|punjab|haryana|odisha|manipur|assam)\b/i;
 
 /** Never shown next to a minor's profile, whatever the outlet filed it under. */
 const BLOCKED = /\b(bet|bets|betting|odds|bookmaker|casino|jackpot|fantasy (league|team|xi) tips|dream11|satta|porn|sex|nude|escort|drug bust|doping scandal|suicide|death threat)\b/i;
+
+/** Celebrity-personal-life filler. These sit inside the sport sections we pull
+ *  from and would otherwise take a scarce slot — a sport with only three stories
+ *  filed today can have one of them be an athlete's marriage or net worth. This
+ *  rail is a sports rail for young athletes, so they don't run. */
+const TABLOID = /(\bnet worth\b|\bis [a-z.' ]{2,24} married\b|all about (his|her) (son|daughter|wife|husband|kids|family)|\b(girlfriend|boyfriend|love life|personal life)\b|dating rumou?rs)/i;
 
 // ─── Curated fallback (reviewed, evergreen) ──────────────────────────────────
 
@@ -80,8 +114,10 @@ const CURATED: NewsItem[] = [
 const FETCH_TIMEOUT_MS = 6000;
 const MAX_FEED_BYTES = 3 * 1024 * 1024;
 const REFRESH_MS = 24 * 60 * 60 * 1000; // once a day
-const PER_SOURCE_CAP = 4;               // no single outlet can fill the rail
-const CACHE_SIZE = 24;
+const PER_SOURCE_CAP = 2;               // no single outlet can fill the general slots
+const SPORT_SOURCE_CAP = 3;             // looser: a niche sport may have one outlet covering it
+const POOL_SIZE = 250;                  // cached pool the per-viewer rail is chosen from
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // how far back the pool remembers
 
 const stripCdata = (s: string) => s.replace(/^\s*<!\[CDATA\[/, '').replace(/\]\]>\s*$/, '');
 
@@ -106,6 +142,10 @@ const tag = (item: string, name: string): string | null => {
 };
 
 interface RawItem { title: string; url: string; published: number; source: Source }
+
+/** A pool entry: a rail item plus the two fields the pool ranks and ages it by.
+ *  Both are stripped before the item is served. */
+interface PoolItem extends NewsItem { published: number; weight: number }
 
 /** The item's link, if it is an https URL on the outlet's own host — otherwise
  *  null. A feed we don't control must not be able to point our readers anywhere
@@ -160,19 +200,30 @@ async function readFeed(source: Source): Promise<RawItem[]> {
   }
 }
 
-/** Topic tag + ranking weight for a headline, or null if it clears no gate —
+/** Tag, ranking weight and sport for a headline, or null if it clears no gate —
  *  blocked outright, or too far from what this platform covers to show.
  *  Exported for tests. */
-export function classify(title: string): { tag: string; weight: number } | null {
-  if (BLOCKED.test(title)) return null;
-  const topic = TOPICS.find((t) => t.re.test(title));
+export function classify(
+  title: string,
+): { tag: string; weight: number; sport: string | null } | null {
+  if (BLOCKED.test(title) || TABLOID.test(title)) return null;
+
+  const theme = THEMES.find((t) => t.re.test(title));
+  const sport = Object.keys(SPORTS).find((key) => SPORTS[key].test(title)) ?? null;
   const indiaBonus = INDIA.test(title) ? 3 : 0;
-  if (!topic) return indiaBonus ? { tag: 'Indian sport', weight: indiaBonus } : null;
-  return { tag: topic.tag, weight: topic.weight + indiaBonus };
+
+  // A theme names the headline; a bare sport match is worth less but still
+  // qualifies, since it is exactly what a viewer of that sport wants to see.
+  if (theme) return { tag: theme.tag, weight: theme.weight + indiaBonus, sport };
+  if (sport) return { tag: SPORT_LABEL[sport], weight: 2 + indiaBonus, sport };
+  return indiaBonus ? { tag: 'Indian sport', weight: indiaBonus, sport: null } : null;
 }
 
-/** Read every allow-listed feed, filter, rank and de-duplicate. */
-async function collect(): Promise<NewsItem[]> {
+/** Read every allow-listed feed, filter, rank and de-duplicate into one pool.
+ *  No per-source cap here — the cache is a POOL, not the rail. Capping at
+ *  ingestion would starve the sport-specific slots later: a niche sport is
+ *  often covered by only one of these outlets. */
+async function collect(): Promise<PoolItem[]> {
   const feeds = await Promise.all(SOURCES.map(readFeed));
 
   const scored = feeds.flat().flatMap((raw) => {
@@ -186,26 +237,68 @@ async function collect(): Promise<NewsItem[]> {
   scored.sort((a, b) => day(b.published) - day(a.published) || b.weight - a.weight);
 
   const seen = new Set<string>();
-  const perSource = new Map<string, number>();
-  const out: NewsItem[] = [];
+  const out: PoolItem[] = [];
 
   for (const item of scored) {
     const key = item.title.toLowerCase().replace(/[^a-z0-9]+/g, '');
     if (seen.has(key)) continue;
-    const used = perSource.get(item.source.name) ?? 0;
-    if (used >= PER_SOURCE_CAP) continue;
     seen.add(key);
-    perSource.set(item.source.name, used + 1);
     out.push({
       id: `${item.source.host}-${key.slice(0, 32)}`,
       title: item.title,
       source: item.source.name,
       url: item.url,
       category: item.tag,
+      sport: item.sport,
+      // An item sitting in a feed with no readable date is treated as current.
+      published: item.published || Date.now(),
+      weight: item.weight,
     });
-    if (out.length >= CACHE_SIZE) break;
+    if (out.length >= POOL_SIZE) break;
   }
   return out;
+}
+
+// ─── Choosing what one viewer sees ───────────────────────────────────────────
+
+/** Take up to `n` items in pool order, skipping anything already chosen and
+ *  holding each outlet to `cap` so one publication can't fill the rail. */
+function take(pool: PoolItem[], n: number, chosen: Set<string>, perSource: Map<string, number>, cap: number): PoolItem[] {
+  const out: PoolItem[] = [];
+  for (const item of pool) {
+    if (out.length >= n) break;
+    if (chosen.has(item.id)) continue;
+    const used = perSource.get(item.source) ?? 0;
+    if (used >= cap) continue;
+    chosen.add(item.id);
+    perSource.set(item.source, used + 1);
+    out.push(item);
+  }
+  return out;
+}
+
+/**
+ * The rail for one viewer: their own sport first, then the wider Indian sport
+ * picture. An athlete should open the app and see their game — but the rail is
+ * also how they find out what is happening elsewhere, so it is never given over
+ * entirely to one sport. With no sport on the profile (or nothing published in
+ * it today) this degrades to the plain ranked list.
+ * Exported for tests.
+ */
+export function selectForSport(pool: PoolItem[], limit: number, sport?: string | null): NewsItem[] {
+  const chosen = new Set<string>();
+  const perSource = new Map<string, number>();
+
+  // Roughly three in five, so the viewer's sport clearly leads without
+  // crowding out everything else.
+  const mine = sport ? pool.filter((i) => i.sport === sport) : [];
+  const slots = Math.min(mine.length, Math.round(limit * 0.6));
+
+  // The sport group gets the looser cap: for a sport only one outlet covers,
+  // the general cap would leave those slots empty for no reader benefit.
+  const lead = take(mine, slots, chosen, perSource, SPORT_SOURCE_CAP);
+  const fill = take(pool, limit - lead.length, chosen, perSource, PER_SOURCE_CAP);
+  return [...lead, ...fill].map(({ published: _p, weight: _w, ...item }) => item);
 }
 
 // ─── Daily cache ─────────────────────────────────────────────────────────────
@@ -216,7 +309,7 @@ async function collect(): Promise<NewsItem[]> {
 // the network; every later one is served from memory while the refresh happens
 // behind it, so the rail never blocks a feed render.
 
-let cache: NewsItem[] = [];
+let cache: PoolItem[] = [];
 let succeededAt = 0;   // last refresh that actually produced items
 let attemptedAt = 0;   // last refresh attempt, successful or not
 let inFlight: Promise<void> | null = null;
@@ -233,6 +326,27 @@ function due(): boolean {
   return now - attemptedAt >= RETRY_MS;
 }
 
+/** Fold a fresh read into the existing pool, newest first, dropping anything
+ *  past MAX_AGE_MS. The pool spans days rather than one read on purpose: the
+ *  Indian outlets file only a handful of basketball or swimming stories in a
+ *  given day, so a single snapshot would leave those athletes with a rail that
+ *  never mentions their sport. Today's news still sorts to the top, so the
+ *  general slots stay current. */
+function merge(fresh: PoolItem[], existing: PoolItem[]): PoolItem[] {
+  const cutoff = Date.now() - MAX_AGE_MS;
+  const byId = new Map<string, PoolItem>();
+  for (const item of [...fresh, ...existing]) {
+    if (item.published < cutoff) continue;
+    if (!byId.has(item.id)) byId.set(item.id, item); // the fresh copy wins
+  }
+  // Re-rank across both runs: merging two already-sorted lists on the day alone
+  // would leave a day holding a fresh run followed by a stale one.
+  const day = (ms: number) => Math.floor(ms / 86_400_000);
+  return [...byId.values()]
+    .sort((a, b) => day(b.published) - day(a.published) || b.weight - a.weight)
+    .slice(0, POOL_SIZE);
+}
+
 function refresh(): Promise<void> {
   // One refresh at a time: a burst of feed renders past the TTL must not turn
   // into a burst of outbound requests to every outlet.
@@ -243,7 +357,7 @@ function refresh(): Promise<void> {
       // Keep the last good set if a refresh comes back empty (every feed down,
       // or everything filtered out) — better stale than blank.
       if (items.length) {
-        cache = items;
+        cache = merge(items, cache);
         succeededAt = Date.now();
       } else {
         logger.warn('news.refresh_empty');
@@ -260,16 +374,19 @@ function refresh(): Promise<void> {
 }
 
 /**
- * The news items shown in the rail — refreshed daily from the allow-listed
- * outlets above, falling back to the curated evergreen list until the first
- * refresh lands (or if every source is unreachable). Never rejects.
+ * The news items shown in one viewer's rail — refreshed daily from the
+ * allow-listed outlets above and led by `sport` (the viewer's profile sport),
+ * falling back to the curated evergreen list until the first refresh lands (or
+ * if every source is unreachable). Never rejects.
  */
-export async function getNews(limit = 5): Promise<NewsItem[]> {
+export async function getNews(limit = 5, sport?: string | null): Promise<NewsItem[]> {
   if (due()) {
     const pending = refresh();
     // Only a cold instance with nothing to show waits on the network; every
     // other read is served from memory while the refresh runs behind it.
     if (!cache.length) await pending;
   }
-  return (cache.length ? cache : CURATED).slice(0, limit);
+  // The curated fallback is a hand-written handful, not a pool to select from.
+  if (!cache.length) return CURATED.slice(0, limit);
+  return selectForSport(cache, limit, sport);
 }
