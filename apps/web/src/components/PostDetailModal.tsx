@@ -100,7 +100,7 @@ export default function PostDetailModal({ post, onClose, invalidateKeys = [] }: 
           {/* Performance moment — verified result as a stat card */}
           {post.type === 'PERFORMANCE' && post.performance && (
             <div className="p-4 pb-0">
-              <PerformanceCard performance={post.performance} verified={post.user?.verified} />
+              <PerformanceCard performance={post.performance} verified={post.user?.verified} cardUrl={post.mediaUrl} />
             </div>
           )}
 

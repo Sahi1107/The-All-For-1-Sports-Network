@@ -2464,6 +2464,18 @@ function ManageTeams() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to remove member'),
   });
 
+  const deleteTeam = useMutation({
+    mutationFn: (teamId: string) => api.delete(`/admin/teams/${teamId}`),
+    onSuccess: (res) => {
+      toast.success(res.data?.message || 'Team deleted');
+      setExpanded(null);
+      qc.invalidateQueries({ queryKey: ['admin-teams'] });
+    },
+    // The server refuses a team that has matches or a tracker draw, and says
+    // exactly why — surface that rather than a generic failure.
+    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to delete team', { duration: 6000 }),
+  });
+
   return (
     <div className="max-w-2xl space-y-4">
       <input
@@ -2524,6 +2536,27 @@ function ManageTeams() {
                     ))}
                   </div>
                   <AddMemberRow teamId={t.id} />
+
+                  <div className="border-t border-line pt-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-custom">Delete this team</p>
+                      <p className="text-[11px] text-gray-custom/70 mt-0.5">
+                        Removes the team and its roster. Blocked once it has recorded matches.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete “${t.name}”? Its ${t.members.length} roster entr${t.members.length === 1 ? 'y' : 'ies'} go with it. This cannot be undone.`)) {
+                          deleteTeam.mutate(t.id);
+                        }
+                      }}
+                      disabled={deleteTeam.isPending}
+                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 size={13} />
+                      {deleteTeam.isPending && deleteTeam.variables === t.id ? 'Deleting…' : 'Delete team'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

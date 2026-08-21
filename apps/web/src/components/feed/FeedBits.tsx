@@ -91,18 +91,38 @@ export function PostMeta({
 }
 
 /**
- * Performance moment — a verified result rendered as a stat card instead of
+ * Performance moment — a recorded result rendered as a stat card instead of
  * plain text. Big tabular numeral leads; the rating change reads as an upward
  * (green) pill.
+ *
+ * `cardUrl` is the server-rendered share card a stat post now carries: when it
+ * is present that image IS the post. The structured card below stays as the
+ * fallback for posts made before cards were rendered. `performance` supplies
+ * the alt text either way.
  */
 export function PerformanceCard({
   performance,
   verified,
+  cardUrl,
 }: {
   performance: Performance;
   verified?: boolean;
+  cardUrl?: string | null;
 }) {
   const { statValue, statLabel, ratingDelta, eyebrow, context } = performance;
+
+  if (cardUrl) {
+    return (
+      <img
+        src={cardUrl}
+        alt={[statValue, statLabel, eyebrow, context].filter(Boolean).join(' · ')}
+        loading="lazy"
+        decoding="async"
+        className="w-full rounded-xl border border-ink/10 bg-ink/5"
+      />
+    );
+  }
+
   const eyebrowText = [eyebrow, verified ? 'Verified' : null]
     .filter(Boolean)
     .join(' · ')

@@ -2,6 +2,7 @@ import { renderCardPng, type CardFormat } from './render';
 import {
   bandFor, loadCardUser, identityFor, clubFor,
   matchCardData, tournamentCardData, careerCardData, rankingCardData, profileCardData,
+  listMatchCardOptions, type MatchCardOption,
 } from './data';
 import { isStatSport, type StatSport } from '../../data/careerStats';
 import {
@@ -20,6 +21,13 @@ export class CardBlockedError extends Error {
 export type CardType = 'match' | 'tournament' | 'career' | 'ranking' | 'profile';
 
 export interface BuiltCard { buffer: Buffer; filename: string }
+
+/** A match card prepared for the feed: the square PNG plus the stat payload
+ *  derived from the same persisted row (the post's accessible text summary). */
+export interface MatchPostCard {
+  performance: { statValue: string; statLabel: string; eyebrow: string; context: string };
+  buffer: Buffer;
+}
 
 async function prepare(userId: string) {
   const user = await loadCardUser(userId);
@@ -42,6 +50,38 @@ export async function buildMatchCard(userId: string, matchId: string, format: Ca
   if (!data) return null;
   const element = format === 'square' ? matchCardSquare(data, identity) : matchCardStory(data, identity);
   return { buffer: await renderCardPng(element, format), filename: `${identity.slug}-match.png` };
+}
+
+/** The athlete's own played matches, as options for the composer's picker.
+ *  Behind the same age gate as every card: a blocked account gets none. */
+export async function listPostableMatches(userId: string): Promise<MatchCardOption[]> {
+  const { user } = await prepare(userId);
+  const sport = requireStatSport(user.sport);
+  if (!sport) return [];
+  return listMatchCardOptions(userId, sport);
+}
+
+/** A match card ready to be POSTED to the feed. Both the image and the stat
+ *  payload are built here from the persisted stat row: the athlete chooses which
+ *  match, never what the numbers say, so a stat post can't be self-reported.
+ *  Square (1080×1080) because it is going into a feed, not a story. */
+export async function buildMatchPostCard(userId: string, matchId: string): Promise<MatchPostCard | null> {
+  const { user, identity } = await prepare(userId);
+  const sport = requireStatSport(user.sport);
+  if (!sport) return null;
+  const data = await matchCardData(userId, matchId, sport);
+  if (!data) return null;
+  return {
+    performance: {
+      statValue: String(data.hero.value),
+      // Sliced to the same limits the PerformancePayload schema enforces, so a
+      // long round or tournament name can't write an oversized row.
+      statLabel: data.hero.label.slice(0, 16),
+      eyebrow: data.roundLine.slice(0, 40),
+      context: `${data.playerTeam.name} ${data.playerTeam.score}–${data.opponent.score} ${data.opponent.name} · ${data.metaLine}`.slice(0, 120),
+    },
+    buffer: await renderCardPng(matchCardSquare(data, identity), 'square'),
+  };
 }
 
 export async function buildTournamentCard(userId: string, tournamentId: string): Promise<BuiltCard | null> {

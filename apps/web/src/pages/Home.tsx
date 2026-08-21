@@ -307,7 +307,7 @@ export default function Home() {
                     {/* Performance moment — verified result as a stat card, not plain text */}
                     {item.kind === 'post' && item.type === 'PERFORMANCE' && item.performance && (
                       <div className="mb-3">
-                        <PerformanceCard performance={item.performance} verified={item.user?.verified} />
+                        <PerformanceCard performance={item.performance} verified={item.user?.verified} cardUrl={item.mediaUrl} />
                       </div>
                     )}
                     {item.title && <h3 className="font-display font-bold text-[15px] leading-snug">{item.title}</h3>}

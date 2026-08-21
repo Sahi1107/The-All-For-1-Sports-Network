@@ -499,6 +499,85 @@ router.delete(
   },
 );
 
+// DELETE /api/admin/teams/:teamId — remove a team outright (admin authority).
+// REFUSED once the team is part of the competition record: its matches carry the
+// stat rows that rankings, story cards and exports are all built from, and the
+// tracker draw is keyed on team ids. Deleting through that would silently break
+// published history, so the admin is told what to unwind first. What this DOES
+// clear is the case it exists for — duplicates, typos and empty teams created by
+// mistake — where TeamMember and TournamentTeam rows cascade away with it.
+router.delete(
+  '/teams/:teamId',
+  writeLimiter,
+  validate({ params: AdminTeamParams }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const teamId = req.params.teamId as string;
+
+      const team = await prisma.team.findUnique({
+        where: { id: teamId },
+        select: { id: true, name: true, tournamentId: true, _count: { select: { members: true } } },
+      });
+      if (!team) { res.status(404).json({ error: 'Team not found' }); return; }
+
+      const [matches, trackerFixtures] = await Promise.all([
+        prisma.match.count({ where: { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] } }),
+        prisma.trackerMatch.count({ where: { OR: [{ homeTeamId: teamId }, { awayTeamId: teamId }] } }),
+      ]);
+
+      if (matches > 0) {
+        res.status(409).json({
+          error: `“${team.name}” has ${matches} recorded match${matches === 1 ? '' : 'es'}. Deleting it would break the stats and rankings built from them.`,
+        });
+        return;
+      }
+      if (trackerFixtures > 0) {
+        res.status(409).json({
+          error: `“${team.name}” is in a Stat Tracker draw. Remove its fixtures there first.`,
+        });
+        return;
+      }
+
+      await prisma.$transaction(async (tx) => {
+        // A team can sit in a session's groups/roster before any fixture is
+        // generated. Nothing enforces those ids, so scrub them here rather than
+        // leaving the tracker pointing at a team that no longer exists.
+        if (team.tournamentId) {
+          const session = await tx.trackerSession.findUnique({
+            where: { tournamentId: team.tournamentId },
+            select: { id: true, groups: true, roster: true },
+          });
+          // Only the array shapes are ours to rewrite; anything else (null, or
+          // a session that predates the shape) is left exactly as it is.
+          const data: { groups?: any[]; roster?: any[] } = {};
+          if (Array.isArray(session?.groups)) {
+            data.groups = (session.groups as any[]).map((g) => ({
+              ...g,
+              teamIds: Array.isArray(g?.teamIds) ? g.teamIds.filter((id: string) => id !== teamId) : g?.teamIds,
+            }));
+          }
+          if (Array.isArray(session?.roster)) {
+            data.roster = (session.roster as any[]).filter((r) => r?.teamId !== teamId);
+          }
+          if (session && Object.keys(data).length) {
+            await tx.trackerSession.update({ where: { id: session.id }, data });
+          }
+        }
+        // TeamMember and TournamentTeam cascade on the Team FK.
+        await tx.team.delete({ where: { id: teamId } });
+      });
+
+      logger.info('admin.team_deleted', {
+        actorId: req.user!.userId, teamId, name: team.name, members: team._count.members,
+      });
+      res.json({ message: `Team “${team.name}” deleted` });
+    } catch (error) {
+      logger.error('Admin delete team error', { error: String(error) });
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+);
+
 // POST /api/admin/teams/compose — create a team + captain + players (+ optional
 // coach) in one action. Existing members are added by id; NEW members are created
 // through provisionAthleteAccount, so minor-safety cannot be bypassed. With a

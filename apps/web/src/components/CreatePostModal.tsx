@@ -1,22 +1,61 @@
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import axios from 'axios';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X, Type, Image, Video, Upload, Plus, Trash2, Mail, Trophy, RefreshCw, CheckCircle2 } from 'lucide-react';
 import api from '../api/client';
 import toast from 'react-hot-toast';
 import ImageCropModal from './ImageCropModal';
 import { useAuth } from '../contexts/AuthContext';
-import { PerformanceCard } from './feed/FeedBits';
 
 type PostType = 'TEXT' | 'IMAGE' | 'HIGHLIGHT' | 'PERFORMANCE';
 
-const EMPTY_PERF = {
-  statValue: '',
-  statLabel: '',
-  ratingDelta: '',
-  eyebrow: '',
-  context: '',
-};
+/** One played match, as offered by /share-cards/matches. */
+interface MatchOption {
+  matchId: string;
+  tournamentName: string;
+  matchDate: string;
+  round: string | null;
+  playerTeam: string;
+  opponent: string;
+  scoreLine: string;
+  result: 'W' | 'L' | 'D';
+  statLine: string;
+}
+
+/** Shared input styling. Placeholders sit well below body-text contrast so a
+ *  hint never reads as a value the athlete already typed. */
+const FIELD =
+  'w-full bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/25 focus:outline-none focus:border-primary';
+
+/** Every field carries a visible label — the placeholder is only ever an
+ *  example, never the field's name. */
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-foreground/60 mb-1.5">
+        {label}
+        {hint && <span className="text-foreground/35 font-normal"> · {hint}</span>}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+/** Modals mount on <body>, never in the page tree. An ancestor with a transform
+ *  (the pull-to-refresh wrapper animating back to rest, a page transition) becomes
+ *  the containing block for `position: fixed` descendants, which left the composer
+ *  positioned against that element instead of the viewport — the backdrop covered
+ *  the screen while the dialog itself sat offscreen. A portal can't be captured. */
+const portal = (node: React.ReactNode) =>
+  typeof document === 'undefined' ? null : createPortal(node, document.body);
+
+/** The message the API put on a failed request, if it sent one. */
+const apiError = (err: unknown): string | undefined =>
+  (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+
+const matchDateLabel = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 interface Props {
   onClose: () => void;
@@ -40,11 +79,19 @@ export default function CreatePostModal({ onClose }: Props) {
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState(0);
   const [commentsDisabled, setCommentsDisabled] = useState(false);
-  const [perf, setPerf] = useState({ ...EMPTY_PERF });
+  const [matchId, setMatchId] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const setPerfField = (k: keyof typeof EMPTY_PERF, v: string) =>
-    setPerf((p) => ({ ...p, [k]: v }));
+  // The athlete's played matches — the only source a stat card can come from.
+  // Loaded only when the Stat tab is open, and never used to send figures: the
+  // request carries the match id, and the server reads the stats itself.
+  const matches = useQuery({
+    queryKey: ['postable-matches'],
+    queryFn: async () => (await api.get('/share-cards/matches')).data.matches as MatchOption[],
+    enabled: type === 'PERFORMANCE',
+    staleTime: 5 * 60_000,
+  });
+  const pickedMatch = matches.data?.find((m) => m.matchId === matchId) ?? null;
 
   // Crop state: queue of raw files waiting to be cropped
   const [cropQueue, setCropQueue] = useState<string[]>([]);
@@ -95,13 +142,9 @@ export default function CreatePostModal({ onClose }: Props) {
       if (content) formData.append('content', content);
       if (title) formData.append('title', title);
       if (commentsDisabled) formData.append('commentsDisabled', 'true');
-      if (type === 'PERFORMANCE') {
-        // Drop empty optional fields so the server gets a clean payload.
-        const payload = Object.fromEntries(
-          Object.entries(perf).filter(([, v]) => v.trim() !== ''),
-        );
-        formData.append('performance', JSON.stringify(payload));
-      }
+      // Stat card: the match id is the whole payload. The server renders the
+      // card from the persisted stat row for that match.
+      if (type === 'PERFORMANCE') formData.append('matchId', matchId);
       for (const file of files) {
         formData.append('media', file);
       }
@@ -121,14 +164,14 @@ export default function CreatePostModal({ onClose }: Props) {
       toast.success('Posted!');
       onClose();
     },
-    onError: () => toast.error('Failed to post'),
+    onError: (err) => toast.error(apiError(err) ?? 'Failed to post'),
   });
 
   const canSubmit =
     (type === 'TEXT' && content.trim()) ||
     (type === 'IMAGE' && files.length > 0) ||
     (type === 'HIGHLIGHT' && files.length > 0 && title.trim()) ||
-    (type === 'PERFORMANCE' && perf.statValue.trim() && perf.statLabel.trim());
+    (type === 'PERFORMANCE' && !!matchId);
 
   const acceptType = type === 'HIGHLIGHT' ? 'video/*' : 'image/*';
 
@@ -171,7 +214,7 @@ export default function CreatePostModal({ onClose }: Props) {
   };
 
   if (unverifiedEmail) {
-    return (
+    return portal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
         <div className="bg-card border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl p-8 text-center">
           <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -208,13 +251,13 @@ export default function CreatePostModal({ onClose }: Props) {
             Close
           </button>
         </div>
-      </div>
+      </div>,
     );
   }
 
-  return (
+  return portal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-card border border-ink/10 rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-ink/10">
           <h2 className="font-semibold text-foreground">Create Post</h2>
@@ -229,11 +272,11 @@ export default function CreatePostModal({ onClose }: Props) {
             { key: 'TEXT', icon: Type, label: 'Text' },
             { key: 'IMAGE', icon: Image, label: 'Photo' },
             { key: 'HIGHLIGHT', icon: Video, label: 'Highlight' },
-            { key: 'PERFORMANCE', icon: Trophy, label: 'Stat' },
+            { key: 'PERFORMANCE', icon: Trophy, label: 'Stat card' },
           ] as const).map(({ key, icon: Icon, label }) => (
             <button
               key={key}
-              onClick={() => { setType(key); setFiles([]); setContent(''); setTitle(''); setPerf({ ...EMPTY_PERF }); }}
+              onClick={() => { setType(key); setFiles([]); setContent(''); setTitle(''); setMatchId(''); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
                 type === key
                   ? 'text-primary border-b-2 border-primary'
@@ -250,83 +293,90 @@ export default function CreatePostModal({ onClose }: Props) {
         <div className="p-5 space-y-4">
           {/* Title — for highlight only */}
           {type === 'HIGHLIGHT' && (
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Title *"
-              className="w-full bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
-            />
+            <Field label="Title" hint="required">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Assist to a baseline dunk"
+                className={FIELD}
+              />
+            </Field>
           )}
 
-          {/* Performance moment — verified result entered as a stat card */}
+          {/* Stat card — built from a match the athlete actually played. There is
+              no free-text stat entry anywhere here: the athlete picks the match,
+              the server reads the recorded box score and renders the card. */}
           {type === 'PERFORMANCE' && (
             <div className="space-y-3">
-              <div className="flex gap-2">
-                <input
-                  value={perf.statValue}
-                  onChange={(e) => setPerfField('statValue', e.target.value)}
-                  placeholder="32"
-                  maxLength={12}
-                  inputMode="numeric"
-                  className="w-24 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm font-numeric tabular-nums text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
-                />
-                <input
-                  value={perf.statLabel}
-                  onChange={(e) => setPerfField('statLabel', e.target.value.toUpperCase())}
-                  placeholder="PTS"
-                  maxLength={16}
-                  className="flex-1 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
-                />
-              </div>
-              <div className="flex gap-2">
-                <input
-                  value={perf.eyebrow}
-                  onChange={(e) => setPerfField('eyebrow', e.target.value)}
-                  placeholder="Season high"
-                  maxLength={40}
-                  className="flex-1 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
-                />
-                <input
-                  value={perf.ratingDelta}
-                  onChange={(e) => setPerfField('ratingDelta', e.target.value)}
-                  placeholder="+2.1 rating"
-                  maxLength={16}
-                  className="w-32 bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
-                />
-              </div>
-              <input
-                value={perf.context}
-                onChange={(e) => setPerfField('context', e.target.value)}
-                placeholder="vs Bengaluru Hoops · Chennai Open · Apr 14"
-                maxLength={120}
-                className="w-full bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary"
-              />
+              {matches.isLoading ? (
+                <p className="text-sm text-foreground/50">Loading your matches…</p>
+              ) : matches.isError ? (
+                <p className="text-sm text-foreground/50">
+                  {/* A guardian-managed or under-13 account is refused outright;
+                      the server says so, and that is more useful than "retry". */}
+                  {apiError(matches.error)
+                    ?? "Couldn't load your matches just now — please try again in a moment."}
+                </p>
+              ) : (matches.data?.length ?? 0) === 0 ? (
+                <div className="rounded-xl border border-dashed border-ink/15 px-4 py-6 text-center">
+                  <Trophy size={22} className="mx-auto mb-2 text-foreground/30" />
+                  <p className="text-sm font-medium text-foreground/70">No recorded matches yet</p>
+                  <p className="text-xs text-foreground/45 mt-1 leading-relaxed">
+                    Stat cards are built from published box scores. Once a match you
+                    played is published, it appears here ready to post.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Field label="Match" hint="your recorded box scores">
+                    <select
+                      value={matchId}
+                      onChange={(e) => setMatchId(e.target.value)}
+                      className={FIELD}
+                    >
+                      <option value="">Select a match…</option>
+                      {matches.data!.map((m) => (
+                        <option key={m.matchId} value={m.matchId}>
+                          {`vs ${m.opponent} · ${m.scoreLine} ${m.result} · ${matchDateLabel(m.matchDate)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
 
-              {/* Live preview of the stat card */}
-              {(perf.statValue.trim() || perf.statLabel.trim()) && (
-                <PerformanceCard
-                  performance={{
-                    statValue: perf.statValue.trim() || '0',
-                    statLabel: perf.statLabel.trim() || 'STAT',
-                    ratingDelta: perf.ratingDelta.trim() || undefined,
-                    eyebrow: perf.eyebrow.trim() || undefined,
-                    context: perf.context.trim() || undefined,
-                  }}
-                  verified={verified}
-                />
+                  {/* Read-only confirmation of what the card will say. These
+                      figures come from the server, never from an input. */}
+                  {pickedMatch && (
+                    <div className="rounded-xl border border-primary/25 bg-primary/[0.07] px-4 py-3.5">
+                      <p className="font-display font-bold tracking-[0.12em] text-[10px] text-primary/90 mb-1.5">
+                        {[pickedMatch.round, pickedMatch.tournamentName].filter(Boolean).join(' · ').toUpperCase()}
+                      </p>
+                      <p className="text-sm font-semibold text-foreground">
+                        {pickedMatch.playerTeam} {pickedMatch.scoreLine} {pickedMatch.opponent}
+                      </p>
+                      <p className="font-numeric tabular-nums text-sm text-foreground/80 mt-1.5">
+                        {pickedMatch.statLine}
+                      </p>
+                      <p className="text-[11px] text-foreground/45 mt-2">
+                        Recorded stats{verified ? ' · Verified' : ''} — your card is rendered from this box score.
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
 
           {/* Content / caption */}
           {(type === 'TEXT' || type === 'IMAGE' || type === 'PERFORMANCE') && (
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={type === 'TEXT' ? "What's on your mind?" : 'Add a caption…'}
-              rows={type === 'TEXT' ? 5 : 3}
-              className="w-full bg-ink/5 border border-ink/10 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder-ink/30 focus:outline-none focus:border-primary resize-none"
-            />
+            <Field label={type === 'TEXT' ? 'Post' : 'Caption'} hint={type === 'TEXT' ? undefined : 'optional'}>
+              <textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder={type === 'TEXT' ? "Share a highlight, result or update…" : 'Say something about it…'}
+                rows={type === 'TEXT' ? 5 : 3}
+                className={`${FIELD} resize-none`}
+              />
+            </Field>
           )}
 
           {/* File picker — image or video */}
@@ -443,6 +493,6 @@ export default function CreatePostModal({ onClose }: Props) {
           onClose={handleCropSkip}
         />
       )}
-    </div>
+    </div>,
   );
 }

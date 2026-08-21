@@ -1351,7 +1351,7 @@ export default function Profile() {
                       )}
                       {p.type === 'PERFORMANCE' && p.performance && (
                         <div onClick={() => setOpenPost(postWithUser)} className="px-3 pt-3 cursor-pointer">
-                          <PerformancePostCard performance={p.performance} verified={profile.verified} />
+                          <PerformancePostCard performance={p.performance} verified={profile.verified} cardUrl={p.mediaUrl} />
                         </div>
                       )}
                       <div className="p-3 flex items-start justify-between gap-2">
@@ -1419,7 +1419,7 @@ export default function Profile() {
                     )}
                     {p.type === 'PERFORMANCE' && p.performance && (
                       <div onClick={() => setOpenPost(p)} className="px-3 pt-3 cursor-pointer">
-                        <PerformancePostCard performance={p.performance} verified={p.user?.verified} />
+                        <PerformancePostCard performance={p.performance} verified={p.user?.verified} cardUrl={p.mediaUrl} />
                       </div>
                     )}
                     <div onClick={() => setOpenPost(p)} className="p-3 cursor-pointer">

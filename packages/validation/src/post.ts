@@ -12,8 +12,10 @@ const VideoKey = z
     error: 'videoKey must be a posts/<uuid>.<ext> object key',
   });
 
-// Stat payload for a PERFORMANCE post. The athlete enters these values; the big
-// numeral + label render as a stat card in the feed instead of plain text.
+// Stat payload stored on a PERFORMANCE post. NOT a client input: the server
+// derives it from the athlete's persisted stat row for the chosen match (see
+// services/storyCards). Kept here as the documented shape of the column, which
+// legacy self-reported posts also use.
 export const PerformancePayload = z.object({
   statValue:   reqStr(12,  'Stat value'),      // "32"
   statLabel:   reqStr(16,  'Stat label'),      // "PTS"
@@ -33,17 +35,12 @@ export const CreatePostBody = z.object({
   // Set by the direct-to-GCS highlight flow: the video is uploaded straight to
   // GCS and only its object key is sent here (instead of multipart bytes).
   videoKey: VideoKey.optional(),
-  // Present only for PERFORMANCE posts. Accept a JSON string (multipart form) or
-  // an already-parsed object (JSON body) and coerce to the payload shape.
-  performance: z.preprocess(
-    (v) => (typeof v === 'string' ? safeJson(v) : v),
-    PerformancePayload.optional(),
-  ),
+  // Required for PERFORMANCE posts: which match the stat card is built from. The
+  // numbers themselves are never accepted from the client — the server reads
+  // them out of the persisted stat row — so a stat post cannot be self-reported.
+  // (An older client's `performance` field is simply stripped by zod.)
+  matchId: optUuid,
 });
-
-function safeJson(s: string): unknown {
-  try { return JSON.parse(s); } catch { return undefined; }
-}
 
 // Body for minting a direct-upload signed URL.
 export const UploadUrlBody = z.object({

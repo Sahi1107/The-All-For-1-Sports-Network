@@ -15,6 +15,7 @@ import {
   getObjectSize,
   deleteFromGCS,
 } from '../services/storage';
+import { buildMatchPostCard, CardBlockedError, type MatchPostCard } from '../services/storyCards';
 import { parseReportInput, createReport } from '../services/reports';
 import { blockedUserIds } from '../services/blocks';
 import { notify } from '../services/notifications/notify';
@@ -68,7 +69,7 @@ router.post('/upload-url', authenticate, writeLimiter, validate({ body: UploadUr
 // POST /api/posts
 router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validate({ body: CreatePostBody }), async (req: AuthRequest, res: Response) => {
   try {
-    const { type, content, title, commentsDisabled, videoKey, performance } = req.body;
+    const { type, content, title, commentsDisabled, videoKey, matchId } = req.body;
     const files = (req.files as Express.Multer.File[]) || [];
 
     // Magic-byte validation for uploaded media
@@ -126,9 +127,31 @@ router.post('/', authenticate, uploadLimiter, upload.array('media', 10), validat
       res.status(400).json({ error: 'Video file is required' });
       return;
     }
-    if (type === 'PERFORMANCE' && !performance) {
-      res.status(400).json({ error: 'Performance stats are required for a performance moment' });
-      return;
+    // A stat post is a story card for a match the athlete actually played. The
+    // server reads the persisted stat row and renders the square card itself —
+    // the client only says WHICH match — so the figures can't be self-reported.
+    let performance: MatchPostCard['performance'] | undefined;
+    if (type === 'PERFORMANCE') {
+      if (!matchId) {
+        res.status(400).json({ error: 'Pick a match to build the stat card from' });
+        return;
+      }
+      let card;
+      try {
+        card = await buildMatchPostCard(req.user!.userId, matchId);
+      } catch (err) {
+        if (err instanceof CardBlockedError) {
+          res.status(403).json({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+      if (!card) {
+        res.status(404).json({ error: 'No recorded stats for that match yet' });
+        return;
+      }
+      performance = card.performance;
+      mediaUrls.push(await uploadToGCS(card.buffer, 'posts', 'png', 'image/png'));
     }
 
     const post = await prisma.post.create({

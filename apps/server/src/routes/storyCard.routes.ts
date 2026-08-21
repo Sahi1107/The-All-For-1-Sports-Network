@@ -3,7 +3,7 @@ import { authenticate, type AuthRequest } from '../middleware/auth';
 import logger from '../utils/logger';
 import {
   buildMatchCard, buildTournamentCard, buildCareerCard, buildRankingCard, buildProfileCard,
-  CardBlockedError, type BuiltCard,
+  listPostableMatches, CardBlockedError, type BuiltCard,
 } from '../services/storyCards';
 import type { CardFormat } from '../services/storyCards/render';
 
@@ -37,6 +37,15 @@ function fail(res: Response, error: unknown): void {
   logger.error('Story card error', { error: String(error) });
   res.status(500).json({ error: 'Failed to build the card' });
 }
+
+// GET /api/share-cards/matches — the athlete's own played matches, newest first.
+// Feeds the composer's "which match?" picker: an athlete posting a stat card
+// chooses from matches they actually played, and every entry here is one the
+// renderer can build. Declared before /match/:matchId so it isn't shadowed.
+router.get('/matches', authenticate, async (req: AuthRequest, res: Response) => {
+  try { res.json({ matches: await listPostableMatches(req.user!.userId) }); }
+  catch (e) { fail(res, e); }
+});
 
 router.get('/match/:matchId', authenticate, async (req: AuthRequest, res: Response) => {
   try { send(res, await buildMatchCard(req.user!.userId, String(req.params.matchId), fmt(req))); }

@@ -208,6 +208,82 @@ export async function matchCardData(userId: string, matchId: string, sport: Stat
   };
 }
 
+// ── Match options (the composer's match picker) ───────────────────────────────
+export interface MatchCardOption {
+  matchId: string;
+  tournamentId: string;
+  tournamentName: string;
+  matchDate: string;      // ISO — the client does the formatting
+  round: string | null;
+  playerTeam: string;
+  opponent: string;
+  scoreLine: string;      // "72–65", the player's team first
+  result: 'W' | 'L' | 'D';
+  statLine: string;       // "24 POINTS · 8 REBOUNDS · 5 ASSISTS"
+}
+
+/** Every match the athlete has a persisted stat row for, newest first. Reads the
+ *  same rows, resolves the player's side the same way, and applies the same
+ *  "needs a final score" rule as matchCardData — so every option offered here
+ *  can actually be rendered, and the picker never lists a match that would 404
+ *  the moment it is chosen. */
+export async function listMatchCardOptions(
+  userId: string,
+  sport: StatSport,
+  take = 100,
+): Promise<MatchCardOption[]> {
+  const model = (prisma as any)[MODEL_BY_SPORT[sport]];
+  const shape = MATCH_SHAPE[sport];
+
+  const [rows, memberships] = await Promise.all([
+    model.findMany({
+      where: { userId, match: { homeScore: { not: null }, awayScore: { not: null } } },
+      include: {
+        match: {
+          select: {
+            homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true,
+            round: true, matchDate: true,
+            homeTeam: { select: { name: true } }, awayTeam: { select: { name: true } },
+            tournament: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { match: { matchDate: 'desc' } },
+      take,
+    }),
+    // Every membership in one read: resolving "was I home or away?" the way
+    // matchCardData does would otherwise cost two queries per match listed.
+    prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }),
+  ]);
+
+  const myTeams = new Set(memberships.map((m) => m.teamId));
+
+  return (rows as Array<Record<string, any>>).map((row) => {
+    const m = row.match;
+    // Roster gap falls back to home, like matchCardData and the export.
+    const home = myTeams.has(m.homeTeamId) || !myTeams.has(m.awayTeamId);
+    const mine = home
+      ? { name: m.homeTeam?.name ?? 'HOME', score: m.homeScore as number }
+      : { name: m.awayTeam?.name ?? 'AWAY', score: m.awayScore as number };
+    const theirs = home
+      ? { name: m.awayTeam?.name ?? 'AWAY', score: m.awayScore as number }
+      : { name: m.homeTeam?.name ?? 'HOME', score: m.homeScore as number };
+
+    return {
+      matchId: row.matchId,
+      tournamentId: row.tournamentId,
+      tournamentName: m.tournament?.name ?? '',
+      matchDate: new Date(m.matchDate).toISOString(),
+      round: m.round ?? null,
+      playerTeam: mine.name,
+      opponent: theirs.name,
+      scoreLine: `${mine.score}–${theirs.score}`,
+      result: mine.score > theirs.score ? 'W' : mine.score < theirs.score ? 'L' : 'D',
+      statLine: [shape.hero, ...shape.rail].map(([k, l]) => `${Number(row[k] ?? 0)} ${l}`).join(' · '),
+    };
+  });
+}
+
 // ── Tournament summary card ───────────────────────────────────────────────────
 export interface TournamentCardData {
   tournamentName: string;
